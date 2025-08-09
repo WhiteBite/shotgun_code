@@ -46,10 +46,6 @@ export function StartFileWatcher(arg1) {
   return window['go']['main']['App']['StartFileWatcher'](arg1);
 }
 
-export function StartupTest(arg1) {
-  return window['go']['main']['App']['StartupTest'](arg1);
-}
-
 export function StopFileWatcher() {
   return window['go']['main']['App']['StopFileWatcher']();
 }
