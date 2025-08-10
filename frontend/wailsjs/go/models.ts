@@ -1,5 +1,23 @@
-export namespace services {
+export namespace domain {
 	
+	export class CommitWithFiles {
+	    hash: string;
+	    subject: string;
+	    files: string[];
+	    isMerge: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommitWithFiles(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hash = source["hash"];
+	        this.subject = source["subject"];
+	        this.files = source["files"];
+	        this.isMerge = source["isMerge"];
+	    }
+	}
 	export class FileNode {
 	    name: string;
 	    path: string;

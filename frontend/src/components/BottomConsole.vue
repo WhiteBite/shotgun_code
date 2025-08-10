@@ -21,7 +21,7 @@
 
 <script setup>
 import { ref, watch, nextTick } from 'vue';
-import { useNotificationsStore } from '../stores/notifications';
+import { useNotificationsStore } from '../stores/notificationsStore.js';
 
 const props = defineProps({
   height: { type: Number, default: 150 }

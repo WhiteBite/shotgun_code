@@ -1,12 +1,10 @@
-
 <template>
-  <!-- ИСПРАВЛЕНО: Восстановлена полная верстка (template) -->
   <nav class="bg-white shadow-md sticky top-0 z-10">
     <div class="container mx-auto px-4 py-3">
       <ol class="flex items-center justify-between">
         <li v-for="(step, index) in steps.steps" :key="step.id"
             class="flex-1 group"
-            :class="{'flex items-center': index < steps.length - 1}">
+            :class="{'flex items-center': index < steps.steps.length - 1}">
           <div class="flex items-center w-full">
             <button
                 @click.prevent="steps.navigateToStep(step.id)"
@@ -31,7 +29,6 @@
               </span>
             </button>
           </div>
-          <!-- Connector line -->
           <div v-if="index < steps.steps.length - 1" class="flex-auto border-t-2 transition-all duration-300 ease-in-out"
                :class="step.completed ? 'border-green-500' : 'border-gray-300'">
           </div>
@@ -42,15 +39,15 @@
 </template>
 
 <script setup>
-import { useStepsStore } from '../stores/steps';
+import { useStepsStore } from '../stores/stepsStore.js';
 const steps = useStepsStore();
 
-// Логика навигации теперь инкапсулирована в сторе
 function canNavigateToStep(stepId) {
   const targetStep = steps.steps.find(s => s.id === stepId);
   if (!targetStep) return false;
-  if (targetStep.completed || stepId === steps.currentStep) return true;
+  if (targetStep.completed) return true;
+
   const firstUncompleted = steps.steps.find(s => !s.completed);
-  return (firstUncompleted && stepId === firstUncompleted.id);
+  return firstUncompleted && stepId >= firstUncompleted.id;
 }
 </script>

@@ -1,33 +1,36 @@
-
-import { ref, computed } from 'vue'; // ИСПРАВЛЕНО: Добавлен импорт 'computed'
-import { useNotificationsStore } from '../stores/notifications';
+import { ref } from 'vue';
+import { ClipboardSetText } from '../../wailsjs/runtime/runtime';
 
 /**
  * @typedef {'idle' | 'success' | 'error'} ClipboardStatus
  */
 
 /**
- * Composable для работы с буфером обмена.
+ * Composable for clipboard operations. Returns the operation status.
  * @returns {{copy: (text: string) => Promise<void>, status: import('vue').Ref<ClipboardStatus>}}
  */
 export function useClipboard() {
-  const notifications = useNotificationsStore();
   const status = ref('idle');
 
   const copy = async (textToCopy) => {
+    status.value = 'idle';
     if (!textToCopy) {
-      notifications.addLog('Текст для копирования пуст.', 'warn');
+      console.warn('Text to copy is empty.');
       status.value = 'error';
       setTimeout(() => status.value = 'idle', 2000);
       return;
     }
+
     try {
-      await navigator.clipboard.writeText(textToCopy);
+      if (window.wails?.runtime?.ClipboardSetText) {
+        await ClipboardSetText(textToCopy);
+      } else {
+        await navigator.clipboard.writeText(textToCopy);
+      }
       status.value = 'success';
       setTimeout(() => status.value = 'idle', 2000);
     } catch (err) {
-      console.error('Ошибка копирования в буфер обмена:', err);
-      notifications.addLog(`Ошибка копирования: ${err.message}`, 'error');
+      console.error('Failed to copy to clipboard:', err);
       status.value = 'error';
       setTimeout(() => status.value = 'idle', 2000);
     }

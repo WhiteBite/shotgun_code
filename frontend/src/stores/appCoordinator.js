@@ -1,44 +1,58 @@
-
 import { watch } from 'vue';
-import { useSettingsStore } from './settings';
-import { useProjectStore } from './project';
-import { usePromptStore } from './prompt';
+import { useSettingsStore } from './settingsStore';
+import { useProjectStore } from './projectStore';
+import { usePromptStore } from './promptStore';
+import { useFileTreeStore } from './fileTreeStore';
+import { useContextStore } from './contextStore';
+import { usePromptTemplateStore } from './promptTemplateStore';
 
-/**
- * Composable для координации взаимодействия между сторами.
- * Запускается один раз при инициализации приложения.
- */
+let contextDebounceTimer = null;
+
 export function useAppCoordinator() {
   const settings = useSettingsStore();
   const project = useProjectStore();
   const prompt = usePromptStore();
+  const fileTree = useFileTreeStore();
+  const context = useContextStore();
+  const promptTemplate = usePromptTemplateStore();
 
-  // Когда меняются настройки игнорирования, пересчитываем состояние дерева
-  watch([() => settings.useGitignore, () => settings.useCustomIgnore], () => {
-    if (project.projectRoot) {
-      project.updateAllNodesExcludedState();
-      project.triggerShotgunContextGeneration();
+  const handleContextRelevantChange = () => {
+    if (context.hasGeneratedContextOnce) {
+      clearTimeout(contextDebounceTimer);
+      contextDebounceTimer = setTimeout(() => {
+        if (project.projectRoot && !fileTree.isFileTreeLoading) {
+          context.triggerShotgunContextGeneration();
+        }
+      }, 800);
     }
-  });
+  };
 
-  // Когда меняются данные для промпта, генерируем финальный промпт
+  watch([() => settings.useGitignore, () => settings.useCustomIgnore], async () => {
+    if (project.projectRoot) {
+      await fileTree.loadFileTree(project.projectRoot);
+    }
+  }, { deep: true });
+
+  watch(
+      () => fileTree.tree,
+      () => { handleContextRelevantChange() },
+      { deep: true }
+  );
+
   watch(
       [
         () => prompt.userTask,
         () => settings.customPromptRules,
-        () => project.shotgunPromptContext,
-        () => prompt.selectedTemplateKey,
+        () => context.shotgunPromptContext,
+        () => promptTemplate.selectedTemplateKey,
       ],
       () => {
-        // Запускаем генерацию, только если мы на 2-м шаге или дальше,
-        // и если есть хотя бы задача или контекст
-        if (project.shotgunPromptContext || prompt.userTask) {
+        if (context.shotgunPromptContext || prompt.userTask) {
           prompt.generateFinalPrompt();
         }
       },
-      { deep: true }
+      { deep: true, immediate: true }
   );
 
-  // Вызываем инициализацию настроек при старте
   settings.initializeSettings();
 }

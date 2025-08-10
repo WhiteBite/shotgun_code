@@ -1,50 +1,77 @@
 <template>
   <ul class="file-tree">
-    <li v-for="node in nodes" :key="node.path" :class="{ 'excluded-node': node.excluded }">
+    <li v-for="node in nodes" :key="node.path" :class="{ 'excluded-node': node.excluded && !isIndeterminate(node) }">
       <div class="node-item" :style="{ 'padding-left': depth * 20 + 'px' }">
         <span v-if="node.isDir" @click="toggleExpand(node)" class="toggler">
           {{ node.expanded ? '▼' : '▶' }}
         </span>
         <span v-else class="item-spacer"></span>
-        
-        <input 
-          type="checkbox" 
-          :checked="!node.excluded" 
-          @change="handleCheckboxChange(node)"
-          class="exclude-checkbox"
+
+        <input
+            type="checkbox"
+            :checked="!node.excluded"
+            :indeterminate="isIndeterminate(node)"
+            @change="emit('toggle-exclude', node)"
+            class="exclude-checkbox"
+            ref="checkboxes"
         />
         <span @click="node.isDir ? toggleExpand(node) : null" :class="{ 'folder-name': node.isDir }">
           {{ node.name }}
         </span>
       </div>
-      <FileTree 
-        v-if="node.isDir && node.expanded && node.children" 
-        :nodes="node.children" 
-        :project-root="projectRoot"
-        :depth="depth + 1"
-        @toggle-exclude="emitToggleExclude"
+      <FileTree
+          v-if="node.isDir && node.expanded && node.children"
+          :nodes="node.children"
+          :depth="depth + 1"
+          @toggle-exclude="emitToggleExclude"
       />
     </li>
   </ul>
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { ref, onUpdated } from 'vue';
 
 const props = defineProps({
   nodes: Array,
-  projectRoot: String,
-  depth: {
-    type: Number,
-    default: 0
-  },
-  parentExcluded: { // Whether an ancestor is excluded
-    type: Boolean,
-    default: false
-  }
+  depth: { type: Number, default: 0 },
 });
 
 const emit = defineEmits(['toggle-exclude']);
+
+const checkboxes = ref([]);
+
+function getChildrenStates(node) {
+  if (!node.isDir || !node.children || node.children.length === 0) {
+    return { checked: 0, unchecked: 0, total: 0 };
+  }
+  let checked = 0;
+  let unchecked = 0;
+  node.children.forEach(child => {
+    if (!child.excluded) {
+      checked++;
+    } else {
+      unchecked++;
+    }
+  });
+  return { checked, unchecked, total: node.children.length };
+}
+
+const isIndeterminate = (node) => {
+  if (!node.isDir) return false;
+  const states = getChildrenStates(node);
+  return states.total > 0 && states.checked > 0 && states.unchecked > 0;
+};
+
+onUpdated(() => {
+  // Wails/Vue может не всегда корректно обновлять DOM свойство `indeterminate`,
+  // поэтому мы делаем это вручную при обновлении компонента.
+  props.nodes.forEach((node, index) => {
+    if (checkboxes.value[index]) {
+      checkboxes.value[index].indeterminate = isIndeterminate(node);
+    }
+  });
+});
 
 function toggleExpand(node) {
   if (node.isDir) {
@@ -52,32 +79,15 @@ function toggleExpand(node) {
   }
 }
 
-function handleCheckboxChange(node) {
-  // Emit an event with the node to toggle its exclusion status in the parent (App.vue)
+function emitToggleExclude(node) {
   emit('toggle-exclude', node);
 }
-
-function emitToggleExclude(node) {
-    emit('toggle-exclude', node); // Bubble up the event
-}
-
-// A node is effectively excluded if one of its PARENTS is.
-// This is mainly for UI state (e.g., disabling checkbox), backend handles true exclusion.
-function isEffectivelyExcludedByParent(node) {
-    let current = node.parent; 
-    while(current) {
-        if (current.excluded) return true;
-        current = current.parent;
-    }
-    return false;
-}
-
 </script>
 
 <style scoped>
 .file-tree {
   list-style-type: none;
-  padding-left: 0; /* Remove default ul padding */
+  padding-left: 0;
 }
 .file-tree li {
   margin: 2px 0;
@@ -86,6 +96,7 @@ function isEffectivelyExcludedByParent(node) {
   display: flex;
   align-items: center;
   cursor: default;
+  user-select: none;
 }
 .node-item:hover {
   background-color: #f0f0f0;
@@ -97,27 +108,20 @@ function isEffectivelyExcludedByParent(node) {
   text-align: center;
 }
 .item-spacer {
-  width: 20px; /* Space for non-folders to align with folder togglers */
+  width: 20px;
   display: inline-block;
 }
 .folder-name {
-  cursor: pointer; /* To indicate it's clickable for expanding */
-  font-weight: bold;
+  cursor: pointer;
+  font-weight: 500;
 }
 .exclude-checkbox {
   margin-right: 5px;
   cursor: pointer;
 }
+/* Зачеркиваем только если полностью исключен (не в промежуточном состоянии) */
 .excluded-node > .node-item > span:not(.toggler) {
   text-decoration: line-through;
   color: #999;
 }
-/* Style for checkbox of an effectively excluded item (e.g. parent excluded) */
-.exclude-checkbox:disabled + span {
-    color: #bbb; /* Lighter text for items under an excluded parent */
-}
-.exclude-checkbox:disabled {
-    cursor: not-allowed;
-}
-
 </style>

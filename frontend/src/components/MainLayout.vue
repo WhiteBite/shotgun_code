@@ -1,4 +1,3 @@
-
 <template>
   <div class="flex flex-col h-screen bg-gray-100">
     <HorizontalStepper />
@@ -12,6 +11,15 @@
         title="Resize console height"
     ></div>
     <BottomConsole :height="consoleHeight" />
+    <CommitHistoryModal
+        :is-visible="ui.isCommitModalVisible"
+        :commits="git.richCommitHistory"
+        :is-loading="git.isLoading"
+        @close="ui.closeCommitModal"
+        @apply="handleApplyCommits"
+        @search="handleBranchSearch"
+    />
+    <SettingsModal />
   </div>
 </template>
 
@@ -21,10 +29,27 @@ import HorizontalStepper from './HorizontalStepper.vue';
 import LeftSidebar from './LeftSidebar.vue';
 import CentralPanel from './CentralPanel.vue';
 import BottomConsole from './BottomConsole.vue';
+import CommitHistoryModal from './CommitHistoryModal.vue';
+import SettingsModal from './SettingsModal.vue';
+import { useGitStore } from '../stores/gitStore';
+import { useProjectStore } from '../stores/projectStore';
+import { useUiStore } from '../stores/uiStore';
 
-// Логика ресайза консоли - это чисто UI-логика, ей место здесь.
+const git = useGitStore();
+const project = useProjectStore();
+const ui = useUiStore();
+
 const consoleHeight = ref(150);
 const isResizing = ref(false);
+
+function handleApplyCommits(commitHashes) {
+  git.selectFilesFromCommits(commitHashes);
+  ui.closeCommitModal();
+}
+
+function handleBranchSearch(branchName) {
+  git.fetchRichCommitHistory(project.projectRoot, branchName);
+}
 
 function startResize(event) {
   isResizing.value = true;
