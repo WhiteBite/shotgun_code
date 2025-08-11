@@ -15,9 +15,6 @@ type SettingsService struct {
 	bus                           domain.EventBus
 	settingsRepo                  domain.SettingsRepository
 	modelFetchers                 map[string]ModelFetcher
-	useGitignore                  bool
-	useCustomIgnore               bool
-	mu                            sync.RWMutex
 	onIgnoreRulesChangedCallbacks []func() error
 	muCallbacks                   sync.RWMutex
 }
@@ -30,33 +27,82 @@ func NewSettingsService(
 	modelFetchers map[string]ModelFetcher,
 ) (*SettingsService, error) {
 	s := &SettingsService{
-		log:             log,
-		bus:             bus,
-		settingsRepo:    settingsRepo,
-		modelFetchers:   modelFetchers,
-		useGitignore:    true,
-		useCustomIgnore: true,
+		log:           log,
+		bus:           bus,
+		settingsRepo:  settingsRepo,
+		modelFetchers: modelFetchers,
 	}
 	return s, nil
 }
 
-// RefreshModels обновляет список моделей для указанного провайдера, используя зарегистрированный ModelFetcher.
+// GetSettingsDTO собирает все настройки в один DTO для передачи на фронтенд.
+func (s *SettingsService) GetSettingsDTO() (domain.SettingsDTO, error) {
+	providers := []string{"openai", "gemini", "localai"}
+	selectedModels := make(map[string]string)
+	availableModels := make(map[string][]string)
+
+	for _, p := range providers {
+		selectedModels[p] = s.settingsRepo.GetSelectedModel(p)
+		availableModels[p] = s.settingsRepo.GetModels(p)
+	}
+
+	dto := domain.SettingsDTO{
+		CustomIgnoreRules: s.settingsRepo.GetCustomIgnoreRules(),
+		CustomPromptRules: s.settingsRepo.GetCustomPromptRules(),
+		OpenAIAPIKey:      s.settingsRepo.GetOpenAIKey(),
+		GeminiAPIKey:      s.settingsRepo.GetGeminiKey(),
+		LocalAIAPIKey:     s.settingsRepo.GetLocalAIKey(),
+		LocalAIHost:       s.settingsRepo.GetLocalAIHost(),
+		LocalAIModelName:  s.settingsRepo.GetLocalAIModelName(),
+		SelectedProvider:  s.settingsRepo.GetSelectedAIProvider(),
+		SelectedModels:    selectedModels,
+		AvailableModels:   availableModels,
+		UseGitignore:      s.settingsRepo.GetUseGitignore(),
+		UseCustomIgnore:   s.settingsRepo.GetUseCustomIgnore(),
+	}
+	return dto, nil
+}
+
+// SaveSettingsDTO принимает DTO с фронтенда и обновляет настройки.
+func (s *SettingsService) SaveSettingsDTO(dto domain.SettingsDTO) error {
+	s.settingsRepo.SetCustomIgnoreRules(dto.CustomIgnoreRules)
+	s.settingsRepo.SetCustomPromptRules(dto.CustomPromptRules)
+	s.settingsRepo.SetOpenAIKey(dto.OpenAIAPIKey)
+	s.settingsRepo.SetGeminiKey(dto.GeminiAPIKey)
+	s.settingsRepo.SetLocalAIKey(dto.LocalAIAPIKey)
+	s.settingsRepo.SetLocalAIHost(dto.LocalAIHost)
+	s.settingsRepo.SetLocalAIModelName(dto.LocalAIModelName)
+	s.settingsRepo.SetSelectedAIProvider(dto.SelectedProvider)
+	s.settingsRepo.SetUseGitignore(dto.UseGitignore)
+	s.settingsRepo.SetUseCustomIgnore(dto.UseCustomIgnore)
+
+	for provider, model := range dto.SelectedModels {
+		s.settingsRepo.SetSelectedModel(provider, model)
+	}
+
+	if err := s.settingsRepo.Save(); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+
+	s.notifyIgnoreRulesChanged()
+	return nil
+}
+
+// RefreshModels обновляет список моделей для указанного провайдера.
 func (s *SettingsService) RefreshModels(provider, apiKey string) error {
 	fetcher, ok := s.modelFetchers[provider]
 	if !ok {
-		return fmt.Errorf("нет способа обновить модели для провайдера: %s", provider)
+		return fmt.Errorf("no model fetcher for provider: %s", provider)
 	}
 
-	s.log.Info("Обновление списка моделей для: " + provider)
+	s.log.Info("Refreshing model list for: " + provider)
 	models, err := fetcher(apiKey)
 	if err != nil {
-		s.log.Error(fmt.Sprintf("Не удалось обновить модели для %s: %v", provider, err))
+		s.log.Error(fmt.Sprintf("Failed to refresh models for %s: %v", provider, err))
 		return err
 	}
 
-	if err := s.settingsRepo.SetModels(provider, models); err != nil {
-		return err
-	}
+	s.settingsRepo.SetModels(provider, models)
 
 	currentModel := s.settingsRepo.GetSelectedModel(provider)
 	isCurrentModelValid := false
@@ -67,16 +113,19 @@ func (s *SettingsService) RefreshModels(provider, apiKey string) error {
 		}
 	}
 	if !isCurrentModelValid && len(models) > 0 {
-		s.log.Info(fmt.Sprintf("Выбранная модель '%s' не найдена в обновленном списке. Выбираем '%s' по умолчанию.", currentModel, models[0]))
-		if err := s.settingsRepo.SetSelectedModel(provider, models[0]); err != nil {
-			return err
-		}
+		s.log.Info(fmt.Sprintf("Selected model '%s' not found in new list. Selecting '%s' by default.", currentModel, models[0]))
+		s.settingsRepo.SetSelectedModel(provider, models[0])
 	}
 
-	s.log.Info(fmt.Sprintf("Список моделей для %s успешно обновлен.", provider))
+	if err := s.settingsRepo.Save(); err != nil {
+		return fmt.Errorf("failed to save new model list: %w", err)
+	}
+
+	s.log.Info(fmt.Sprintf("Model list for %s refreshed successfully.", provider))
 	return nil
 }
 
+// OnIgnoreRulesChanged регистрирует коллбэк.
 func (s *SettingsService) OnIgnoreRulesChanged(callback func() error) {
 	s.muCallbacks.Lock()
 	defer s.muCallbacks.Unlock()
@@ -88,88 +137,7 @@ func (s *SettingsService) notifyIgnoreRulesChanged() {
 	defer s.muCallbacks.RUnlock()
 	for _, cb := range s.onIgnoreRulesChangedCallbacks {
 		if err := cb(); err != nil {
-			s.log.Error(fmt.Sprintf("Ошибка при выполнении коллбэка на смену правил: %v", err))
+			s.log.Error(fmt.Sprintf("Error executing OnIgnoreRulesChanged callback: %v", err))
 		}
 	}
-}
-
-func (s *SettingsService) GetUseGitignore() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.useGitignore
-}
-
-func (s *SettingsService) GetUseCustomIgnore() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.useCustomIgnore
-}
-
-func (s *SettingsService) SetUseGitignore(enabled bool) error {
-	s.mu.Lock()
-	s.useGitignore = enabled
-	s.mu.Unlock()
-	s.log.Info(fmt.Sprintf("Использование .gitignore установлено в: %v", enabled))
-	s.notifyIgnoreRulesChanged()
-	return nil
-}
-
-func (s *SettingsService) SetUseCustomIgnore(enabled bool) error {
-	s.mu.Lock()
-	s.useCustomIgnore = enabled
-	s.mu.Unlock()
-	s.log.Info(fmt.Sprintf("Использование кастомных правил установлено в: %v", enabled))
-	s.notifyIgnoreRulesChanged()
-	return nil
-}
-
-func (s *SettingsService) GetCustomIgnoreRules() string { return s.settingsRepo.GetCustomIgnoreRules() }
-func (s *SettingsService) SetCustomIgnoreRules(rules string) error {
-	if err := s.settingsRepo.SetCustomIgnoreRules(rules); err != nil {
-		return err
-	}
-	s.notifyIgnoreRulesChanged()
-	return nil
-}
-func (s *SettingsService) GetCustomPromptRules() string { return s.settingsRepo.GetCustomPromptRules() }
-func (s *SettingsService) SetCustomPromptRules(rules string) error {
-	return s.settingsRepo.SetCustomPromptRules(rules)
-}
-
-func (s *SettingsService) GetOpenAIKey() string          { return s.settingsRepo.GetOpenAIKey() }
-func (s *SettingsService) SetOpenAIKey(key string) error { return s.settingsRepo.SetOpenAIKey(key) }
-
-func (s *SettingsService) GetGeminiKey() string          { return s.settingsRepo.GetGeminiKey() }
-func (s *SettingsService) SetGeminiKey(key string) error { return s.settingsRepo.SetGeminiKey(key) }
-
-func (s *SettingsService) GetLocalAIKey() string          { return s.settingsRepo.GetLocalAIKey() }
-func (s *SettingsService) SetLocalAIKey(key string) error { return s.settingsRepo.SetLocalAIKey(key) }
-func (s *SettingsService) GetLocalAIHost() string         { return s.settingsRepo.GetLocalAIHost() }
-func (s *SettingsService) SetLocalAIHost(host string) error {
-	return s.settingsRepo.SetLocalAIHost(host)
-}
-func (s *SettingsService) GetLocalAIModelName() string { return s.settingsRepo.GetLocalAIModelName() }
-func (s *SettingsService) SetLocalAIModelName(name string) error {
-	return s.settingsRepo.SetLocalAIModelName(name)
-}
-
-func (s *SettingsService) GetSelectedAIProvider() string {
-	return s.settingsRepo.GetSelectedAIProvider()
-}
-func (s *SettingsService) SetSelectedAIProvider(provider string) error {
-	return s.settingsRepo.SetSelectedAIProvider(provider)
-}
-
-func (s *SettingsService) GetModels(provider string) ([]string, error) {
-	models := s.settingsRepo.GetModels(provider)
-	if models == nil {
-		return []string{}, fmt.Errorf("нет моделей для провайдера %s", provider)
-	}
-	return models, nil
-}
-func (s *SettingsService) GetSelectedModel(provider string) string {
-	return s.settingsRepo.GetSelectedModel(provider)
-}
-func (s *SettingsService) SetSelectedModel(provider, model string) error {
-	return s.settingsRepo.SetSelectedModel(provider, model)
 }

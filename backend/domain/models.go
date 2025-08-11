@@ -10,6 +10,12 @@ type FileNode struct {
 	IsCustomIgnored bool        `json:"isCustomIgnored"`
 }
 
+// FileStatus represents the status of a file in Git.
+type FileStatus struct {
+	Path   string `json:"path"`
+	Status string `json:"status"` // e.g., "M", "A", "D", "R", "C", "U" for Untracked as '??' -> 'U'
+}
+
 type Commit struct {
 	Hash    string `json:"hash"`
 	Subject string `json:"subject"`

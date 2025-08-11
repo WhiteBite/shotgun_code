@@ -6,58 +6,52 @@ import (
 	"shotgun_code/domain"
 )
 
-// ProviderFactory — это тип функции, которая выступает в роли фабрики для создания AI-провайдеров.
 type ProviderFactory func(providerType, apiKey, modelName string) (domain.AIProvider, error)
 
-// AIService - это фасад для всех операций, связанных с искусственным интеллектом.
 type AIService struct {
-	settings        *SettingsService
+	settingsService *SettingsService
 	log             domain.Logger
 	providerFactory ProviderFactory
 }
 
-// NewAIService создает новый экземпляр AIService.
 func NewAIService(settings *SettingsService, log domain.Logger, factory ProviderFactory) *AIService {
 	return &AIService{
-		settings:        settings,
+		settingsService: settings,
 		log:             log,
 		providerFactory: factory,
 	}
 }
 
-// GenerateCode выполняет генерацию кода, используя текущего сконфигурированного AI-провайдера.
 func (s *AIService) GenerateCode(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	providerName := s.settings.GetSelectedAIProvider()
+	settingsDTO, err := s.settingsService.GetSettingsDTO()
+	if err != nil {
+		return "", fmt.Errorf("could not get settings for generation: %w", err)
+	}
+
+	providerName := settingsDTO.SelectedProvider
 	if providerName == "" {
-		providerName = "openai" // Default fallback
+		return "", fmt.Errorf("no AI provider selected")
 	}
+	modelName := settingsDTO.SelectedModels[providerName]
 
-	modelName := s.settings.GetSelectedModel(providerName)
-	if modelName == "" {
-		return "", fmt.Errorf("не выбрана модель для провайдера %s", providerName)
+	keyMap := map[string]string{
+		"openai":     settingsDTO.OpenAIAPIKey,
+		"gemini":     settingsDTO.GeminiAPIKey,
+		"openrouter": settingsDTO.OpenRouterAPIKey,
+		"localai":    settingsDTO.LocalAIAPIKey,
 	}
+	apiKey := keyMap[providerName]
 
-	var apiKey string
-	switch providerName {
-	case "openai":
-		apiKey = s.settings.GetOpenAIKey()
-	case "gemini":
-		apiKey = s.settings.GetGeminiKey()
-	default:
-		return "", fmt.Errorf("неизвестный AI провайдер: %s", providerName)
-	}
-
-	if apiKey == "" {
-		return "", fmt.Errorf("API ключ для %s не настроен", providerName)
+	if providerName == "localai" && (modelName == "" || modelName == "local-model") {
+		modelName = settingsDTO.LocalAIModelName
 	}
 
 	provider, err := s.providerFactory(providerName, apiKey, modelName)
 	if err != nil {
-		s.log.Error(fmt.Sprintf("Не удалось создать AI провайдер: %v", err))
-		return "", err
+		s.log.Error(fmt.Sprintf("Failed to create AI provider: %v", err))
+		return "", fmt.Errorf("failed to create AI provider: %w", err)
 	}
 
-	// Формируем запрос с учетом ролей
 	messages := []domain.Message{
 		{Role: domain.RoleSystem, Content: systemPrompt},
 		{Role: domain.RoleUser, Content: userPrompt},
@@ -67,12 +61,11 @@ func (s *AIService) GenerateCode(ctx context.Context, systemPrompt, userPrompt s
 		Messages:    messages,
 		Model:       modelName,
 		Temperature: 0.1,
-		Options:     make(map[string]any), // Готовим место для специфичных опций
 	}
 
 	response, err := provider.Generate(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("ошибка при генерации кода: %w", err)
+		return "", fmt.Errorf("error during code generation: %w", err)
 	}
 
 	return response.Content, nil

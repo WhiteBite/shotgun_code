@@ -4,29 +4,11 @@ import {domain} from '../models';
 
 export function GenerateCode(arg1:string,arg2:string):Promise<string>;
 
-export function GetCustomIgnoreRules():Promise<string>;
-
-export function GetCustomPromptRules():Promise<string>;
-
-export function GetGeminiKey():Promise<string>;
-
-export function GetLocalAIHost():Promise<string>;
-
-export function GetLocalAIKey():Promise<string>;
-
-export function GetLocalAIModelName():Promise<string>;
-
-export function GetModels(arg1:string):Promise<Array<string>>;
-
-export function GetOpenAIKey():Promise<string>;
-
 export function GetRichCommitHistory(arg1:string,arg2:string,arg3:number):Promise<Array<domain.CommitWithFiles>>;
 
-export function GetSelectedAIProvider():Promise<string>;
+export function GetSettings():Promise<domain.SettingsDTO>;
 
-export function GetSelectedModel(arg1:string):Promise<string>;
-
-export function GetUncommittedFiles(arg1:string):Promise<Array<string>>;
+export function GetUncommittedFiles(arg1:string):Promise<Array<domain.FileStatus>>;
 
 export function IsGitAvailable():Promise<boolean>;
 
@@ -36,31 +18,9 @@ export function RefreshAIModels(arg1:string,arg2:string):Promise<void>;
 
 export function RequestShotgunContextGeneration(arg1:string,arg2:Array<string>):Promise<void>;
 
+export function SaveSettings(arg1:domain.SettingsDTO):Promise<void>;
+
 export function SelectDirectory():Promise<string>;
-
-export function SetCustomIgnoreRules(arg1:string):Promise<void>;
-
-export function SetCustomPromptRules(arg1:string):Promise<void>;
-
-export function SetGeminiKey(arg1:string):Promise<void>;
-
-export function SetLocalAIHost(arg1:string):Promise<void>;
-
-export function SetLocalAIKey(arg1:string):Promise<void>;
-
-export function SetLocalAIModelName(arg1:string):Promise<void>;
-
-export function SetOpenAIKey(arg1:string):Promise<void>;
-
-export function SetSelectedAIProvider(arg1:string):Promise<void>;
-
-export function SetSelectedModel(arg1:string,arg2:string):Promise<void>;
-
-export function SetUseCustomIgnore(arg1:boolean):Promise<void>;
-
-export function SetUseGitignore(arg1:boolean):Promise<void>;
-
-export function SplitShotgunDiff(arg1:string,arg2:number):Promise<Array<string>>;
 
 export function StartFileWatcher(arg1:string):Promise<void>;
 

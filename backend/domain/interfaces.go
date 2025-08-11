@@ -18,8 +18,6 @@ type EventBus interface {
 
 // FileContentReader provides an abstraction for reading file contents.
 type FileContentReader interface {
-	// ReadContents reads multiple files and returns their content.
-	// It also sends progress updates via the provided callback.
 	ReadContents(
 		ctx context.Context,
 		filePaths []string,
@@ -31,39 +29,42 @@ type FileContentReader interface {
 // SettingsRepository определяет интерфейс для работы с хранилищем настроек.
 type SettingsRepository interface {
 	GetCustomIgnoreRules() string
+	SetCustomIgnoreRules(rules string)
 	GetCustomPromptRules() string
-	SetCustomIgnoreRules(rules string) error
-	SetCustomPromptRules(rules string) error
+	SetCustomPromptRules(rules string)
 
-	// OpenAI
+	GetUseGitignore() bool
+	SetUseGitignore(enabled bool)
+	GetUseCustomIgnore() bool
+	SetUseCustomIgnore(enabled bool)
+
 	GetOpenAIKey() string
-	SetOpenAIKey(key string) error
-
-	// Gemini
+	SetOpenAIKey(key string)
 	GetGeminiKey() string
-	SetGeminiKey(key string) error
-
-	// LocalAI
+	SetGeminiKey(key string)
+	GetOpenRouterKey() string
+	SetOpenRouterKey(key string)
 	GetLocalAIKey() string
-	SetLocalAIKey(key string) error
+	SetLocalAIKey(key string)
 	GetLocalAIHost() string
-	SetLocalAIHost(host string) error
+	SetLocalAIHost(host string)
 	GetLocalAIModelName() string
-	SetLocalAIModelName(name string) error
+	SetLocalAIModelName(name string)
 
-	// General AI Settings
 	GetSelectedAIProvider() string
-	SetSelectedAIProvider(provider string) error
+	SetSelectedAIProvider(provider string)
 	GetSelectedModel(provider string) string
-	SetSelectedModel(provider string, model string) error
+	SetSelectedModel(provider string, model string)
 	GetModels(provider string) []string
-	SetModels(provider string, models []string) error
+	SetModels(provider string, models []string)
+
+	Save() error
 }
 
 // GitRepository определяет интерфейс для взаимодействия с Git.
 type GitRepository interface {
 	CheckAvailability() (bool, error)
-	GetUncommittedFiles(projectRoot string) ([]string, error)
+	GetUncommittedFiles(projectRoot string) ([]FileStatus, error)
 	GetRichCommitHistory(projectRoot, branchName string, limit int) ([]CommitWithFiles, error)
 }
 

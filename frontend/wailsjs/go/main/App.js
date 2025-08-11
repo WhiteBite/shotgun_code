@@ -6,48 +6,12 @@ export function GenerateCode(arg1, arg2) {
   return window['go']['main']['App']['GenerateCode'](arg1, arg2);
 }
 
-export function GetCustomIgnoreRules() {
-  return window['go']['main']['App']['GetCustomIgnoreRules']();
-}
-
-export function GetCustomPromptRules() {
-  return window['go']['main']['App']['GetCustomPromptRules']();
-}
-
-export function GetGeminiKey() {
-  return window['go']['main']['App']['GetGeminiKey']();
-}
-
-export function GetLocalAIHost() {
-  return window['go']['main']['App']['GetLocalAIHost']();
-}
-
-export function GetLocalAIKey() {
-  return window['go']['main']['App']['GetLocalAIKey']();
-}
-
-export function GetLocalAIModelName() {
-  return window['go']['main']['App']['GetLocalAIModelName']();
-}
-
-export function GetModels(arg1) {
-  return window['go']['main']['App']['GetModels'](arg1);
-}
-
-export function GetOpenAIKey() {
-  return window['go']['main']['App']['GetOpenAIKey']();
-}
-
 export function GetRichCommitHistory(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetRichCommitHistory'](arg1, arg2, arg3);
 }
 
-export function GetSelectedAIProvider() {
-  return window['go']['main']['App']['GetSelectedAIProvider']();
-}
-
-export function GetSelectedModel(arg1) {
-  return window['go']['main']['App']['GetSelectedModel'](arg1);
+export function GetSettings() {
+  return window['go']['main']['App']['GetSettings']();
 }
 
 export function GetUncommittedFiles(arg1) {
@@ -70,56 +34,12 @@ export function RequestShotgunContextGeneration(arg1, arg2) {
   return window['go']['main']['App']['RequestShotgunContextGeneration'](arg1, arg2);
 }
 
+export function SaveSettings(arg1) {
+  return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
 export function SelectDirectory() {
   return window['go']['main']['App']['SelectDirectory']();
-}
-
-export function SetCustomIgnoreRules(arg1) {
-  return window['go']['main']['App']['SetCustomIgnoreRules'](arg1);
-}
-
-export function SetCustomPromptRules(arg1) {
-  return window['go']['main']['App']['SetCustomPromptRules'](arg1);
-}
-
-export function SetGeminiKey(arg1) {
-  return window['go']['main']['App']['SetGeminiKey'](arg1);
-}
-
-export function SetLocalAIHost(arg1) {
-  return window['go']['main']['App']['SetLocalAIHost'](arg1);
-}
-
-export function SetLocalAIKey(arg1) {
-  return window['go']['main']['App']['SetLocalAIKey'](arg1);
-}
-
-export function SetLocalAIModelName(arg1) {
-  return window['go']['main']['App']['SetLocalAIModelName'](arg1);
-}
-
-export function SetOpenAIKey(arg1) {
-  return window['go']['main']['App']['SetOpenAIKey'](arg1);
-}
-
-export function SetSelectedAIProvider(arg1) {
-  return window['go']['main']['App']['SetSelectedAIProvider'](arg1);
-}
-
-export function SetSelectedModel(arg1, arg2) {
-  return window['go']['main']['App']['SetSelectedModel'](arg1, arg2);
-}
-
-export function SetUseCustomIgnore(arg1) {
-  return window['go']['main']['App']['SetUseCustomIgnore'](arg1);
-}
-
-export function SetUseGitignore(arg1) {
-  return window['go']['main']['App']['SetUseGitignore'](arg1);
-}
-
-export function SplitShotgunDiff(arg1, arg2) {
-  return window['go']['main']['App']['SplitShotgunDiff'](arg1, arg2);
 }
 
 export function StartFileWatcher(arg1) {

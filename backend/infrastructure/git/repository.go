@@ -5,60 +5,106 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"shotgun_code/domain"
 	"strings"
 )
 
-var validCommitHash = regexp.MustCompile(`^[a-f0-9]{7,40}$`)
 var validBranchName = regexp.MustCompile(`^[a-zA-Z0-9\/\._-]+$`)
 
 type Repository struct {
 	log domain.Logger
 }
 
-func New(logger domain.Logger) *Repository {
+func New(logger domain.Logger) domain.GitRepository {
 	return &Repository{log: logger}
 }
 
 func (gs *Repository) CheckAvailability() (bool, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
-		gs.log.Warning("Исполняемый файл 'git' не найден в PATH.")
+		gs.log.Warning("Git executable not found in PATH.")
 		return false, nil
 	}
 	return true, nil
 }
 
-func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]string, error) {
-	if err := validatePath(projectRoot); err != nil {
-		return nil, err
+func (gs *Repository) executeGitCommand(projectRoot string, args ...string) ([]byte, error) {
+	absPath, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve absolute path for '%s': %w", projectRoot, err)
 	}
-	cmd := exec.Command("git", "-C", projectRoot, "status", "--porcelain")
+
+	cmdArgs := append([]string{"-C", absPath}, args...)
+	cmd := exec.Command("git", cmdArgs...)
+
 	var out, errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
+
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ошибка git status: %w - %s", err, errOut.String())
+		return nil, fmt.Errorf("git command failed: %w - %s", err, errOut.String())
 	}
-	var files []string
-	lines := strings.Split(out.String(), "\n")
-	for _, line := range lines {
-		if len(line) > 3 {
-			files = append(files, strings.TrimSpace(line[3:]))
-		}
-	}
-	gs.log.Info(fmt.Sprintf("Найдено %d незакоммиченных файлов.", len(files)))
-	return files, nil
+
+	return out.Bytes(), nil
 }
 
-func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
-	if err := validatePath(projectRoot); err != nil {
+func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
+	output, err := gs.executeGitCommand(projectRoot, "status", "--porcelain")
+	if err != nil {
 		return nil, err
 	}
 
+	var statuses []domain.FileStatus
+	lines := strings.Split(string(output), "\n")
+
+	for _, line := range lines {
+		if len(line) < 4 {
+			continue
+		}
+
+		status := strings.TrimSpace(line[:2])
+		path := strings.TrimSpace(line[3:])
+
+		// Handle renamed files, format is "R  old -> new"
+		if strings.HasPrefix(status, "R") {
+			parts := strings.Split(path, " -> ")
+			if len(parts) == 2 {
+				path = parts[1] // We only care about the new path
+			}
+		}
+
+		// Normalize status codes
+		simpleStatus := ""
+		if strings.HasPrefix(status, "M") || strings.Contains(status, "M") {
+			simpleStatus = "M" // Modified
+		} else if strings.HasPrefix(status, "A") {
+			simpleStatus = "A" // Added
+		} else if strings.HasPrefix(status, "D") {
+			simpleStatus = "D" // Deleted
+		} else if strings.HasPrefix(status, "R") {
+			simpleStatus = "R" // Renamed
+		} else if strings.HasPrefix(status, "C") {
+			simpleStatus = "C" // Copied
+		} else if status == "??" {
+			simpleStatus = "U" // Untracked
+		} else {
+			simpleStatus = status // Keep original if not a common one
+		}
+
+		statuses = append(statuses, domain.FileStatus{
+			Path:   path,
+			Status: simpleStatus,
+		})
+	}
+	gs.log.Info(fmt.Sprintf("Found %d uncommitted files.", len(statuses)))
+	return statuses, nil
+}
+
+func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
 	logArgs := []string{
-		"-C", projectRoot, "log",
+		"log",
 		"--pretty=format:COMMIT %H %P%n%s",
 		"--name-status",
 		"--topo-order",
@@ -71,20 +117,17 @@ func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit
 		logArgs = append(logArgs, branchName)
 	}
 
-	cmd := exec.Command("git", logArgs...)
-	var out, errOut bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errOut
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ошибка git log: %w - %s", err, errOut.String())
-	}
-
-	commits, err := ParseRichLogOutput(out.String())
+	output, err := gs.executeGitCommand(projectRoot, logArgs...)
 	if err != nil {
 		return nil, err
 	}
-	gs.log.Info(fmt.Sprintf("Загружено и обработано %d коммитов.", len(commits)))
+
+	commits, parseErr := ParseRichLogOutput(string(output))
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
+	gs.log.Info(fmt.Sprintf("Loaded and parsed %d commits.", len(commits)))
 	return commits, nil
 }
 
@@ -95,18 +138,16 @@ func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-
 		if strings.HasPrefix(line, "COMMIT ") {
 			if currentCommit != nil {
 				commits = append(commits, *currentCommit)
 			}
 			parts := strings.Fields(line)
 			if len(parts) < 2 {
-				continue // Corrupted line
+				continue
 			}
 			hash := parts[1]
 			parentHashes := parts[2:]
-
 			if scanner.Scan() {
 				subject := scanner.Text()
 				currentCommit = &domain.CommitWithFiles{
@@ -130,22 +171,15 @@ func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("ошибка парсинга вывода git log: %w", err)
+		return nil, fmt.Errorf("error parsing git log output: %w", err)
 	}
 
 	return commits, nil
 }
 
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("недопустимый путь: содержит '..'")
-	}
-	return nil
-}
-
 func validateBranchName(name string) error {
 	if !validBranchName.MatchString(name) {
-		return fmt.Errorf("недопустимое имя ветки: %s", name)
+		return fmt.Errorf("invalid branch name: %s", name)
 	}
 	return nil
 }

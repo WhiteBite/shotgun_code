@@ -32,7 +32,7 @@ Before you begin, ensure you have the following installed on your system:
     │   ├── vite.config.js
     │   ├── index.html
     │   ├── src/
-    │   │   ├── main.js
+    │   │   ├── main.ts
     │   │   ├── App.vue
     │   │   ├── components/
     │   │   │   └── FileTree.vue

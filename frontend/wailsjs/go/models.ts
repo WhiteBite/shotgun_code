@@ -60,6 +60,56 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class FileStatus {
+	    path: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.status = source["status"];
+	    }
+	}
+	export class SettingsDTO {
+	    customIgnoreRules: string;
+	    customPromptRules: string;
+	    openAIAPIKey: string;
+	    geminiAPIKey: string;
+	    openRouterAPIKey: string;
+	    localAIAPIKey: string;
+	    localAIHost: string;
+	    localAIModelName: string;
+	    selectedProvider: string;
+	    selectedModels: Record<string, string>;
+	    availableModels: Record<string, string[]>;
+	    useGitignore: boolean;
+	    useCustomIgnore: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.customIgnoreRules = source["customIgnoreRules"];
+	        this.customPromptRules = source["customPromptRules"];
+	        this.openAIAPIKey = source["openAIAPIKey"];
+	        this.geminiAPIKey = source["geminiAPIKey"];
+	        this.openRouterAPIKey = source["openRouterAPIKey"];
+	        this.localAIAPIKey = source["localAIAPIKey"];
+	        this.localAIHost = source["localAIHost"];
+	        this.localAIModelName = source["localAIModelName"];
+	        this.selectedProvider = source["selectedProvider"];
+	        this.selectedModels = source["selectedModels"];
+	        this.availableModels = source["availableModels"];
+	        this.useGitignore = source["useGitignore"];
+	        this.useCustomIgnore = source["useCustomIgnore"];
+	    }
+	}
 
 }
 

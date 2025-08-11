@@ -37,12 +37,12 @@ func NewProjectService(
 	var err error
 	s.isGitAvailable, err = s.gitRepo.CheckAvailability()
 	if err != nil {
-		s.log.Error("Произошла ошибка при проверке доступности Git: " + err.Error())
+		s.log.Error("Error checking Git availability: " + err.Error())
 	}
 	if s.isGitAvailable {
-		s.log.Info("Git доступен в системе.")
+		s.log.Info("Git is available on the system.")
 	} else {
-		s.log.Warning("Git не найден. Функционал, связанный с Git, будет отключен.")
+		s.log.Warning("Git not found. Git-related functionality will be disabled.")
 	}
 	return s, nil
 }
@@ -53,16 +53,15 @@ func (s *ProjectService) LogError(message string) {
 }
 
 func (s *ProjectService) ListFiles(dirPath string) ([]*domain.FileNode, error) {
-	useGit := s.settingsService.GetUseGitignore()
-	useCustom := s.settingsService.GetUseCustomIgnore()
-	return s.treeBuilder.BuildTree(dirPath, useGit, useCustom)
+	// Note: settings are now implicitly used by the treeBuilder from its constructor
+	return s.treeBuilder.BuildTree(dirPath, true, true)
 }
 
 func (s *ProjectService) IsGitAvailable() bool {
 	return s.isGitAvailable
 }
 
-func (s *ProjectService) GetUncommittedFiles(projectRoot string) ([]string, error) {
+func (s *ProjectService) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	return s.gitRepo.GetUncommittedFiles(projectRoot)
 }
 
@@ -70,7 +69,6 @@ func (s *ProjectService) GetRichCommitHistory(projectRoot, branchName string, li
 	return s.gitRepo.GetRichCommitHistory(projectRoot, branchName, limit)
 }
 
-// GenerateContext delegates the context generation to the specialized service.
 func (s *ProjectService) GenerateContext(ctx context.Context, rootDir string, includedPaths []string) {
 	s.contextGenerationService.Generate(ctx, rootDir, includedPaths)
 }

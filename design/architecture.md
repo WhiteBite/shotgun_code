@@ -64,14 +64,14 @@ The frontend uses Vue 3 (Composition API), Vite, Tailwind CSS, and Pinia. The ke
 
 ### 3.1. Pinia Stores (`/frontend/src/stores`)
 
--   **`projectStore.js` (now `projectStore.js`):** Manages only the top-level state, such as the `projectRoot` path. It orchestrates the selection of a new project, triggering resets in other stores.
+-   **`projectStore.ts` (now `projectStore.ts`):** Manages only the top-level state, such as the `projectRoot` path. It orchestrates the selection of a new project, triggering resets in other stores.
 -   **`fileTreeStore.js`**: Manages the state of the file tree (`tree`), loading status, and user interactions (expanding/collapsing nodes, toggling exclusions).
--   **`contextStore.js`**: Manages the generated "shotgun" context (`shotgunPromptContext`), its generation status (`isGeneratingContext`), and progress.
--   **`gitStore.js`**: Manages all Git-related state and operations (`isAvailable`, `isLoading`, `recentCommits`, `commitHistoryModalVisible`).
+-   **`contextStore.ts`**: Manages the generated "shotgun" context (`shotgunPromptContext`), its generation status (`isGeneratingContext`), and progress.
+-   **`gitStore.ts`**: Manages all Git-related state and operations (`isAvailable`, `isLoading`, `recentCommits`, `commitHistoryModalVisible`).
 -   **`promptStore.js`**: Manages the user's task input, the final composed prompt, and template selection. It uses a debounced ref for user input to optimize performance.
 -   **`diffStore.js`**: Manages the logic for the "Review & Apply" step, including the input diff text and the resulting split diffs.
 -   **`settingsStore.js`**: Manages user-configurable settings (`useGitignore`, `useCustomIgnore`, rules text).
--   **`notificationsStore.js`**: A global store for logs and notifications displayed in the console.
+-   **`notificationsStore.ts`**: A global store for logs and notifications displayed in the console.
 -   **`stepsStore.js`**: Manages the state of the multi-step UI.
 
 ### 3.2. Composables (`/frontend/src/composables`)
