@@ -11,7 +11,6 @@ import (
 	"strings"
 )
 
-// App now acts as a facade, hiding the services.
 type App struct {
 	ctx             context.Context
 	projectService  *application.ProjectService
@@ -19,6 +18,7 @@ type App struct {
 	settingsService *application.SettingsService
 	fileWatcher     domain.FileSystemWatcher
 	contextAnalysis domain.ContextAnalyzer
+	gitRepo         domain.GitRepository
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -27,17 +27,12 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) handleError(err error) {
 	if err != nil {
-		if a.projectService != nil {
-			a.projectService.LogError(err.Error())
-		} else {
-			bridge := wailsbridge.New(a.ctx)
-			bridge.Error(err.Error())
-			bridge.Emit("app:error", err.Error())
-		}
+		bridge := wailsbridge.New(a.ctx)
+		bridge.Error(err.Error())
+		bridge.Emit("app:error", err.Error())
 	}
 }
 
-// validateProjectPath checks if a path is valid and exists.
 func (a *App) validateProjectPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("project path cannot be empty")
@@ -48,7 +43,6 @@ func (a *App) validateProjectPath(path string) error {
 	return nil
 }
 
-// --- Project & Context Methods ---
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	if err := a.validateProjectPath(dirPath); err != nil {
 		a.handleError(err)
@@ -62,12 +56,10 @@ func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool)
 	return nodes, nil
 }
 
-// ReadFileContent securely reads the content of a single file.
 func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
 	if err := a.validateProjectPath(rootDir); err != nil {
 		return "", err
 	}
-
 	cleanRootDir, err := filepath.Abs(rootDir)
 	if err != nil {
 		return "", fmt.Errorf("could not get absolute path for root: %w", err)
@@ -76,7 +68,6 @@ func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
 	if !strings.HasPrefix(absPath, cleanRootDir) {
 		return "", fmt.Errorf("path traversal attempt detected: %s", relPath)
 	}
-
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", relPath, err)
@@ -92,7 +83,6 @@ func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []st
 	go a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
 }
 
-// --- Git Methods ---
 func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	if err := a.validateProjectPath(projectRoot); err != nil {
 		a.handleError(err)
@@ -119,11 +109,23 @@ func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([
 	return commits, nil
 }
 
+func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	if err := a.validateProjectPath(projectRoot); err != nil {
+		a.handleError(err)
+		return "", err
+	}
+	content, err := a.gitRepo.GetFileContentAtCommit(projectRoot, filePath, commitHash)
+	if err != nil {
+		a.handleError(err)
+		return "", err
+	}
+	return content, nil
+}
+
 func (a *App) IsGitAvailable() bool {
 	return a.projectService.IsGitAvailable()
 }
 
-// --- AI Methods ---
 func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
 	content, err := a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
 	if err != nil {
@@ -142,7 +144,6 @@ func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]s
 	return files, nil
 }
 
-// --- Settings Methods ---
 func (a *App) GetSettings() (domain.SettingsDTO, error) {
 	dto, err := a.settingsService.GetSettingsDTO()
 	if err != nil {
@@ -169,7 +170,6 @@ func (a *App) RefreshAIModels(provider string, apiKey string) error {
 	return nil
 }
 
-// --- FS Watcher & System Dialogs ---
 func (a *App) StartFileWatcher(rootDirPath string) {
 	if err := a.validateProjectPath(rootDirPath); err != nil {
 		a.handleError(err)

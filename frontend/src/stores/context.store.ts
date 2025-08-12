@@ -21,6 +21,8 @@ function mapDomainNodeToViewNode(node: DomainFileNode, depth: number, parentPath
     contextOrigin: ContextOrigin.None,
     isBinary: false,
     isIgnored: node.isCustomIgnored || node.isGitignored,
+    isGitignored: node.isGitignored,
+    isCustomIgnored: node.isCustomIgnored,
     expanded: depth < 1,
     selected: 'off',
     parentPath,
@@ -64,23 +66,32 @@ export const useContextStore = defineStore('context', () => {
     if (nodesMap.value.size === 0) return result;
 
     const roots = Array.from(nodesMap.value.values()).filter(n => n.depth === 0);
-
     const query = debouncedQuery.value.toLowerCase().trim();
-    const filterFn = (node: FileNode) => query ? node.name.toLowerCase().includes(query) : true;
+    const isFiltering = !!query;
 
-    function traverse(node: FileNode) {
-      if (node.isIgnored && !query) return;
+    function traverse(nodes: FileNode[]) {
+      for (const node of nodes) {
+        const children = node.children?.map(c => nodesMap.value.get(c.path)).filter(Boolean) as FileNode[] || [];
 
-      const children = node.children?.map(c => nodesMap.value.get(c.path)!).filter(Boolean) ?? [];
-      const matches = filterFn(node);
-
-      result.push(node);
-
-      if ((node.expanded || query) && children.length > 0) {
-        children.forEach(child => traverse(child));
+        if (isFiltering) {
+          if (node.name.toLowerCase().includes(query)) {
+            result.push(node);
+          }
+          traverse(children);
+        } else {
+          result.push(node);
+          if (node.expanded) {
+            traverse(children);
+          }
+        }
       }
     }
-    roots.forEach(traverse);
+
+    traverse(roots);
+
+    if(isFiltering) {
+      return result.sort((a,b) => a.path.localeCompare(b.path));
+    }
     return result;
   });
 
@@ -90,7 +101,7 @@ export const useContextStore = defineStore('context', () => {
     const files = selectedFiles.value;
     const estimatedLines = files.length * 150;
     const estimatedTokens = Math.round(estimatedLines * 1.25);
-    const cost = (estimatedTokens / 1000000) * 15; // Rough estimate for GPT-4o input: $15/M tokens
+    const cost = (estimatedTokens / 1000000) * 15;
     return {
       files: files.length,
       lines: Math.max(0, estimatedLines),
@@ -102,7 +113,7 @@ export const useContextStore = defineStore('context', () => {
   async function fetchFileTree(preserveState = false) {
     if (!projectStore.currentProject) return;
 
-    let oldState = {
+    const oldState = {
       expandedPaths: new Set<string>(),
       selectedPaths: new Set<string>(),
     };
@@ -132,6 +143,7 @@ export const useContextStore = defineStore('context', () => {
           }
           if (!newNode.isIgnored && oldState.selectedPaths.has(newNode.path)) {
             newNode.selected = 'on';
+            newNode.contextOrigin = ContextOrigin.Manual;
           }
         });
 
@@ -190,10 +202,24 @@ export const useContextStore = defineStore('context', () => {
     shotgunContextText.value = '';
   }
 
-  function toggleNodeExpansion(path: string) {
+  function toggleNodeExpansion(path: string, recursive = false) {
     const node = nodesMap.value.get(path);
-    if (node?.isDir) {
-      node.expanded = !node.expanded;
+    if (!node?.isDir) return;
+
+    const newState = !node.expanded;
+    const stack: FileNode[] = [node];
+
+    while(stack.length > 0) {
+      const current = stack.pop()!;
+      current.expanded = newState;
+      if (recursive && current.children) {
+        current.children.forEach(childRef => {
+          const childNode = nodesMap.value.get(childRef.path);
+          if (childNode?.isDir) {
+            stack.push(childNode);
+          }
+        });
+      }
     }
   }
 
@@ -229,6 +255,11 @@ export const useContextStore = defineStore('context', () => {
       const current = stack.pop()!;
       if (!current.isIgnored) {
         current.selected = newSelection;
+        if (newSelection === 'on') {
+          current.contextOrigin = ContextOrigin.Manual;
+        } else {
+          current.contextOrigin = ContextOrigin.None;
+        }
         if(current.children) {
           current.children.forEach(c => {
             const childNode = nodesMap.value.get(c.path);
@@ -263,6 +294,7 @@ export const useContextStore = defineStore('context', () => {
     nodesMap.value.forEach(node => {
       if (node.selected !== 'off') {
         node.selected = 'off';
+        node.contextOrigin = ContextOrigin.None;
       }
     });
     useUiStore().addToast('Selection cleared.', 'info');
@@ -277,20 +309,27 @@ export const useContextStore = defineStore('context', () => {
     useUiStore().addToast('All visible files selected.', 'success');
   }
 
-  function selectFilesByRelPaths(relPaths: string[]) {
+  function selectFilesByRelPaths(relPaths: string[], origin: ContextOrigin = ContextOrigin.Git) {
     const relPathMap = new Map<string, FileNode>();
     nodesMap.value.forEach(node => {
       if (!node.isDir) relPathMap.set(node.relPath, node);
     });
 
+    let selectedCount = 0;
     relPaths.forEach(relPath => {
       const node = relPathMap.get(relPath);
       if (node && node.selected !== 'on' && !node.isIgnored) {
         node.selected = 'on';
+        node.contextOrigin = origin;
         _updateParentSelection(node.parentPath, nodesMap.value);
+        selectedCount++;
       }
     });
-    useUiStore().addToast(`${relPaths.length} files from commit selected.`, 'success');
+    if (selectedCount > 0) {
+      useUiStore().addToast(`${selectedCount} files added to context from ${origin}.`, 'success');
+    } else {
+      useUiStore().addToast(`No new files selected. They might be ignored or already selected.`, 'info');
+    }
   }
 
   return {

@@ -7,6 +7,7 @@ import { eventService } from './services/event.service';
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts';
 
 import './assets/main.css';
+import './assets/scrollbars.css';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import 'highlight.js/styles/atom-one-dark.css';
 

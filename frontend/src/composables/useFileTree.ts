@@ -3,8 +3,8 @@ import { useContextStore } from "@/stores/context.store";
 export function useFileTree() {
   const store = useContextStore();
 
-  const toggleExpansion = (path: string) => {
-    store.toggleNodeExpansion(path);
+  const toggleExpansion = (path: string, recursive = false) => {
+    store.toggleNodeExpansion(path, recursive);
   };
 
   const toggleSelection = (path: string) => {

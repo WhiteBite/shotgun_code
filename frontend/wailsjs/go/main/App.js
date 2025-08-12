@@ -6,6 +6,10 @@ export function GenerateCode(arg1, arg2) {
   return window['go']['main']['App']['GenerateCode'](arg1, arg2);
 }
 
+export function GetFileContentAtCommit(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetFileContentAtCommit'](arg1, arg2, arg3);
+}
+
 export function GetRichCommitHistory(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetRichCommitHistory'](arg1, arg2, arg3);
 }

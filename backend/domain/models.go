@@ -5,15 +5,15 @@ type FileNode struct {
 	Path            string      `json:"path"`
 	RelPath         string      `json:"relPath"`
 	IsDir           bool        `json:"isDir"`
+	Size            int64       `json:"size"` // Added file size
 	Children        []*FileNode `json:"children,omitempty"`
 	IsGitignored    bool        `json:"isGitignored"`
 	IsCustomIgnored bool        `json:"isCustomIgnored"`
 }
 
-// FileStatus represents the status of a file in Git.
 type FileStatus struct {
 	Path   string `json:"path"`
-	Status string `json:"status"` // e.g., "M", "A", "D", "R", "C", "U" for Untracked as '??' -> 'U'
+	Status string `json:"status"`
 }
 
 type Commit struct {
@@ -21,10 +21,11 @@ type Commit struct {
 	Subject string `json:"subject"`
 }
 
-// CommitWithFiles extends Commit with a list of files changed in it and a merge flag.
 type CommitWithFiles struct {
 	Hash    string   `json:"hash"`
 	Subject string   `json:"subject"`
+	Author  string   `json:"author"`
+	Date    string   `json:"date"`
 	Files   []string `json:"files"`
 	IsMerge bool     `json:"isMerge"`
 }

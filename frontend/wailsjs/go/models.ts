@@ -3,6 +3,8 @@ export namespace domain {
 	export class CommitWithFiles {
 	    hash: string;
 	    subject: string;
+	    author: string;
+	    date: string;
 	    files: string[];
 	    isMerge: boolean;
 	
@@ -14,6 +16,8 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hash = source["hash"];
 	        this.subject = source["subject"];
+	        this.author = source["author"];
+	        this.date = source["date"];
 	        this.files = source["files"];
 	        this.isMerge = source["isMerge"];
 	    }
@@ -23,6 +27,7 @@ export namespace domain {
 	    path: string;
 	    relPath: string;
 	    isDir: boolean;
+	    size: number;
 	    children?: FileNode[];
 	    isGitignored: boolean;
 	    isCustomIgnored: boolean;
@@ -37,6 +42,7 @@ export namespace domain {
 	        this.path = source["path"];
 	        this.relPath = source["relPath"];
 	        this.isDir = source["isDir"];
+	        this.size = source["size"];
 	        this.children = this.convertValues(source["children"], FileNode);
 	        this.isGitignored = source["isGitignored"];
 	        this.isCustomIgnored = source["isCustomIgnored"];

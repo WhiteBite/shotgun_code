@@ -63,36 +63,30 @@ func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStat
 		if len(line) < 4 {
 			continue
 		}
-
 		status := strings.TrimSpace(line[:2])
 		path := strings.TrimSpace(line[3:])
-
-		// Handle renamed files, format is "R  old -> new"
 		if strings.HasPrefix(status, "R") {
 			parts := strings.Split(path, " -> ")
 			if len(parts) == 2 {
-				path = parts[1] // We only care about the new path
+				path = parts[1]
 			}
 		}
-
-		// Normalize status codes
 		simpleStatus := ""
 		if strings.HasPrefix(status, "M") || strings.Contains(status, "M") {
-			simpleStatus = "M" // Modified
+			simpleStatus = "M"
 		} else if strings.HasPrefix(status, "A") {
-			simpleStatus = "A" // Added
+			simpleStatus = "A"
 		} else if strings.HasPrefix(status, "D") {
-			simpleStatus = "D" // Deleted
+			simpleStatus = "D"
 		} else if strings.HasPrefix(status, "R") {
-			simpleStatus = "R" // Renamed
+			simpleStatus = "R"
 		} else if strings.HasPrefix(status, "C") {
-			simpleStatus = "C" // Copied
+			simpleStatus = "C"
 		} else if status == "??" {
-			simpleStatus = "U" // Untracked
+			simpleStatus = "U"
 		} else {
-			simpleStatus = status // Keep original if not a common one
+			simpleStatus = status
 		}
-
 		statuses = append(statuses, domain.FileStatus{
 			Path:   path,
 			Status: simpleStatus,
@@ -105,7 +99,7 @@ func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStat
 func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
 	logArgs := []string{
 		"log",
-		"--pretty=format:COMMIT %H %P%n%s",
+		"--pretty=format:COMMIT %H %P%n%s%n%an%n%cI",
 		"--name-status",
 		"--topo-order",
 		"-n", fmt.Sprintf("%d", limit),
@@ -131,6 +125,18 @@ func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit
 	return commits, nil
 }
 
+func (gs *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	if strings.Contains(filePath, "..") || strings.Contains(commitHash, "..") {
+		return "", fmt.Errorf("invalid characters in path or hash")
+	}
+
+	output, err := gs.executeGitCommand(projectRoot, "show", fmt.Sprintf("%s:%s", commitHash, filePath))
+	if err != nil {
+		return "", fmt.Errorf("could not get file content for %s at commit %s: %w", filePath, commitHash, err)
+	}
+	return string(output), nil
+}
+
 func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 	var commits []domain.CommitWithFiles
 	scanner := bufio.NewScanner(strings.NewReader(output))
@@ -148,14 +154,21 @@ func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 			}
 			hash := parts[1]
 			parentHashes := parts[2:]
+
+			currentCommit = &domain.CommitWithFiles{
+				Hash:    hash,
+				IsMerge: len(parentHashes) > 1,
+				Files:   []string{},
+			}
+
 			if scanner.Scan() {
-				subject := scanner.Text()
-				currentCommit = &domain.CommitWithFiles{
-					Hash:    hash,
-					Subject: subject,
-					IsMerge: len(parentHashes) > 1,
-					Files:   []string{},
-				}
+				currentCommit.Subject = scanner.Text()
+			}
+			if scanner.Scan() {
+				currentCommit.Author = scanner.Text()
+			}
+			if scanner.Scan() {
+				currentCommit.Date = scanner.Text()
 			}
 		} else if currentCommit != nil && len(strings.TrimSpace(line)) > 0 {
 			parts := strings.Fields(line)

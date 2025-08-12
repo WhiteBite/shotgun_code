@@ -21,6 +21,8 @@ export interface FileNode {
   contextOrigin: ContextOrigin;
   isBinary: boolean;
   isIgnored: boolean;
+  isGitignored: boolean;
+  isCustomIgnored: boolean;
   expanded: boolean;
   selected: 'on' | 'off' | 'partial';
   parentPath: string | null;
@@ -35,6 +37,13 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+}
+
+export interface CommitWithFiles {
+  hash: string;
+  subject: string;
+  files: string[];
+  isMerge: boolean;
 }
 
 export interface SettingsDTO {

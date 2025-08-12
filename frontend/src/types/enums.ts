@@ -7,8 +7,7 @@ export enum GitStatus {
 
 export enum ContextOrigin {
   None = 'none',
-  // Future use
-  // Manual = 'manual',
-  // Git = 'git',
-  // AI = 'ai',
+  Manual = 'manual',
+  Git = 'git',
+  AI = 'ai',
 }

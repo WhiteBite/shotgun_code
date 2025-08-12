@@ -1,12 +1,15 @@
 <template>
   <aside class="w-80 bg-gray-800/60 p-3 border-r border-gray-700 flex flex-col flex-shrink-0">
-    <div class="flex-shrink-0 mb-2">
+    <div class="flex-shrink-0 mb-2 flex items-center gap-2">
       <input
           v-model="contextStore.searchQuery"
           type="text"
           placeholder="Filter files..."
           class="w-full px-3 py-1.5 bg-gray-900 border border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
+      <button @click="contextStore.fetchFileTree(true)" class="p-2 rounded-md hover:bg-gray-700" title="Rescan Project Files">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+      </button>
     </div>
 
     <div class="flex-grow bg-gray-900/50 rounded-md border border-gray-700 overflow-hidden min-h-0">

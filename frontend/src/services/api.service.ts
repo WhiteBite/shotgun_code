@@ -9,7 +9,8 @@ import {
   IsGitAvailable,
   GetUncommittedFiles,
   GetRichCommitHistory,
-  ReadFileContent
+  ReadFileContent,
+  GetFileContentAtCommit
 } from '../../wailsjs/go/main/App';
 import type { DomainFileNode, SettingsDTO, FileStatus, CommitWithFiles } from '@/types/dto';
 
@@ -17,6 +18,8 @@ class ApiService {
   selectDirectory = (): Promise<string> => SelectDirectory();
   listFiles = (projectPath: string, useGitignore: boolean, useCustom: boolean): Promise<DomainFileNode[]> => ListFiles(projectPath, useGitignore, useCustom);
   readFileContent = (rootDir: string, relPath: string): Promise<string> => ReadFileContent(rootDir, relPath);
+  getFileContentAtCommit = (rootDir: string, relPath: string, hash: string): Promise<string> => GetFileContentAtCommit(rootDir, relPath, hash);
+
   buildContext = (projectPath: string, filePaths: string[]): Promise<void> =>
       RequestShotgunContextGeneration(projectPath, filePaths);
 
