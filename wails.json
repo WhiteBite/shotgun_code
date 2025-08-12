@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/project.v3.json",
+  "name": "shotgun_code",
+  "description": "A modern code generation tool",
+  "author": {
+    "name": "WhiteBite",
+    "email": ""
+  },
+  "build": {
+    "go": {
+      "dir": "backend"
+    },
+    "frontend": {
+      "dir": "frontend",
+      "install": "npm install",
+      "build": "npm run build",
+      "dev": "npm run dev"
+    }
+  }
+}

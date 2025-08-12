@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <transition
       enter-active-class="transform ease-out duration-300 transition"
       enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
@@ -22,7 +22,7 @@
             </svg>
           </div>
           <div class="ml-3 w-0 flex-1 pt-0.5">
-            <p class="text-sm font-medium text-white break-words">{{ toast.message }}</p>
+            <p class="text-sm font-medium text-white whitespace-normal break-words">{{ toast.message }}</p>
           </div>
           <div class="ml-4 flex-shrink-0 flex">
             <button @click="$emit('close')" class="bg-gray-800 rounded-md inline-flex text-gray-400 hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import type { Toast } from '@/stores/uiStore';
+import type { Toast } from '@/stores/ui.store';
 
 const props = defineProps<{
   toast: Toast,

@@ -1,8 +1,8 @@
-import { defineStore } from 'pinia';
+﻿import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { SuggestContextFiles } from '../../wailsjs/go/main/App';
-import { useContextStore } from './contextStore';
-import { useUiStore } from './uiStore';
+import { useContextStore } from './context.store';
+import { useUiStore } from './ui.store';
 
 export const useTaskStore = defineStore('task', () => {
   const userTask = ref('');

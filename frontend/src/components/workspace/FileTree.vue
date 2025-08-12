@@ -10,13 +10,14 @@
     <FileTreeItem :node="item" />
   </RecycleScroller>
   <div v-else class="p-4 text-center text-gray-500 text-sm">
-    Загрузка дерева...
+    <span v-if="contextStore.searchQuery">No matching files found.</span>
+    <span v-else>File tree is empty.</span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { RecycleScroller } from 'vue-virtual-scroller';
-import { useContextStore } from '@/stores/contextStore';
+import { useContextStore } from '@/stores/context.store';
 import FileTreeItem from './FileTreeItem.vue';
 
 const contextStore = useContextStore();
@@ -25,5 +26,8 @@ const contextStore = useContextStore();
 <style>
 .vue-recycle-scroller__item-view {
   box-sizing: border-box;
+}
+.vue-recycle-scroller.ready {
+  width: 100%;
 }
 </style>

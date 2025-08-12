@@ -13,6 +13,6 @@
 </template>
 
 <script setup lang="ts">
-import { useContextStore } from '@/stores/contextStore';
+import { useContextStore } from '@/stores/context.store';
 const contextStore = useContextStore();
 </script>

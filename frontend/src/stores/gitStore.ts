@@ -1,11 +1,11 @@
-
+﻿
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { IsGitAvailable, GetUncommittedFiles, GetRichCommitHistory } from '../../wailsjs/go/main/App';
-import { useNotificationsStore } from './notificationsStore';
-import { useContextStore } from './contextStore';
+import { useNotificationsStore } from './notifications.store';
+import { useContextStore } from './context.store';
 import type { CommitWithFiles, FileStatus } from '@/types/dto';
-import { useProjectStore } from './projectStore';
+import { useProjectStore } from './project.store';
 import { GitStatus } from '@/types/enums';
 
 export const useGitStore = defineStore('git', () => {

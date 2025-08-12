@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <transition name="slide-fade">
     <aside v-if="uiStore.activeDrawer === 'ignore'" class="absolute top-0 right-0 h-full w-96 bg-gray-800 border-l border-gray-700 shadow-2xl z-30 p-4 flex flex-col">
       <div class="flex items-center justify-between mb-4 flex-shrink-0">
@@ -28,8 +28,8 @@
 </template>
 
 <script setup lang="ts">
-import { useUiStore } from '@/stores/uiStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useUiStore } from '@/stores/ui.store';
+import { useSettingsStore } from '@/stores/settings.store';
 const uiStore = useUiStore();
 const settingsStore = useSettingsStore();
 </script>

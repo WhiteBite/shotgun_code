@@ -1,12 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { EventsOn } from '../../wailsjs/runtime/runtime';
 import type { LogEntry } from '@/types/dto';
-import { useUiStore } from './uiStore';
+import { useUiStore } from './ui.store';
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const logs = ref<LogEntry[]>([]);
-  const maxLogs = 100;
+  const maxLogs = 150;
 
   function addLog(message: string, type: LogEntry['type'] = 'info') {
     const uiStore = useUiStore();
@@ -19,19 +18,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (logs.value.length > maxLogs) {
       logs.value.pop();
     }
-    // Also show a toast for errors
-    if (type === 'error') {
-      uiStore.addToast(message, 'error');
+
+    if (type === 'error' || type === 'success') {
+      uiStore.addToast(message, type);
     }
   }
-
-  function setupWailsListeners() {
-    EventsOn("app:error", (errorMessage: string) => {
-      addLog(errorMessage, 'error');
-    });
-  }
-
-  setupWailsListeners();
 
   return {
     logs,

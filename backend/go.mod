@@ -5,13 +5,18 @@ go 1.23.0
 require (
 	github.com/adrg/xdg v0.5.0
 	github.com/fsnotify/fsnotify v1.8.0
+	github.com/google/generative-ai-go v0.20.1
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sashabaranov/go-openai v1.41.0
 	github.com/wailsapp/wails/v2 v2.10.1
 	github.com/zalando/go-keyring v0.2.5
 	google.golang.org/api v0.235.0
-	google.golang.org/genai v0.18.0 // Новый SDK для Generative AI
 	google.golang.org/grpc v1.72.2
+)
+
+require (
+	cloud.google.com/go/ai v0.8.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 )
 
 require (
@@ -62,7 +67,6 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
-	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

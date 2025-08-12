@@ -66,7 +66,7 @@ The frontend uses Vue 3 (Composition API), Vite, Tailwind CSS, and Pinia. The ke
 
 -   **`projectStore.ts` (now `projectStore.ts`):** Manages only the top-level state, such as the `projectRoot` path. It orchestrates the selection of a new project, triggering resets in other stores.
 -   **`fileTreeStore.js`**: Manages the state of the file tree (`tree`), loading status, and user interactions (expanding/collapsing nodes, toggling exclusions).
--   **`contextStore.ts`**: Manages the generated "shotgun" context (`shotgunPromptContext`), its generation status (`isGeneratingContext`), and progress.
+-   **`context.store.ts`**: Manages the generated "shotgun" context (`shotgunPromptContext`), its generation status (`isGeneratingContext`), and progress.
 -   **`gitStore.ts`**: Manages all Git-related state and operations (`isAvailable`, `isLoading`, `recentCommits`, `commitHistoryModalVisible`).
 -   **`promptStore.js`**: Manages the user's task input, the final composed prompt, and template selection. It uses a debounced ref for user input to optimize performance.
 -   **`diffStore.js`**: Manages the logic for the "Review & Apply" step, including the input diff text and the resulting split diffs.

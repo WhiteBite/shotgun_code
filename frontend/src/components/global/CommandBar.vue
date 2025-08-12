@@ -2,7 +2,7 @@
   <header class="h-14 bg-gray-900/80 backdrop-blur-sm text-white flex items-center justify-between px-4 border-b border-gray-700 flex-shrink-0 z-40">
     <!-- Left Side -->
     <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 cursor-pointer" @click="$router.push('/')">
+      <div class="flex items-center gap-2 cursor-pointer" @click="goHome()">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="m12 19-7-7 7-7"/><path d="m19 12-7 7"/></svg>
         <span class="font-bold text-lg">Shotgun</span>
       </div>
@@ -11,6 +11,9 @@
         <button class="px-3 py-1 bg-gray-700/50 rounded-md hover:bg-gray-700 text-sm">
           <span class="text-gray-400">Project:</span>
           <span class="font-semibold ml-1">{{ projectStore.currentProject?.name }}</span>
+        </button>
+        <button @click="goHome" class="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded-md" title="Change Project">
+          Change
         </button>
       </div>
     </div>
@@ -25,9 +28,16 @@
 </template>
 
 <script setup lang="ts">
-import { useUiStore } from '@/stores/uiStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useUiStore } from '@/stores/ui.store';
+import { useProjectStore } from '@/stores/project.store';
+import { useRouter } from 'vue-router';
 
 const uiStore = useUiStore();
 const projectStore = useProjectStore();
+const router = useRouter();
+
+function goHome() {
+  projectStore.$patch({ currentProject: null });
+  router.push('/');
+}
 </script>

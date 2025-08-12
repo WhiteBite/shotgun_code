@@ -1,11 +1,7 @@
-import { useContextStore } from "@/stores/contextStore";
-
-let store: ReturnType<typeof useContextStore>;
+import { useContextStore } from "@/stores/context.store";
 
 export function useFileTree() {
-  if (!store) {
-    store = useContextStore();
-  }
+  const store = useContextStore();
 
   const toggleExpansion = (path: string) => {
     store.toggleNodeExpansion(path);

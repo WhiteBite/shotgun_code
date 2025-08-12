@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"shotgun_code/application"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/wailsbridge"
 )
 
-// App теперь выступает в роли фасада, скрывая сервисы.
+// App now acts as a facade, hiding the services.
 type App struct {
 	ctx             context.Context
 	projectService  *application.ProjectService
@@ -34,8 +35,23 @@ func (a *App) handleError(err error) {
 	}
 }
 
+// validateProjectPath checks if a path is valid and exists.
+func (a *App) validateProjectPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("project path cannot be empty")
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("project path does not exist: %s", path)
+	}
+	return nil
+}
+
 // --- Project & Context Methods ---
 func (a *App) ListFiles(dirPath string) ([]*domain.FileNode, error) {
+	if err := a.validateProjectPath(dirPath); err != nil {
+		a.handleError(err)
+		return nil, err
+	}
 	nodes, err := a.projectService.ListFiles(dirPath)
 	if err != nil {
 		a.handleError(err)
@@ -45,18 +61,19 @@ func (a *App) ListFiles(dirPath string) ([]*domain.FileNode, error) {
 }
 
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				a.handleError(fmt.Errorf("PANIC recovered in GenerateContext: %v", r))
-			}
-		}()
-		a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
-	}()
+	if err := a.validateProjectPath(rootDir); err != nil {
+		a.handleError(err)
+		return
+	}
+	go a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
 }
 
 // --- Git Methods ---
 func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
+	if err := a.validateProjectPath(projectRoot); err != nil {
+		a.handleError(err)
+		return nil, err
+	}
 	files, err := a.projectService.GetUncommittedFiles(projectRoot)
 	if err != nil {
 		a.handleError(err)
@@ -66,6 +83,10 @@ func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, erro
 }
 
 func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
+	if err := a.validateProjectPath(projectRoot); err != nil {
+		a.handleError(err)
+		return nil, err
+	}
 	commits, err := a.projectService.GetRichCommitHistory(projectRoot, branchName, limit)
 	if err != nil {
 		a.handleError(err)
@@ -126,6 +147,10 @@ func (a *App) RefreshAIModels(provider string, apiKey string) error {
 
 // --- FS Watcher & System Dialogs ---
 func (a *App) StartFileWatcher(rootDirPath string) {
+	if err := a.validateProjectPath(rootDirPath); err != nil {
+		a.handleError(err)
+		return
+	}
 	a.handleError(a.fileWatcher.Start(rootDirPath))
 }
 

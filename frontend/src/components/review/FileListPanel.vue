@@ -48,7 +48,7 @@ export default {
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useContextStore } from '@/stores/contextStore';
+import { useContextStore } from '@/stores/context.store';
 import type { FileNode } from '@/types/dto';
 
 withDefaults(defineProps<{

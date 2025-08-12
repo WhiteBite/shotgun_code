@@ -1,0 +1,13 @@
+version: '3' # https://taskfile.dev
+
+tasks:
+  # Starts the application in development mode
+  dev:
+    desc: Start the application in development mode
+    cmds:
+      - wails3 dev
+  # Builds the application for production
+  build:
+    desc: Build the application
+    cmds:
+      - wails3 build

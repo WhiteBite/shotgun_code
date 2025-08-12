@@ -2,7 +2,8 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { GetSettings, SaveSettings, RefreshAIModels } from '../../wailsjs/go/main/App';
 import type { SettingsDTO } from '@/types/dto';
-import { useUiStore } from './uiStore';
+import { useUiStore } from './ui.store';
+import { useErrorHandler } from '@/composables/useErrorHandler';
 
 const emptySettings: SettingsDTO = {
   customIgnoreRules: '',
@@ -22,6 +23,7 @@ const emptySettings: SettingsDTO = {
 
 export const useSettingsStore = defineStore('settings', () => {
   const uiStore = useUiStore();
+  const { handleError } = useErrorHandler();
   const settings = ref<SettingsDTO>(JSON.parse(JSON.stringify(emptySettings)));
   const isLoading = ref(false);
   const isRefreshingModels = ref(false);
@@ -31,8 +33,8 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const newSettings = await GetSettings();
       settings.value = newSettings;
-    } catch (err: any) {
-      uiStore.addToast(`Ошибка загрузки настроек: ${err.message || err}`, 'error');
+    } catch (err) {
+      handleError(err, 'Fetch Settings');
     } finally {
       isLoading.value = false;
     }
@@ -42,11 +44,19 @@ export const useSettingsStore = defineStore('settings', () => {
     isLoading.value = true;
     try {
       await SaveSettings(settings.value);
-      uiStore.addToast('Настройки успешно сохранены', 'success');
-    } catch (err: any) {
-      uiStore.addToast(`Ошибка сохранения настроек: ${err.message || err}`, 'error');
+      uiStore.addToast('Settings saved successfully', 'success');
+    } catch (err) {
+      handleError(err, 'Save Settings');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  async function saveIgnoreSettings() {
+    try {
+      await SaveSettings(settings.value);
+    } catch (err) {
+      handleError(err, 'Save Ignore Settings');
     }
   }
 
@@ -59,25 +69,24 @@ export const useSettingsStore = defineStore('settings', () => {
       case 'localai': apiKey = settings.value.localAIAPIKey; break;
     }
 
-    if (!apiKey && provider !== 'localai') { // localai might not need a key
-      uiStore.addToast(`API ключ для ${provider} не указан.`, 'info');
+    if (!apiKey && provider !== 'localai') {
+      uiStore.addToast(`API key for ${provider} is not set.`, 'info');
       return;
     }
 
     isRefreshingModels.value = true;
     try {
       await RefreshAIModels(provider, apiKey);
-      await fetchSettings(); // Refetch settings to get the new model list
-      uiStore.addToast(`Список моделей для ${provider} обновлен.`, 'success');
-    } catch (err: any)
+      await fetchSettings();
+      uiStore.addToast(`Model list for ${provider} has been updated.`, 'success');
+    } catch (err)
     {
-      uiStore.addToast(`Ошибка обновления моделей: ${err.message || err}`, 'error');
+      handleError(err, `Refresh Models for ${provider}`);
     } finally {
       isRefreshingModels.value = false;
     }
   }
 
-  // Initial fetch
   fetchSettings();
 
   return {
@@ -86,6 +95,7 @@ export const useSettingsStore = defineStore('settings', () => {
     isRefreshingModels,
     fetchSettings,
     saveSettings,
+    saveIgnoreSettings,
     refreshModels,
   };
 });

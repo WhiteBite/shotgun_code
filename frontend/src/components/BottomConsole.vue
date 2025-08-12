@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { useNotificationsStore } from '../stores/notificationsStore';
+import { useNotificationsStore } from '@/stores/notifications.store';
 import type { LogEntry } from '@/types/dto';
 
 defineProps<{

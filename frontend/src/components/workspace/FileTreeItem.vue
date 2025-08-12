@@ -1,7 +1,7 @@
 <template>
   <div
       class="relative group flex items-center gap-1.5 h-[28px] pr-2 rounded cursor-pointer"
-      :class="{'bg-gray-800/60': isSelected}"
+      :class="{'bg-blue-800/40': isSelected}"
       :style="{ paddingLeft: `${node.depth * 16 + 4}px` }"
       @click.stop="handleClick"
   >
@@ -20,7 +20,7 @@
       </svg>
     </div>
 
-    <!-- Checkbox is now part of the item, logic inside store -->
+    <!-- Checkbox -->
     <input
         type="checkbox"
         :checked="node.selected === 'on'"
@@ -28,10 +28,6 @@
         @click.stop
         @change.stop="tree.toggleSelection(node.path)"
         class="form-checkbox w-4 h-4 bg-gray-800 border-gray-500 rounded text-blue-500 focus:ring-blue-500/50 focus:ring-offset-0 transition-opacity z-10"
-        :class="{
-        'opacity-0 group-hover:opacity-100': contextStore.treeMode === TreeMode.Navigation && node.selected === 'off',
-        'opacity-100': contextStore.treeMode === TreeMode.Selection || node.selected !== 'off'
-      }"
     />
 
     <!-- Icon -->
@@ -43,10 +39,7 @@
 
     <!-- Name and Badges -->
     <div class="flex-grow flex items-center justify-between overflow-hidden">
-      <div class="truncate">
-        <span class="text-sm truncate select-none" :class="{'text-white': isSelected, 'text-gray-300': !isSelected}">{{ node.isCompact ? node.name.split('/').pop() : node.name }}</span>
-        <span v-if="node.isCompact" class="text-xs text-gray-500 ml-1 truncate">{{ compactPath(node.name) }}</span>
-      </div>
+      <span class="text-sm truncate select-none" :class="{'text-white': isSelected, 'text-gray-300': !isSelected}">{{ node.name }}</span>
       <div class="flex-shrink-0 ml-2">
         <span v-if="gitStatus" class="px-1.5 py-0.5 text-xs font-semibold rounded-full" :class="gitStatus.classes">{{ gitStatus.label }}</span>
       </div>
@@ -58,13 +51,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { FileNode } from '@/types/dto';
-import { useContextStore } from '@/stores/contextStore';
+import { useContextStore } from '@/stores/context.store';
 import { useFileTree } from '@/composables/useFileTree';
-import { TreeMode, GitStatus } from '@/types/enums';
+import { GitStatus } from '@/types/enums';
 
-const props = defineProps<{
-  node: FileNode & { isCompact?: boolean };
-}>();
+const props = defineProps<{ node: FileNode }>();
 
 const contextStore = useContextStore();
 const tree = useFileTree();
@@ -80,19 +71,10 @@ const gitStatus = computed(() => {
   }
 });
 
-
 function handleClick() {
   tree.setActiveNode(props.node.path);
-  if (contextStore.treeMode === TreeMode.Selection) {
-    tree.toggleSelection(props.node.path);
-  } else if (props.node.isDir) {
+  if (props.node.isDir) {
     tree.toggleExpansion(props.node.path);
   }
-}
-
-function compactPath(path: string) {
-  const parts = path.split('/');
-  parts.pop();
-  return parts.join('/') + '/';
 }
 </script>

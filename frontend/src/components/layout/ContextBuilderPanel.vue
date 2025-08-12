@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <aside class="w-80 bg-gray-800/60 p-3 border-r border-gray-700 flex flex-col flex-shrink-0">
     <!-- Header with Mode Toggle and Search -->
     <div class="flex-shrink-0 mb-2">
@@ -49,9 +49,9 @@
 </template>
 
 <script setup lang="ts">
-import { useContextStore } from '@/stores/contextStore';
-import { useGitStore } from '@/stores/gitStore';
-import { useUiStore } from '@/stores/uiStore';
+import { useContextStore } from '@/stores/context.store';
+import { useGitStore } from '@/stores/git.store';
+import { useUiStore } from '@/stores/ui.store';
 import { TreeMode } from '@/types/enums';
 import FileTree from '../workspace/FileTree.vue';
 import ContextSummary from '../workspace/ContextSummary.vue';

@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { useReviewStore } from '@/stores/reviewStore';
+import { useReviewStore } from '@/stores/review.store';
 const reviewStore = useReviewStore();
 
 const getLineClass = (line: string) => {
