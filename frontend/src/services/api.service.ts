@@ -7,36 +7,30 @@ import {
   SaveSettings,
   SelectDirectory,
   IsGitAvailable,
-  GetUncommittedFiles
+  GetUncommittedFiles,
+  GetRichCommitHistory,
+  ReadFileContent
 } from '../../wailsjs/go/main/App';
-import type { DomainFileNode, SettingsDTO, FileStatus } from '@/types/dto';
+import type { DomainFileNode, SettingsDTO, FileStatus, CommitWithFiles } from '@/types/dto';
 
-/**
- * A service layer that centralizes all API calls to the Go backend.
- * This isolates Wails-specific calls and makes the rest of the app
- * easier to test and maintain.
- */
 class ApiService {
-  // Project and File System
   selectDirectory = (): Promise<string> => SelectDirectory();
-  listFiles = (projectPath: string): Promise<DomainFileNode[]> => ListFiles(projectPath);
+  listFiles = (projectPath: string, useGitignore: boolean, useCustom: boolean): Promise<DomainFileNode[]> => ListFiles(projectPath, useGitignore, useCustom);
+  readFileContent = (rootDir: string, relPath: string): Promise<string> => ReadFileContent(rootDir, relPath);
   buildContext = (projectPath: string, filePaths: string[]): Promise<void> =>
       RequestShotgunContextGeneration(projectPath, filePaths);
 
-  // AI and Generation
   generateCode = (systemPrompt: string, userPrompt: string): Promise<string> =>
       GenerateCode(systemPrompt, userPrompt);
   suggestFiles = (task: string, allFiles: DomainFileNode[]): Promise<string[]> =>
       SuggestContextFiles(task, allFiles);
 
-  // Settings
   getSettings = (): Promise<SettingsDTO> => GetSettings();
   saveSettings = (dto: SettingsDTO): Promise<void> => SaveSettings(dto);
 
-  // Git
   isGitAvailable = (): Promise<boolean> => IsGitAvailable();
   getUncommittedFiles = (projectRoot: string): Promise<FileStatus[]> => GetUncommittedFiles(projectRoot);
+  getRichCommitHistory = (root: string, branch: string, limit: number): Promise<CommitWithFiles[]> => GetRichCommitHistory(root, branch, limit);
 }
 
-// Export a singleton instance
 export const apiService = new ApiService();

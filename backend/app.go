@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"shotgun_code/application"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/wailsbridge"
+	"strings"
 )
 
 // App now acts as a facade, hiding the services.
@@ -47,17 +49,39 @@ func (a *App) validateProjectPath(path string) error {
 }
 
 // --- Project & Context Methods ---
-func (a *App) ListFiles(dirPath string) ([]*domain.FileNode, error) {
+func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	if err := a.validateProjectPath(dirPath); err != nil {
 		a.handleError(err)
 		return nil, err
 	}
-	nodes, err := a.projectService.ListFiles(dirPath)
+	nodes, err := a.projectService.ListFiles(dirPath, useGitignore, useCustomIgnore)
 	if err != nil {
 		a.handleError(err)
 		return nil, err
 	}
 	return nodes, nil
+}
+
+// ReadFileContent securely reads the content of a single file.
+func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
+	if err := a.validateProjectPath(rootDir); err != nil {
+		return "", err
+	}
+
+	cleanRootDir, err := filepath.Abs(rootDir)
+	if err != nil {
+		return "", fmt.Errorf("could not get absolute path for root: %w", err)
+	}
+	absPath := filepath.Join(cleanRootDir, relPath)
+	if !strings.HasPrefix(absPath, cleanRootDir) {
+		return "", fmt.Errorf("path traversal attempt detected: %s", relPath)
+	}
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", relPath, err)
+	}
+	return string(data), nil
 }
 
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {

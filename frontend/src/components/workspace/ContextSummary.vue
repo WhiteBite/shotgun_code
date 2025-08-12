@@ -3,10 +3,10 @@
     <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-3">
       <div class="text-gray-400">Files:</div>
       <div class="text-white font-mono text-right">{{ contextStore.contextSummary.files }}</div>
-      <div class="text-gray-400">Lines (est.):</div>
-      <div class="text-white font-mono text-right">~{{ contextStore.contextSummary.lines.toLocaleString() }}</div>
       <div class="text-gray-400">Tokens (est.):</div>
       <div class="text-white font-mono text-right">~{{ contextStore.contextSummary.tokens.toLocaleString() }}</div>
+      <div class="text-gray-400">Cost (est.):</div>
+      <div class="text-white font-mono text-right">${{ contextStore.contextSummary.cost.toFixed(4) }}</div>
     </div>
     <div class="space-y-2">
       <button @click="contextStore.clearSelection()" class="w-full py-1.5 bg-gray-700/50 hover:bg-gray-700 rounded-md font-semibold text-sm">

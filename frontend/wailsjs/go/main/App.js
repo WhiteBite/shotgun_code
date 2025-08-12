@@ -22,8 +22,12 @@ export function IsGitAvailable() {
   return window['go']['main']['App']['IsGitAvailable']();
 }
 
-export function ListFiles(arg1) {
-  return window['go']['main']['App']['ListFiles'](arg1);
+export function ListFiles(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListFiles'](arg1, arg2, arg3);
+}
+
+export function ReadFileContent(arg1, arg2) {
+  return window['go']['main']['App']['ReadFileContent'](arg1, arg2);
 }
 
 export function RefreshAIModels(arg1, arg2) {

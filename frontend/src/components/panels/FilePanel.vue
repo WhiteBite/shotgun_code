@@ -17,7 +17,12 @@
     </div>
 
     <div class="flex-shrink-0 mt-2 space-y-3 pt-2 border-t border-gray-700/50">
-      <!-- Ignore Rules -->
+      <div>
+        <h3 class="font-semibold text-xs mb-2 text-gray-400">Git</h3>
+        <button @click="gitStore.showHistory" class="w-full text-left p-2 text-sm bg-gray-900/50 hover:bg-gray-700/80 rounded-md">
+          Commit History
+        </button>
+      </div>
       <div>
         <h3 class="font-semibold text-xs mb-2 text-gray-400">Ignore Rules</h3>
         <div class="space-y-2 text-sm text-gray-300">
@@ -34,6 +39,7 @@
       </div>
       <ContextSummary />
     </div>
+    <CommitHistoryModal />
   </aside>
 </template>
 
@@ -41,15 +47,18 @@
 import { useContextStore } from '@/stores/context.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useUiStore } from '@/stores/ui.store';
+import { useGitStore } from '@/stores/git.store';
 import FileTree from '@/components/workspace/FileTree.vue';
 import ContextSummary from '@/components/workspace/ContextSummary.vue';
+import CommitHistoryModal from '@/components/modals/CommitHistoryModal.vue';
 
 const contextStore = useContextStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUiStore();
+const gitStore = useGitStore();
 
 async function updateIgnoreRules() {
   await settingsStore.saveIgnoreSettings();
-  await contextStore.fetchFileTree(true); // Call with preserveState = true
+  await contextStore.fetchFileTree(true);
 }
 </script>

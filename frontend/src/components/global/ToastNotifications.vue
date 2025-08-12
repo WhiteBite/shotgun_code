@@ -1,12 +1,11 @@
 <template>
-  <div aria-live="assertive" class="fixed top-20 right-6 z-50 flex flex-col items-end space-y-3 w-full max-w-sm">
-    <!-- Этот контейнер теперь имеет фиксированную позицию и ширину, и не будет растягиваться по вертикали. -->
+  <div aria-live="assertive" class="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-3 w-full max-w-md z-50">
     <transition-group
         tag="div"
         enter-active-class="transform ease-out duration-300 transition"
-        enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-        enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
-        leave-active-class="transition ease-in duration-100"
+        enter-from-class="opacity-0 translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition ease-in duration-200"
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
@@ -29,7 +28,6 @@ const uiStore = useUiStore();
 </script>
 
 <style scoped>
-/* Убираем pointer-events, так как дочерние элементы уже имеют pointer-events-auto через Tailwind */
 div[aria-live="assertive"] {
   pointer-events: none;
 }

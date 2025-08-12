@@ -5,6 +5,7 @@ import { GitStatus, ContextOrigin } from '@/types/enums';
 import { useUiStore } from './ui.store';
 import { useNotificationsStore } from './notifications.store';
 import { useProjectStore } from './project.store';
+import { useSettingsStore } from './settings.store';
 import { apiService } from '@/services/api.service';
 import { useDebouncedSearch } from '@/composables/useDebouncedSearch';
 
@@ -53,12 +54,15 @@ export const useContextStore = defineStore('context', () => {
 
   const notifications = useNotificationsStore();
   const projectStore = useProjectStore();
+  const settingsStore = useSettingsStore();
   const { searchQuery, debouncedQuery } = useDebouncedSearch(250);
 
   const activeNode = computed(() => activeNodePath.value ? nodesMap.value.get(activeNodePath.value) : null);
 
   const visibleNodes = computed(() => {
     const result: FileNode[] = [];
+    if (nodesMap.value.size === 0) return result;
+
     const roots = Array.from(nodesMap.value.values()).filter(n => n.depth === 0);
 
     const query = debouncedQuery.value.toLowerCase().trim();
@@ -70,9 +74,7 @@ export const useContextStore = defineStore('context', () => {
       const children = node.children?.map(c => nodesMap.value.get(c.path)!).filter(Boolean) ?? [];
       const matches = filterFn(node);
 
-      if (matches) {
-        result.push(node);
-      }
+      result.push(node);
 
       if ((node.expanded || query) && children.length > 0) {
         children.forEach(child => traverse(child));
@@ -88,10 +90,12 @@ export const useContextStore = defineStore('context', () => {
     const files = selectedFiles.value;
     const estimatedLines = files.length * 150;
     const estimatedTokens = Math.round(estimatedLines * 1.25);
+    const cost = (estimatedTokens / 1000000) * 15; // Rough estimate for GPT-4o input: $15/M tokens
     return {
       files: files.length,
       lines: Math.max(0, estimatedLines),
       tokens: Math.max(0, estimatedTokens),
+      cost: cost,
     };
   });
 
@@ -117,7 +121,8 @@ export const useContextStore = defineStore('context', () => {
     }
 
     try {
-      const treeData = await apiService.listFiles(projectStore.currentProject.path);
+      const { useGitignore, useCustomIgnore } = settingsStore.settings;
+      const treeData = await apiService.listFiles(projectStore.currentProject.path, useGitignore, useCustomIgnore);
       const newNodesMap = processNodes(treeData);
 
       if (preserveState) {
@@ -125,13 +130,11 @@ export const useContextStore = defineStore('context', () => {
           if (oldState.expandedPaths.has(newNode.path)) {
             newNode.expanded = true;
           }
-          // Restore selection only if the file is NOT ignored now
           if (!newNode.isIgnored && oldState.selectedPaths.has(newNode.path)) {
             newNode.selected = 'on';
           }
         });
 
-        // Recalculate parent selections after restoring children
         newNodesMap.forEach(node => {
           if (node.selected === 'on' && node.parentPath) {
             _updateParentSelection(node.parentPath, newNodesMap);
@@ -165,7 +168,7 @@ export const useContextStore = defineStore('context', () => {
       const statuses = await apiService.getUncommittedFiles(projectStore.currentProject.path);
       const statusMap = new Map<string, GitStatus>();
       statuses.forEach(s => {
-        const gitStatus = (s.status === '??' || s.status === 'A') ? GitStatus.Untracked : GitStatus.Modified;
+        const gitStatus = (s.status === 'U' || s.status === 'A') ? GitStatus.Untracked : GitStatus.Modified;
         statusMap.set(s.path, gitStatus);
       });
 
@@ -217,19 +220,21 @@ export const useContextStore = defineStore('context', () => {
 
   function toggleNodeSelection(path: string) {
     const node = nodesMap.value.get(path);
-    if (!node) return;
+    if (!node || node.isIgnored) return;
 
     const newSelection = node.selected === 'on' ? 'off' : 'on';
 
     const stack: FileNode[] = [node];
     while(stack.length > 0) {
       const current = stack.pop()!;
-      current.selected = newSelection;
-      if(current.children) {
-        current.children.forEach(c => {
-          const childNode = nodesMap.value.get(c.path);
-          if (childNode) stack.push(childNode);
-        });
+      if (!current.isIgnored) {
+        current.selected = newSelection;
+        if(current.children) {
+          current.children.forEach(c => {
+            const childNode = nodesMap.value.get(c.path);
+            if (childNode) stack.push(childNode);
+          });
+        }
       }
     }
     _updateParentSelection(node.parentPath, nodesMap.value);
@@ -265,11 +270,27 @@ export const useContextStore = defineStore('context', () => {
 
   function selectAllVisible() {
     visibleNodes.value.forEach(node => {
-      if (!node.isDir && node.selected !== 'on') {
+      if (!node.isDir && node.selected !== 'on' && !node.isIgnored) {
         toggleNodeSelection(node.path);
       }
     });
     useUiStore().addToast('All visible files selected.', 'success');
+  }
+
+  function selectFilesByRelPaths(relPaths: string[]) {
+    const relPathMap = new Map<string, FileNode>();
+    nodesMap.value.forEach(node => {
+      if (!node.isDir) relPathMap.set(node.relPath, node);
+    });
+
+    relPaths.forEach(relPath => {
+      const node = relPathMap.get(relPath);
+      if (node && node.selected !== 'on' && !node.isIgnored) {
+        node.selected = 'on';
+        _updateParentSelection(node.parentPath, nodesMap.value);
+      }
+    });
+    useUiStore().addToast(`${relPaths.length} files from commit selected.`, 'success');
   }
 
   return {
@@ -277,6 +298,6 @@ export const useContextStore = defineStore('context', () => {
     activeNode, visibleNodes, selectedFiles, contextSummary,
     fetchFileTree, clearProjectData, toggleNodeExpansion, toggleNodeSelection,
     setActiveNode: (path: string | null) => { activeNodePath.value = path; },
-    buildContext, setShotgunContext, clearSelection, selectAllVisible,
+    buildContext, setShotgunContext, clearSelection, selectAllVisible, selectFilesByRelPaths,
   };
 });

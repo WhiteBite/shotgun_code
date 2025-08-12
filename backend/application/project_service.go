@@ -52,9 +52,8 @@ func (s *ProjectService) LogError(message string) {
 	s.bus.Emit("app:error", message)
 }
 
-func (s *ProjectService) ListFiles(dirPath string) ([]*domain.FileNode, error) {
-	// Note: settings are now implicitly used by the treeBuilder from its constructor
-	return s.treeBuilder.BuildTree(dirPath, true, true)
+func (s *ProjectService) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
+	return s.treeBuilder.BuildTree(dirPath, useGitignore, useCustomIgnore)
 }
 
 func (s *ProjectService) IsGitAvailable() bool {

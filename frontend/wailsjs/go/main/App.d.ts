@@ -12,7 +12,9 @@ export function GetUncommittedFiles(arg1:string):Promise<Array<domain.FileStatus
 
 export function IsGitAvailable():Promise<boolean>;
 
-export function ListFiles(arg1:string):Promise<Array<domain.FileNode>>;
+export function ListFiles(arg1:string,arg2:boolean,arg3:boolean):Promise<Array<domain.FileNode>>;
+
+export function ReadFileContent(arg1:string,arg2:string):Promise<string>;
 
 export function RefreshAIModels(arg1:string,arg2:string):Promise<void>;
 
