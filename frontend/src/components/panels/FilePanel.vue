@@ -7,7 +7,7 @@
           placeholder="Filter files..."
           class="w-full px-3 py-1.5 bg-gray-900 border border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-      <button @click="contextStore.fetchFileTree(true)" class="p-2 rounded-md hover:bg-gray-700" title="Rescan Project Files">
+      <button @click="rescanFiles" class="p-2 rounded-md hover:bg-gray-700" title="Rescan Project Files">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
       </button>
     </div>
@@ -16,7 +16,7 @@
       <div v-if="contextStore.isLoading" class="p-4 text-center text-gray-400">
         Loading file tree...
       </div>
-      <FileTree v-else />
+      <FileTree v-else :nodes="visibleNodes" />
     </div>
 
     <div class="flex-shrink-0 mt-2 space-y-3 pt-2 border-t border-gray-700/50">
@@ -51,17 +51,38 @@ import { useContextStore } from '@/stores/context.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useUiStore } from '@/stores/ui.store';
 import { useGitStore } from '@/stores/git.store';
+import { useVisibleNodes } from '@/composables/useVisibleNodes';
 import FileTree from '@/components/workspace/FileTree.vue';
 import ContextSummary from '@/components/workspace/ContextSummary.vue';
 import CommitHistoryModal from '@/components/modals/CommitHistoryModal.vue';
+import { useTreeStateStore } from '@/stores/tree-state.store';
 
 const contextStore = useContextStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUiStore();
 const gitStore = useGitStore();
+const treeStateStore = useTreeStateStore();
+const { visibleNodes } = useVisibleNodes();
 
 async function updateIgnoreRules() {
   await settingsStore.saveIgnoreSettings();
-  await contextStore.fetchFileTree(true);
+  const selectedPaths = Array.from(treeStateStore.selectedPaths);
+  const expandedPaths = Array.from(treeStateStore.expandedPaths);
+
+  await contextStore.fetchFileTree();
+
+  const newSelected = new Set<string>();
+  selectedPaths.forEach(path => {
+    const node = contextStore.nodesMap.get(path);
+    if (node && !node.isIgnored) {
+      newSelected.add(path);
+    }
+  });
+  treeStateStore.selectedPaths = newSelected;
+  treeStateStore.expandedPaths = new Set(expandedPaths);
+}
+
+function rescanFiles() {
+  contextStore.fetchFileTree();
 }
 </script>

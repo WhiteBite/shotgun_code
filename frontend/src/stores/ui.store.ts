@@ -21,6 +21,13 @@ export interface QuickLookState {
   isPinned: boolean;
   filePath: string;
 }
+export interface ShowQuickLookPayload {
+  path: string;
+  type: 'fs' | 'git';
+  commitHash?: string;
+  event: MouseEvent;
+  isPinned: boolean;
+}
 
 export const useUiStore = defineStore('ui', () => {
   const activeDrawer = ref<DrawerName | null>(null);
@@ -42,7 +49,6 @@ export const useUiStore = defineStore('ui', () => {
   });
 
   const { handleError } = useErrorHandler();
-  let hideTimeout: number | null = null;
 
   function openDrawer(drawerName: DrawerName) {
     activeDrawer.value = activeDrawer.value === drawerName ? null : drawerName;
@@ -61,18 +67,18 @@ export const useUiStore = defineStore('ui', () => {
     progress.value = { ...progress.value, isActive: false };
   }
 
-  async function showQuickLook(payload: { path: string, type: 'fs' | 'git', commitHash?: string, event: MouseEvent }) {
-    if (hideTimeout) clearTimeout(hideTimeout);
-    if (quickLook.value.visible && quickLook.value.filePath === payload.path) return;
+  async function showQuickLook(payload: ShowQuickLookPayload) {
+    if (quickLook.value.isPinned) return;
 
     quickLook.value.visible = true;
     quickLook.value.isLoading = true;
     quickLook.value.error = null;
     quickLook.value.filePath = payload.path;
+    quickLook.value.isPinned = payload.isPinned;
 
-    if (!quickLook.value.isPinned) {
-      quickLook.value.x = payload.event.clientX + 15;
-      quickLook.value.y = payload.event.clientY + 15;
+    if (!payload.isPinned) {
+      quickLook.value.x = payload.event.clientX + 20;
+      quickLook.value.y = payload.event.clientY + 20;
     }
 
     const projectStore = useProjectStore();
@@ -104,31 +110,13 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function hideQuickLook() {
-    if (!quickLook.value.isPinned) {
-      quickLook.value.visible = false;
-      quickLook.value.isPinned = false; // Also reset pin on hide
-    }
-  }
-
-  function requestHideQuickLook() {
-    if (hideTimeout) clearTimeout(hideTimeout);
-    hideTimeout = window.setTimeout(() => {
-      hideQuickLook();
-    }, 100);
-  }
-
-  function keepQuickLookOpen() {
-    if (hideTimeout) clearTimeout(hideTimeout);
-  }
-
-  function toggleQuickLookPin() {
-    quickLook.value.isPinned = !quickLook.value.isPinned;
+    quickLook.value.visible = false;
+    quickLook.value.isPinned = false;
   }
 
   return {
     activeDrawer, isConsoleVisible, toasts, progress, quickLook,
     openDrawer, closeDrawer, toggleConsole, addToast, removeToast,
     setProgress, clearProgress, showQuickLook, hideQuickLook,
-    requestHideQuickLook, keepQuickLookOpen, toggleQuickLookPin,
   };
 });

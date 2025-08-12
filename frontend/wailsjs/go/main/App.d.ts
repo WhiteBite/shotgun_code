@@ -6,6 +6,8 @@ export function GenerateCode(arg1:string,arg2:string):Promise<string>;
 
 export function GetFileContentAtCommit(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function GetGitignoreContent(arg1:string):Promise<string>;
+
 export function GetRichCommitHistory(arg1:string,arg2:string,arg3:number):Promise<Array<domain.CommitWithFiles>>;
 
 export function GetSettings():Promise<domain.SettingsDTO>;

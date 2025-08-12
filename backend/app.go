@@ -24,7 +24,6 @@ type App struct {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
-
 func (a *App) handleError(err error) {
 	if err != nil {
 		bridge := wailsbridge.New(a.ctx)
@@ -32,7 +31,6 @@ func (a *App) handleError(err error) {
 		bridge.Emit("app:error", err.Error())
 	}
 }
-
 func (a *App) validateProjectPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("project path cannot be empty")
@@ -42,7 +40,6 @@ func (a *App) validateProjectPath(path string) error {
 	}
 	return nil
 }
-
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	if err := a.validateProjectPath(dirPath); err != nil {
 		a.handleError(err)
@@ -55,7 +52,6 @@ func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool)
 	}
 	return nodes, nil
 }
-
 func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
 	if err := a.validateProjectPath(rootDir); err != nil {
 		return "", err
@@ -74,7 +70,6 @@ func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
 	}
 	return string(data), nil
 }
-
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {
 	if err := a.validateProjectPath(rootDir); err != nil {
 		a.handleError(err)
@@ -82,7 +77,6 @@ func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []st
 	}
 	go a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
 }
-
 func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	if err := a.validateProjectPath(projectRoot); err != nil {
 		a.handleError(err)
@@ -95,7 +89,6 @@ func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, erro
 	}
 	return files, nil
 }
-
 func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
 	if err := a.validateProjectPath(projectRoot); err != nil {
 		a.handleError(err)
@@ -108,7 +101,6 @@ func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([
 	}
 	return commits, nil
 }
-
 func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
 	if err := a.validateProjectPath(projectRoot); err != nil {
 		a.handleError(err)
@@ -121,11 +113,21 @@ func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (
 	}
 	return content, nil
 }
-
+func (a *App) GetGitignoreContent(projectRoot string) (string, error) {
+	if err := a.validateProjectPath(projectRoot); err != nil {
+		a.handleError(err)
+		return "", err
+	}
+	content, err := a.gitRepo.GetGitignoreContent(projectRoot)
+	if err != nil {
+		a.handleError(err)
+		return "", err
+	}
+	return content, nil
+}
 func (a *App) IsGitAvailable() bool {
 	return a.projectService.IsGitAvailable()
 }
-
 func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
 	content, err := a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
 	if err != nil {
@@ -134,7 +136,6 @@ func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
 	}
 	return content, nil
 }
-
 func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]string, error) {
 	files, err := a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
 	if err != nil {
@@ -143,7 +144,6 @@ func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]s
 	}
 	return files, nil
 }
-
 func (a *App) GetSettings() (domain.SettingsDTO, error) {
 	dto, err := a.settingsService.GetSettingsDTO()
 	if err != nil {
@@ -152,7 +152,6 @@ func (a *App) GetSettings() (domain.SettingsDTO, error) {
 	}
 	return dto, nil
 }
-
 func (a *App) SaveSettings(dto domain.SettingsDTO) error {
 	err := a.settingsService.SaveSettingsDTO(dto)
 	if err != nil {
@@ -160,7 +159,6 @@ func (a *App) SaveSettings(dto domain.SettingsDTO) error {
 	}
 	return err
 }
-
 func (a *App) RefreshAIModels(provider string, apiKey string) error {
 	err := a.settingsService.RefreshModels(provider, apiKey)
 	if err != nil {
@@ -169,7 +167,6 @@ func (a *App) RefreshAIModels(provider string, apiKey string) error {
 	}
 	return nil
 }
-
 func (a *App) StartFileWatcher(rootDirPath string) {
 	if err := a.validateProjectPath(rootDirPath); err != nil {
 		a.handleError(err)
@@ -177,11 +174,9 @@ func (a *App) StartFileWatcher(rootDirPath string) {
 	}
 	a.handleError(a.fileWatcher.Start(rootDirPath))
 }
-
 func (a *App) StopFileWatcher() {
 	a.fileWatcher.Stop()
 }
-
 func (a *App) SelectDirectory() (string, error) {
 	bridge := wailsbridge.New(a.ctx)
 	path, err := bridge.OpenDirectoryDialog()

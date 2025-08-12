@@ -1,7 +1,9 @@
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useUiStore } from '@/stores/ui.store';
 import { useContextStore } from '@/stores/context.store';
 import { useGenerationStore } from '@/stores/generation.store';
+
+const isCtrlPressed = ref(false);
 
 export function useKeyboardShortcuts() {
   const uiStore = useUiStore();
@@ -21,7 +23,14 @@ export function useKeyboardShortcuts() {
       contextStore.clearSelection();
     },
     'ctrl+a': () => {
-      contextStore.selectAllVisible();
+      const visibleNodes = (contextStore as any).visibleNodes; // Workaround for direct access
+      if (visibleNodes) {
+        visibleNodes.forEach((node: any) => {
+          if (!node.isDir && !node.isIgnored) {
+            contextStore.toggleNodeSelection(node.path);
+          }
+        });
+      }
     },
     'ctrl+enter': () => {
       if (generationStore.canGenerate) {
@@ -36,16 +45,24 @@ export function useKeyboardShortcuts() {
       const activeNode = contextStore.activeNode;
       if (activeNode && !activeNode.isDir && !activeNode.isIgnored) {
         const fakeEvent = new MouseEvent('click', {
-          clientX: window.innerWidth / 2 - 400,
-          clientY: window.innerHeight / 2 - 300,
+          clientX: window.innerWidth / 2,
+          clientY: window.innerHeight / 2,
         });
-        uiStore.showQuickLook({ path: activeNode.relPath, type: 'fs', event: fakeEvent });
+        uiStore.showQuickLook({
+          path: activeNode.relPath,
+          type: 'fs',
+          event: fakeEvent,
+          isPinned: true
+        });
       }
     }
   };
 
   const handleKeydown = (event: KeyboardEvent) => {
-    // We use event.code for layout-independent keys like Space
+    if (event.key === 'Control' || event.key === 'Meta') {
+      isCtrlPressed.value = true;
+    }
+
     const key = [
       event.ctrlKey && 'ctrl',
       event.shiftKey && 'shift',
@@ -59,11 +76,24 @@ export function useKeyboardShortcuts() {
     }
   };
 
+  const handleKeyup = (event: KeyboardEvent) => {
+    if (event.key === 'Control' || event.key === 'Meta') {
+      isCtrlPressed.value = false;
+      uiStore.hideQuickLook();
+    }
+  };
+
   onMounted(() => {
-    document.addEventListener('keydown', handleKeydown);
+    window.addEventListener('keydown', handleKeydown);
+    window.addEventListener('keyup', handleKeyup);
   });
 
   onUnmounted(() => {
-    document.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keyup', handleKeyup);
   });
+
+  return {
+    isCtrlPressed,
+  };
 }

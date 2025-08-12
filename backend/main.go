@@ -28,7 +28,6 @@ const defaultCustomIgnoreRulesContent = "node_modules/\n*.tmp\n*.log\ndist/\nbui
 const defaultCustomPromptRulesContent = "no additional rules"
 const openRouterHost = "https://openrouter.ai/api/v1"
 
-// AppContainer holds all dependencies for the application.
 type AppContainer struct {
 	Log             domain.Logger
 	Bus             domain.EventBus
@@ -44,16 +43,13 @@ type AppContainer struct {
 	ContextAnalysis domain.ContextAnalyzer
 }
 
-// NewContainer creates and wires up all application dependencies.
 func NewContainer(ctx context.Context) (*AppContainer, error) {
 	c := &AppContainer{}
 	var err error
 
-	// Bridges
 	c.Log = wailsbridge.New(ctx)
-	c.Bus = c.Log.(*wailsbridge.Bridge) // Type assertion to reuse the same bridge
+	c.Bus = c.Log.(*wailsbridge.Bridge)
 
-	// Core Infrastructure
 	c.SettingsRepo, err = settingsfs.New(c.Log, defaultCustomIgnoreRulesContent, defaultCustomPromptRulesContent)
 	if err != nil {
 		return nil, err
@@ -67,7 +63,6 @@ func NewContainer(ctx context.Context) (*AppContainer, error) {
 		return nil, err
 	}
 
-	// Application Services
 	modelFetchers := createModelFetchers(ctx, c.Log, c.SettingsRepo)
 	c.SettingsService, err = application.NewSettingsService(c.Log, c.Bus, c.SettingsRepo, modelFetchers)
 	if err != nil {
@@ -107,6 +102,7 @@ func main() {
 			app.settingsService = container.SettingsService
 			app.contextAnalysis = container.ContextAnalysis
 			app.fileWatcher = container.Watcher
+			app.gitRepo = container.GitRepo
 			app.startup(ctx)
 		},
 		Bind: []interface{}{app},
@@ -116,7 +112,6 @@ func main() {
 	}
 }
 
-// --- Helper functions for DI ---
 func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.SettingsRepository) map[string]application.ModelFetcher {
 	return map[string]application.ModelFetcher{
 		"gemini": func(apiKey string) ([]string, error) {

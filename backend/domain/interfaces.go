@@ -9,11 +9,9 @@ type Logger interface {
 	Error(message string)
 	Fatal(message string)
 }
-
 type EventBus interface {
 	Emit(eventName string, data ...interface{})
 }
-
 type FileContentReader interface {
 	ReadContents(
 		ctx context.Context,
@@ -22,7 +20,6 @@ type FileContentReader interface {
 		progress func(current, total int64),
 	) (map[string]string, error)
 }
-
 type SettingsRepository interface {
 	GetCustomIgnoreRules() string
 	SetCustomIgnoreRules(rules string)
@@ -52,18 +49,16 @@ type SettingsRepository interface {
 	SetModels(provider string, models []string)
 	Save() error
 }
-
 type GitRepository interface {
 	CheckAvailability() (bool, error)
 	GetUncommittedFiles(projectRoot string) ([]FileStatus, error)
 	GetRichCommitHistory(projectRoot, branchName string, limit int) ([]CommitWithFiles, error)
 	GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error)
+	GetGitignoreContent(projectRoot string) (string, error)
 }
-
 type FileTreeBuilder interface {
 	BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*FileNode, error)
 }
-
 type FileSystemWatcher interface {
 	Start(path string) error
 	Stop()

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -20,7 +21,6 @@ type Repository struct {
 func New(logger domain.Logger) domain.GitRepository {
 	return &Repository{log: logger}
 }
-
 func (gs *Repository) CheckAvailability() (bool, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
@@ -29,36 +29,28 @@ func (gs *Repository) CheckAvailability() (bool, error) {
 	}
 	return true, nil
 }
-
 func (gs *Repository) executeGitCommand(projectRoot string, args ...string) ([]byte, error) {
 	absPath, err := filepath.Abs(projectRoot)
 	if err != nil {
 		return nil, fmt.Errorf("could not resolve absolute path for '%s': %w", projectRoot, err)
 	}
-
 	cmdArgs := append([]string{"-C", absPath}, args...)
 	cmd := exec.Command("git", cmdArgs...)
-
 	var out, errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
-
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("git command failed: %w - %s", err, errOut.String())
 	}
-
 	return out.Bytes(), nil
 }
-
 func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	output, err := gs.executeGitCommand(projectRoot, "status", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
-
 	var statuses []domain.FileStatus
 	lines := strings.Split(string(output), "\n")
-
 	for _, line := range lines {
 		if len(line) < 4 {
 			continue
@@ -95,7 +87,6 @@ func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStat
 	gs.log.Info(fmt.Sprintf("Found %d uncommitted files.", len(statuses)))
 	return statuses, nil
 }
-
 func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
 	logArgs := []string{
 		"log",
@@ -110,38 +101,42 @@ func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit
 		}
 		logArgs = append(logArgs, branchName)
 	}
-
 	output, err := gs.executeGitCommand(projectRoot, logArgs...)
 	if err != nil {
 		return nil, err
 	}
-
 	commits, parseErr := ParseRichLogOutput(string(output))
 	if parseErr != nil {
 		return nil, parseErr
 	}
-
 	gs.log.Info(fmt.Sprintf("Loaded and parsed %d commits.", len(commits)))
 	return commits, nil
 }
-
 func (gs *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
 	if strings.Contains(filePath, "..") || strings.Contains(commitHash, "..") {
 		return "", fmt.Errorf("invalid characters in path or hash")
 	}
-
 	output, err := gs.executeGitCommand(projectRoot, "show", fmt.Sprintf("%s:%s", commitHash, filePath))
 	if err != nil {
 		return "", fmt.Errorf("could not get file content for %s at commit %s: %w", filePath, commitHash, err)
 	}
 	return string(output), nil
 }
-
+func (gs *Repository) GetGitignoreContent(projectRoot string) (string, error) {
+	gitignorePath := filepath.Join(projectRoot, ".gitignore")
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		return "", nil
+	}
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
 func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 	var commits []domain.CommitWithFiles
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	var currentCommit *domain.CommitWithFiles
-
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "COMMIT ") {
@@ -154,13 +149,11 @@ func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 			}
 			hash := parts[1]
 			parentHashes := parts[2:]
-
 			currentCommit = &domain.CommitWithFiles{
 				Hash:    hash,
 				IsMerge: len(parentHashes) > 1,
 				Files:   []string{},
 			}
-
 			if scanner.Scan() {
 				currentCommit.Subject = scanner.Text()
 			}
@@ -178,18 +171,14 @@ func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
 			}
 		}
 	}
-
 	if currentCommit != nil {
 		commits = append(commits, *currentCommit)
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error parsing git log output: %w", err)
 	}
-
 	return commits, nil
 }
-
 func validateBranchName(name string) error {
 	if !validBranchName.MatchString(name) {
 		return fmt.Errorf("invalid branch name: %s", name)

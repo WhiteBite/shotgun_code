@@ -8,6 +8,7 @@ import { useProjectStore } from './project.store';
 import { useSettingsStore } from './settings.store';
 import { apiService } from '@/services/api.service';
 import { useDebouncedSearch } from '@/composables/useDebouncedSearch';
+import { useTreeStateStore } from './tree-state.store';
 
 function mapDomainNodeToViewNode(node: DomainFileNode, depth: number, parentPath: string | null): FileNode {
   return {
@@ -23,8 +24,6 @@ function mapDomainNodeToViewNode(node: DomainFileNode, depth: number, parentPath
     isIgnored: node.isCustomIgnored || node.isGitignored,
     isGitignored: node.isGitignored,
     isCustomIgnored: node.isCustomIgnored,
-    expanded: depth < 1,
-    selected: 'off',
     parentPath,
   };
 }
@@ -51,51 +50,24 @@ export const useContextStore = defineStore('context', () => {
   const nodesMap = ref(new Map<string, FileNode>());
   const isLoading = ref(false);
   const error = ref<string | null>(null);
-  const activeNodePath = ref<string | null>(null);
   const shotgunContextText = ref('');
 
   const notifications = useNotificationsStore();
   const projectStore = useProjectStore();
   const settingsStore = useSettingsStore();
+  const treeStateStore = useTreeStateStore();
   const { searchQuery, debouncedQuery } = useDebouncedSearch(250);
 
-  const activeNode = computed(() => activeNodePath.value ? nodesMap.value.get(activeNodePath.value) : null);
-
-  const visibleNodes = computed(() => {
-    const result: FileNode[] = [];
-    if (nodesMap.value.size === 0) return result;
-
-    const roots = Array.from(nodesMap.value.values()).filter(n => n.depth === 0);
-    const query = debouncedQuery.value.toLowerCase().trim();
-    const isFiltering = !!query;
-
-    function traverse(nodes: FileNode[]) {
-      for (const node of nodes) {
-        const children = node.children?.map(c => nodesMap.value.get(c.path)).filter(Boolean) as FileNode[] || [];
-
-        if (isFiltering) {
-          if (node.name.toLowerCase().includes(query)) {
-            result.push(node);
-          }
-          traverse(children);
-        } else {
-          result.push(node);
-          if (node.expanded) {
-            traverse(children);
-          }
-        }
+  const selectedFiles = computed(() => {
+    const selected = [];
+    for (const path of treeStateStore.selectedPaths) {
+      const node = nodesMap.value.get(path);
+      if (node && !node.isDir) {
+        selected.push(node);
       }
     }
-
-    traverse(roots);
-
-    if(isFiltering) {
-      return result.sort((a,b) => a.path.localeCompare(b.path));
-    }
-    return result;
+    return selected;
   });
-
-  const selectedFiles = computed(() => Array.from(nodesMap.value.values()).filter(n => !n.isDir && n.selected === 'on'));
 
   const contextSummary = computed(() => {
     const files = selectedFiles.value;
@@ -110,59 +82,19 @@ export const useContextStore = defineStore('context', () => {
     };
   });
 
-  async function fetchFileTree(preserveState = false) {
+  async function fetchFileTree() {
     if (!projectStore.currentProject) return;
-
-    const oldState = {
-      expandedPaths: new Set<string>(),
-      selectedPaths: new Set<string>(),
-    };
-
-    if (preserveState) {
-      nodesMap.value.forEach(node => {
-        if (node.expanded) oldState.expandedPaths.add(node.path);
-        if (node.selected === 'on') oldState.selectedPaths.add(node.path);
-      });
-    }
 
     isLoading.value = true;
     error.value = null;
-    if (!preserveState) {
-      nodesMap.value.clear();
-    }
+    nodesMap.value.clear();
 
     try {
       const { useGitignore, useCustomIgnore } = settingsStore.settings;
       const treeData = await apiService.listFiles(projectStore.currentProject.path, useGitignore, useCustomIgnore);
-      const newNodesMap = processNodes(treeData);
-
-      if (preserveState) {
-        newNodesMap.forEach(newNode => {
-          if (oldState.expandedPaths.has(newNode.path)) {
-            newNode.expanded = true;
-          }
-          if (!newNode.isIgnored && oldState.selectedPaths.has(newNode.path)) {
-            newNode.selected = 'on';
-            newNode.contextOrigin = ContextOrigin.Manual;
-          }
-        });
-
-        newNodesMap.forEach(node => {
-          if (node.selected === 'on' && node.parentPath) {
-            _updateParentSelection(node.parentPath, newNodesMap);
-          }
-        });
-      }
-
-      nodesMap.value = newNodesMap;
-
-      if (!preserveState) {
-        notifications.addLog('File tree loaded.', 'success');
-        updateGitStatuses();
-      } else {
-        notifications.addLog('Ignore rules updated.', 'info');
-      }
-
+      nodesMap.value = processNodes(treeData);
+      notifications.addLog('File tree loaded.', 'success');
+      updateGitStatuses();
     } catch (err: any) {
       error.value = `Failed to load file tree: ${err.message || err}`;
       notifications.addLog(error.value, 'error');
@@ -197,78 +129,8 @@ export const useContextStore = defineStore('context', () => {
 
   function clearProjectData() {
     nodesMap.value.clear();
-    activeNodePath.value = null;
-    error.value = null;
     shotgunContextText.value = '';
-  }
-
-  function toggleNodeExpansion(path: string, recursive = false) {
-    const node = nodesMap.value.get(path);
-    if (!node?.isDir) return;
-
-    const newState = !node.expanded;
-    const stack: FileNode[] = [node];
-
-    while(stack.length > 0) {
-      const current = stack.pop()!;
-      current.expanded = newState;
-      if (recursive && current.children) {
-        current.children.forEach(childRef => {
-          const childNode = nodesMap.value.get(childRef.path);
-          if (childNode?.isDir) {
-            stack.push(childNode);
-          }
-        });
-      }
-    }
-  }
-
-  function _updateParentSelection(path: string | null, map: Map<string, FileNode>) {
-    if (!path) return;
-    const parent = map.get(path);
-    if (!parent || !parent.children) return;
-
-    const children = parent.children.map(c => map.get(c.path)!).filter(Boolean);
-    if (children.length === 0) return;
-
-    const selectedCount = children.filter(c => c.selected === 'on').length;
-    const partialCount = children.filter(c => c.selected === 'partial').length;
-
-    let newStatus: 'on' | 'off' | 'partial' = 'off';
-    if (selectedCount === children.length) newStatus = 'on';
-    else if (selectedCount > 0 || partialCount > 0) newStatus = 'partial';
-
-    if(parent.selected !== newStatus) {
-      parent.selected = newStatus;
-      _updateParentSelection(parent.parentPath, map);
-    }
-  }
-
-  function toggleNodeSelection(path: string) {
-    const node = nodesMap.value.get(path);
-    if (!node || node.isIgnored) return;
-
-    const newSelection = node.selected === 'on' ? 'off' : 'on';
-
-    const stack: FileNode[] = [node];
-    while(stack.length > 0) {
-      const current = stack.pop()!;
-      if (!current.isIgnored) {
-        current.selected = newSelection;
-        if (newSelection === 'on') {
-          current.contextOrigin = ContextOrigin.Manual;
-        } else {
-          current.contextOrigin = ContextOrigin.None;
-        }
-        if(current.children) {
-          current.children.forEach(c => {
-            const childNode = nodesMap.value.get(c.path);
-            if (childNode) stack.push(childNode);
-          });
-        }
-      }
-    }
-    _updateParentSelection(node.parentPath, nodesMap.value);
+    treeStateStore.$reset();
   }
 
   async function buildContext() {
@@ -290,53 +152,35 @@ export const useContextStore = defineStore('context', () => {
     shotgunContextText.value = context;
   }
 
-  function clearSelection() {
-    nodesMap.value.forEach(node => {
-      if (node.selected !== 'off') {
-        node.selected = 'off';
-        node.contextOrigin = ContextOrigin.None;
-      }
-    });
-    useUiStore().addToast('Selection cleared.', 'info');
-  }
-
-  function selectAllVisible() {
-    visibleNodes.value.forEach(node => {
-      if (!node.isDir && node.selected !== 'on' && !node.isIgnored) {
-        toggleNodeSelection(node.path);
-      }
-    });
-    useUiStore().addToast('All visible files selected.', 'success');
-  }
-
   function selectFilesByRelPaths(relPaths: string[], origin: ContextOrigin = ContextOrigin.Git) {
-    const relPathMap = new Map<string, FileNode>();
+    const relPathMap = new Map<string, string>();
     nodesMap.value.forEach(node => {
-      if (!node.isDir) relPathMap.set(node.relPath, node);
+      if (!node.isDir) relPathMap.set(node.relPath, node.path);
     });
 
-    let selectedCount = 0;
+    const pathsToSelect: string[] = [];
     relPaths.forEach(relPath => {
-      const node = relPathMap.get(relPath);
-      if (node && node.selected !== 'on' && !node.isIgnored) {
-        node.selected = 'on';
-        node.contextOrigin = origin;
-        _updateParentSelection(node.parentPath, nodesMap.value);
-        selectedCount++;
+      const path = relPathMap.get(relPath);
+      const node = path ? nodesMap.value.get(path) : undefined;
+      if (node && !node.isIgnored) {
+        pathsToSelect.push(node.path);
       }
     });
-    if (selectedCount > 0) {
-      useUiStore().addToast(`${selectedCount} files added to context from ${origin}.`, 'success');
+
+    if (pathsToSelect.length > 0) {
+      treeStateStore.addSelectedPaths(pathsToSelect);
+      useUiStore().addToast(`${pathsToSelect.length} files added to context from ${origin}.`, 'success');
     } else {
       useUiStore().addToast(`No new files selected. They might be ignored or already selected.`, 'info');
     }
   }
 
   return {
-    nodesMap, isLoading, error, activeNodePath, searchQuery, shotgunContextText,
-    activeNode, visibleNodes, selectedFiles, contextSummary,
-    fetchFileTree, clearProjectData, toggleNodeExpansion, toggleNodeSelection,
-    setActiveNode: (path: string | null) => { activeNodePath.value = path; },
-    buildContext, setShotgunContext, clearSelection, selectAllVisible, selectFilesByRelPaths,
+    nodesMap, isLoading, error, shotgunContextText,
+    searchQuery, debouncedQuery,
+    selectedFiles, contextSummary,
+    fetchFileTree,
+    clearProjectData,
+    buildContext, setShotgunContext, selectFilesByRelPaths,
   };
 });

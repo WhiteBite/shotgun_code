@@ -10,6 +10,10 @@ export function GetFileContentAtCommit(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetFileContentAtCommit'](arg1, arg2, arg3);
 }
 
+export function GetGitignoreContent(arg1) {
+  return window['go']['main']['App']['GetGitignoreContent'](arg1);
+}
+
 export function GetRichCommitHistory(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetRichCommitHistory'](arg1, arg2, arg3);
 }
