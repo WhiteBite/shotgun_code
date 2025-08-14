@@ -1,13 +1,13 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import type { LogEntry } from '@/types/dto';
-import { useUiStore } from './ui.store';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type { LogEntry } from "@/types/dto";
+import { useUiStore } from "./ui.store";
 
-export const useNotificationsStore = defineStore('notifications', () => {
+export const useNotificationsStore = defineStore("notifications", () => {
   const logs = ref<LogEntry[]>([]);
   const maxLogs = 150;
 
-  function addLog(message: string, type: LogEntry['type'] = 'info') {
+  function addLog(message: string, type: LogEntry["type"] = "info") {
     const uiStore = useUiStore();
     const logEntry: LogEntry = {
       message,
@@ -18,14 +18,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (logs.value.length > maxLogs) {
       logs.value.pop();
     }
-
-    if (type === 'error' || type === 'success') {
+    if (type === "error" || type === "success") {
       uiStore.addToast(message, type);
     }
   }
 
-  return {
-    logs,
-    addLog,
-  };
+  const lastLine = computed(() => logs.value[0] ?? null);
+
+  return { logs, addLog, lastLine };
 });

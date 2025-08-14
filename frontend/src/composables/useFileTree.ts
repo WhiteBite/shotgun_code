@@ -1,19 +1,19 @@
-import { useContextStore } from "@/stores/context.store";
+import { useTreeStateStore } from "@/stores/tree-state.store";
 
 export function useFileTree() {
-  const store = useContextStore();
+  const tree = useTreeStateStore();
 
   const toggleExpansion = (path: string, recursive = false) => {
-    store.toggleNodeExpansion(path, recursive);
+    tree.toggleExpansion(path, recursive);
   };
 
   const toggleSelection = (path: string) => {
-    store.toggleNodeSelection(path);
+    tree.toggleSelection(path);
   };
 
   const setActiveNode = (path: string) => {
-    store.setActiveNode(path);
-  }
+    tree.activeNodePath = path;
+  };
 
   return {
     toggleExpansion,

@@ -30,33 +30,50 @@ func New(ctx context.Context, bus domain.EventBus) (*Watcher, error) {
 	}, nil
 }
 
+func (w *Watcher) shouldSkipDir(name string) bool {
+	// Общий набор шумных директорий
+	switch name {
+	case ".git", "node_modules", ".idea", "dist", "build", ".cache", ".vite", ".wails", "out", "target", "bin", "obj", "coverage":
+		return true
+	default:
+		return false
+	}
+}
+
 func (w *Watcher) Start(path string) error {
 	w.Stop()
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.rootDir = path
+
 	var err error
 	w.fsWatcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
-	err = filepath.WalkDir(w.rootDir, func(path string, d os.DirEntry, err error) error {
+
+	// Рекурсивно подписываемся на директории, пропуская шумные
+	err = filepath.WalkDir(w.rootDir, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" || d.Name() == "node_modules" || d.Name() == ".idea" {
+			if w.shouldSkipDir(d.Name()) {
+				w.log.Info("Watcher: skip dir " + p)
 				return filepath.SkipDir
 			}
-			return w.fsWatcher.Add(path)
+			return w.fsWatcher.Add(p)
 		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
+
 	go w.run(ctx)
 	w.log.Info("Наблюдатель запущен для: " + path)
 	return nil
@@ -75,6 +92,7 @@ func (w *Watcher) Stop() {
 		w.log.Info("Наблюдатель остановлен.")
 	}
 }
+
 func (w *Watcher) run(ctx context.Context) {
 	defer func() {
 		w.mu.Lock()
@@ -84,6 +102,7 @@ func (w *Watcher) run(ctx context.Context) {
 		}
 		w.mu.Unlock()
 	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -92,7 +111,8 @@ func (w *Watcher) run(ctx context.Context) {
 			if !ok {
 				return
 			}
-			w.log.Debug(fmt.Sprintf("Событие файловой системы: %s", event.String()))
+			// Логируем только дебагом, чтобы не засорять
+			w.log.Debug(fmt.Sprintf("FS event: %s", event.String()))
 			w.bus.Emit("projectFilesChanged", w.rootDir)
 		case err, ok := <-w.fsWatcher.Errors:
 			if !ok {
@@ -102,6 +122,7 @@ func (w *Watcher) run(ctx context.Context) {
 		}
 	}
 }
+
 func (w *Watcher) RefreshAndRescan() error {
 	w.mu.Lock()
 	path := w.rootDir

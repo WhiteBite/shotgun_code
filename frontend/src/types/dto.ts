@@ -1,4 +1,4 @@
-import type { GitStatus, ContextOrigin } from './enums';
+import type { GitStatus, ContextOrigin } from "./enums";
 
 export interface DomainFileNode {
   name: string;
@@ -23,8 +23,9 @@ export interface FileNode {
   isIgnored: boolean;
   isGitignored: boolean;
   isCustomIgnored: boolean;
-  expanded: boolean;
-  selected: 'on' | 'off' | 'partial';
+  // перешли на tree-state.store как единственный источник
+  expanded?: boolean;
+  selected?: "on" | "off" | "partial";
   parentPath: string | null;
 }
 
@@ -42,6 +43,8 @@ export interface Project {
 export interface CommitWithFiles {
   hash: string;
   subject: string;
+  author: string;
+  date: string;
   files: string[];
   isMerge: boolean;
 }
@@ -64,6 +67,16 @@ export interface SettingsDTO {
 
 export interface LogEntry {
   message: string;
-  type: 'info' | 'warn' | 'error' | 'success';
+  type: "info" | "warn" | "error" | "success";
   timestamp: string;
+}
+
+export interface Hunk {
+  header: string;
+  lines: string[];
+}
+export interface FileDiff {
+  filePath: string;
+  hunks: Hunk[];
+  stats: { added: number; removed: number };
 }

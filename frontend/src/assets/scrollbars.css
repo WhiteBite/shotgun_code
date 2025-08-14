@@ -3,29 +3,29 @@
 
 /* For Webkit-based browsers */
 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(31, 41, 55, 0.5); /* bg-gray-800 with opacity */
-    border-radius: 5px;
+  background: rgba(31, 41, 55, 0.5); /* bg-gray-800 with opacity */
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #4b5563; /* bg-gray-600 */
-    border-radius: 5px;
-    border: 2px solid transparent;
-    background-clip: content-box;
+  background: #4b5563; /* bg-gray-600 */
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #6b7280; /* bg-gray-500 */
-    background-clip: content-box;
+  background: #6b7280; /* bg-gray-500 */
+  background-clip: content-box;
 }
 
 /* For Firefox */
 * {
-    scrollbar-width: thin;
-    scrollbar-color: #4b5563 rgba(31, 41, 55, 0.5);
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 rgba(31, 41, 55, 0.5);
 }

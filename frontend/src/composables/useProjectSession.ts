@@ -1,15 +1,15 @@
-import { watch } from 'vue';
-import { useProjectStore } from '@/stores/project.store';
-import { useGenerationStore } from '@/stores/generation.store';
-import { useContextStore } from '@/stores/context.store';
-import { storeToRefs } from 'pinia';
+import { watch } from "vue";
+import { useProjectStore } from "@/stores/project.store";
+import { useGenerationStore } from "@/stores/generation.store";
+import { useContextStore } from "@/stores/context.store";
+import { storeToRefs } from "pinia";
 
 interface SessionData {
   userTask: string;
   selectedFilePaths: string[];
 }
 
-const SESSION_STORAGE_KEY_PREFIX = 'shotgun_session_';
+const SESSION_STORAGE_KEY_PREFIX = "shotgun_session_";
 
 export function useProjectSession() {
   const projectStore = useProjectStore();
@@ -21,7 +21,9 @@ export function useProjectSession() {
   const { selectedFiles } = storeToRefs(contextStore);
 
   const getSessionKey = (): string | null => {
-    return currentProject.value ? `${SESSION_STORAGE_KEY_PREFIX}${currentProject.value.path}` : null;
+    return currentProject.value
+      ? `${SESSION_STORAGE_KEY_PREFIX}${currentProject.value.path}`
+      : null;
   };
 
   const saveSession = () => {
@@ -30,7 +32,7 @@ export function useProjectSession() {
 
     const data: SessionData = {
       userTask: userTask.value,
-      selectedFilePaths: selectedFiles.value.map(f => f.relPath),
+      selectedFilePaths: selectedFiles.value.map((f) => f.relPath),
     };
     localStorage.setItem(key, JSON.stringify(data));
   };
@@ -43,15 +45,18 @@ export function useProjectSession() {
     if (savedData) {
       try {
         const data: SessionData = JSON.parse(savedData);
-        generationStore.userTask = data.userTask || '';
+        generationStore.userTask = data.userTask || "";
         if (data.selectedFilePaths && data.selectedFilePaths.length > 0) {
           // Wait for file tree to be loaded before selecting files
-          const unwatch = watch(() => contextStore.isLoading, (isLoading) => {
-            if (!isLoading) {
-              contextStore.selectFilesByRelPaths(data.selectedFilePaths);
-              unwatch(); // Stop watching after selection is applied
-            }
-          });
+          const unwatch = watch(
+            () => contextStore.isLoading,
+            (isLoading) => {
+              if (!isLoading) {
+                contextStore.selectFilesByRelPaths(data.selectedFilePaths);
+                unwatch(); // Stop watching after selection is applied
+              }
+            },
+          );
         }
       } catch (e) {
         console.error("Failed to parse session data:", e);

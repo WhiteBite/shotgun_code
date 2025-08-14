@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"shotgun_code/domain"
 	"strings"
@@ -60,7 +61,7 @@ func (a *KeywordAnalyzer) SuggestFiles(ctx context.Context, task string, allFile
 		result = append(result, path)
 	}
 
-	a.log.Info("Предложено " + string(rune(len(result))) + " релевантных файлов.")
+	a.log.Info(fmt.Sprintf("Предложено %d релевантных файлов.", len(result)))
 	return result, nil
 }
 

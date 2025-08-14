@@ -90,11 +90,12 @@ func (r *secureFileReader) sanitizeAndAbs(rootDir, relPath string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("could not get absolute path for root: %w", err)
 	}
-
+	rootEval, _ := filepath.EvalSymlinks(cleanRootDir)
 	absPath := filepath.Join(cleanRootDir, relPath)
-
-	if !strings.HasPrefix(absPath, cleanRootDir) {
+	absEval, _ := filepath.EvalSymlinks(absPath)
+	rel, err := filepath.Rel(rootEval, absEval)
+	if err != nil || strings.HasPrefix(rel, "..") {
 		return "", fmt.Errorf("path traversal attempt detected: %s", relPath)
 	}
-	return absPath, nil
+	return absEval, nil
 }

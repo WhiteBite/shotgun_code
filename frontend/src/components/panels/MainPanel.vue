@@ -6,6 +6,6 @@
 </template>
 
 <script setup lang="ts">
-import TaskComposer from '@/components/workspace/TaskComposer.vue';
-import FilePreview from '@/components/workspace/FilePreview.vue';
+import TaskComposer from "@/components/workspace/TaskComposer.vue";
+import FilePreview from "@/components/workspace/FilePreview.vue";
 </script>

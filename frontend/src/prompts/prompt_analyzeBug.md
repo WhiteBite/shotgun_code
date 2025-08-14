@@ -1,5 +1,4 @@
 ```markdown
-
 Analyze the provided project context to identify the root cause of a bug.
 
 **TASK:**
@@ -9,7 +8,9 @@ The user is reporting the following bug:
 **CONTEXT:**
 The following is the structure and content of the relevant parts of the project:
 ```
+
 {FILE_STRUCTURE}
+
 ```
 
 **INSTRUCTIONS:**

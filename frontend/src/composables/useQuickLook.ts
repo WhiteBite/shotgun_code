@@ -2,13 +2,27 @@ import { useUiStore } from "@/stores/ui.store";
 import { useKeyboardState } from "./useKeyboardState";
 import type { FileNode } from "@/types/dto";
 
+/**
+ * Обновленный composable: теперь не тянет project store.
+ * Корень проекта передается вызывающей стороной.
+ */
 export function useQuickLook() {
   const uiStore = useUiStore();
   const { isCtrlPressed } = useKeyboardState();
 
-  function handleMouseEnter(event: MouseEvent, node: FileNode) {
+  function handleMouseEnter(
+    event: MouseEvent,
+    node: FileNode,
+    rootDir: string,
+  ) {
     if (isCtrlPressed.value && !node.isDir && !node.isIgnored) {
-      uiStore.showQuickLook({ path: node.relPath, type: 'fs', event, isPinned: false });
+      uiStore.showQuickLook({
+        rootDir,
+        path: node.relPath,
+        type: "fs",
+        event,
+        isPinned: false,
+      });
     }
   }
 
@@ -16,15 +30,25 @@ export function useQuickLook() {
     uiStore.hideQuickLook();
   }
 
-  function showPinnedQuickLook(event: MouseEvent, node: FileNode) {
+  function showPinnedQuickLook(
+    event: MouseEvent,
+    node: FileNode,
+    rootDir: string,
+  ) {
     if (!node.isDir && !node.isIgnored) {
-      uiStore.showQuickLook({ path: node.relPath, type: 'fs', event, isPinned: true });
+      uiStore.showQuickLook({
+        rootDir,
+        path: node.relPath,
+        type: "fs",
+        event,
+        isPinned: true,
+      });
     }
   }
 
   return {
     handleMouseEnter,
     handleMouseLeave,
-    showPinnedQuickLook
-  }
+    showPinnedQuickLook,
+  };
 }

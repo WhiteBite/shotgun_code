@@ -22,6 +22,24 @@ export namespace domain {
 	        this.isMerge = source["isMerge"];
 	    }
 	}
+	export class ExportResult {
+	    mode: string;
+	    text?: string;
+	    fileName?: string;
+	    dataBase64?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.text = source["text"];
+	        this.fileName = source["fileName"];
+	        this.dataBase64 = source["dataBase64"];
+	    }
+	}
 	export class FileNode {
 	    name: string;
 	    path: string;

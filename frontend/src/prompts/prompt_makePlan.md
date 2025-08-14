@@ -1,6 +1,4 @@
-
 ```markdown
-
 You are a senior software architect. Your task is to create a detailed, step-by-step implementation plan based on the user's request and the provided project context.
 
 **TASK:**
@@ -9,7 +7,9 @@ You are a senior software architect. Your task is to create a detailed, step-by-
 **PROJECT CONTEXT:**
 Here is the structure and content of the project you are working with:
 ```
+
 {FILE_STRUCTURE}
+
 ```
 
 **INSTRUCTIONS:**

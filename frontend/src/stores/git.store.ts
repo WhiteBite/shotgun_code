@@ -1,11 +1,11 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { useErrorHandler } from '@/composables/useErrorHandler';
-import { useProjectStore } from './project.store';
-import { apiService } from '@/services/api.service';
-import type { CommitWithFiles } from '@/types/dto';
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { useErrorHandler } from "@/composables/useErrorHandler";
+import { useProjectStore } from "./project.store";
+import { apiService } from "@/services/api.service";
+import type { CommitWithFiles } from "@/types/dto";
 
-export const useGitStore = defineStore('git', () => {
+export const useGitStore = defineStore("git", () => {
   const { handleError } = useErrorHandler();
   const projectStore = useProjectStore();
 
@@ -18,10 +18,14 @@ export const useGitStore = defineStore('git', () => {
     isLoading.value = true;
     commits.value = [];
     try {
-      const history = await apiService.getRichCommitHistory(projectStore.currentProject.path, '', limit);
+      const history = await apiService.getRichCommitHistory(
+        projectStore.currentProject.path,
+        "",
+        limit,
+      );
       commits.value = history;
     } catch (err) {
-      handleError(err, 'Fetch Git History');
+      handleError(err, "Fetch Git History");
     } finally {
       isLoading.value = false;
     }

@@ -1,6 +1,7 @@
 package textutils
 
 import (
+	"fmt"
 	"regexp"
 	"shotgun_code/domain"
 	"strings"
@@ -15,7 +16,7 @@ func NewDiffSplitter(log domain.Logger) domain.DiffSplitter {
 }
 
 func (ds *diffSplitter) Split(gitDiffText string, approxLineLimit int) ([]string, error) {
-	ds.log.Info("Splitting diff with line limit " + string(rune(approxLineLimit)))
+	ds.log.Info(fmt.Sprintf("Splitting diff with line limit %d", approxLineLimit))
 
 	if strings.TrimSpace(gitDiffText) == "" {
 		return []string{}, nil

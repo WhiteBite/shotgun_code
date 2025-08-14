@@ -1,6 +1,4 @@
-
 ```markdown
-
 You are an expert software developer. Your task is to implement the user's request by providing the necessary code changes in the form of a standard git diff.
 
 **TASK:**
@@ -9,7 +7,9 @@ You are an expert software developer. Your task is to implement the user's reque
 **PROJECT CONTEXT:**
 The user has provided the following files and their structure. You must work within this context.
 ```
+
 {FILE_STRUCTURE}
+
 ```
 
 **INSTRUCTIONS:**

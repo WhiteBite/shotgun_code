@@ -1,9 +1,9 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { useContextStore } from './context.store';
-import type { FileNode } from '@/types/dto';
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { useContextStore } from "./context.store";
+import type { FileNode } from "@/types/dto";
 
-export const useTreeStateStore = defineStore('treeState', () => {
+export const useTreeStateStore = defineStore("treeState", () => {
   const expandedPaths = ref(new Set<string>());
   const selectedPaths = ref(new Set<string>());
   const activeNodePath = ref<string | null>(null);
@@ -16,7 +16,7 @@ export const useTreeStateStore = defineStore('treeState', () => {
     const newState = !expandedPaths.value.has(path);
 
     const stack: FileNode[] = [node];
-    while(stack.length > 0) {
+    while (stack.length > 0) {
       const current = stack.pop()!;
       if (newState) {
         expandedPaths.value.add(current.path);
@@ -25,7 +25,7 @@ export const useTreeStateStore = defineStore('treeState', () => {
       }
 
       if (recursive && current.children) {
-        current.children.forEach(childRef => {
+        current.children.forEach((childRef) => {
           const childNode = contextStore.nodesMap.get(childRef.path);
           if (childNode?.isDir) {
             stack.push(childNode);
@@ -43,7 +43,7 @@ export const useTreeStateStore = defineStore('treeState', () => {
     const newSelectionState = !selectedPaths.value.has(path);
 
     const stack: FileNode[] = [node];
-    while(stack.length > 0) {
+    while (stack.length > 0) {
       const current = stack.pop()!;
       if (!current.isIgnored) {
         if (newSelectionState) {
@@ -53,14 +53,14 @@ export const useTreeStateStore = defineStore('treeState', () => {
         }
 
         if (current.children) {
-          current.children.forEach(childRef => {
+          current.children.forEach((childRef) => {
             const childNode = contextStore.nodesMap.get(childRef.path);
             if (childNode) stack.push(childNode);
           });
         }
       }
     }
-    // Parent state will be recalculated by a computed property in the new architecture
+    // родительские состояния считуются визуально через вычисления
   }
 
   function clearSelection() {
@@ -68,7 +68,32 @@ export const useTreeStateStore = defineStore('treeState', () => {
   }
 
   function addSelectedPaths(paths: string[]) {
-    paths.forEach(p => selectedPaths.value.add(p));
+    paths.forEach((p) => selectedPaths.value.add(p));
+  }
+
+  function snapshotState() {
+    return {
+      selected: Array.from(selectedPaths.value),
+      expanded: Array.from(expandedPaths.value),
+    };
+  }
+
+  function restoreState(snapshot: { selected: string[]; expanded: string[] }) {
+    const contextStore = useContextStore();
+    selectedPaths.value = new Set(
+      snapshot.selected.filter((p) => {
+        const node = contextStore.nodesMap.get(p);
+        return !!node && !node.isIgnored;
+      }),
+    );
+    expandedPaths.value = new Set(snapshot.expanded);
+  }
+
+  // Вместо встроенного $reset для setup-store
+  function resetState() {
+    expandedPaths.value = new Set();
+    selectedPaths.value = new Set();
+    activeNodePath.value = null;
   }
 
   return {
@@ -78,6 +103,9 @@ export const useTreeStateStore = defineStore('treeState', () => {
     toggleExpansion,
     toggleSelection,
     clearSelection,
-    addSelectedPaths
+    addSelectedPaths,
+    snapshotState,
+    restoreState,
+    resetState,
   };
 });

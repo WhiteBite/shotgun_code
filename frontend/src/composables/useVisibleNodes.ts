@@ -1,8 +1,8 @@
-import { computed } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useContextStore } from '@/stores/context.store';
-import { useTreeStateStore } from '@/stores/tree-state.store';
-import type { FileNode } from '@/types/dto';
+import { computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useContextStore } from "@/stores/context.store";
+import { useTreeStateStore } from "@/stores/tree-state.store";
+import type { FileNode } from "@/types/dto";
 
 export function useVisibleNodes() {
   const contextStore = useContextStore();
@@ -15,7 +15,9 @@ export function useVisibleNodes() {
     const result: FileNode[] = [];
     if (nodesMap.value.size === 0) return result;
 
-    const roots = Array.from(nodesMap.value.values()).filter(n => n.depth === 0);
+    const roots = Array.from(nodesMap.value.values()).filter(
+      (n) => n.depth === 0,
+    );
     const query = debouncedQuery.value.toLowerCase().trim();
     const isFiltering = !!query;
 
@@ -26,19 +28,23 @@ export function useVisibleNodes() {
         result.push(node);
 
         if (expandedPaths.value.has(node.path) && node.children) {
-          const children = node.children.map(c => nodesMap.value.get(c.path)).filter(Boolean) as FileNode[];
+          const children = node.children
+            .map((c) => nodesMap.value.get(c.path))
+            .filter(Boolean) as FileNode[];
           buildTree(children);
         }
       }
     }
 
     function buildFlatList(nodes: FileNode[]) {
-      for(const node of nodes) {
+      for (const node of nodes) {
         if (node.name.toLowerCase().includes(query)) {
           result.push(node);
         }
         if (node.children) {
-          const children = node.children.map(c => nodesMap.value.get(c.path)).filter(Boolean) as FileNode[];
+          const children = node.children
+            .map((c) => nodesMap.value.get(c.path))
+            .filter(Boolean) as FileNode[];
           buildFlatList(children);
         }
       }
@@ -46,7 +52,7 @@ export function useVisibleNodes() {
 
     if (isFiltering) {
       buildFlatList(roots);
-      return result.sort((a,b) => a.path.localeCompare(b.path));
+      return result.sort((a, b) => a.path.localeCompare(b.path));
     } else {
       buildTree(roots);
       return result;

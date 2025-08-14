@@ -1,11 +1,11 @@
 <template>
   <RecycleScroller
-      v-if="nodes.length > 0"
-      class="h-full"
-      :items="nodes"
-      :item-size="28"
-      key-field="path"
-      v-slot="{ item }"
+    v-if="nodes.length > 0"
+    class="h-full"
+    :items="nodes"
+    :item-size="28"
+    key-field="path"
+    v-slot="{ item }"
   >
     <FileTreeItem :node="item" />
   </RecycleScroller>
@@ -15,9 +15,9 @@
 </template>
 
 <script setup lang="ts">
-import { RecycleScroller } from 'vue-virtual-scroller';
-import FileTreeItem from './FileTreeItem.vue';
-import type { FileNode } from '@/types/dto';
+import { RecycleScroller } from "vue-virtual-scroller";
+import FileTreeItem from "./FileTreeItem.vue";
+import type { FileNode } from "@/types/dto";
 
 defineProps<{ nodes: FileNode[] }>();
 </script>

@@ -37,7 +37,7 @@ func NewSettingsService(
 
 // GetSettingsDTO собирает все настройки в один DTO для передачи на фронтенд.
 func (s *SettingsService) GetSettingsDTO() (domain.SettingsDTO, error) {
-	providers := []string{"openai", "gemini", "localai"}
+	providers := []string{"openai", "gemini", "openrouter", "localai"}
 	selectedModels := make(map[string]string)
 	availableModels := make(map[string][]string)
 
@@ -51,6 +51,7 @@ func (s *SettingsService) GetSettingsDTO() (domain.SettingsDTO, error) {
 		CustomPromptRules: s.settingsRepo.GetCustomPromptRules(),
 		OpenAIAPIKey:      s.settingsRepo.GetOpenAIKey(),
 		GeminiAPIKey:      s.settingsRepo.GetGeminiKey(),
+		OpenRouterAPIKey:  s.settingsRepo.GetOpenRouterKey(),
 		LocalAIAPIKey:     s.settingsRepo.GetLocalAIKey(),
 		LocalAIHost:       s.settingsRepo.GetLocalAIHost(),
 		LocalAIModelName:  s.settingsRepo.GetLocalAIModelName(),
@@ -69,6 +70,7 @@ func (s *SettingsService) SaveSettingsDTO(dto domain.SettingsDTO) error {
 	s.settingsRepo.SetCustomPromptRules(dto.CustomPromptRules)
 	s.settingsRepo.SetOpenAIKey(dto.OpenAIAPIKey)
 	s.settingsRepo.SetGeminiKey(dto.GeminiAPIKey)
+	s.settingsRepo.SetOpenRouterKey(dto.OpenRouterAPIKey)
 	s.settingsRepo.SetLocalAIKey(dto.LocalAIAPIKey)
 	s.settingsRepo.SetLocalAIHost(dto.LocalAIHost)
 	s.settingsRepo.SetLocalAIModelName(dto.LocalAIModelName)

@@ -24,7 +24,15 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-const defaultCustomIgnoreRulesContent = "node_modules/\n*.tmp\n*.log\ndist/\nbuild/"
+//go:embed assets/ignore.glob
+var embeddedIgnoreGlob string
+
+func init() {
+	defaultCustomIgnoreRulesContent = embeddedIgnoreGlob
+}
+
+var defaultCustomIgnoreRulesContent = embeddedIgnoreGlob
+
 const defaultCustomPromptRulesContent = "no additional rules"
 const openRouterHost = "https://openrouter.ai/api/v1"
 
@@ -41,6 +49,7 @@ type AppContainer struct {
 	ProjectService  *application.ProjectService
 	AIService       *application.AIService
 	ContextAnalysis domain.ContextAnalyzer
+	ExportService   *application.ExportService
 }
 
 func NewContainer(ctx context.Context) (*AppContainer, error) {
@@ -79,6 +88,7 @@ func NewContainer(ctx context.Context) (*AppContainer, error) {
 	providerFactory := createProviderFactory(c.Log, c.SettingsService)
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory)
 	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+	c.ExportService = application.NewExportService()
 
 	return c, nil
 }
@@ -96,13 +106,13 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to create DI container: %v", err)
 			}
-
 			app.projectService = container.ProjectService
 			app.aiService = container.AIService
 			app.settingsService = container.SettingsService
 			app.contextAnalysis = container.ContextAnalysis
 			app.fileWatcher = container.Watcher
 			app.gitRepo = container.GitRepo
+			app.exportService = container.ExportService
 			app.startup(ctx)
 		},
 		Bind: []interface{}{app},

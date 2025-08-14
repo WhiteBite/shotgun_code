@@ -9,20 +9,40 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useProjectStore } from '@/stores/project.store';
-import MainLayout from './components/layout/MainLayout.vue';
+import { watch, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useProjectStore } from "@/stores/project.store";
+import MainLayout from "./components/layout/MainLayout.vue";
+import {
+  attachKeyboardState,
+  detachKeyboardState,
+} from "@/composables/useKeyboardState";
+import {
+  attachShortcuts,
+  detachShortcuts,
+} from "@/composables/useKeyboardShortcuts";
 
 const projectStore = useProjectStore();
 const router = useRouter();
 
 // Watch for a project being loaded and handle navigation here.
-// This is the correct place for this logic.
-watch(() => projectStore.isProjectLoaded, (isLoaded, wasLoaded) => {
-  if (isLoaded && !wasLoaded) {
-    router.push('/workspace');
-  }
+watch(
+  () => projectStore.isProjectLoaded,
+  (isLoaded, wasLoaded) => {
+    if (isLoaded && !wasLoaded) {
+      router.push("/workspace");
+    }
+  },
+);
+
+onMounted(() => {
+  attachKeyboardState();
+  attachShortcuts();
+});
+
+onUnmounted(() => {
+  detachShortcuts();
+  detachKeyboardState();
 });
 </script>
 
