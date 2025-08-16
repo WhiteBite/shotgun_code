@@ -3,7 +3,7 @@ import { useProjectStore } from "@/stores/project.store";
 import ProjectSelectionView from "@/views/ProjectSelectionView.vue";
 
 const router = createRouter({
-  history: createWebHistory(), // убран import.meta.env.BASE_URL для совместимости типов
+  history: createWebHistory(),
   routes: [
     {
       path: "/",

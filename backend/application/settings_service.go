@@ -7,6 +7,7 @@ import (
 )
 
 // ModelFetcher - это функция, которая знает, как получить список моделей для провайдера, используя предоставленный API ключ.
+// Она также может принимать необязательный параметр host (для LocalAI, OpenRouter)
 type ModelFetcher func(apiKey string) ([]string, error)
 
 // SettingsService отвечает за управление настройками приложения.
@@ -36,32 +37,9 @@ func NewSettingsService(
 }
 
 // GetSettingsDTO собирает все настройки в один DTO для передачи на фронтенд.
+// Теперь это просто прокси к методу репозитория.
 func (s *SettingsService) GetSettingsDTO() (domain.SettingsDTO, error) {
-	providers := []string{"openai", "gemini", "openrouter", "localai"}
-	selectedModels := make(map[string]string)
-	availableModels := make(map[string][]string)
-
-	for _, p := range providers {
-		selectedModels[p] = s.settingsRepo.GetSelectedModel(p)
-		availableModels[p] = s.settingsRepo.GetModels(p)
-	}
-
-	dto := domain.SettingsDTO{
-		CustomIgnoreRules: s.settingsRepo.GetCustomIgnoreRules(),
-		CustomPromptRules: s.settingsRepo.GetCustomPromptRules(),
-		OpenAIAPIKey:      s.settingsRepo.GetOpenAIKey(),
-		GeminiAPIKey:      s.settingsRepo.GetGeminiKey(),
-		OpenRouterAPIKey:  s.settingsRepo.GetOpenRouterKey(),
-		LocalAIAPIKey:     s.settingsRepo.GetLocalAIKey(),
-		LocalAIHost:       s.settingsRepo.GetLocalAIHost(),
-		LocalAIModelName:  s.settingsRepo.GetLocalAIModelName(),
-		SelectedProvider:  s.settingsRepo.GetSelectedAIProvider(),
-		SelectedModels:    selectedModels,
-		AvailableModels:   availableModels,
-		UseGitignore:      s.settingsRepo.GetUseGitignore(),
-		UseCustomIgnore:   s.settingsRepo.GetUseCustomIgnore(),
-	}
-	return dto, nil
+	return s.settingsRepo.GetSettingsDTO()
 }
 
 // SaveSettingsDTO принимает DTO с фронтенда и обновляет настройки.
@@ -80,6 +58,9 @@ func (s *SettingsService) SaveSettingsDTO(dto domain.SettingsDTO) error {
 
 	for provider, model := range dto.SelectedModels {
 		s.settingsRepo.SetSelectedModel(provider, model)
+	}
+	for provider, models := range dto.AvailableModels {
+		s.settingsRepo.SetModels(provider, models)
 	}
 
 	if err := s.settingsRepo.Save(); err != nil {

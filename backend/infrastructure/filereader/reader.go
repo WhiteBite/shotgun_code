@@ -25,6 +25,14 @@ func (r *secureFileReader) ReadContents(
 	rootDir string,
 	progress func(current, total int64),
 ) (map[string]string, error) {
+	// Guard against nil context and progress to avoid panics
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if progress == nil {
+		progress = func(current, total int64) {}
+	}
+
 	contents := make(map[string]string)
 	var totalSize int64
 

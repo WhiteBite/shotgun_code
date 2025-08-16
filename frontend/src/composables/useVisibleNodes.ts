@@ -1,65 +1,76 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useContextStore } from "@/stores/context.store";
+import { useFileTreeStore } from "@/stores/file-tree.store";
 import { useTreeStateStore } from "@/stores/tree-state.store";
 import type { FileNode } from "@/types/dto";
 
+function sortNodes(nodes: FileNode[]): FileNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export function useVisibleNodes() {
-  const contextStore = useContextStore();
+  const fileTreeStore = useFileTreeStore();
   const treeStateStore = useTreeStateStore();
 
-  const { nodesMap, debouncedQuery } = storeToRefs(contextStore);
+  const { rootNodes, nodesMap, searchQuery } = storeToRefs(fileTreeStore);
   const { expandedPaths } = storeToRefs(treeStateStore);
 
-  const visibleNodes = computed(() => {
-    const result: FileNode[] = [];
-    if (nodesMap.value.size === 0) return result;
+  const visibleNodes = computed((): FileNode[] => {
+    if (rootNodes.value.length === 0) return [];
 
-    const roots = Array.from(nodesMap.value.values()).filter(
-      (n) => n.depth === 0,
-    );
-    const query = debouncedQuery.value.toLowerCase().trim();
-    const isFiltering = !!query;
-
-    function buildTree(nodes: FileNode[]) {
-      for (const node of nodes) {
-        if (!isFiltering && node.isIgnored) continue;
-
-        result.push(node);
-
-        if (expandedPaths.value.has(node.path) && node.children) {
-          const children = node.children
-            .map((c) => nodesMap.value.get(c.path))
-            .filter(Boolean) as FileNode[];
-          buildTree(children);
-        }
-      }
-    }
-
-    function buildFlatList(nodes: FileNode[]) {
-      for (const node of nodes) {
-        if (node.name.toLowerCase().includes(query)) {
+    const query = searchQuery.value.toLowerCase().trim();
+    if (!query) {
+      const result: FileNode[] = [];
+      const build = (nodes: FileNode[]) => {
+        const childrenSorted = sortNodes(nodes);
+        for (const node of childrenSorted) {
           result.push(node);
+          if (node.isDir && expandedPaths.value.has(node.path) && node.children) {
+            const children = node.children
+              .map((c) => nodesMap.value.get(c.path))
+              .filter(Boolean) as FileNode[];
+            build(children);
+          }
         }
-        if (node.children) {
-          const children = node.children
-            .map((c) => nodesMap.value.get(c.path))
-            .filter(Boolean) as FileNode[];
-          buildFlatList(children);
-        }
-      }
-    }
-
-    if (isFiltering) {
-      buildFlatList(roots);
-      return result.sort((a, b) => a.path.localeCompare(b.path));
-    } else {
-      buildTree(roots);
+      };
+      build(sortNodes(rootNodes.value));
       return result;
     }
+
+    const matchedNodes = new Set<string>();
+    for (const node of nodesMap.value.values()) {
+      if (node.name.toLowerCase().includes(query)) {
+        let current: FileNode | undefined = node;
+        while (current) {
+          matchedNodes.add(current.path);
+          if (!current.parentPath) break;
+          current = nodesMap.value.get(current.parentPath) as FileNode | undefined;
+        }
+      }
+    }
+
+    const result: FileNode[] = [];
+    const buildFiltered = (nodes: FileNode[]) => {
+      const sorted = sortNodes(nodes);
+      for (const node of sorted) {
+        if (matchedNodes.has(node.path)) {
+          result.push(node);
+          if (node.isDir && node.children) {
+            const children = node.children
+              .map((c) => nodesMap.value.get(c.path))
+              .filter(Boolean) as FileNode[];
+            buildFiltered(children);
+          }
+        }
+      }
+    };
+
+    buildFiltered(rootNodes.value);
+    return result;
   });
 
-  return {
-    visibleNodes,
-  };
+  return { visibleNodes };
 }

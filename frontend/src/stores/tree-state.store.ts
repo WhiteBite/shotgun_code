@@ -1,6 +1,5 @@
-import { defineStore } from "pinia";
+﻿import { defineStore } from "pinia";
 import { ref } from "vue";
-import { useContextStore } from "./context.store";
 import type { FileNode } from "@/types/dto";
 
 export const useTreeStateStore = defineStore("treeState", () => {
@@ -8,104 +7,99 @@ export const useTreeStateStore = defineStore("treeState", () => {
   const selectedPaths = ref(new Set<string>());
   const activeNodePath = ref<string | null>(null);
 
-  function toggleExpansion(path: string, recursive = false) {
-    const contextStore = useContextStore();
-    const node = contextStore.nodesMap.get(path);
-    if (!node?.isDir) return;
+  function toggleExpansion(path: string) {
+    if (expandedPaths.value.has(path)) {
+      expandedPaths.value.delete(path);
+    } else {
+      expandedPaths.value.add(path);
+    }
+  }
 
-    const newState = !expandedPaths.value.has(path);
-
-    const stack: FileNode[] = [node];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (newState) {
-        expandedPaths.value.add(current.path);
-      } else {
-        expandedPaths.value.delete(current.path);
+  function expandRecursive(rootPath: string, nodesMap: Map<string, FileNode>) {
+    const root = nodesMap.get(rootPath);
+    if (!root || !root.isDir) return;
+    const stack: FileNode[] = [root];
+    while (stack.length) {
+      const n = stack.pop()!;
+      if (n.isDir) {
+        expandedPaths.value.add(n.path);
+        if (n.children) {
+          n.children.forEach(c => {
+            const child = nodesMap.get(c.path);
+            if (child) stack.push(child);
+          });
+        }
       }
+    }
+  }
 
-      if (recursive && current.children) {
-        current.children.forEach((childRef) => {
-          const childNode = contextStore.nodesMap.get(childRef.path);
-          if (childNode?.isDir) {
-            stack.push(childNode);
-          }
+  function collapseRecursive(rootPath: string, nodesMap: Map<string, FileNode>) {
+    const root = nodesMap.get(rootPath);
+    if (!root || !root.isDir) return;
+    const stack: FileNode[] = [root];
+    while (stack.length) {
+      const n = stack.pop()!;
+      expandedPaths.value.delete(n.path);
+      if (n.children) {
+        n.children.forEach(c => {
+          const child = nodesMap.get(c.path);
+          if (child) stack.push(child);
         });
       }
     }
   }
 
+  function toggleExpansionRecursive(path: string, nodesMap: Map<string, FileNode>, expand: boolean) {
+    if (expand) expandRecursive(path, nodesMap);
+    else collapseRecursive(path, nodesMap);
+  }
+
   function toggleSelection(path: string) {
-    const contextStore = useContextStore();
-    const node = contextStore.nodesMap.get(path);
+    if (selectedPaths.value.has(path)) {
+      selectedPaths.value.delete(path);
+    } else {
+      selectedPaths.value.add(path);
+    }
+  }
+
+  function toggleNodeSelection(path: string, nodesMap: Map<string, FileNode>) {
+    const node = nodesMap.get(path);
     if (!node || node.isIgnored) return;
-
-    const newSelectionState = !selectedPaths.value.has(path);
-
+    const shouldSelect = !selectedPaths.value.has(path);
     const stack: FileNode[] = [node];
     while (stack.length > 0) {
       const current = stack.pop()!;
       if (!current.isIgnored) {
-        if (newSelectionState) {
-          selectedPaths.value.add(current.path);
-        } else {
-          selectedPaths.value.delete(current.path);
-        }
-
-        if (current.children) {
-          current.children.forEach((childRef) => {
-            const childNode = contextStore.nodesMap.get(childRef.path);
+        if (shouldSelect) selectedPaths.value.add(current.path);
+        else selectedPaths.value.delete(current.path);
+        if (current.isDir && current.children) {
+          current.children.forEach(c => {
+            const childNode = nodesMap.get(c.path);
             if (childNode) stack.push(childNode);
           });
         }
       }
     }
-    // родительские состояния считуются визуально через вычисления
   }
 
-  function clearSelection() {
-    selectedPaths.value.clear();
+  function selectFilesByRelPaths(relPaths: string[], nodesMap: Map<string, FileNode>) {
+    relPaths.forEach(relPath => {
+      for (const node of nodesMap.values()) {
+        if (node.relPath === relPath && !node.isDir && !node.isIgnored) {
+          selectedPaths.value.add(node.path);
+          break;
+        }
+      }
+    });
   }
 
-  function addSelectedPaths(paths: string[]) {
-    paths.forEach((p) => selectedPaths.value.add(p));
-  }
-
-  function snapshotState() {
-    return {
-      selected: Array.from(selectedPaths.value),
-      expanded: Array.from(expandedPaths.value),
-    };
-  }
-
-  function restoreState(snapshot: { selected: string[]; expanded: string[] }) {
-    const contextStore = useContextStore();
-    selectedPaths.value = new Set(
-      snapshot.selected.filter((p) => {
-        const node = contextStore.nodesMap.get(p);
-        return !!node && !node.isIgnored;
-      }),
-    );
-    expandedPaths.value = new Set(snapshot.expanded);
-  }
-
-  // Вместо встроенного $reset для setup-store
-  function resetState() {
-    expandedPaths.value = new Set();
-    selectedPaths.value = new Set();
-    activeNodePath.value = null;
-  }
+  function clearSelection() { selectedPaths.value.clear(); }
+  function resetState() { expandedPaths.value.clear(); selectedPaths.value.clear(); activeNodePath.value = null; }
 
   return {
-    expandedPaths,
-    selectedPaths,
-    activeNodePath,
-    toggleExpansion,
-    toggleSelection,
-    clearSelection,
-    addSelectedPaths,
-    snapshotState,
-    restoreState,
-    resetState,
+    expandedPaths, selectedPaths, activeNodePath,
+    toggleExpansion, toggleSelection, toggleNodeSelection, selectFilesByRelPaths,
+    expandRecursive, collapseRecursive, toggleExpansionRecursive,
+    clearSelection, resetState
   };
 });

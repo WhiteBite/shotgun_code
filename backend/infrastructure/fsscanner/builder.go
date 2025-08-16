@@ -1,8 +1,7 @@
 package fsscanner
 
 import (
-	"context"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"shotgun_code/domain"
 	"sort"
@@ -12,95 +11,154 @@ import (
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
-type TreeBuilder struct {
-	settingsRepo     domain.SettingsRepository
-	mu               sync.RWMutex
-	projectGitignore *gitignore.GitIgnore
+type fileTreeBuilder struct {
+	settingsRepo domain.SettingsRepository
+	log          domain.Logger
+
+	mu          sync.RWMutex
+	giCache     map[string]*gitignore.GitIgnore // per-project .gitignore cache
+	customCache *gitignore.GitIgnore            // compiled custom rules
+	customHash  string                          // hash of custom rules content for cache invalidation
 }
 
-func New(settingsRepo domain.SettingsRepository) *TreeBuilder {
-	return &TreeBuilder{
+func New(settingsRepo domain.SettingsRepository, log domain.Logger) domain.TreeBuilder {
+	return &fileTreeBuilder{
 		settingsRepo: settingsRepo,
+		log:          log,
+		giCache:      make(map[string]*gitignore.GitIgnore),
 	}
 }
 
-func (tb *TreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
-	tb.mu.Lock()
-	tb.projectGitignore = nil
-	tb.mu.Unlock()
-	var gitIgn *gitignore.GitIgnore
-	gitignorePath := filepath.Join(dirPath, ".gitignore")
-	if _, err := os.Stat(gitignorePath); err == nil {
-		gitIgn, err = gitignore.CompileIgnoreFile(gitignorePath)
-		if err == nil {
-			tb.mu.Lock()
-			tb.projectGitignore = gitIgn
-			tb.mu.Unlock()
-		}
-	}
+func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
+	var gi *gitignore.GitIgnore
+	var ci *gitignore.GitIgnore
 
-	var customIgn *gitignore.GitIgnore
+	if useGitignore {
+		gi = b.getGitignore(dirPath)
+	}
 	if useCustomIgnore {
-		customRulesText := tb.settingsRepo.GetCustomIgnoreRules()
-		if strings.TrimSpace(customRulesText) != "" {
-			lines := strings.Split(strings.ReplaceAll(customRulesText, "\r\n", "\n"), "\n")
-			customIgn = gitignore.CompileIgnoreLines(lines...)
-		}
+		ci = b.getCustomIgnore()
 	}
 
-	rootNode := &domain.FileNode{
-		Name:    filepath.Base(dirPath),
-		Path:    dirPath,
-		RelPath: ".",
-		IsDir:   true,
-	}
-	children, err := tb.buildRecursive(context.Background(), dirPath, dirPath, useGitignore, useCustomIgnore, customIgn)
-	if err != nil {
-		return nil, err
-	}
-	rootNode.Children = children
-	return []*domain.FileNode{rootNode}, nil
-}
+	nodesMap := make(map[string]*domain.FileNode)
 
-func (tb *TreeBuilder) buildRecursive(ctx context.Context, currentPath, rootPath string, useGitignore, useCustomIgnore bool, customIgn *gitignore.GitIgnore) ([]*domain.FileNode, error) {
-	tb.mu.RLock()
-	gitIgn := tb.projectGitignore
-	tb.mu.RUnlock()
-	entries, err := os.ReadDir(currentPath)
-	if err != nil {
-		return nil, err
+	root := &domain.FileNode{
+		Name:     filepath.Base(dirPath),
+		Path:     dirPath,
+		RelPath:  ".",
+		IsDir:    true,
+		Children: []*domain.FileNode{},
 	}
-	var nodes []*domain.FileNode
-	for _, entry := range entries {
-		nodePath := filepath.Join(currentPath, entry.Name())
-		relPath, _ := filepath.Rel(rootPath, nodePath)
-		pathToMatch := relPath
-		if entry.IsDir() {
-			pathToMatch = strings.TrimSuffix(pathToMatch, string(os.PathSeparator)) + string(os.PathSeparator)
+	nodesMap[dirPath] = root
+
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		isGitignored := useGitignore && gitIgn != nil && gitIgn.MatchesPath(pathToMatch)
-		isCustomIgnored := useCustomIgnore && customIgn != nil && customIgn.MatchesPath(pathToMatch)
-		node := &domain.FileNode{
-			Name:            entry.Name(),
-			Path:            nodePath,
-			RelPath:         relPath,
-			IsDir:           entry.IsDir(),
-			IsGitignored:    isGitignored,
-			IsCustomIgnored: isCustomIgnored,
+		if path == dirPath {
+			return nil
 		}
-		if entry.IsDir() && !(isGitignored || isCustomIgnored) {
-			children, err := tb.buildRecursive(ctx, nodePath, rootPath, useGitignore, useCustomIgnore, customIgn)
-			if err == nil {
-				node.Children = children
+		relPath, _ := filepath.Rel(dirPath, path)
+		matchPath := relPath
+		if d.IsDir() && !strings.HasSuffix(matchPath, string(filepath.Separator)) {
+			matchPath += string(filepath.Separator)
+		}
+
+		isGi := gi != nil && gi.MatchesPath(matchPath)
+		isCi := ci != nil && ci.MatchesPath(matchPath)
+
+		if d.IsDir() && (isGi || isCi) {
+			return fs.SkipDir
+		}
+
+		var fsize int64
+		if !d.IsDir() {
+			if info, e := d.Info(); e == nil {
+				fsize = info.Size()
 			}
 		}
-		nodes = append(nodes, node)
-	}
-	sort.SliceStable(nodes, func(i, j int) bool {
-		if nodes[i].IsDir != nodes[j].IsDir {
-			return nodes[i].IsDir
+
+		node := &domain.FileNode{
+			Name:            d.Name(),
+			Path:            path,
+			RelPath:         relPath,
+			IsDir:           d.IsDir(),
+			IsGitignored:    isGi,
+			IsCustomIgnored: isCi,
+			Children:        []*domain.FileNode{},
+			Size:            fsize,
 		}
-		return strings.ToLower(nodes[i].Name) < strings.ToLower(nodes[j].Name)
+		nodesMap[path] = node
+
+		parent := filepath.Dir(path)
+		if p, ok := nodesMap[parent]; ok {
+			p.Children = append(p.Children, node)
+		}
+		return nil
 	})
-	return nodes, nil
+	if err != nil {
+		return nil, err
+	}
+
+	for _, n := range nodesMap {
+		sort.Slice(n.Children, func(i, j int) bool {
+			if n.Children[i].IsDir != n.Children[j].IsDir {
+				return n.Children[i].IsDir
+			}
+			return strings.ToLower(n.Children[i].Name) < strings.ToLower(n.Children[j].Name)
+		})
+	}
+
+	return []*domain.FileNode{root}, nil
+}
+
+func (b *fileTreeBuilder) getGitignore(root string) *gitignore.GitIgnore {
+	b.mu.RLock()
+	if gi, ok := b.giCache[root]; ok {
+		b.mu.RUnlock()
+		return gi
+	}
+	b.mu.RUnlock()
+
+	ig, err := gitignore.CompileIgnoreFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		return nil
+	}
+
+	b.mu.Lock()
+	b.giCache[root] = ig
+	b.mu.Unlock()
+	return ig
+}
+
+func (b *fileTreeBuilder) getCustomIgnore() *gitignore.GitIgnore {
+	rules := strings.ReplaceAll(b.settingsRepo.GetCustomIgnoreRules(), "\r\n", "\n")
+	trimmed := []string{}
+	for _, line := range strings.Split(rules, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		trimmed = append(trimmed, line)
+	}
+	hash := strings.Join(trimmed, "\n")
+
+	b.mu.RLock()
+	if b.customCache != nil && b.customHash == hash {
+		cc := b.customCache
+		b.mu.RUnlock()
+		return cc
+	}
+	b.mu.RUnlock()
+
+	if len(trimmed) == 0 {
+		return nil
+	}
+	ci := gitignore.CompileIgnoreLines(trimmed...)
+
+	b.mu.Lock()
+	b.customCache = ci
+	b.customHash = hash
+	b.mu.Unlock()
+	return ci
 }

@@ -8,70 +8,64 @@ import (
 type ProjectService struct {
 	log                      domain.Logger
 	bus                      domain.EventBus
-	settingsService          *SettingsService
+	treeBuilder              domain.TreeBuilder
 	gitRepo                  domain.GitRepository
-	treeBuilder              domain.FileTreeBuilder
-	diffSplitter             domain.DiffSplitter
 	contextGenerationService *ContextGenerationService
-	isGitAvailable           bool
 }
 
 func NewProjectService(
 	log domain.Logger,
 	bus domain.EventBus,
-	settingsService *SettingsService,
+	treeBuilder domain.TreeBuilder,
 	gitRepo domain.GitRepository,
-	treeBuilder domain.FileTreeBuilder,
-	diffSplitter domain.DiffSplitter,
-	contextGenService *ContextGenerationService,
-) (*ProjectService, error) {
-	s := &ProjectService{
+	contextGenerationService *ContextGenerationService,
+) *ProjectService {
+	return &ProjectService{
 		log:                      log,
 		bus:                      bus,
-		settingsService:          settingsService,
-		gitRepo:                  gitRepo,
 		treeBuilder:              treeBuilder,
-		diffSplitter:             diffSplitter,
-		contextGenerationService: contextGenService,
+		gitRepo:                  gitRepo,
+		contextGenerationService: contextGenerationService,
 	}
-	var err error
-	s.isGitAvailable, err = s.gitRepo.CheckAvailability()
-	if err != nil {
-		s.log.Error("Error checking Git availability: " + err.Error())
-	}
-	if s.isGitAvailable {
-		s.log.Info("Git is available on the system.")
-	} else {
-		s.log.Warning("Git not found. Git-related functionality will be disabled.")
-	}
-	return s, nil
-}
-
-func (s *ProjectService) LogError(message string) {
-	s.log.Error(message)
-	s.bus.Emit("app:error", message)
 }
 
 func (s *ProjectService) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
-	return s.treeBuilder.BuildTree(dirPath, useGitignore, useCustomIgnore)
-}
-
-func (s *ProjectService) IsGitAvailable() bool {
-	return s.isGitAvailable
+	s.log.Info("Listing files for directory: " + dirPath)
+	nodes, err := s.treeBuilder.BuildTree(dirPath, useGitignore, useCustomIgnore)
+	if err != nil {
+		s.log.Error("Failed to build file tree: " + err.Error())
+		return nil, err
+	}
+	s.log.Info("File tree built successfully")
+	return nodes, nil
 }
 
 func (s *ProjectService) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
-	return s.gitRepo.GetUncommittedFiles(projectRoot)
+	s.log.Info("Getting uncommitted files for: " + projectRoot)
+	files, err := s.gitRepo.GetUncommittedFiles(projectRoot)
+	if err != nil {
+		s.log.Error("Failed to get uncommitted files: " + err.Error())
+		return nil, err
+	}
+	return files, nil
 }
 
 func (s *ProjectService) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
-	return s.gitRepo.GetRichCommitHistory(projectRoot, branchName, limit)
+	s.log.Info("Getting commit history for: " + projectRoot)
+	commits, err := s.gitRepo.GetRichCommitHistory(projectRoot, branchName, limit)
+	if err != nil {
+		s.log.Error("Failed to get commit history: " + err.Error())
+		return nil, err
+	}
+	return commits, nil
+}
+
+func (s *ProjectService) IsGitAvailable() bool {
+	return s.gitRepo.IsGitAvailable()
 }
 
 func (s *ProjectService) GenerateContext(ctx context.Context, rootDir string, includedPaths []string) {
-	s.contextGenerationService.Generate(ctx, rootDir, includedPaths)
-}
-
-func (s *ProjectService) SplitShotgunDiff(gitDiffText string, approxLineLimit int) ([]string, error) {
-	return s.diffSplitter.Split(gitDiffText, approxLineLimit)
+	s.log.Info("Starting context generation")
+	// Теперь используем безопасный метод с panic recovery
+	s.contextGenerationService.GenerateContext(ctx, rootDir, includedPaths)
 }

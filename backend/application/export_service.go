@@ -1,25 +1,37 @@
 package application
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/contextbuilder"
-	"shotgun_code/infrastructure/fonts"
 	"strings"
-	"unicode"
-
-	"github.com/jung-kurt/gofpdf"
 )
 
-type ExportService struct{}
+const (
+	maxInMemorySize = 50 * 1024 * 1024 // 50MB
+	maxFileSize     = 5 * 1024 * 1024  // 5 MB limit per file
+)
 
-func NewExportService() *ExportService { return &ExportService{} }
+type ExportService struct {
+	contextSplitter domain.ContextSplitter
+	log             domain.Logger
+	pdf             domain.PDFGenerator
+	archiver        domain.Archiver
+}
+
+func NewExportService(log domain.Logger, splitter domain.ContextSplitter, pdf domain.PDFGenerator, arch domain.Archiver) *ExportService {
+	return &ExportService{
+		contextSplitter: splitter,
+		log:             log,
+		pdf:             pdf,
+		archiver:        arch,
+	}
+}
 
 // Грубая оценка числа токенов (~ четверть от количества рун)
 func approxTokens(s string) int { return len([]rune(s)) / 4 }
@@ -43,138 +55,12 @@ func splitByFiles(text string) []string {
 	return parts
 }
 
-// мягкий перенос длинных строк
-func softWrapLongLines(text string, widthCols int) string {
-	if widthCols <= 0 {
-		return text
-	}
-	lines := strings.Split(text, "\n")
-	var out strings.Builder
-	for _, ln := range lines {
-		runes := []rune(ln)
-		for i := 0; i < len(runes); i += widthCols {
-			j := i + widthCols
-			if j > len(runes) {
-				j = len(runes)
-			}
-			out.WriteString(string(runes[i:j]))
-			out.WriteByte('\n')
-		}
-	}
-	return out.String()
-}
-
-// заменяем экзотические руны на ASCII-маркер <U+XXXX>
-func replaceUnsupported(text string) string {
-	var b strings.Builder
-	for _, r := range []rune(text) {
-		if r == '\n' || r == '\r' || r == '\t' {
-			b.WriteRune(r)
-			continue
-		}
-		switch {
-		case r >= 0x20 && r <= 0x7E:
-			b.WriteRune(r)
-		case (r >= 0x00A0 && r <= 0x024F) || (r >= 0x1E00 && r <= 0x1EFF):
-			b.WriteRune(r)
-		case (r >= 0x0400 && r <= 0x052F) || (r >= 0x2DE0 && r <= 0x2DFF) || (r >= 0xA640 && r <= 0xA69F):
-			b.WriteRune(r)
-		case r >= 0x0370 && r <= 0x03FF:
-			b.WriteRune(r)
-		case (r >= 0x2000 && r <= 0x206F) || (r >= 0x20A0 && r <= 0x20CF) ||
-			(r >= 0x2100 && r <= 0x214F) || (r >= 0x2190 && r <= 0x21FF) ||
-			(r >= 0x2200 && r <= 0x22FF) || (r >= 0x2300 && r <= 0x23FF) ||
-			(r >= 0x2460 && r <= 0x24FF) || (r >= 0x2500 && r <= 0x257F) ||
-			(r >= 0x2580 && r <= 0x259F) || (r >= 0x25A0 && r <= 0x25FF) ||
-			(r >= 0x2600 && r <= 0x26FF):
-			b.WriteRune(r)
-		default:
-			if !unicode.IsSpace(r) {
-				b.WriteString(fmt.Sprintf("<U+%04X>", r))
-			} else {
-				b.WriteRune(r)
-			}
-		}
-	}
-	s := strings.ReplaceAll(b.String(), "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	s = strings.ReplaceAll(s, "\t", "    ")
-	return s
-}
-
-func registerUTF8Mono(pdf *gofpdf.Fpdf) (string, error) {
-	tmp, err := os.CreateTemp("", "dejavu-mono-*.ttf")
-	if err != nil {
-		return "", err
-	}
-	defer func() { tmp.Close(); os.Remove(tmp.Name()) }()
-	if _, err = tmp.Write(fonts.DejaVuSansMonoTTF); err != nil {
-		return "", err
-	}
-	font := "DejaVuMono"
-	pdf.AddUTF8Font(font, "", tmp.Name())
-	return font, nil
-}
-
-func makeMonoPDF(text string, dark bool, lineNums bool, pageNums bool) ([]byte, error) {
-	text = replaceUnsupported(text)
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(12, 12, 12)
-	pdf.SetAutoPageBreak(true, 12)
-
-	bgR, bgG, bgB := 255, 255, 255
-	fgR, fgG, fgB := 20, 22, 28
-	if dark {
-		bgR, bgG, bgB = 24, 26, 32
-		fgR, fgG, fgB = 235, 235, 235
-	}
-	if pageNums {
-		pdf.AliasNbPages("{nb}")
-		pdf.SetFooterFunc(func() {
-			pdf.SetY(-10)
-			pdf.SetTextColor(fgR, fgG, fgB)
-			pdf.SetFont("DejaVuMono", "", 9)
-			pdf.CellFormat(0, 6, fmt.Sprintf("%d/{nb}", pdf.PageNo()), "", 0, "C", false, 0, "")
-		})
-	}
-
-	font, err := registerUTF8Mono(pdf)
-	if err != nil {
-		return nil, fmt.Errorf("register font: %w", err)
-	}
-
-	pdf.AddPage()
-	pdf.SetFillColor(bgR, bgG, bgB)
-	pdf.Rect(0, 0, 210, 297, "F")
-
-	pdf.SetTextColor(fgR, fgG, fgB)
-	pdf.SetFont(font, "", 9)
-
-	const maxCols = 160
-	var out strings.Builder
-	i := 1
-	for _, line := range strings.Split(text, "\n") {
-		if lineNums {
-			out.WriteString(fmt.Sprintf("%6d  %s\n", i, line))
-		} else {
-			out.WriteString(line + "\n")
-		}
-		i++
-	}
-	wrapped := softWrapLongLines(out.String(), maxCols)
-
-	pdf.SetX(12)
-	pdf.MultiCell(0, 4.5, wrapped, "", "L", false)
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
 func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings) (domain.ExportResult, error) {
+	if settings.Context == "" {
+		s.log.Warning("Attempted to export empty context.")
+		return domain.ExportResult{}, fmt.Errorf("context is empty, nothing to export")
+	}
+
 	switch settings.Mode {
 	case domain.ExportModeClipboard:
 		format := settings.ExportFormat
@@ -186,62 +72,139 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			IncludeManifest: settings.IncludeManifest,
 		})
 		if err != nil {
-			return domain.ExportResult{}, err
+			return domain.ExportResult{}, fmt.Errorf("failed to build clipboard context: %w", err)
 		}
 		return domain.ExportResult{Mode: settings.Mode, Text: out}, nil
 
 	case domain.ExportModeAI:
-		parts := splitByFiles(settings.Context)
-		limit := settings.TokenLimit
-		if limit <= 0 {
-			limit = 180000
-		}
 		var chunks []string
-		cur := ""
-		for _, p := range parts {
-			if approxTokens(cur)+approxTokens(p) > limit && strings.TrimSpace(cur) != "" {
-				chunks = append(chunks, cur)
-				cur = ""
+		if settings.EnableAutoSplit {
+			splitSettings := domain.SplitSettings{
+				MaxTokensPerChunk: settings.MaxTokensPerChunk,
+				OverlapTokens:     settings.OverlapTokens,
+				SplitStrategy:     settings.SplitStrategy,
 			}
-			cur += p
+			var err error
+			chunks, err = s.contextSplitter.SplitContext(settings.Context, splitSettings)
+			if err != nil {
+				return domain.ExportResult{}, fmt.Errorf("failed to split context for AI export: %w", err)
+			}
+		} else {
+			totalTokens := approxTokens(settings.Context)
+			if totalTokens > settings.TokenLimit && settings.TokenLimit > 0 {
+				s.log.Warning(fmt.Sprintf("Context (%d tokens) exceeds specified token limit (%d) for AI export, but auto-split is disabled. Exporting as single large PDF.", totalTokens, settings.TokenLimit))
+			}
+			chunks = []string{settings.Context}
 		}
-		if strings.TrimSpace(cur) != "" {
-			chunks = append(chunks, cur)
+
+		estimatedSize := int64(len(settings.Context) * 2)
+
+		if len(chunks) == 1 && estimatedSize < maxInMemorySize {
+			// Маленький PDF в память
+			pdfBytes, err := s.pdf.Generate(chunks[0], domain.PDFOptions{})
+			if err != nil {
+				return domain.ExportResult{}, fmt.Errorf("failed to generate AI PDF: %w", err)
+			}
+			return domain.ExportResult{
+				Mode:       settings.Mode,
+				FileName:   "context-ai.pdf",
+				DataBase64: base64.StdEncoding.EncodeToString(pdfBytes),
+				SizeBytes:  int64(len(pdfBytes)),
+			}, nil
 		}
+
+		// Большой PDF или много чанков -> файл
+		tempDir, err := os.MkdirTemp("", "shotgun-export-*")
+		if err != nil {
+			return domain.ExportResult{}, fmt.Errorf("failed to create temp dir: %w", err)
+		}
+
+		var outputPath string
+		var fileName string
 
 		if len(chunks) == 1 {
-			pdfBytes, err := makeMonoPDF(chunks[0], false, false, false)
-			if err != nil {
-				return domain.ExportResult{}, err
+			fileName = "context-ai.pdf"
+			outputPath = filepath.Join(tempDir, fileName)
+			if err := s.pdf.WriteAtomic(chunks[0], domain.PDFOptions{}, outputPath); err != nil {
+				os.RemoveAll(tempDir)
+				return domain.ExportResult{}, fmt.Errorf("failed to generate AI PDF: %w", err)
 			}
-			return domain.ExportResult{Mode: settings.Mode, FileName: "context-ai.pdf",
-				DataBase64: base64.StdEncoding.EncodeToString(pdfBytes)}, nil
+		} else {
+			files := make(map[string][]byte, len(chunks))
+			for i, chunk := range chunks {
+				b, err := s.pdf.Generate(chunk, domain.PDFOptions{})
+				if err != nil {
+					os.RemoveAll(tempDir)
+					return domain.ExportResult{}, fmt.Errorf("failed to generate PDF chunk %d: %w", i+1, err)
+				}
+				files[fmt.Sprintf("context-ai-part-%02d.pdf", i+1)] = b
+			}
+			fileName = "context-ai.zip"
+			outputPath = filepath.Join(tempDir, fileName)
+			if err := s.archiver.ZipFilesAtomic(files, outputPath); err != nil {
+				os.RemoveAll(tempDir)
+				return domain.ExportResult{}, fmt.Errorf("failed to create ZIP: %w", err)
+			}
 		}
 
-		var zb bytes.Buffer
-		zw := zip.NewWriter(&zb)
-		for i, c := range chunks {
-			pdfBytes, err := makeMonoPDF(c, false, false, false)
-			if err != nil {
-				return domain.ExportResult{}, err
-			}
-			f, _ := zw.Create(fmt.Sprintf("context-%02d.pdf", i+1))
-			_, _ = f.Write(pdfBytes)
+		fi, err := os.Stat(outputPath)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
 		}
-		_ = zw.Close()
-		return domain.ExportResult{Mode: settings.Mode, FileName: "context-ai.zip",
-			DataBase64: base64.StdEncoding.EncodeToString(zb.Bytes())}, nil
+		return domain.ExportResult{
+			Mode:      settings.Mode,
+			FileName:  fileName,
+			FilePath:  outputPath,
+			IsLarge:   true,
+			SizeBytes: fi.Size(),
+		}, nil
 
 	case domain.ExportModeHuman:
 		dark := strings.EqualFold(settings.Theme, "Dark")
-		pdfBytes, err := makeMonoPDF(settings.Context, dark, settings.IncludeLineNumbers, settings.IncludePageNumbers)
-		if err != nil {
-			return domain.ExportResult{}, err
+		opts := domain.PDFOptions{Dark: dark, LineNumbers: settings.IncludeLineNumbers, PageNumbers: settings.IncludePageNumbers}
+		estimatedSize := int64(len(settings.Context) * 2)
+
+		if estimatedSize < maxInMemorySize {
+			pdfBytes, err := s.pdf.Generate(settings.Context, opts)
+			if err != nil {
+				return domain.ExportResult{}, fmt.Errorf("failed to generate human-readable PDF: %w", err)
+			}
+			return domain.ExportResult{
+				Mode:       settings.Mode,
+				FileName:   "context-human.pdf",
+				DataBase64: base64.StdEncoding.EncodeToString(pdfBytes),
+				SizeBytes:  int64(len(pdfBytes)),
+			}, nil
 		}
-		return domain.ExportResult{Mode: settings.Mode, FileName: "context-human.pdf",
-			DataBase64: base64.StdEncoding.EncodeToString(pdfBytes)}, nil
+
+		tempDir, err := os.MkdirTemp("", "shotgun-export-*")
+		if err != nil {
+			return domain.ExportResult{}, fmt.Errorf("failed to create temp dir: %w", err)
+		}
+		fileName := "context-human.pdf"
+		outputPath := filepath.Join(tempDir, fileName)
+
+		if err := s.pdf.WriteAtomic(settings.Context, opts, outputPath); err != nil {
+			os.RemoveAll(tempDir)
+			return domain.ExportResult{}, fmt.Errorf("failed to generate human-readable PDF: %w", err)
+		}
+
+		fi, err := os.Stat(outputPath)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
+		}
+
+		return domain.ExportResult{
+			Mode:      settings.Mode,
+			FileName:  fileName,
+			FilePath:  outputPath,
+			IsLarge:   true,
+			SizeBytes: fi.Size(),
+		}, nil
 
 	default:
-		return domain.ExportResult{}, fmt.Errorf("unknown export mode")
+		return domain.ExportResult{}, fmt.Errorf("unknown export mode: %s", settings.Mode)
 	}
 }

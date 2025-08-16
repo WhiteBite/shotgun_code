@@ -20,7 +20,13 @@ type ExportSettings struct {
 	// AI
 	AIProfile       string `json:"aiProfile"`
 	TokenLimit      int    `json:"tokenLimit"`
-	FileSizeLimitKB int    `json:"fileSizeLimitKB"`
+	FileSizeLimitKB int    `json:"fileSizeLimitKB"` // Max size of an individual file read, not context chunk
+
+	// New AI Splitting Options
+	EnableAutoSplit   bool   `json:"enableAutoSplit"`
+	MaxTokensPerChunk int    `json:"maxTokensPerChunk"` // Max tokens for each generated chunk
+	OverlapTokens     int    `json:"overlapTokens"`
+	SplitStrategy     string `json:"splitStrategy"` // "token" | "file" | "smart"
 
 	// Human
 	Theme              string `json:"theme"`
@@ -33,4 +39,14 @@ type ExportResult struct {
 	Text       string     `json:"text,omitempty"`
 	FileName   string     `json:"fileName,omitempty"`
 	DataBase64 string     `json:"dataBase64,omitempty"`
+	FilePath   string     `json:"filePath,omitempty"`  // NEW: для больших файлов
+	IsLarge    bool       `json:"isLarge,omitempty"`   // NEW: флаг больших файлов
+	SizeBytes  int64      `json:"sizeBytes,omitempty"` // NEW: размер файла
+}
+
+// SplitSettings для ContextSplitter
+type SplitSettings struct {
+	MaxTokensPerChunk int
+	OverlapTokens     int
+	SplitStrategy     string
 }

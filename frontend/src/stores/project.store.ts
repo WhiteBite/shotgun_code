@@ -1,9 +1,11 @@
 import { defineStore } from "pinia";
-import { useNotificationsStore } from "./notifications.store";
-import { useErrorHandler } from "@/composables/useErrorHandler";
-import type { Project } from "@/types/dto";
 import { apiService } from "@/services/api.service";
-import { useContextStore } from "./context.store";
+import { useFileTreeStore } from "./file-tree.store";
+
+interface Project {
+  name: string;
+  path: string;
+}
 
 export const useProjectStore = defineStore("project", {
   state: () => ({
@@ -12,87 +14,73 @@ export const useProjectStore = defineStore("project", {
     isLoading: false,
   }),
   getters: {
-    isProjectLoaded: (state) => !!state.currentProject,
+    isProjectLoaded: (state): boolean => !!state.currentProject,
   },
   actions: {
-    async selectProject(project: Project) {
-      const notifications = useNotificationsStore();
-      const { handleError } = useErrorHandler();
-      const contextStore = useContextStore();
+    async openProject(): Promise<boolean> {
+      const selected = await apiService.selectDirectory();
+      if (!selected) return false;
+      const name =
+          selected.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Untitled";
+      return await this.setCurrentProject({ name, path: selected });
+    },
+
+    async setCurrentProject(project: Project): Promise<boolean> {
       this.isLoading = true;
-
       try {
-        notifications.addLog(`Opening project: ${project.name}...`, "info");
-
-        // Останавливаем прошлый watcher, чтобы не было гонок
+        const fileTreeStore = useFileTreeStore();
         try {
           await apiService.stopFileWatcher();
         } catch (e) {
-          /* ignore */
+          console.warn("Could not stop previous watcher", e);
         }
+        fileTreeStore.clearProjectData();
 
-        // Обновляем список недавних
-        const existingIndex = this.recentProjects.findIndex(
-          (p) => p.path === project.path,
-        );
-        if (existingIndex > -1) this.recentProjects.splice(existingIndex, 1);
-        this.recentProjects.unshift(project);
-
-        // Сбрасываем состояние прошлого проекта
-        contextStore.clearProjectData();
-
-        // Устанавливаем текущий
+        fileTreeStore.rootPath = project.path;
         this.currentProject = project;
 
-        // Стартуем watcher для нового пути
         try {
           await apiService.startFileWatcher(project.path);
         } catch (e) {
-          handleError(e, "Start File Watcher");
+          console.error("Failed to start file watcher", e);
         }
-      } catch (err) {
-        handleError(err, "Project Selection");
+        await fileTreeStore.fetchFileTree();
+
+        this.recentProjects = this.recentProjects.filter(
+            (p) => p.path !== project.path,
+        );
+        this.recentProjects.unshift(project);
+        if (this.recentProjects.length > 10) this.recentProjects.pop();
+        try {
+          localStorage.setItem(
+              "recentProjects",
+              JSON.stringify(this.recentProjects),
+          );
+        } catch (e) {
+          console.warn("Failed to save recent projects to localStorage", e);
+        }
+        return true;
       } finally {
         this.isLoading = false;
       }
     },
 
-    async selectProjectFromDialog() {
-      const { handleError } = useErrorHandler();
+    removeRecent(path: string) {
+      this.recentProjects = this.recentProjects.filter(p => p.path !== path);
       try {
-        const selectedDir = await apiService.selectDirectory();
-        if (selectedDir) {
-          const projectName =
-            selectedDir.split(/[\\/]/).pop() || "Unnamed Project";
-          const newProject: Project = {
-            id: Date.now().toString(),
-            name: projectName,
-            path: selectedDir,
-          };
-          await this.selectProject(newProject);
-        }
-      } catch (err) {
-        handleError(err, "Directory Dialog");
-      }
+        localStorage.setItem("recentProjects", JSON.stringify(this.recentProjects));
+      } catch {}
     },
 
-    async clearProject() {
-      const { handleError } = useErrorHandler();
-      const notifications = useNotificationsStore();
-      const contextStore = useContextStore();
-      try {
-        await apiService.stopFileWatcher();
-      } catch (e) {
-        handleError(e, "Stop File Watcher");
+    loadRecentProjects() {
+      const raw = localStorage.getItem("recentProjects");
+      if (raw) {
+        try {
+          this.recentProjects = JSON.parse(raw) as Project[];
+        } catch (e) {
+          console.warn("Failed to parse recent projects from localStorage", e);
+        }
       }
-      contextStore.clearProjectData();
-      this.currentProject = null;
-      notifications.addLog("Project closed.", "info");
     },
-  },
-  persist: {
-    paths: ["recentProjects"],
   },
 });
-
-export default useProjectStore;

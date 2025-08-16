@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useErrorHandler } from "@/composables/useErrorHandler";
 import { useProjectStore } from "./project.store";
+import { useTreeStateStore } from "./tree-state.store";
+import { useFileTreeStore } from "./file-tree.store";
 import { apiService } from "@/services/api.service";
 import type { CommitWithFiles } from "@/types/dto";
 
@@ -40,11 +42,28 @@ export const useGitStore = defineStore("git", () => {
     isHistoryVisible.value = false;
   }
 
+  function applyCommitSelection(selectedHashes: string[]) {
+    if (!selectedHashes || selectedHashes.length === 0) return;
+    const treeStateStore = useTreeStateStore();
+    const fileTreeStore = useFileTreeStore();
+    const filesToSelect = new Set<string>();
+    const selectedHashesSet = new Set(selectedHashes);
+
+    for (const commit of commits.value) {
+      if (selectedHashesSet.has(commit.hash)) {
+        commit.files.forEach(fileRelPath => filesToSelect.add(fileRelPath));
+      }
+    }
+
+    treeStateStore.selectFilesByRelPaths(Array.from(filesToSelect), fileTreeStore.nodesMap);
+  }
+
   return {
     isHistoryVisible,
     isLoading,
     commits,
     showHistory,
     hideHistory,
+    applyCommitSelection
   };
 });

@@ -1,24 +1,27 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { LogEntry } from "@/types/dto";
 import { useUiStore } from "./ui.store";
+import type { LogEntry, LogType } from "@/types/dto";
+
+let nextId = 1;
+const maxLogs = 200;
 
 export const useNotificationsStore = defineStore("notifications", () => {
   const logs = ref<LogEntry[]>([]);
-  const maxLogs = 150;
+  const uiStore = useUiStore();
 
-  function addLog(message: string, type: LogEntry["type"] = "info") {
-    const uiStore = useUiStore();
-    const logEntry: LogEntry = {
-      message,
-      type,
+  function addLog(message: string, type: LogType = "info") {
+    const newLog: LogEntry = {
+      id: nextId++,
+      message: message,
+      type: type,
       timestamp: new Date().toLocaleTimeString(),
     };
-    logs.value.unshift(logEntry);
+    logs.value.unshift(newLog);
     if (logs.value.length > maxLogs) {
       logs.value.pop();
     }
-    if (type === "error" || type === "success") {
+    if (type === "error" || type === "success" || type === "warn") {
       uiStore.addToast(message, type);
     }
   }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"shotgun_code/application"
+	"shotgun_code/cmd/app"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/wailsbridge"
 	"strings"
@@ -17,204 +18,146 @@ type App struct {
 	projectService  *application.ProjectService
 	aiService       *application.AIService
 	settingsService *application.SettingsService
-	fileWatcher     domain.FileSystemWatcher
 	contextAnalysis domain.ContextAnalyzer
+	fileWatcher     domain.FileSystemWatcher
 	gitRepo         domain.GitRepository
 	exportService   *application.ExportService
+	fileReader      domain.FileContentReader
+	bridge          *wailsbridge.Bridge
 }
 
-func (a *App) startup(ctx context.Context) { a.ctx = ctx }
-
-func (a *App) handleError(err error) {
-	if err != nil {
-		bridge := wailsbridge.New(a.ctx)
-		bridge.Error(err.Error())
-		bridge.Emit("app:error", err.Error())
-	}
+func (a *App) startup(ctx context.Context, container *app.AppContainer) {
+	a.ctx = ctx
+	a.projectService = container.ProjectService
+	a.aiService = container.AIService
+	a.settingsService = container.SettingsService
+	a.contextAnalysis = container.ContextAnalysis
+	a.fileWatcher = container.Watcher
+	a.gitRepo = container.GitRepo
+	a.exportService = container.ExportService
+	a.fileReader = container.FileReader
+	a.bridge = container.Bridge
 }
 
-func (a *App) validateProjectPath(path string) error {
-	if path == "" {
-		return fmt.Errorf("project path cannot be empty")
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("project path does not exist: %s", path)
-	}
-	return nil
+func (a *App) domReady(ctx context.Context) {
+	a.ctx = ctx
+	a.bridge.SetWailsContext(ctx)
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.ctx = ctx
+	a.fileWatcher.Stop()
+}
+
+func (a *App) SelectDirectory() (string, error) {
+	return a.bridge.OpenDirectoryDialog()
 }
 
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
-	if err := a.validateProjectPath(dirPath); err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	nodes, err := a.projectService.ListFiles(dirPath, useGitignore, useCustomIgnore)
-	if err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	return nodes, nil
-}
-
-func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
-	if err := a.validateProjectPath(rootDir); err != nil {
-		return "", err
-	}
-	cleanRootDir, err := filepath.Abs(rootDir)
-	if err != nil {
-		return "", fmt.Errorf("could not get absolute path for root: %w", err)
-	}
-	rootEval, _ := filepath.EvalSymlinks(cleanRootDir)
-	absPath := filepath.Join(cleanRootDir, relPath)
-	absEval, _ := filepath.EvalSymlinks(absPath)
-	rel, err := filepath.Rel(rootEval, absEval)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("path traversal attempt detected: %s", relPath)
-	}
-	data, err := os.ReadFile(absEval)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", relPath, err)
-	}
-	return string(data), nil
+	return a.projectService.ListFiles(dirPath, useGitignore, useCustomIgnore)
 }
 
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {
-	if err := a.validateProjectPath(rootDir); err != nil {
-		a.handleError(err)
-		return
-	}
-	go a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
+	a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
 }
-
-func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
-	if err := a.validateProjectPath(projectRoot); err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	files, err := a.projectService.GetUncommittedFiles(projectRoot)
-	if err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	return files, nil
-}
-
-func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
-	if err := a.validateProjectPath(projectRoot); err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	commits, err := a.projectService.GetRichCommitHistory(projectRoot, branchName, limit)
-	if err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	return commits, nil
-}
-
-func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
-	if err := a.validateProjectPath(projectRoot); err != nil {
-		a.handleError(err)
-		return "", err
-	}
-	content, err := a.gitRepo.GetFileContentAtCommit(projectRoot, filePath, commitHash)
-	if err != nil {
-		a.handleError(err)
-		return "", err
-	}
-	return content, nil
-}
-
-func (a *App) GetGitignoreContent(projectRoot string) (string, error) {
-	if err := a.validateProjectPath(projectRoot); err != nil {
-		a.handleError(err)
-		return "", err
-	}
-	content, err := a.gitRepo.GetGitignoreContent(projectRoot)
-	if err != nil {
-		a.handleError(err)
-		return "", err
-	}
-	return content, nil
-}
-
-func (a *App) IsGitAvailable() bool { return a.projectService.IsGitAvailable() }
 
 func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
-	content, err := a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
-	if err != nil {
-		a.handleError(err)
-		return "", err
-	}
-	return content, nil
+	return a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
 }
 
 func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]string, error) {
-	files, err := a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
-	if err != nil {
-		a.handleError(err)
-		return nil, err
-	}
-	return files, nil
+	return a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
 }
 
 func (a *App) GetSettings() (domain.SettingsDTO, error) {
-	dto, err := a.settingsService.GetSettingsDTO()
-	if err != nil {
-		a.handleError(err)
-		return domain.SettingsDTO{}, err
-	}
-	return dto, nil
+	return a.settingsService.GetSettingsDTO()
 }
 
-func (a *App) SaveSettings(dto domain.SettingsDTO) error {
-	err := a.settingsService.SaveSettingsDTO(dto)
+func (a *App) SaveSettings(settingsJson string) error {
+	var dto domain.SettingsDTO
+	err := json.Unmarshal([]byte(settingsJson), &dto)
 	if err != nil {
-		a.handleError(err)
+		return fmt.Errorf("failed to parse settings JSON: %w", err)
 	}
-	return err
+	return a.settingsService.SaveSettingsDTO(dto)
 }
 
-func (a *App) RefreshAIModels(provider string, apiKey string) error {
-	err := a.settingsService.RefreshModels(provider, apiKey)
-	if err != nil {
-		a.handleError(err)
-		return err
-	}
-	return nil
+func (a *App) RefreshAIModels(provider, apiKey string) error {
+	return a.settingsService.RefreshModels(provider, apiKey)
 }
 
-func (a *App) StartFileWatcher(rootDirPath string) {
-	if err := a.validateProjectPath(rootDirPath); err != nil {
-		a.handleError(err)
-		return
-	}
-	a.handleError(a.fileWatcher.Start(rootDirPath))
+func (a *App) StartFileWatcher(rootDirPath string) error {
+	return a.fileWatcher.Start(rootDirPath)
 }
 
-func (a *App) StopFileWatcher() { a.fileWatcher.Stop() }
+func (a *App) StopFileWatcher() {
+	a.fileWatcher.Stop()
+}
 
-func (a *App) SelectDirectory() (string, error) {
-	bridge := wailsbridge.New(a.ctx)
-	path, err := bridge.OpenDirectoryDialog()
+func (a *App) IsGitAvailable() bool {
+	return a.gitRepo.IsGitAvailable()
+}
+
+func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
+	return a.gitRepo.GetUncommittedFiles(projectRoot)
+}
+
+func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
+	return a.gitRepo.GetRichCommitHistory(projectRoot, branchName, limit)
+}
+
+func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	return a.gitRepo.GetFileContentAtCommit(projectRoot, filePath, commitHash)
+}
+
+func (a *App) GetGitignoreContent(projectRoot string) (string, error) {
+	return a.gitRepo.GetGitignoreContent(projectRoot)
+}
+
+func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
+	contents, err := a.fileReader.ReadContents(a.ctx, []string{relPath}, rootDir, nil)
 	if err != nil {
-		a.handleError(err)
 		return "", err
 	}
-	return path, nil
+	if content, ok := contents[relPath]; ok {
+		return content, nil
+	}
+	return "", fmt.Errorf("file not found or could not be read: %s", relPath)
 }
 
-// NEW: Export
-func (a *App) ExportContext(settingsJSON string) (domain.ExportResult, error) {
-	var s domain.ExportSettings
-	if err := json.Unmarshal([]byte(settingsJSON), &s); err != nil {
-		a.handleError(err)
-		return domain.ExportResult{}, err
+func (a *App) ExportContext(settingsJson string) (domain.ExportResult, error) {
+	var settings domain.ExportSettings
+	if err := json.Unmarshal([]byte(settingsJson), &settings); err != nil {
+		return domain.ExportResult{}, fmt.Errorf("failed to parse export settings: %w", err)
 	}
-	res, err := a.exportService.Export(a.ctx, s)
+
+	result, err := a.exportService.Export(a.ctx, settings)
 	if err != nil {
-		a.handleError(err)
 		return domain.ExportResult{}, err
 	}
-	return res, nil
+
+	// Если результат содержит FilePath, то это большой файл - нужно переместить в Downloads
+	if result.FilePath != "" {
+		// Для больших файлов возвращаем путь как есть, фронтенд сам решит что делать
+		// В будущем можно добавить логику перемещения в Downloads
+		return result, nil
+	}
+
+	return result, nil
+}
+
+// CleanupTempFiles - утилита для очистки временных файлов экспорта
+func (a *App) CleanupTempFiles(filePath string) error {
+	if filePath == "" {
+		return nil
+	}
+
+	// Проверяем что это действительно temp файл
+	if !strings.Contains(filePath, "shotgun-export-") {
+		return fmt.Errorf("not a temp export file")
+	}
+
+	// Удаляем весь temp каталог
+	tempDir := filepath.Dir(filePath)
+	return os.RemoveAll(tempDir)
 }

@@ -1,26 +1,15 @@
 package domain
 
-const (
-	RoleSystem = "system"
-	RoleUser   = "user"
-)
-
-// Message представляет собой одно сообщение в диалоге с AI.
-// Роль может быть "system" или "user".
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-// AIRequest представляет собой стандартизированный запрос к AI-провайдеру.
+// AIRequest представляет унифицированный запрос к AI провайдеру.
 type AIRequest struct {
-	Messages    []Message
-	Model       string
-	Temperature float32
-	Options     map[string]any // Для специфичных настроек провайдера, например, SafetySettings
+	Model        string
+	SystemPrompt string
+	UserPrompt   string
+	// Дополнительные параметры, такие как температура, могут быть добавлены здесь.
 }
 
-// AIResponse представляет собой стандартизированный ответ от AI-провайдера.
+// AIResponse представляет унифицированный ответ от AI провайдера.
 type AIResponse struct {
 	Content string
+	// Дополнительные метаданные, такие как количество токенов, могут быть добавлены здесь.
 }

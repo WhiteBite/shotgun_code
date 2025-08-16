@@ -6,77 +6,84 @@ import (
 	"fmt"
 	"net/http"
 	"shotgun_code/domain"
+	"sort"
 
 	"github.com/sashabaranov/go-openai"
 )
 
-// OpenAIProviderImpl является конкретной реализацией интерфейса domain.AIProvider для OpenAI.
 type OpenAIProviderImpl struct {
 	client *openai.Client
 	log    domain.Logger
 }
 
-// NewOpenAI создает новый экземпляр провайдера OpenAI.
-// Принимает опциональный hostURL для работы с локальными OpenAI-совместимыми серверами.
-func NewOpenAI(apiKey, hostURL string, log domain.Logger) (domain.AIProvider, error) {
+func NewOpenAI(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
 	config := openai.DefaultConfig(apiKey)
-	if hostURL != "" {
-		config.BaseURL = hostURL
-		log.Info("OpenAI клиент настроен на использование кастомного хоста: " + hostURL)
+	if host != "" {
+		config.BaseURL = host
 	}
-
 	client := openai.NewClientWithConfig(config)
-
 	return &OpenAIProviderImpl{
 		client: client,
 		log:    log,
 	}, nil
 }
 
-// Generate выполняет запрос к API OpenAI, адаптируясь к новой доменной модели.
-func (p *OpenAIProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (domain.AIResponse, error) {
-	p.log.Info(fmt.Sprintf("Отправка запроса к OpenAI-совместимому API с моделью: %s", req.Model))
-
-	messages := make([]openai.ChatCompletionMessage, len(req.Messages))
-	for i, msg := range req.Messages {
-		messages[i] = openai.ChatCompletionMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
+func (p *OpenAIProviderImpl) ListModels(ctx context.Context) ([]string, error) {
+	p.log.Info("Requesting model list from OpenAI compatible API...")
+	resp, err := p.client.ListModels(ctx)
+	if err != nil {
+		p.log.Error(fmt.Sprintf("Error getting model list: %v", err))
+		var apiErr *openai.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.HTTPStatusCode {
+			case http.StatusUnauthorized:
+				return nil, domain.ErrInvalidAPIKey
+			case http.StatusTooManyRequests:
+				return nil, domain.ErrRateLimitExceeded
+			}
 		}
+		return nil, fmt.Errorf("failed to list models: %w", err)
+	}
+
+	var models []string
+	for _, model := range resp.Models {
+		models = append(models, model.ID)
+	}
+	sort.Strings(models)
+	p.log.Info(fmt.Sprintf("Received %d models.", len(models)))
+	return models, nil
+}
+
+func (p *OpenAIProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (domain.AIResponse, error) {
+	p.log.Info(fmt.Sprintf("Sending request to OpenAI compatible API with model: %s", req.Model))
+
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: req.SystemPrompt,
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: req.UserPrompt,
+		},
 	}
 
 	resp, err := p.client.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:       req.Model,
-			Temperature: req.Temperature,
-			Messages:    messages,
+			Model:    req.Model,
+			Messages: messages,
 		},
 	)
 
 	if err != nil {
-		p.log.Error(fmt.Sprintf("Ошибка от API OpenAI: %v", err))
-		var apiErr *openai.APIError
-		if errors.As(err, &apiErr) {
-			switch apiErr.HTTPStatusCode {
-			case http.StatusUnauthorized:
-				return domain.AIResponse{}, domain.ErrInvalidAPIKey
-			case http.StatusNotFound:
-				return domain.AIResponse{}, domain.ErrModelNotFound
-			case http.StatusTooManyRequests:
-				return domain.AIResponse{}, domain.ErrRateLimitExceeded
-			}
-		}
+		p.log.Error(fmt.Sprintf("OpenAI API request failed: %v", err))
 		return domain.AIResponse{}, err
 	}
 
 	if len(resp.Choices) == 0 {
-		p.log.Warning("Ответ от OpenAI не содержит вариантов (choices).")
-		return domain.AIResponse{}, fmt.Errorf("пустой ответ от OpenAI")
+		return domain.AIResponse{}, fmt.Errorf("no choices returned from OpenAI API")
 	}
 
-	content := resp.Choices[0].Message.Content
-	p.log.Info("Успешно получен ответ от OpenAI-совместимого API.")
-
-	return domain.AIResponse{Content: content}, nil
+	return domain.AIResponse{Content: resp.Choices[0].Message.Content}, nil
 }

@@ -47,7 +47,8 @@ export const useSettingsStore = defineStore("settings", () => {
   async function saveSettings() {
     isLoading.value = true;
     try {
-      await SaveSettings(settings.value);
+      // SaveSettings now expects JSON string
+      await SaveSettings(JSON.stringify(settings.value));
       uiStore.addToast("Settings saved successfully", "success");
     } catch (err) {
       handleError(err, "Save Settings");
@@ -58,7 +59,8 @@ export const useSettingsStore = defineStore("settings", () => {
 
   async function saveIgnoreSettings() {
     try {
-      await SaveSettings(settings.value);
+      // Keep in sync with backend contract
+      await SaveSettings(JSON.stringify(settings.value));
     } catch (err) {
       handleError(err, "Save Ignore Settings");
     }
@@ -91,8 +93,8 @@ export const useSettingsStore = defineStore("settings", () => {
       await RefreshAIModels(provider, apiKey);
       await fetchSettings();
       uiStore.addToast(
-        `Model list for ${provider} has been updated.`,
-        "success",
+          `Model list for ${provider} has been updated.`,
+          "success",
       );
     } catch (err) {
       handleError(err, `Refresh Models for ${provider}`);

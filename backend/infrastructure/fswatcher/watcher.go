@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"shotgun_code/domain"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -111,7 +112,16 @@ func (w *Watcher) run(ctx context.Context) {
 			if !ok {
 				return
 			}
-			// Логируем только дебагом, чтобы не засорять
+			// Фильтруем шумные события внутри .git (и любые подпути .git)
+			// чтобы не триггерить лишние пересканы/сбросы.
+			name := event.Name
+			base := filepath.Base(name)
+			if base == ".git" || strings.Contains(name, string(os.PathSeparator)+".git"+string(os.PathSeparator)) {
+				// Пропускаем события из .git
+				continue
+			}
+
+			// Логируем только дебагом
 			w.log.Debug(fmt.Sprintf("FS event: %s", event.String()))
 			w.bus.Emit("projectFilesChanged", w.rootDir)
 		case err, ok := <-w.fsWatcher.Errors:

@@ -2,186 +2,195 @@ package git
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"shotgun_code/domain"
 	"strings"
+	"time"
 )
-
-var validBranchName = regexp.MustCompile(`^[a-zA-Z0-9\/\._-]+$`)
 
 type Repository struct {
 	log domain.Logger
 }
 
-func New(logger domain.Logger) domain.GitRepository {
-	return &Repository{log: logger}
+func New(log domain.Logger) domain.GitRepository {
+	return &Repository{
+		log: log,
+	}
 }
-func (gs *Repository) CheckAvailability() (bool, error) {
+
+func (r *Repository) IsGitAvailable() bool {
 	_, err := exec.LookPath("git")
-	if err != nil {
-		gs.log.Warning("Git executable not found in PATH.")
-		return false, nil
-	}
-	return true, nil
+	return err == nil
 }
-func (gs *Repository) executeGitCommand(projectRoot string, args ...string) ([]byte, error) {
-	absPath, err := filepath.Abs(projectRoot)
+
+func (r *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = projectRoot
+
+	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve absolute path for '%s': %w", projectRoot, err)
+		return nil, fmt.Errorf("failed to get git status: %w", err)
 	}
-	cmdArgs := append([]string{"-C", absPath}, args...)
-	cmd := exec.Command("git", cmdArgs...)
-	var out, errOut bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errOut
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git command failed: %w - %s", err, errOut.String())
-	}
-	return out.Bytes(), nil
-}
-func (gs *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
-	output, err := gs.executeGitCommand(projectRoot, "status", "--porcelain")
-	if err != nil {
-		return nil, err
-	}
-	var statuses []domain.FileStatus
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		if len(line) < 4 {
-			continue
-		}
-		status := strings.TrimSpace(line[:2])
-		path := strings.TrimSpace(line[3:])
-		if strings.HasPrefix(status, "R") {
-			parts := strings.Split(path, " -> ")
-			if len(parts) == 2 {
-				path = parts[1]
+
+	var files []domain.FileStatus
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) >= 3 {
+			status := strings.TrimSpace(line[:2])
+			path := strings.TrimSpace(line[3:])
+			// Handle renamed files output: "R old_path -> new_path"
+			if strings.HasPrefix(status, "R") {
+				parts := strings.Split(path, " -> ")
+				if len(parts) == 2 {
+					path = parts[1] // Use the new path for renamed files
+				}
 			}
+
+			// Map git status codes to simpler ones for frontend display
+			simpleStatus := status
+			if strings.HasPrefix(status, "M") || strings.Contains(status, "M") {
+				simpleStatus = "M" // Modified
+			} else if strings.HasPrefix(status, "A") {
+				simpleStatus = "A" // Added
+			} else if strings.HasPrefix(status, "D") {
+				simpleStatus = "D" // Deleted
+			} else if strings.HasPrefix(status, "R") {
+				simpleStatus = "R" // Renamed
+			} else if strings.HasPrefix(status, "C") {
+				simpleStatus = "C" // Copied
+			} else if status == "??" {
+				simpleStatus = "U" // Untracked
+			} else if strings.HasPrefix(status, "U") {
+				// Special handling for unmerged (conflict) status
+				// Using "UM" to distinguish from "C" (Copied)
+				simpleStatus = "UM" // Unmerged (Conflict)
+			}
+
+			files = append(files, domain.FileStatus{
+				Path:   path,
+				Status: simpleStatus,
+			})
 		}
-		simpleStatus := ""
-		if strings.HasPrefix(status, "M") || strings.Contains(status, "M") {
-			simpleStatus = "M"
-		} else if strings.HasPrefix(status, "A") {
-			simpleStatus = "A"
-		} else if strings.HasPrefix(status, "D") {
-			simpleStatus = "D"
-		} else if strings.HasPrefix(status, "R") {
-			simpleStatus = "R"
-		} else if strings.HasPrefix(status, "C") {
-			simpleStatus = "C"
-		} else if status == "??" {
-			simpleStatus = "U"
-		} else {
-			simpleStatus = status
-		}
-		statuses = append(statuses, domain.FileStatus{
-			Path:   path,
-			Status: simpleStatus,
-		})
 	}
-	gs.log.Info(fmt.Sprintf("Found %d uncommitted files.", len(statuses)))
-	return statuses, nil
+
+	r.log.Info(fmt.Sprintf("Found %d uncommitted files in %s.", len(files), projectRoot))
+	return files, nil
 }
-func (gs *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
-	logArgs := []string{
+
+func (r *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
+	args := []string{
 		"log",
-		"--pretty=format:COMMIT %H %P%n%s%n%an%n%cI",
+		"--pretty=format:COMMIT %H %P%n%s%n%an%n%cI", // Include Author Name (%an) and Committer Date, ISO 8601 format (%cI)
 		"--name-status",
 		"--topo-order",
-		"-n", fmt.Sprintf("%d", limit),
+		fmt.Sprintf("--max-count=%d", limit),
 	}
+
 	if branchName != "" {
-		if err := validateBranchName(branchName); err != nil {
-			return nil, err
-		}
-		logArgs = append(logArgs, branchName)
+		args = append(args, branchName)
 	}
-	output, err := gs.executeGitCommand(projectRoot, logArgs...)
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = projectRoot
+
+	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get git log: %w", err)
 	}
+
 	commits, parseErr := ParseRichLogOutput(string(output))
 	if parseErr != nil {
 		return nil, parseErr
 	}
-	gs.log.Info(fmt.Sprintf("Loaded and parsed %d commits.", len(commits)))
+	r.log.Info(fmt.Sprintf("Loaded and parsed %d commits for %s.", len(commits), projectRoot))
 	return commits, nil
 }
-func (gs *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
-	if strings.Contains(filePath, "..") || strings.Contains(commitHash, "..") {
-		return "", fmt.Errorf("invalid characters in path or hash")
-	}
-	output, err := gs.executeGitCommand(projectRoot, "show", fmt.Sprintf("%s:%s", commitHash, filePath))
+
+func (r *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", commitHash, filePath))
+	cmd.Dir = projectRoot
+
+	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("could not get file content for %s at commit %s: %w", filePath, commitHash, err)
+		return "", fmt.Errorf("failed to get file content at commit %s:%s: %w", commitHash, filePath, err)
 	}
+
 	return string(output), nil
 }
-func (gs *Repository) GetGitignoreContent(projectRoot string) (string, error) {
-	gitignorePath := filepath.Join(projectRoot, ".gitignore")
-	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+
+func (r *Repository) GetGitignoreContent(projectRoot string) (string, error) {
+	cmd := exec.Command("git", "show", "HEAD:.gitignore")
+	cmd.Dir = projectRoot
+
+	output, err := cmd.Output()
+	if err != nil {
+		// .gitignore might not exist or not be tracked, which is not an error for us.
+		r.log.Debug(fmt.Sprintf("Could not get .gitignore content for %s (might not exist or be tracked): %v", projectRoot, err))
 		return "", nil
 	}
-	content, err := os.ReadFile(gitignorePath)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
+
+	return string(output), nil
 }
-func ParseRichLogOutput(output string) ([]domain.CommitWithFiles, error) {
+
+// ParseRichLogOutput parses the output of git log with --pretty and --name-status
+func ParseRichLogOutput(gitOutput string) ([]domain.CommitWithFiles, error) {
 	var commits []domain.CommitWithFiles
-	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner := bufio.NewScanner(strings.NewReader(gitOutput))
+
 	var currentCommit *domain.CommitWithFiles
 	for scanner.Scan() {
 		line := scanner.Text()
+		line = strings.TrimSpace(line)
+
 		if strings.HasPrefix(line, "COMMIT ") {
 			if currentCommit != nil {
 				commits = append(commits, *currentCommit)
 			}
+
 			parts := strings.Fields(line)
 			if len(parts) < 2 {
-				continue
+				continue // Skip malformed lines
 			}
+
 			hash := parts[1]
-			parentHashes := parts[2:]
+			isMerge := len(parts) > 3 // More than one parent means merge
+
 			currentCommit = &domain.CommitWithFiles{
 				Hash:    hash,
-				IsMerge: len(parentHashes) > 1,
+				IsMerge: isMerge,
 				Files:   []string{},
 			}
-			if scanner.Scan() {
-				currentCommit.Subject = scanner.Text()
-			}
-			if scanner.Scan() {
-				currentCommit.Author = scanner.Text()
-			}
-			if scanner.Scan() {
-				currentCommit.Date = scanner.Text()
-			}
-		} else if currentCommit != nil && len(strings.TrimSpace(line)) > 0 {
-			parts := strings.Fields(line)
-			if len(parts) > 1 {
-				filePath := parts[len(parts)-1]
-				currentCommit.Files = append(currentCommit.Files, filePath)
+		} else if currentCommit != nil {
+			// Attempt to parse subject, author, date, and then files
+			if currentCommit.Subject == "" {
+				currentCommit.Subject = line
+			} else if currentCommit.Author == "" {
+				currentCommit.Author = line
+			} else if currentCommit.Date == "" {
+				currentCommit.Date = line
+				// Optional: parse date into a more human-readable format if needed,
+				// or store as is for frontend formatting.
+				// For now, storing as is from git's %cI format.
+				t, err := time.Parse(time.RFC3339, line)
+				if err == nil {
+					currentCommit.Date = t.Format("2006-01-02 15:04") // Format for display
+				}
+			} else if strings.Contains(line, "\t") {
+				// This is a file status line: "M\tfilename" or "A\tfilename"
+				parts := strings.Split(line, "\t")
+				if len(parts) >= 2 {
+					filename := parts[1]
+					currentCommit.Files = append(currentCommit.Files, filename)
+				}
 			}
 		}
 	}
+
 	if currentCommit != nil {
 		commits = append(commits, *currentCommit)
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error parsing git log output: %w", err)
-	}
+
 	return commits, nil
-}
-func validateBranchName(name string) error {
-	if !validBranchName.MatchString(name) {
-		return fmt.Errorf("invalid branch name: %s", name)
-	}
-	return nil
 }

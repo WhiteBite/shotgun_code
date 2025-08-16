@@ -4,69 +4,88 @@ import (
 	"context"
 	"fmt"
 	"shotgun_code/domain"
+	"time"
 )
 
-type ProviderFactory func(providerType, apiKey, modelName string) (domain.AIProvider, error)
+// ProviderFactory is a function type that creates an AIProvider.
+type ProviderFactory func(providerType, apiKey string) (domain.AIProvider, error)
 
+// AIService orchestrates AI-related operations.
 type AIService struct {
 	settingsService *SettingsService
 	log             domain.Logger
 	providerFactory ProviderFactory
 }
 
-func NewAIService(settings *SettingsService, log domain.Logger, factory ProviderFactory) *AIService {
+// NewAIService creates a new AIService.
+func NewAIService(
+	settingsService *SettingsService,
+	log domain.Logger,
+	providerFactory ProviderFactory,
+) *AIService {
 	return &AIService{
-		settingsService: settings,
+		settingsService: settingsService,
 		log:             log,
-		providerFactory: factory,
+		providerFactory: providerFactory,
 	}
 }
 
+// GenerateCode selects the appropriate AI provider and generates code.
 func (s *AIService) GenerateCode(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	settingsDTO, err := s.settingsService.GetSettingsDTO()
-	if err != nil {
-		return "", fmt.Errorf("could not get settings for generation: %w", err)
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	providerName := settingsDTO.SelectedProvider
-	if providerName == "" {
+	dto, err := s.settingsService.GetSettingsDTO()
+	if err != nil {
+		return "", fmt.Errorf("could not get settings for AI generation: %w", err)
+	}
+
+	providerType := dto.SelectedProvider
+	if providerType == "" {
 		return "", fmt.Errorf("no AI provider selected")
 	}
-	modelName := settingsDTO.SelectedModels[providerName]
 
-	keyMap := map[string]string{
-		"openai":     settingsDTO.OpenAIAPIKey,
-		"gemini":     settingsDTO.GeminiAPIKey,
-		"openrouter": settingsDTO.OpenRouterAPIKey,
-		"localai":    settingsDTO.LocalAIAPIKey,
+	var apiKey string
+	switch providerType {
+	case "openai":
+		apiKey = dto.OpenAIAPIKey
+	case "gemini":
+		apiKey = dto.GeminiAPIKey
+	case "openrouter":
+		apiKey = dto.OpenRouterAPIKey
+	case "localai":
+		apiKey = dto.LocalAIAPIKey
 	}
-	apiKey := keyMap[providerName]
 
-	if providerName == "localai" && (modelName == "" || modelName == "local-model") {
-		modelName = settingsDTO.LocalAIModelName
+	// LocalAI might not require a key, so we don't check for empty key for it here.
+	if apiKey == "" && providerType != "localai" {
+		return "", fmt.Errorf("API key for %s is not set", providerType)
 	}
 
-	provider, err := s.providerFactory(providerName, apiKey, modelName)
+	provider, err := s.providerFactory(providerType, apiKey)
 	if err != nil {
-		s.log.Error(fmt.Sprintf("Failed to create AI provider: %v", err))
-		return "", fmt.Errorf("failed to create AI provider: %w", err)
+		return "", fmt.Errorf("failed to create AI provider '%s': %w", providerType, err)
 	}
 
-	messages := []domain.Message{
-		{Role: domain.RoleSystem, Content: systemPrompt},
-		{Role: domain.RoleUser, Content: userPrompt},
+	model := dto.SelectedModels[providerType]
+	if model == "" {
+		return "", fmt.Errorf("no model selected for provider %s", providerType)
 	}
 
-	request := domain.AIRequest{
-		Messages:    messages,
-		Model:       modelName,
-		Temperature: 0.1,
+	req := domain.AIRequest{
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		UserPrompt:   userPrompt,
 	}
 
-	response, err := provider.Generate(ctx, request)
+	tctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	resp, err := provider.Generate(tctx, req)
 	if err != nil {
-		return "", fmt.Errorf("error during code generation: %w", err)
+		return "", fmt.Errorf("AI generation failed: %w", err)
 	}
 
-	return response.Content, nil
+	return resp.Content, nil
 }

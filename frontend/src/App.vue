@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <MainLayout>
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
@@ -9,39 +9,18 @@
 </template>
 
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
-import { useProjectStore } from "@/stores/project.store";
-import MainLayout from "./components/layout/MainLayout.vue";
-import {
-  attachKeyboardState,
-  detachKeyboardState,
-} from "@/composables/useKeyboardState";
-import {
-  attachShortcuts,
-  detachShortcuts,
-} from "@/composables/useKeyboardShortcuts";
-
-const projectStore = useProjectStore();
-const router = useRouter();
-
-// Watch for a project being loaded and handle navigation here.
-watch(
-  () => projectStore.isProjectLoaded,
-  (isLoaded, wasLoaded) => {
-    if (isLoaded && !wasLoaded) {
-      router.push("/workspace");
-    }
-  },
-);
+import { onMounted, onUnmounted } from "vue";
+import MainLayout from "@/components/layout/MainLayout.vue";
+import { attachKeyboardState, detachKeyboardState } from "@/composables/useKeyboardState";
+import { eventService } from "@/services/event.service";
 
 onMounted(() => {
   attachKeyboardState();
-  attachShortcuts();
+  // Ensure events are subscribed when DOM is ready
+  eventService.initialize();
 });
 
 onUnmounted(() => {
-  detachShortcuts();
   detachKeyboardState();
 });
 </script>
@@ -51,7 +30,6 @@ onUnmounted(() => {
 .fade-leave-active {
   transition: opacity 0.15s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

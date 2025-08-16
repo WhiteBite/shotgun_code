@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// KeywordAnalyzer является простой реализацией ContextAnalyzer.
-// Он извлекает ключевые слова из задачи и ищет их в путях к файлам.
+// KeywordAnalyzer — простая реализация ContextAnalyzer.
 type KeywordAnalyzer struct {
 	log domain.Logger
 }
@@ -19,7 +18,7 @@ func NewKeywordAnalyzer(log domain.Logger) *KeywordAnalyzer {
 	return &KeywordAnalyzer{log: log}
 }
 
-// SuggestFiles реализует простую логику поиска по ключевым словам.
+// SuggestFiles: O(N) по числу файлов — единый regex по ключевым словам.
 func (a *KeywordAnalyzer) SuggestFiles(ctx context.Context, task string, allFiles []*domain.FileNode) ([]string, error) {
 	keywords := a.extractKeywords(task)
 	if len(keywords) == 0 {
@@ -29,53 +28,62 @@ func (a *KeywordAnalyzer) SuggestFiles(ctx context.Context, task string, allFile
 
 	a.log.Info("Извлеченные ключевые слова для поиска: " + strings.Join(keywords, ", "))
 
-	relevantFiles := make(map[string]struct{})
-	var fileList []string
+	// Плоский список: original + normalized
+	type pair struct {
+		orig  string
+		lower string
+	}
+	var files []pair
 
-	// Рекурсивная функция для обхода дерева файлов
 	var traverse func([]*domain.FileNode)
 	traverse = func(nodes []*domain.FileNode) {
-		for _, node := range nodes {
-			// Собираем все пути в плоский список для дальнейшей обработки
-			if !node.IsDir {
-				fileList = append(fileList, node.RelPath)
+		for _, n := range nodes {
+			if !n.IsDir {
+				orig := n.RelPath
+				files = append(files, pair{
+					orig:  orig,
+					lower: strings.ToLower(strings.ReplaceAll(orig, "\\", "/")),
+				})
 			}
-			if len(node.Children) > 0 {
-				traverse(node.Children)
+			if len(n.Children) > 0 {
+				traverse(n.Children)
 			}
 		}
 	}
 	traverse(allFiles)
 
-	for _, path := range fileList {
-		for _, keyword := range keywords {
-			// Используем case-insensitive поиск
-			if strings.Contains(strings.ToLower(path), strings.ToLower(keyword)) {
-				relevantFiles[path] = struct{}{}
-			}
+	parts := make([]string, 0, len(keywords))
+	for _, k := range keywords {
+		parts = append(parts, regexp.QuoteMeta(strings.ToLower(k)))
+	}
+	pattern := "(?i)(" + strings.Join(parts, "|") + ")"
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile keyword regexp: %w", err)
+	}
+
+	unique := make(map[string]struct{})
+	for _, f := range files {
+		if re.MatchString(f.lower) {
+			unique[f.orig] = struct{}{}
 		}
 	}
 
-	result := make([]string, 0, len(relevantFiles))
-	for path := range relevantFiles {
-		result = append(result, path)
+	res := make([]string, 0, len(unique))
+	for k := range unique {
+		res = append(res, k)
 	}
-
-	a.log.Info(fmt.Sprintf("Предложено %d релевантных файлов.", len(result)))
-	return result, nil
+	a.log.Info(fmt.Sprintf("Предложено %d релевантных файлов.", len(res)))
+	return res, nil
 }
 
 // extractKeywords извлекает потенциальные ключевые слова из строки задачи.
-// Удаляет знаки препинания, короткие слова и приводит к нижнему регистру.
 func (a *KeywordAnalyzer) extractKeywords(task string) []string {
-	// Удаляем знаки препинания
 	re := regexp.MustCompile(`[^\w\s]`)
 	cleanTask := re.ReplaceAllString(task, " ")
-
 	words := strings.Fields(strings.ToLower(cleanTask))
 	var keywords []string
 	for _, word := range words {
-		// Игнорируем слишком короткие слова, которые вряд ли будут информативны
 		if len(word) > 3 {
 			keywords = append(keywords, word)
 		}

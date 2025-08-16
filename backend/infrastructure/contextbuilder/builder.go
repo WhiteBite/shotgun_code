@@ -42,6 +42,12 @@ func parseContext(ctx string) []entry {
 		content := strings.TrimSpace(block[len(m[0]):])
 		res = append(res, entry{Path: path, Content: content})
 	}
+
+	// Обеспечиваем детерминированный порядок
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Path < res[j].Path
+	})
+
 	return res
 }
 
@@ -62,7 +68,12 @@ func buildTree(paths []string) string {
 	}
 	root := &node{name: ".", children: map[string]*node{}}
 
-	for _, p := range paths {
+	// Сортируем входные пути для детерминизма
+	sortedPaths := make([]string, len(paths))
+	copy(sortedPaths, paths)
+	sort.Strings(sortedPaths)
+
+	for _, p := range sortedPaths {
 		// нормализуем слеши
 		pp := strings.ReplaceAll(p, "\\", "/")
 		parts := strings.Split(pp, "/")

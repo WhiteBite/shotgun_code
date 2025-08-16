@@ -1,201 +1,186 @@
 <template>
-  <div
-    class="p-4 border border-gray-700 bg-gray-800/50 rounded-lg flex flex-col flex-grow min-h-0"
-  >
-    <!-- Заголовок + формат + копирование + табы -->
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-      <div class="flex items-center gap-3 min-w-0">
-        <h2 class="text-lg font-semibold text-white truncate">
-          {{ tabTitle }}
-        </h2>
-
-        <!-- Источники (как было) -->
-        <div class="flex items-center gap-1">
-          <span
-            v-for="origin in contextOrigins"
-            :key="origin"
-            class="px-2 py-0.5 text-xs rounded-full"
-            :class="originColors[origin].bg"
-            :title="`Contains files selected from: ${origin}`"
-          >
-            {{ origin }}
-          </span>
-        </div>
-      </div>
-
-      <!-- Формат и копирование для Clipboard -->
+  <div class="file-preview-container p-4 border border-gray-700 bg-gray-800/50 rounded-lg flex flex-col min-h-0">
+    <div class="file-preview-header flex items-center justify-between text-xs text-gray-400 mb-2">
       <div class="flex items-center gap-2">
-        <div
-          class="hidden md:flex items-center gap-1 bg-gray-800/80 border border-gray-700 rounded-md overflow-hidden"
-        >
-          <button
-            :class="seg('plain')"
-            @click="exportStore.exportFormat = 'plain'"
-            title="Simple headers + content. Most compatible."
-          >
-            Plain
-          </button>
-          <button
-            :class="seg('manifest')"
-            @click="exportStore.exportFormat = 'manifest'"
-            title="Adds file tree manifest, then file contents. Recommended."
-          >
-            Manifest + Text
-          </button>
-          <button
-            :class="seg('json')"
-            @click="exportStore.exportFormat = 'json'"
-            title="Machine-readable JSON array of files"
-          >
-            JSON
-          </button>
-        </div>
-
-        <label
-          class="hidden lg:inline-flex items-center gap-1 text-xs text-gray-400"
-        >
-          <input
-            type="checkbox"
-            class="form-checkbox"
-            v-model="exportStore.stripComments"
-          />
-          Strip
-        </label>
-        <label
-          class="hidden lg:inline-flex items-center gap-1 text-xs text-gray-400"
-          :class="{ 'opacity-50': exportStore.exportFormat !== 'manifest' }"
-          :title="
-            exportStore.exportFormat !== 'manifest'
-              ? 'Only for Manifest format'
-              : ''
-          "
-        >
-          <input
-            type="checkbox"
-            class="form-checkbox"
-            v-model="exportStore.includeManifest"
-            :disabled="exportStore.exportFormat !== 'manifest'"
-          />
-          Manifest
-        </label>
-
-        <button
-          class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-md text-sm"
-          :disabled="!contextStore.shotgunContextText || exportStore.isLoading"
-          @click="exportStore.doExportClipboard()"
-        >
-          Copy
-        </button>
-
-        <!-- Табы -->
-        <div
-          class="flex items-center gap-1 p-0.5 bg-gray-900/50 rounded-md text-sm"
-        >
-          <button
-            @click="tab = 'context'"
-            :class="[
-              'px-3 py-1 rounded-md',
-              tab === 'context' ? 'bg-blue-600' : 'hover:bg-gray-700',
-            ]"
-          >
-            Context
-          </button>
-          <button
-            @click="tab = 'result'"
-            :disabled="!generationStore.hasResult"
-            :class="[
-              'px-3 py-1 rounded-md',
-              tab === 'result'
-                ? 'bg-blue-600'
-                : 'hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed',
-            ]"
-          >
-            Result
-          </button>
-        </div>
+        <h3 class="font-semibold">Context Preview</h3>
+        <KeyboardShortcutsIcon />
       </div>
+      <ContextActionsBar :hasContent="hasContent">
+        <SplitSettingsPopover
+            v-model="splitSettings"
+            :preview="splitPreview"
+            @apply="refreshPreview"
+            @refresh="refreshPreview"
+        />
+        <CopyMenuButton
+            v-model:exportFormat="exportFormat"
+            v-model:stripComments="stripComments"
+            :splitEnabled="splitSettings.enableAutoSplit"
+            :splitPreview="splitPreview"
+            @do-copy="copy"
+            @open-export="openExportModal"
+        />
+      </ContextActionsBar>
     </div>
 
-    <div
-      class="flex-grow bg-gray-900 rounded-md p-3 overflow-auto border border-gray-700 min-h-0"
-      ref="contentArea"
-    >
-      <pre
-        v-show="tab === 'context'"
-        class="text-xs font-mono text-gray-300 whitespace-pre-wrap"
-      ><code>{{ contextStore.shotgunContextText || 'Context will appear here after being built.' }}</code></pre>
-      <pre
-        v-show="tab === 'result'"
-        class="text-sm font-mono whitespace-pre-wrap"
-      ><code v-html="highlightedDiff"></code></pre>
+    <div class="file-preview-tabs flex border-b border-gray-700" v-if="showTabs">
+      <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :class="tabClasses(tab.id)"
+          class="px-3 py-1 text-xs font-medium transition-colors"
+      >
+        {{ tab.label }}
+        <span v-if="tab.count" class="ml-1 px-1 bg-gray-600 rounded-full text-[10px]">
+          {{ tab.count }}
+        </span>
+      </button>
+    </div>
+
+    <div class="file-preview-content relative flex-grow bg-gray-900 rounded-md border border-gray-700 min-h-0 overflow-hidden">
+      <div v-if="hasContent || hasSplitContent" class="absolute top-2 right-2 z-10 flex items-center gap-2">
+        <button
+            @click="copy({ target: 'all', format: exportFormat, stripComments })"
+            class="p-2 bg-gray-800/50 hover:bg-gray-700 rounded transition-colors"
+            title="Copy to clipboard"
+            aria-label="Copy"
+        >
+          <CopyIcon class="w-4 h-4" />
+        </button>
+        <button
+            @click="openExportModal()"
+            class="p-2 bg-gray-800/50 hover:bg-gray-700 rounded transition-colors"
+            title="Export options"
+            aria-label="Export options"
+        >
+          <ExportIcon class="w-4 h-4" />
+        </button>
+      </div>
+
+      <!-- Context Tab -->
+      <div v-show="activeTab === 'context'" class="h-full">
+        <div v-if="!hasContent" class="flex items-center justify-center h-full text-gray-500">
+          <div class="text-center">
+            <DocumentIcon class="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>Context will appear here after building...</p>
+            <p class="text-xs mt-1">Select files and click "Build Context"</p>
+          </div>
+        </div>
+        <ScrollableContent v-else :content="contextBuilderStore.shotgunContextText" :virtualize="true" />
+      </div>
+
+      <!-- Split Preview Tab -->
+      <div v-show="activeTab === 'split'" class="h-full">
+        <div v-if="!hasSplitContent" class="flex items-center justify-center h-full text-gray-500">
+          <div class="text-center">
+            <CodeIcon class="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>Split preview will appear here...</p>
+            <p class="text-xs mt-1">Enable auto-split and build context</p>
+          </div>
+        </div>
+        <SplitPreviewTab
+            v-else
+            :splitPreview="splitPreview"
+            @copy-chunk="copyChunk"
+        />
+      </div>
+
+      <!-- Generated Tab -->
+      <div v-show="activeTab === 'generated'" class="h-full">
+        <div v-if="!generationStore.hasResult" class="flex items-center justify-center h-full text-gray-500">
+          <div class="text-center">
+            <CodeIcon class="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>Generated code will appear here...</p>
+            <p class="text-xs mt-1">Describe your task and click "Generate"</p>
+          </div>
+        </div>
+        <ScrollableContent v-else :content="generationStore.generatedDiff" language="diff" :highlight="true" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { useContextStore } from "@/stores/context.store";
-import { useGenerationStore } from "@/stores/generation.store";
-import { ContextOrigin } from "@/types/enums";
-import hljs from "highlight.js";
-import { useExportStore } from "@/stores/export.store";
+import { ref, computed, watch } from 'vue'
+import { useContextBuilderStore } from '@/stores/context-builder.store'
+import { useGenerationStore } from '@/stores/generation.store'
+import { useExportStore } from '@/stores/export.store'
+import { useUiStore } from '@/stores/ui.store'
 
-const tab = ref<"context" | "result">("context");
-const contextStore = useContextStore();
-const generationStore = useGenerationStore();
-const exportStore = useExportStore();
+import ScrollableContent from '@/components/shared/ScrollableContent.vue'
+import KeyboardShortcutsIcon from '@/components/workspace/KeyboardShortcutsIcon.vue'
+import SplitPreviewTab from '@/components/workspace/SplitPreviewTab.vue'
+import { CopyIcon, ExportIcon, DocumentIcon, CodeIcon } from '@/components/icons/index'
 
-const originColors: Record<ContextOrigin, { bg: string }> = {
-  [ContextOrigin.None]: { bg: "" },
-  [ContextOrigin.Manual]: { bg: "bg-blue-500/30 text-blue-300" },
-  [ContextOrigin.Git]: { bg: "bg-green-500/30 text-green-300" },
-  [ContextOrigin.AI]: { bg: "bg-purple-500/30 text-purple-300" },
-};
+import ContextActionsBar from '@/components/workspace/ContextActions/ContextActionsBar.vue'
+import CopyMenuButton from '@/components/workspace/ContextActions/CopyMenuButton.vue'
+import SplitSettingsPopover from '@/components/workspace/ContextActions/SplitSettingsPopover.vue'
+import { useContextActions } from '@/composables/useContextActions'
 
-const tabTitle = computed(() => {
-  switch (tab.value) {
-    case "result":
-      return "Generated Diff";
-    case "context":
-    default:
-      return "Project Context";
+const contextBuilderStore = useContextBuilderStore()
+const generationStore = useGenerationStore()
+const exportStore = useExportStore()
+const uiStore = useUiStore()
+
+const { exportFormat, stripComments, splitSettings, splitPreview, refreshPreview, copy, openExportModal } = useContextActions()
+
+const activeTab = ref('context')
+
+const hasContent = computed(() => !!contextBuilderStore.shotgunContextText)
+const hasSplitContent = computed(() =>
+    splitSettings.value.enableAutoSplit &&
+    splitPreview.value &&
+    splitPreview.value.chunkCount > 1
+)
+const showTabs = computed(() => hasContent.value || generationStore.hasResult || hasSplitContent.value)
+
+const tabs = computed(() => {
+  const tabList = [
+    { id: 'context', label: 'Context', count: contextBuilderStore.selectedFiles.length }
+  ];
+
+  if (hasSplitContent.value) {
+    tabList.push({
+      id: 'split',
+      label: 'Split Preview',
+      count: splitPreview.value?.chunkCount || 0
+    });
+  }
+
+  if (generationStore.hasResult) {
+    tabList.push({
+      id: 'generated',
+      label: 'Generated',
+      count: 1
+    });
+  }
+  return tabList;
+})
+
+function tabClasses(tabId: string) {
+  return {
+    'bg-gray-700 text-white': activeTab.value === tabId,
+    'text-gray-400 hover:text-white hover:bg-gray-800': activeTab.value !== tabId,
+  }
+}
+
+function copyChunk(chunkIndex: number) {
+  copy({
+    target: 'chunk',
+    chunkIndex,
+    format: exportFormat.value,
+    stripComments: stripComments.value
+  });
+}
+
+watch(hasSplitContent, (hasContent) => {
+  if (hasContent && activeTab.value === 'context') {
+    activeTab.value = 'split';
   }
 });
 
-const contextOrigins = computed(() => {
-  const origins = new Set<ContextOrigin>();
-  contextStore.selectedFiles.forEach((file) => {
-    if (file.contextOrigin !== ContextOrigin.None) {
-      origins.add(file.contextOrigin);
-    }
-  });
-  return Array.from(origins);
+watch(() => generationStore.hasResult, (hasResult) => {
+  if (hasResult) activeTab.value = 'generated';
 });
-
-const highlightedDiff = computed(() => {
-  if (!generationStore.generatedDiff)
-    return '<span class="text-gray-500">No diff generated yet.</span>';
-  return hljs.highlight(generationStore.generatedDiff, { language: "diff" })
-    .value;
-});
-
-watch(
-  () => generationStore.hasResult,
-  (hasResult) => {
-    if (hasResult) {
-      tab.value = "result";
-    } else {
-      tab.value = "context";
-    }
-  },
-);
-
-function seg(v: string) {
-  return [
-    "px-2 py-1 text-xs",
-    exportStore.exportFormat === v
-      ? "bg-blue-600 text-white"
-      : "text-gray-300 hover:bg-gray-700",
-  ];
-}
 </script>

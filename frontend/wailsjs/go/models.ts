@@ -27,6 +27,9 @@ export namespace domain {
 	    text?: string;
 	    fileName?: string;
 	    dataBase64?: string;
+	    filePath?: string;
+	    isLarge?: boolean;
+	    sizeBytes?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ExportResult(source);
@@ -38,6 +41,9 @@ export namespace domain {
 	        this.text = source["text"];
 	        this.fileName = source["fileName"];
 	        this.dataBase64 = source["dataBase64"];
+	        this.filePath = source["filePath"];
+	        this.isLarge = source["isLarge"];
+	        this.sizeBytes = source["sizeBytes"];
 	    }
 	}
 	export class FileNode {

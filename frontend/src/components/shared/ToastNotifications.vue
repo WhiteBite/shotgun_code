@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     aria-live="assertive"
     class="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-3 w-full max-w-md z-50"
@@ -16,7 +16,6 @@
         v-for="toast in uiStore.toasts"
         :key="toast.id"
         :toast="toast"
-        :duration="5000"
         @close="uiStore.removeToast(toast.id)"
       />
     </transition-group>

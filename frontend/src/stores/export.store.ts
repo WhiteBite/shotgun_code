@@ -1,174 +1,181 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { createTokenEstimator } from "@/services/token-estimator.service";
 import { apiService } from "@/services/api.service";
 import { useUiStore } from "./ui.store";
-import { useContextStore } from "./context.store";
-
-export type ExportMode = "clipboard" | "ai" | "human";
-export type ClipboardFormat = "plain" | "manifest" | "json";
+import { useContextBuilderStore } from "./context-builder.store";
+import type { ExportMode } from "@/types/enums";
 
 export const useExportStore = defineStore("export", () => {
-  const ui = useUiStore();
-  const ctx = useContextStore();
+  const uiStore = useUiStore();
+  const contextBuilderStore = useContextBuilderStore();
 
   const isOpen = ref(false);
   const isLoading = ref(false);
 
-  // clipboard
-  const exportFormat = ref<ClipboardFormat>("manifest");
-  const stripComments = ref(true);
+  const exportFormat = ref<"plain" | "manifest" | "json">("manifest");
+  const stripComments = ref(false);
   const includeManifest = ref(true);
 
-  // AI
-  const aiProfile = ref<"Claude-3" | "GPT-4o" | "Generic">("Generic");
-  const tokenLimit = ref<number>(180_000);
-  const fileSizeLimitKB = ref<number>(20_000);
+  const aiProfile = ref("Claude-3");
 
-  // Human
-  const theme = ref<"Dark" | "Light">("Dark");
+  const estimator = createTokenEstimator();
+  const tokenLimit = ref(180000);
+  const fileSizeLimitKB = ref(2048);
+
+  const enableAutoSplit = ref(true);
+  const maxTokensPerChunk = ref(150000);
+  const overlapTokens = ref(5000);
+  const splitStrategy = ref<"token" | "file" | "smart">("smart");
+
+  const theme = ref("Dark");
   const includeLineNumbers = ref(true);
   const includePageNumbers = ref(true);
 
-  function open() {
-    isOpen.value = true;
-  }
-  function close() {
-    isOpen.value = false;
-  }
+  const aiProfileHint = computed(() => {
+    switch (aiProfile.value) {
+      case "Claude-3": return "Optimized for Claude models with tight formatting";
+      case "GPT-4o": return "Balanced formatting for GPT models";
+      case "Generic": return "Compatible with most AI models";
+      default: return "";
+    }
+  });
 
-  function buildSettings(mode: ExportMode) {
-    const base: any = { mode, context: ctx.shotgunContextText || "" };
-    if (mode === "clipboard") {
-      base.exportFormat = exportFormat.value;
-      base.stripComments = stripComments.value;
-      base.includeManifest = includeManifest.value;
+  const splitStrategyHint = computed(() => {
+    switch (splitStrategy.value) {
+      case "token": return "Split by token count only, may break files";
+      case "file": return "Split keeping whole files together";
+      case "smart": return "Smart splitting considering file boundaries";
+      default: return "";
     }
-    if (mode === "ai") {
-      base.aiProfile = aiProfile.value;
-      base.tokenLimit = tokenLimit.value;
-      base.fileSizeLimitKB = fileSizeLimitKB.value;
-    }
-    if (mode === "human") {
-      base.theme = theme.value;
-      base.includeLineNumbers = includeLineNumbers.value;
-      base.includePageNumbers = includePageNumbers.value;
-    }
-    return base;
-  }
+  });
+
+  const shouldAutoSplit = computed(() => {
+    if (!enableAutoSplit.value) return false;
+    const text = contextBuilderStore.shotgunContextText || "";
+    const estimatedTokens = estimator.estimate(text);
+    return estimatedTokens > maxTokensPerChunk.value;
+  });
+
+  function open() { isOpen.value = true; }
+  function close() { isOpen.value = false; }
 
   async function doExportClipboard() {
-    if (!ctx.shotgunContextText) {
-      ui.addToast("Context is empty. Build it first.", "info");
+    if (!contextBuilderStore.shotgunContextText) {
+      uiStore.addToast("No context to export", "error");
       return;
     }
     isLoading.value = true;
     try {
-      const res = await apiService.exportContext(buildSettings("clipboard"));
-      const text = res.text || "";
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
+      const settings = {
+        mode: "clipboard" as ExportMode,
+        context: contextBuilderStore.shotgunContextText,
+        exportFormat: exportFormat.value,
+        stripComments: stripComments.value,
+        includeManifest: includeManifest.value,
+      };
+      const result = await apiService.exportContext(settings);
+      if (result.text) {
+        await navigator.clipboard.writeText(result.text);
+        uiStore.addToast(`Context copied to clipboard`, "success");
       }
-      ui.addToast("Context copied to clipboard.", "success");
-    } catch (e: any) {
-      ui.addToast(`Export failed: ${e?.message || e}`, "error");
+    } catch (error: any) {
+      uiStore.addToast(`Export failed: ${error?.message || error}`, "error");
     } finally {
       isLoading.value = false;
     }
   }
 
-  function downloadBase64(filename: string, base64: string) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], {
-      type: filename.toLowerCase().endsWith(".zip")
-        ? "application/zip"
-        : "application/pdf",
-    });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    URL.revokeObjectURL(a.href);
-    a.remove();
-  }
-
   async function doExportAI() {
-    if (!ctx.shotgunContextText) {
-      ui.addToast("Context is empty. Build it first.", "info");
+    if (!contextBuilderStore.shotgunContextText) {
+      uiStore.addToast("No context to export", "error");
       return;
     }
     isLoading.value = true;
     try {
-      const res = await apiService.exportContext(buildSettings("ai"));
-      if (res.fileName && res.dataBase64) {
-        downloadBase64(res.fileName, res.dataBase64);
-        ui.addToast("AI PDF generated.", "success");
-      } else ui.addToast("Nothing to export.", "info");
-    } catch (e: any) {
-      ui.addToast(`Export failed: ${e?.message || e}`, "error");
+      const settings = {
+        mode: "ai" as ExportMode,
+        context: contextBuilderStore.shotgunContextText,
+        tokenLimit: tokenLimit.value,
+        fileSizeLimitKB: fileSizeLimitKB.value,
+        aiProfile: aiProfile.value,
+        enableAutoSplit: enableAutoSplit.value,
+        maxTokensPerChunk: maxTokensPerChunk.value,
+        overlapTokens: overlapTokens.value,
+        splitStrategy: splitStrategy.value,
+      };
+      const result = await apiService.exportContext(settings);
+
+      if (result.isLarge && result.filePath) {
+        // Большой файл - показываем информацию о сохранении
+        const sizeInMB = (result.sizeBytes / (1024 * 1024)).toFixed(1);
+        uiStore.addToast(`Large file (${sizeInMB}MB) exported to temp location. Check Downloads folder.`, "success");
+
+        // TODO: В будущем добавить автоматическое перемещение в Downloads
+        // или показать диалог сохранения
+        console.log('Large AI export saved to:', result.filePath);
+
+      } else if (result.dataBase64 && result.fileName) {
+        // Маленький файл - стандартная загрузка через base64
+        const link = document.createElement("a");
+        link.href = `data:application/octet-stream;base64,${result.dataBase64}`;
+        link.download = result.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        uiStore.addToast(`AI export downloaded: ${result.fileName}`, "success");
+      }
+    } catch (error: any) {
+      uiStore.addToast(`AI export failed: ${error?.message || error}`, "error");
     } finally {
       isLoading.value = false;
     }
   }
 
   async function doExportHuman() {
-    if (!ctx.shotgunContextText) {
-      ui.addToast("Context is empty. Build it first.", "info");
+    if (!contextBuilderStore.shotgunContextText) {
+      uiStore.addToast("No context to export", "error");
       return;
     }
     isLoading.value = true;
     try {
-      const res = await apiService.exportContext(buildSettings("human"));
-      if (res.fileName && res.dataBase64) {
-        downloadBase64(res.fileName, res.dataBase64);
-        ui.addToast("Human PDF generated.", "success");
-      } else ui.addToast("Nothing to export.", "info");
-    } catch (e: any) {
-      ui.addToast(`Export failed: ${e?.message || e}`, "error");
+      const settings = {
+        mode: "human" as ExportMode,
+        context: contextBuilderStore.shotgunContextText,
+        theme: theme.value,
+        includeLineNumbers: includeLineNumbers.value,
+        includePageNumbers: includePageNumbers.value,
+      };
+      const result = await apiService.exportContext(settings);
+
+      if (result.isLarge && result.filePath) {
+        // Большой файл
+        const sizeInMB = (result.sizeBytes / (1024 * 1024)).toFixed(1);
+        uiStore.addToast(`Large file (${sizeInMB}MB) exported to temp location. Check Downloads folder.`, "success");
+        console.log('Large human export saved to:', result.filePath);
+
+      } else if (result.dataBase64 && result.fileName) {
+        // Маленький файл
+        const link = document.createElement("a");
+        link.href = `data:application/pdf;base64,${result.dataBase64}`;
+        link.download = result.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        uiStore.addToast(`Human export downloaded`, "success");
+      }
+    } catch (error: any) {
+      uiStore.addToast(`Human export failed`, "error");
     } finally {
       isLoading.value = false;
     }
   }
 
-  const aiProfileHint = computed(() => {
-    switch (aiProfile.value) {
-      case "Claude-3":
-        return "Tight PDF, low overhead. Best for Claude family.";
-      case "GPT-4o":
-        return "Balanced PDF. Good for GPT family.";
-      default:
-        return "Generic compact PDF. Works with most models.";
-    }
-  });
-
   return {
-    isOpen,
-    isLoading,
-    exportFormat,
-    stripComments,
-    includeManifest,
-    aiProfile,
-    tokenLimit,
-    fileSizeLimitKB,
-    aiProfileHint,
-    theme,
-    includeLineNumbers,
-    includePageNumbers,
-    open,
-    close,
-    doExportClipboard,
-    doExportAI,
-    doExportHuman,
+    isOpen, isLoading, exportFormat, stripComments, includeManifest, aiProfile,
+    tokenLimit, fileSizeLimitKB, enableAutoSplit, maxTokensPerChunk,
+    overlapTokens, splitStrategy, theme, includeLineNumbers, includePageNumbers,
+    aiProfileHint, splitStrategyHint, shouldAutoSplit, open, close,
+    doExportClipboard, doExportAI, doExportHuman,
   };
 });

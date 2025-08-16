@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"shotgun_code/domain"
 	"sort"
@@ -10,57 +11,47 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-// GeminiProviderImpl является конкретной реализацией интерфейса domain.AIProvider для Google Gemini.
 type GeminiProviderImpl struct {
-	// Используем genai.Client для доступа к методу ListModels
-	client *genai.Client
-	model  *genai.GenerativeModel
+	client *genai.GenerativeModel
 	log    domain.Logger
+	apiKey string
 }
 
-// NewGemini создает новый экземпляр провайдера Gemini.
-func NewGemini(apiKey string, modelName string, log domain.Logger) (domain.AIProvider, error) {
+func NewGemini(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
 	if apiKey == "" {
-		log.Warning("API ключ для Gemini не предоставлен. Провайдер создан, но не сможет выполнять запросы.")
-		return nil, domain.ErrProviderNotConfigured
+		return nil, fmt.Errorf("gemini API key is required")
 	}
-
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return nil, fmt.Errorf("ошибка создания клиента Gemini: %w", err)
-	}
-
-	model := client.GenerativeModel(modelName)
-
+	// The host parameter is ignored for the official Gemini client, but kept for signature compatibility.
 	return &GeminiProviderImpl{
-		client: client,
-		model:  model,
 		log:    log,
+		apiKey: apiKey,
 	}, nil
 }
 
-// ListModels запрашивает у API Gemini список доступных моделей.
 func (p *GeminiProviderImpl) ListModels(ctx context.Context) ([]string, error) {
-	p.log.Info("Запрос списка моделей от Gemini API...")
-	iter := p.client.ListModels(ctx)
-	var models []string
+	p.log.Info("Requesting model list from Gemini API...")
+	client, err := genai.NewClient(ctx, option.WithAPIKey(p.apiKey))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gemini client for model listing: %w", err)
+	}
+	defer client.Close()
 
+	var models []string
+	iter := client.ListModels(ctx)
 	for {
 		m, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
-			p.log.Error(fmt.Sprintf("Ошибка при получении списка моделей Gemini: %v", err))
-			return nil, err
+			if strings.Contains(err.Error(), "API_KEY_INVALID") {
+				return nil, domain.ErrInvalidAPIKey
+			}
+			return nil, fmt.Errorf("failed to iterate models: %w", err)
 		}
 
-		// Корректная проверка: ищем "generateContent" в списке поддерживаемых методов.
 		isSupported := false
 		for _, method := range m.SupportedGenerationMethods {
 			if method == "generateContent" {
@@ -68,80 +59,44 @@ func (p *GeminiProviderImpl) ListModels(ctx context.Context) ([]string, error) {
 				break
 			}
 		}
-
 		if isSupported {
-			// Извлекаем имя модели из полного пути, например, "models/gemini-1.5-pro-latest"
-			parts := strings.Split(m.Name, "/")
-			if len(parts) == 2 {
-				models = append(models, parts[1])
-			}
+			models = append(models, m.Name)
 		}
 	}
 
-	// Сортируем для консистентности
 	sort.Strings(models)
-	p.log.Info(fmt.Sprintf("Получено %d моделей от Gemini.", len(models)))
+	p.log.Info(fmt.Sprintf("Received %d supported models from Gemini.", len(models)))
 	return models, nil
 }
 
-// Generate выполняет запрос к API Gemini, адаптируясь к доменной модели.
 func (p *GeminiProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (domain.AIResponse, error) {
-	p.log.Info(fmt.Sprintf("Отправка запроса к Gemini с моделью: %s", req.Model))
+	p.log.Info(fmt.Sprintf("Sending request to Gemini API with model: %s", req.Model))
 
-	var systemInstruction *genai.Content
+	client, err := genai.NewClient(ctx, option.WithAPIKey(p.apiKey))
+	if err != nil {
+		return domain.AIResponse{}, fmt.Errorf("failed to create gemini client: %w", err)
+	}
+	defer client.Close()
 
-	var userMessages []string
-	for _, msg := range req.Messages {
-		if msg.Role == domain.RoleSystem {
-			systemInstruction = &genai.Content{
-				Parts: []genai.Part{genai.Text(msg.Content)},
-			}
-		} else if msg.Role == domain.RoleUser {
-			userMessages = append(userMessages, msg.Content)
-		}
+	model := client.GenerativeModel(req.Model)
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{genai.Text(req.SystemPrompt)},
 	}
 
-	p.model.SystemInstruction = systemInstruction
-	finalPrompt := strings.Join(userMessages, "\n\n")
-
-	resp, err := p.model.GenerateContent(ctx, genai.Text(finalPrompt))
+	resp, err := model.GenerateContent(ctx, genai.Text(req.UserPrompt))
 	if err != nil {
-		p.log.Error(fmt.Sprintf("Ошибка от API Gemini: %v", err))
-		// Проверяем gRPC статус ошибки
-		st, ok := status.FromError(err)
-		if ok {
-			switch st.Code() {
-			case codes.Unauthenticated, codes.PermissionDenied:
-				return domain.AIResponse{}, domain.ErrInvalidAPIKey
-			case codes.NotFound:
-				return domain.AIResponse{}, domain.ErrModelNotFound
-			case codes.ResourceExhausted:
-				return domain.AIResponse{}, domain.ErrRateLimitExceeded
-			}
-		}
+		p.log.Error(fmt.Sprintf("Gemini API request failed: %v", err))
 		return domain.AIResponse{}, err
 	}
 
-	// Обработка пустого ответа
-	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
-		// Проверим, был ли ответ заблокирован
-		if resp != nil && len(resp.Candidates) > 0 && resp.Candidates[0].FinishReason == genai.FinishReasonSafety {
-			p.log.Warning("Ответ от Gemini заблокирован из-за настроек безопасности.")
-			return domain.AIResponse{}, fmt.Errorf("ответ заблокирован политикой безопасности Gemini")
-		}
-		p.log.Warning("Ответ от Gemini не содержит валидного контента.")
-		return domain.AIResponse{}, fmt.Errorf("пустой или некорректный ответ от Gemini")
+	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
+		return domain.AIResponse{}, fmt.Errorf("no content returned from Gemini API")
 	}
 
-	// Собираем контент из частей
-	var contentBuilder strings.Builder
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if txt, ok := part.(genai.Text); ok {
-			contentBuilder.WriteString(string(txt))
-		}
+	firstPart := resp.Candidates[0].Content.Parts[0]
+	if text, ok := firstPart.(genai.Text); ok {
+		return domain.AIResponse{Content: string(text)}, nil
 	}
-	content := contentBuilder.String()
 
-	p.log.Info("Успешно получен ответ от Gemini.")
-	return domain.AIResponse{Content: content}, nil
+	return domain.AIResponse{}, fmt.Errorf("unsupported content type returned from Gemini: %T", firstPart)
 }

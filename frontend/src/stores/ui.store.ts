@@ -1,219 +1,103 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
-import hljs from "highlight.js";
-import { useErrorHandler } from "@/composables/useErrorHandler";
-import { useNotificationsStore } from "./notifications.store";
+import { ref, reactive } from "vue";
+import type { ToastType } from "@/types/dto";
+import { loadAndHighlight, type QuickLookType } from "@/services/quicklook.service";
 
-type DrawerName = "settings" | "ignore" | "prompts";
-export type ToastType = "info" | "success" | "error";
-export interface Toast {
-  id: number;
-  message: string;
-  type: ToastType;
+export interface Toast { id: number; message: string; type: ToastType | "warn"; }
+interface ContextMenu { isVisible: boolean; x: number; y: number; nodePath: string; }
+interface ProgressState { isActive: boolean; message: string; value: number; }
+interface QuickLookState {
+  isActive: boolean; isPinned: boolean; path: string; rootDir: string;
+  type: QuickLookType; commitHash?: string; event: MouseEvent | null;
+  content: string; error: string | null; language: string; truncated: boolean;
+  position: { x: number; y: number } | null;
 }
-export interface ProgressState {
-  isActive: boolean;
-  message: string;
-  value: number;
-}
-
-export interface QuickLookState {
-  visible: boolean;
-  content: string;
-  rawContent: string;
-  language: string;
-  isLoading: boolean;
-  error: string | null;
-  x: number;
-  y: number;
-  isPinned: boolean;
-  filePath: string;
-  truncated: boolean;
-}
-
-export interface ShowQuickLookPayload {
-  rootDir: string;
-  path: string;
-  type: "fs" | "git";
-  commitHash?: string;
-  event: MouseEvent;
-  isPinned: boolean;
-}
-
-export interface ContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  targetPath: string | null;
-}
+export type DrawerType = "ignore" | "prompt" | "settings";
 
 export const useUiStore = defineStore("ui", () => {
-  const activeDrawer = ref<DrawerName | null>(null);
-  const isConsoleVisible = ref(false);
   const toasts = ref<Toast[]>([]);
-  let toastIdCounter = 0;
-
-  const progress = ref<ProgressState>({
-    isActive: false,
-    message: "",
-    value: 0,
+  let toastId = 0;
+  const isConsoleVisible = ref(false);
+  const activeDrawer = ref<DrawerType | null>(null);
+  const contextMenu = ref<ContextMenu | null>(null);
+  const progress = reactive<ProgressState>({ isActive: false, message: "", value: 0 });
+  const quickLook = reactive<QuickLookState>({
+    isActive: false, isPinned: false, path: "", rootDir: "", type: "fs", event: null,
+    content: "", error: null, language: "plaintext", truncated: false, position: null
   });
 
-  const quickLook = ref<QuickLookState>({
-    visible: false,
-    content: "",
-    rawContent: "",
-    language: "plaintext",
-    isLoading: false,
-    error: null,
-    x: 0,
-    y: 0,
-    isPinned: false,
-    filePath: "",
-    truncated: false,
-  });
-
-  const contextMenu = ref<ContextMenuState>({
-    visible: false,
-    x: 0,
-    y: 0,
-    targetPath: null,
-  });
-
-  const notifications = useNotificationsStore();
-  const { handleError } = useErrorHandler();
-
-  function openDrawer(d: DrawerName) {
-    activeDrawer.value = activeDrawer.value === d ? null : d;
+  function addToast(message: string, type: ToastType | "warn" = "info", duration = 4000) {
+    const id = toastId++;
+    toasts.value.unshift({ id, message, type });
+    window.setTimeout(() => removeToast(id), duration);
   }
-  function closeDrawer() {
-    activeDrawer.value = null;
-  }
-  function toggleConsole() {
-    isConsoleVisible.value = !isConsoleVisible.value;
-  }
+  function removeToast(id: number) { toasts.value = toasts.value.filter((t) => t.id !== id); }
+  function toggleConsole() { isConsoleVisible.value = !isConsoleVisible.value; }
+  function openDrawer(drawer: DrawerType) { activeDrawer.value = drawer; }
+  function closeDrawer() { activeDrawer.value = null; }
+  function openContextMenu(x: number, y: number, nodePath: string) { contextMenu.value = { isVisible: true, x, y, nodePath }; }
+  function closeContextMenu() { if (contextMenu.value) contextMenu.value.isVisible = false; }
+  function setProgress(state: Partial<ProgressState>) { Object.assign(progress, state); }
+  function clearProgress() { progress.isActive = false; progress.message = ""; progress.value = 0; }
 
-  function addToast(message: string, type: ToastType = "info") {
-    const id = toastIdCounter++;
-    toasts.value.push({ id, message, type });
-  }
-  function removeToast(id: number) {
-    toasts.value = toasts.value.filter((t) => t.id !== id);
-  }
+  async function showQuickLook(payload: {
+    rootDir: string; path: string; type: QuickLookType; commitHash?: string;
+    event?: MouseEvent; isPinned?: boolean;
+  }) {
+    const { rootDir, path, type, commitHash, event, isPinned } = payload;
+    if (quickLook.isPinned && !isPinned) return;
 
-  function setProgress(state: Partial<ProgressState> & { isActive: true }) {
-    progress.value = { ...progress.value, ...state };
-  }
-  function clearProgress() {
-    progress.value = { ...progress.value, isActive: false };
-  }
+    quickLook.isActive = true;
+    quickLook.isPinned = !!isPinned;
+    quickLook.path = path;
+    quickLook.rootDir = rootDir;
+    quickLook.type = type;
+    quickLook.event = event || null;
+    quickLook.error = null;
+    quickLook.truncated = false;
 
-  async function showQuickLook(payload: ShowQuickLookPayload) {
-    // hover не перебивает pinned
-    if (quickLook.value.isPinned && !payload.isPinned) return;
-
-    // лог для диагностики
-    notifications.addLog(
-      `QuickLook: open ${payload.path} (pinned=${payload.isPinned})`,
-      "info",
-    );
-
-    quickLook.value.visible = true;
-    quickLook.value.isLoading = true;
-    quickLook.value.error = null;
-    quickLook.value.filePath = payload.path;
-    quickLook.value.isPinned = payload.isPinned;
-    quickLook.value.truncated = false;
-
-    if (!payload.isPinned) {
-      quickLook.value.x = payload.event.clientX + 20;
-      quickLook.value.y = payload.event.clientY + 20;
-    } else {
-      // центр экрана
-      quickLook.value.x = window.innerWidth / 2 - 300;
-      quickLook.value.y = window.innerHeight * 0.15;
-    }
-
-    if (!payload.rootDir) {
-      quickLook.value.isLoading = false;
-      quickLook.value.error = "Project root is not set.";
-      notifications.addLog("QuickLook error: root is empty", "error");
-      return;
+    if (isPinned && !quickLook.position) {
+      quickLook.position = { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 200 };
     }
 
     try {
-      let rawContent = "";
-      if (payload.type === "fs") {
-        // вызов сделан снаружи (apiService) — оставим как есть
-        const { apiService } = await import("@/services/api.service");
-        rawContent = await apiService.readFileContent(
-          payload.rootDir,
-          payload.path,
-        );
-      } else if (payload.type === "git" && payload.commitHash) {
-        const { apiService } = await import("@/services/api.service");
-        rawContent = await apiService.getFileContentAtCommit(
-          payload.rootDir,
-          payload.path,
-          payload.commitHash,
-        );
-      }
-
-      quickLook.value.rawContent = rawContent;
-      const lang = payload.path.split(".").pop() || "plaintext";
-      quickLook.value.language = lang;
-
-      if (hljs.getLanguage(lang)) {
-        quickLook.value.content = hljs.highlight(rawContent, {
-          language: lang,
-        }).value;
-      } else {
-        quickLook.value.content = hljs.highlightAuto(rawContent).value;
-      }
-      notifications.addLog(`QuickLook: loaded ${payload.path}`, "info");
-    } catch (err) {
-      handleError(err, "Quick Look");
-      quickLook.value.error = `Could not load file: ${payload.path}`;
-    } finally {
-      quickLook.value.isLoading = false;
+      const res = await loadAndHighlight({ rootDir, path, type, commitHash });
+      quickLook.content = res.html;
+      quickLook.language = res.language;
+      quickLook.truncated = res.truncated;
+    } catch (err: any) {
+      quickLook.error = err?.message || String(err);
+      quickLook.content = "";
     }
   }
 
   function hideQuickLook() {
-    quickLook.value.visible = false;
-    quickLook.value.isPinned = false;
+    if (!quickLook.isPinned) {
+      quickLook.isActive = false;
+      quickLook.position = null;
+    }
   }
 
-  function togglePinQuickLook() {
-    quickLook.value.isPinned = !quickLook.value.isPinned;
+  function togglePin() {
+    quickLook.isPinned = !quickLook.isPinned;
+    if (quickLook.isPinned && !quickLook.position) {
+      quickLook.position = { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 200 };
+    }
+    if (!quickLook.isPinned) {
+      quickLook.position = null;
+      quickLook.isActive = false;
+    }
   }
 
-  function openContextMenu(x: number, y: number, path: string) {
-    contextMenu.value = { visible: true, x, y, targetPath: path };
+  function setPosition(pos: { x: number; y: number }) {
+    if (quickLook.isPinned) {
+      quickLook.position = pos;
+    }
   }
-  function closeContextMenu() {
-    contextMenu.value.visible = false;
-    contextMenu.value.targetPath = null;
-  }
+
 
   return {
-    activeDrawer,
-    isConsoleVisible,
-    toasts,
-    progress,
-    quickLook,
-    contextMenu,
-    openDrawer,
-    closeDrawer,
-    toggleConsole,
-    addToast,
-    removeToast,
-    setProgress,
-    clearProgress,
-    showQuickLook,
-    hideQuickLook,
-    togglePinQuickLook,
-    openContextMenu,
-    closeContextMenu,
+    toasts, addToast, removeToast, activeDrawer, openDrawer, closeDrawer, contextMenu, openContextMenu, closeContextMenu,
+    progress, setProgress, clearProgress, quickLook, showQuickLook, hideQuickLook, togglePin, setPosition, isConsoleVisible, toggleConsole,
   };
 });

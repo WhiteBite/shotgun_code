@@ -3,60 +3,187 @@ package application
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime/debug"
 	"shotgun_code/domain"
+	"sort"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 )
 
-// ContextGenerationService is responsible for generating the final context string from project files.
 type ContextGenerationService struct {
 	log        domain.Logger
 	bus        domain.EventBus
 	fileReader domain.FileContentReader
 }
 
-// NewContextGenerationService creates a new ContextGenerationService.
-func NewContextGenerationService(log domain.Logger, bus domain.EventBus, reader domain.FileContentReader) *ContextGenerationService {
+func NewContextGenerationService(
+	log domain.Logger,
+	bus domain.EventBus,
+	fileReader domain.FileContentReader,
+) *ContextGenerationService {
 	return &ContextGenerationService{
 		log:        log,
 		bus:        bus,
-		fileReader: reader,
+		fileReader: fileReader,
 	}
 }
 
-// Generate builds the context string from the given file paths and emits progress events.
-func (s *ContextGenerationService) Generate(ctx context.Context, rootDir string, includedPaths []string) {
-	s.log.Info(fmt.Sprintf("Starting context generation for %d files.", len(includedPaths)))
+type treeNode struct {
+	name     string
+	children map[string]*treeNode
+	isFile   bool
+}
 
-	progressCallback := func(current, total int64) {
-		progressData := map[string]int64{"current": current, "total": total}
-		s.bus.Emit("shotgunContextGenerationProgress", progressData)
+func (s *ContextGenerationService) GenerateContext(ctx context.Context, rootDir string, includedPaths []string) {
+	// Запускаем в отдельной горутине с panic recovery
+	go s.generateContextSafe(ctx, rootDir, includedPaths)
+}
+
+func (s *ContextGenerationService) generateContextSafe(ctx context.Context, rootDir string, includedPaths []string) {
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			s.log.Error(fmt.Sprintf("PANIC recovered in GenerateContext: %v\nStack: %s", r, stack))
+			s.bus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", r))
+			s.bus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", r))
+		}
+	}()
+
+	// Ensure we always have a non-nil context to avoid panics in downstream calls
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	fileContents, err := s.fileReader.ReadContents(ctx, includedPaths, rootDir, progressCallback)
-	if err != nil {
-		if err == context.Canceled {
-			s.log.Info("Context generation was canceled.")
-			return
-		}
+	s.log.Info(fmt.Sprintf("Starting context generation for %d files", len(includedPaths)))
+
+	// Sort paths for deterministic processing
+	sortedPaths := make([]string, len(includedPaths))
+	copy(sortedPaths, includedPaths)
+	sort.Strings(sortedPaths)
+
+	// Use errgroup for controlled concurrency
+	g, gctx := errgroup.WithContext(ctx)
+
+	// Read file contents with progress tracking
+	var contents map[string]string
+	var readErr error
+
+	g.Go(func() error {
+		var err error
+		contents, err = s.fileReader.ReadContents(gctx, sortedPaths, rootDir, func(current, total int64) {
+			select {
+			case <-gctx.Done():
+				return
+			default:
+				s.bus.Emit("shotgunContextGenerationProgress", map[string]interface{}{
+					"current": current,
+					"total":   total,
+				})
+			}
+		})
+		readErr = err
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
 		s.log.Error(fmt.Sprintf("Failed to read file contents: %v", err))
 		s.bus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", err))
+		s.bus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", err))
 		return
 	}
 
+	if readErr != nil {
+		s.log.Error(fmt.Sprintf("Failed to read file contents: %v", readErr))
+		s.bus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", readErr))
+		s.bus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", readErr))
+		return
+	}
+
+	// Build context string deterministically
 	var contextBuilder strings.Builder
-	for path, content := range fileContents {
-		select {
-		case <-ctx.Done():
-			s.log.Info("Context generation was canceled during string building.")
-			return
-		default:
+
+	// Add manifest header
+	contextBuilder.WriteString("Manifest:\n")
+	manifestPaths := make([]string, 0, len(contents))
+	for path := range contents {
+		manifestPaths = append(manifestPaths, path)
+	}
+	sort.Strings(manifestPaths) // Ensure deterministic order
+
+	// Build simple tree structure
+	contextBuilder.WriteString(s.buildSimpleTree(manifestPaths))
+	contextBuilder.WriteString("\n")
+
+	// Add file contents in sorted order
+	for _, relPath := range manifestPaths {
+		content, exists := contents[relPath]
+		if !exists {
+			continue
 		}
-		contextBuilder.WriteString("--- File: " + path + " ---\n")
+
+		contextBuilder.WriteString(fmt.Sprintf("--- File: %s ---\n", relPath))
 		contextBuilder.WriteString(content)
 		contextBuilder.WriteString("\n\n")
 	}
 
-	finalContext := contextBuilder.String()
-	s.log.Info(fmt.Sprintf("Context generation complete. Total size: %d bytes.", len(finalContext)))
+	finalContext := strings.TrimSpace(contextBuilder.String())
+	s.log.Info(fmt.Sprintf("Context generation completed. Length: %d characters", len(finalContext)))
+
 	s.bus.Emit("shotgunContextGenerated", finalContext)
+}
+
+func (s *ContextGenerationService) buildSimpleTree(paths []string) string {
+	root := &treeNode{name: ".", children: make(map[string]*treeNode)}
+
+	// Build tree structure
+	for _, path := range paths {
+		parts := strings.Split(filepath.ToSlash(path), "/")
+		current := root
+
+		for i, part := range parts {
+			if part == "" || part == "." {
+				continue
+			}
+
+			if _, exists := current.children[part]; !exists {
+				current.children[part] = &treeNode{
+					name:     part,
+					children: make(map[string]*treeNode),
+					isFile:   i == len(parts)-1, // Last part is file
+				}
+			}
+			current = current.children[part]
+		}
+	}
+
+	// Generate tree string
+	var builder strings.Builder
+	s.walkTree(root, "", true, &builder)
+	return builder.String()
+}
+
+func (s *ContextGenerationService) walkTree(node *treeNode, prefix string, isLast bool, builder *strings.Builder) {
+	if node.name != "." {
+		if isLast {
+			builder.WriteString(prefix + "└─ " + node.name + "\n")
+			prefix += "   "
+		} else {
+			builder.WriteString(prefix + "├─ " + node.name + "\n")
+			prefix += "│  "
+		}
+	}
+
+	// Sort children for deterministic output
+	childNames := make([]string, 0, len(node.children))
+	for name := range node.children {
+		childNames = append(childNames, name)
+	}
+	sort.Strings(childNames)
+
+	for i, childName := range childNames {
+		child := node.children[childName]
+		s.walkTree(child, prefix, i == len(childNames)-1, builder)
+	}
 }

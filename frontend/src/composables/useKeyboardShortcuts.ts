@@ -1,122 +1,108 @@
-import { ref } from "vue";
 import { useUiStore } from "@/stores/ui.store";
-import { useContextStore } from "@/stores/context.store";
+import { useFileTreeStore } from "@/stores/file-tree.store";
+import { useContextBuilderStore } from "@/stores/context-builder.store";
 import { useGenerationStore } from "@/stores/generation.store";
-import { useKeyboardState } from "./useKeyboardState";
 import { useTreeStateStore } from "@/stores/tree-state.store";
 import { useProjectStore } from "@/stores/project.store";
+import { useVisibleNodes } from "./useVisibleNodes";
+import type { FileNode } from "@/types/dto";
 
-const isCtrlPressed = ref(false);
 let _attached = false;
 let _keydown: ((e: KeyboardEvent) => void) | null = null;
 let _keyup: ((e: KeyboardEvent) => void) | null = null;
+
+function isEditableTarget(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || (el as any).isContentEditable) return true;
+  return false;
+}
 
 export function attachShortcuts() {
   if (_attached) return;
 
   const uiStore = useUiStore();
-  const contextStore = useContextStore();
+  const fileTreeStore = useFileTreeStore();
+  const contextBuilderStore = useContextBuilderStore();
   const generationStore = useGenerationStore();
   const treeStateStore = useTreeStateStore();
   const projectStore = useProjectStore();
-  const { isCtrlPressed: ctrlState } = useKeyboardState();
-  isCtrlPressed.value = ctrlState.value;
+  const { visibleNodes } = useVisibleNodes();
 
   const shortcuts: Record<string, () => void> = {
     "ctrl+k": () => {
-      const searchInput =
-        (document.querySelector(
-          'input[placeholder*="Filter files"]',
-        ) as HTMLInputElement) ||
-        (document.querySelector(
-          'input[placeholder*="Поиск по файлам"]',
-        ) as HTMLInputElement);
-      searchInput?.focus();
+      const el = document.querySelector('input[placeholder*="Фильтр"]') as HTMLInputElement;
+      el?.focus();
     },
-    escape: () => {
-      uiStore.closeDrawer();
-      uiStore.hideQuickLook();
+    "escape": () => {
       uiStore.closeContextMenu();
+      uiStore.hideQuickLook();
     },
-    "ctrl+shift+c": () => {
+    "ctrl+d": () => {
       treeStateStore.clearSelection();
     },
     "ctrl+a": () => {
-      const visibleNodes = (contextStore as any).visibleNodes;
-      if (visibleNodes) {
-        visibleNodes.forEach((node: any) => {
-          if (!node.isDir && !node.isIgnored) {
-            treeStateStore.toggleSelection(node.path);
-          }
-        });
-      }
+      visibleNodes.value.forEach((node: FileNode) => {
+        if (!node.isDir && !node.isIgnored) {
+          treeStateStore.selectedPaths.add(node.path);
+        }
+      });
     },
     "ctrl+enter": () => {
       if (generationStore.canGenerate) {
         generationStore.executeGeneration();
-      } else if (contextStore.selectedFiles.length > 0) {
-        contextStore.buildContext();
+      } else if (contextBuilderStore.selectedFiles.length > 0) {
+        contextBuilderStore.buildContext();
       }
     },
-    " ": () => {
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      )
-        return;
-
+    "space": () => {
+      if (document.activeElement && ["INPUT","TEXTAREA"].includes((document.activeElement as HTMLElement).tagName)) return;
       const activePath = treeStateStore.activeNodePath;
-      const activeNode = activePath
-        ? contextStore.nodesMap.get(activePath)
-        : null;
       const rootDir = projectStore.currentProject?.path || "";
-      if (activeNode && !activeNode.isDir && !activeNode.isIgnored && rootDir) {
-        const fakeEvent = new MouseEvent("click", {
-          clientX: window.innerWidth / 2,
-          clientY: window.innerHeight / 2,
-        });
-        uiStore.showQuickLook({
-          rootDir,
-          path: activeNode.relPath,
-          type: "fs",
-          event: fakeEvent,
-          isPinned: true,
-        });
-      }
+      if (!activePath || !rootDir) return;
+      const node = fileTreeStore.nodesMap.get(activePath);
+      if (!node || node.isDir || node.isIgnored) return;
+      const fakeEvent = new MouseEvent("click", { clientX: window.innerWidth/2, clientY: window.innerHeight/2 });
+      uiStore.showQuickLook({
+        rootDir,
+        path: node.relPath,
+        type: "fs",
+        event: fakeEvent,
+        isPinned: true,
+      });
+    },
+    "ctrl+arrowright": () => {
+      const active = treeStateStore.activeNodePath;
+      if (!active) return;
+      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, true);
+    },
+    "ctrl+arrowleft": () => {
+      const active = treeStateStore.activeNodePath;
+      if (!active) return;
+      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, false);
     },
   };
 
   const handleKeydown = (event: KeyboardEvent) => {
-    if (event.key === "Control" || event.key === "Meta") {
-      isCtrlPressed.value = true;
-    }
-
-    const key = [
+    const normKey = event.code === "Space" ? "space" : event.key.toLowerCase();
+    const parts = [
       event.ctrlKey && "ctrl",
       event.shiftKey && "shift",
       event.altKey && "alt",
-      event.code === "Space" ? " " : event.key.toLowerCase(),
-    ]
-      .filter(Boolean)
-      .join("+");
+      normKey,
+    ].filter(Boolean).join("+");
 
-    if (shortcuts[key]) {
+    if (isEditableTarget() && normKey !== "escape") return;
+
+    if (shortcuts[parts]) {
       event.preventDefault();
-      shortcuts[key]();
-    }
-  };
-
-  const handleKeyup = (event: KeyboardEvent) => {
-    if (event.key === "Control" || event.key === "Meta") {
-      isCtrlPressed.value = false;
-      // закрываем только hover‑режим
-      const ui = useUiStore();
-      if (!ui.quickLook.isPinned) ui.hideQuickLook();
+      shortcuts[parts]();
     }
   };
 
   _keydown = handleKeydown;
-  _keyup = handleKeyup;
+  _keyup = () => {};
   window.addEventListener("keydown", _keydown);
   window.addEventListener("keyup", _keyup);
   _attached = true;
@@ -124,13 +110,9 @@ export function attachShortcuts() {
 
 export function detachShortcuts() {
   if (!_attached) return;
-  if (_keydown) window.removeEventListener("keydown", _keydown);
-  if (_keyup) window.removeEventListener("keyup", _keyup);
+  window.removeEventListener("keydown", _keydown!);
+  window.removeEventListener("keyup", _keyup!);
   _keydown = null;
   _keyup = null;
   _attached = false;
-}
-
-export function useKeyboardShortcutsState() {
-  return { isCtrlPressed };
 }
