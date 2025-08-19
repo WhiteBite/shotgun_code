@@ -1,0 +1,13 @@
+        id: T-202
+        title: T-202 Targeted tests (affected graph)
+        description: "Запуск тестов только по затронутым участкам + smoke."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'mcp.test.run', 'scope': 'affected+smoke'}]
+        onSuccess:
+          - updateStatus: done

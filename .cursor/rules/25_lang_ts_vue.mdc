@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+tags: ['lang','ts','vue','ast']
+---
+# Language Guide — TypeScript / Vue
+
+- Предпочтительны: ts-morph (TypeScript Compiler API), jscodeshift/Recast для массовых codemods.
+- Пост-шага: Prettier + ESLint --fix, tsc (type-check).
+- Если создаёшь компонент/роут/store — не забудь зарегистрировать связки (router/index.ts, Pinia store).
+- anchor — только с устойчивыми окнами (before/after + hash).

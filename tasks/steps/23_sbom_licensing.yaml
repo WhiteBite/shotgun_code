@@ -1,0 +1,13 @@
+        id: T-204
+        title: T-204 SBOM/licensing baseline
+        description: "Генерация SBOM (Syft) и проверка лицензий/вулн (Grype)."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'license.scan', 'scope': 'repo'}]
+        onSuccess:
+          - updateStatus: done

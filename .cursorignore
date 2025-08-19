@@ -1,0 +1,12 @@
+frontend/dist/
+node_modules/
+.wails/
+bin/
+build/
+.idea/
+.vscode/
+.DS_Store
+*.log
+*.pdf
+*.zip
+backend/infrastructure/fonts/*.ttf

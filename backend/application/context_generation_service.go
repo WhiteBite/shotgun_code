@@ -8,6 +8,7 @@ import (
 	"shotgun_code/domain"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -51,10 +52,20 @@ func (s *ContextGenerationService) generateContextSafe(ctx context.Context, root
 		}
 	}()
 
+	// Отправляем событие начала генерации
+	s.bus.Emit("shotgunContextGenerationStarted", map[string]interface{}{
+		"fileCount": len(includedPaths),
+		"rootDir":   rootDir,
+	})
+
 	// Ensure we always have a non-nil context to avoid panics in downstream calls
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	// Добавляем таймаут для предотвращения бесконечной загрузки
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
 	s.log.Info(fmt.Sprintf("Starting context generation for %d files", len(includedPaths)))
 
@@ -88,9 +99,15 @@ func (s *ContextGenerationService) generateContextSafe(ctx context.Context, root
 	})
 
 	if err := g.Wait(); err != nil {
-		s.log.Error(fmt.Sprintf("Failed to read file contents: %v", err))
-		s.bus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", err))
-		s.bus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", err))
+		if err == context.DeadlineExceeded {
+			s.log.Error("Context generation timed out")
+			s.bus.Emit("app:error", "Context generation timed out after 30 seconds")
+			s.bus.Emit("shotgunContextGenerationTimeout")
+		} else {
+			s.log.Error(fmt.Sprintf("Failed to read file contents: %v", err))
+			s.bus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", err))
+			s.bus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", err))
+		}
 		return
 	}
 
@@ -131,7 +148,9 @@ func (s *ContextGenerationService) generateContextSafe(ctx context.Context, root
 	finalContext := strings.TrimSpace(contextBuilder.String())
 	s.log.Info(fmt.Sprintf("Context generation completed. Length: %d characters", len(finalContext)))
 
+	s.log.Info("Emitting shotgunContextGenerated event")
 	s.bus.Emit("shotgunContextGenerated", finalContext)
+	s.log.Info("Event emitted successfully")
 }
 
 func (s *ContextGenerationService) buildSimpleTree(paths []string) string {

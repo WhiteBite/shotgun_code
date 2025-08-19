@@ -1,103 +1,163 @@
 import { defineStore } from "pinia";
-import { ref, reactive } from "vue";
-import type { ToastType } from "@/types/dto";
+import { ref, computed } from "vue";
 import { loadAndHighlight, type QuickLookType } from "@/services/quicklook.service";
 
-export interface Toast { id: number; message: string; type: ToastType | "warn"; }
-interface ContextMenu { isVisible: boolean; x: number; y: number; nodePath: string; }
-interface ProgressState { isActive: boolean; message: string; value: number; }
-interface QuickLookState {
-  isActive: boolean; isPinned: boolean; path: string; rootDir: string;
-  type: QuickLookType; commitHash?: string; event: MouseEvent | null;
-  content: string; error: string | null; language: string; truncated: boolean;
-  position: { x: number; y: number } | null;
+export interface QuickLookOptions {
+  rootDir: string; path: string; type: QuickLookType; commitHash?: string; event: MouseEvent | null;
+  isPinned?: boolean; position?: { x: number; y: number }; content?: string;
 }
-export type DrawerType = "ignore" | "prompt" | "settings";
 
 export const useUiStore = defineStore("ui", () => {
-  const toasts = ref<Toast[]>([]);
-  let toastId = 0;
-  const isConsoleVisible = ref(false);
-  const activeDrawer = ref<DrawerType | null>(null);
-  const contextMenu = ref<ContextMenu | null>(null);
-  const progress = reactive<ProgressState>({ isActive: false, message: "", value: 0 });
-  const quickLook = reactive<QuickLookState>({
-    isActive: false, isPinned: false, path: "", rootDir: "", type: "fs", event: null,
-    content: "", error: null, language: "plaintext", truncated: false, position: null
+  // Context menu state
+  const contextMenu = ref({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    targetPath: "",
   });
 
-  function addToast(message: string, type: ToastType | "warn" = "info", duration = 4000) {
-    const id = toastId++;
-    toasts.value.unshift({ id, message, type });
-    window.setTimeout(() => removeToast(id), duration);
+  // QuickLook state
+  const quickLook = ref({
+    isActive: false,
+    path: "",
+    content: "",
+    language: "text",
+    truncated: false,
+    error: null as string | null,
+    isPinned: false,
+    position: null as { x: number; y: number } | null,
+  });
+
+  // Drawer states
+  const drawers = ref({
+    ignore: false,
+    prompts: false,
+    settings: false,
+  });
+
+  // Toast notifications
+  const toasts = ref<Array<{
+    id: string;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+    duration?: number;
+  }>>([]);
+
+  // Console visibility
+  const isConsoleVisible = ref(false);
+
+  // Computed
+  const isAnyDrawerOpen = computed(() => 
+    drawers.value.ignore || drawers.value.prompts || drawers.value.settings
+  );
+
+  // Methods
+  function openContextMenu(x: number, y: number, targetPath: string) {
+    contextMenu.value = { isOpen: true, x, y, targetPath };
   }
-  function removeToast(id: number) { toasts.value = toasts.value.filter((t) => t.id !== id); }
-  function toggleConsole() { isConsoleVisible.value = !isConsoleVisible.value; }
-  function openDrawer(drawer: DrawerType) { activeDrawer.value = drawer; }
-  function closeDrawer() { activeDrawer.value = null; }
-  function openContextMenu(x: number, y: number, nodePath: string) { contextMenu.value = { isVisible: true, x, y, nodePath }; }
-  function closeContextMenu() { if (contextMenu.value) contextMenu.value.isVisible = false; }
-  function setProgress(state: Partial<ProgressState>) { Object.assign(progress, state); }
-  function clearProgress() { progress.isActive = false; progress.message = ""; progress.value = 0; }
 
-  async function showQuickLook(payload: {
-    rootDir: string; path: string; type: QuickLookType; commitHash?: string;
-    event?: MouseEvent; isPinned?: boolean;
-  }) {
-    const { rootDir, path, type, commitHash, event, isPinned } = payload;
-    if (quickLook.isPinned && !isPinned) return;
+  function closeContextMenu() {
+    contextMenu.value.isOpen = false;
+  }
 
-    quickLook.isActive = true;
-    quickLook.isPinned = !!isPinned;
-    quickLook.path = path;
-    quickLook.rootDir = rootDir;
-    quickLook.type = type;
-    quickLook.event = event || null;
-    quickLook.error = null;
-    quickLook.truncated = false;
-
-    if (isPinned && !quickLook.position) {
-      quickLook.position = { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 200 };
-    }
-
+  async function showQuickLook(options: QuickLookOptions) {
     try {
-      const res = await loadAndHighlight({ rootDir, path, type, commitHash });
-      quickLook.content = res.html;
-      quickLook.language = res.language;
-      quickLook.truncated = res.truncated;
-    } catch (err: any) {
-      quickLook.error = err?.message || String(err);
-      quickLook.content = "";
+      quickLook.value.isActive = true;
+      quickLook.value.path = options.path;
+      quickLook.value.isPinned = options.isPinned || false;
+      quickLook.value.position = options.position || null;
+      quickLook.value.error = null;
+
+      // Если передан контент для типа "text", используем его
+      if (options.type === "text" && options.content) {
+        quickLook.value.content = options.content;
+        quickLook.value.language = "text";
+        quickLook.value.truncated = false;
+        return;
+      }
+
+      const result = await loadAndHighlight(
+        options.rootDir,
+        options.path,
+        options.type,
+        options.commitHash
+      );
+
+      quickLook.value.content = result.content;
+      quickLook.value.language = result.language;
+      quickLook.value.truncated = result.truncated;
+    } catch (error) {
+      quickLook.value.error = error instanceof Error ? error.message : String(error);
     }
   }
 
   function hideQuickLook() {
-    if (!quickLook.isPinned) {
-      quickLook.isActive = false;
-      quickLook.position = null;
-    }
+    quickLook.value.isActive = false;
+    quickLook.value.error = null;
   }
 
   function togglePin() {
-    quickLook.isPinned = !quickLook.isPinned;
-    if (quickLook.isPinned && !quickLook.position) {
-      quickLook.position = { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 200 };
-    }
-    if (!quickLook.isPinned) {
-      quickLook.position = null;
-      quickLook.isActive = false;
+    quickLook.value.isPinned = !quickLook.value.isPinned;
+  }
+
+  function setPosition(position: { x: number; y: number }) {
+    quickLook.value.position = position;
+  }
+
+  function openDrawer(name: keyof typeof drawers.value) {
+    drawers.value[name] = true;
+  }
+
+  function closeDrawer(name: keyof typeof drawers.value) {
+    drawers.value[name] = false;
+  }
+
+  function addToast(
+    message: string,
+    type: "success" | "error" | "info" | "warning" = "info",
+    duration: number = 5000
+  ) {
+    const id = Date.now().toString();
+    toasts.value.push({ id, message, type, duration });
+    
+    if (duration > 0) {
+      setTimeout(() => {
+        removeToast(id);
+      }, duration);
     }
   }
 
-  function setPosition(pos: { x: number; y: number }) {
-    if (quickLook.isPinned) {
-      quickLook.position = pos;
+  function removeToast(id: string) {
+    const index = toasts.value.findIndex(t => t.id === id);
+    if (index > -1) {
+      toasts.value.splice(index, 1);
     }
   }
 
+  function toggleConsole() {
+    isConsoleVisible.value = !isConsoleVisible.value;
+  }
 
   return {
-    toasts, addToast, removeToast, activeDrawer, openDrawer, closeDrawer, contextMenu, openContextMenu, closeContextMenu,
-    progress, setProgress, clearProgress, quickLook, showQuickLook, hideQuickLook, togglePin, setPosition, isConsoleVisible, toggleConsole,
+    // State
+    contextMenu: computed(() => contextMenu.value),
+    quickLook: computed(() => quickLook.value),
+    drawers: computed(() => drawers.value),
+    toasts: computed(() => toasts.value),
+    isConsoleVisible: computed(() => isConsoleVisible.value),
+    isAnyDrawerOpen,
+
+    // Methods
+    openContextMenu,
+    closeContextMenu,
+    showQuickLook,
+    hideQuickLook,
+    togglePin,
+    setPosition,
+    openDrawer,
+    closeDrawer,
+    addToast,
+    removeToast,
+    toggleConsole,
   };
 });

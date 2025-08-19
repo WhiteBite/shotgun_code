@@ -1,136 +1,150 @@
-import { defineStore } from "pinia";
-import { ref, computed } from "vue";
-import { useFileTreeStore } from "./file-tree.store";
-import { useTreeStateStore } from "./tree-state.store";
-import { useNotificationsStore } from "./notifications.store";
-import { apiService } from "@/services/api.service";
-import { GitStatus } from "@/types/enums";
+import { defineStore } from 'pinia'
+import { ref, computed, readonly, watch } from 'vue'
+import type { FileNode } from '@/types/api'
+import { useContext } from '@/composables/useContext'
+import { useFileTreeStore } from '@/stores/file-tree.store'
 
-export const useContextBuilderStore = defineStore("contextBuilder", () => {
-  const fileTreeStore = useFileTreeStore();
-  const treeStateStore = useTreeStateStore();
-  const notifications = useNotificationsStore();
+export const useContextBuilderStore = defineStore('context-builder', () => {
+  const { buildContext, currentContext, isLoading: contextLoading, error: contextError } = useContext()
+  const fileTreeStore = useFileTreeStore()
+  
+  const selectedFilesList = ref<string[]>([])
+  const isBuilding = ref(false)
+  const error = ref<string | null>(null)
+  const shotgunContextText = ref<string>('')
+  const lastContextGeneration = ref<Date | null>(null)
+  const contextSummary = ref({
+    files: 0,
+    characters: 0,
+    tokens: 0,
+    cost: 0
+  })
+  const contextStatus = ref({
+    status: 'none' as 'none' | 'current' | 'changed' | 'stale',
+    message: 'No context built'
+  })
 
-  const shotgunContextText = ref("");
+  const hasSelectedFiles = computed(() => selectedFilesList.value.length > 0)
+  const selectedFilesCount = computed(() => {
+    // Count only files, not directories
+    return selectedFilesList.value.filter(filePath => {
+      const node = fileTreeStore.getFileByRelPath(filePath)
+      return node && !node.isDir && !node.isGitignored && !node.isCustomIgnored
+    }).length
+  })
+  const totalFilesCount = computed(() => fileTreeStore.totalFiles)
 
-  const lastContextGeneration = ref<{
-    selectedPaths: string[];
-    timestamp: number;
-    contentHash: string;
-  } | null>(null);
+  // Sync selected files from file tree store
+  watch(() => fileTreeStore.selectedFiles, (newSelectedFiles) => {
+    selectedFilesList.value = newSelectedFiles
+  }, { immediate: true })
 
-  const selectedFiles = computed(() => {
-    const selected = [];
-    const sortedSelectedPaths = Array.from(treeStateStore.selectedPaths).sort();
-    for (const path of sortedSelectedPaths) {
-      const node = fileTreeStore.nodesMap.get(path);
-      if (node && !node.isDir && !node.isIgnored) {
-        selected.push(node);
-      }
+  async function buildContextFromSelection(projectPath: string, options?: { 
+    includeGitStatus?: boolean
+    includeCommitHistory?: boolean
+    maxTokens?: number
+  }) {
+    isBuilding.value = true
+    error.value = null
+    
+    try {
+      // Just call buildContext to start generation
+      // The real context will be set via setShotgunContext when backend responds
+      await buildContext(projectPath, selectedFilesList.value, options)
+      
+      // Don't update currentContext here - it will be updated by setShotgunContext
+      // when the backend sends the shotgunContextGenerated event
+      
+      return currentContext.value
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to build context'
+      error.value = errorMessage
+      throw new Error(errorMessage)
+    } finally {
+      isBuilding.value = false
     }
-    return selected;
-  });
+  }
 
-  const contextSummary = computed(() => {
-    const fileCount = selectedFiles.value.length;
-    // live characters: either current generated context OR sum of sizes of selected files
-    const liveChars =
-        shotgunContextText.value.length > 0
-            ? shotgunContextText.value.length
-            : selectedFiles.value.reduce((acc, f) => acc + (f.size || 0), 0);
+  function setSelectedFiles(files: string[]) {
+    selectedFilesList.value = files
+  }
 
-    const estimatedTokens = Math.ceil(liveChars / 4);
-    // Pricing based on a model like GPT-4o input (placeholder)
-    const estimatedCost = (estimatedTokens / 1_000_000) * 5.0;
-
-    return {
-      files: fileCount,
-      tokens: estimatedTokens,
-      cost: estimatedCost,
-      characters: liveChars,
-    };
-  });
-
-  const contextStatus = computed(() => {
-    if (!fileTreeStore.rootPath) {
-      return { status: "none", message: "No project open" };
+  function addSelectedFile(file: string) {
+    if (!selectedFilesList.value.includes(file)) {
+      selectedFilesList.value.push(file)
     }
-    if (!lastContextGeneration.value) {
-      return { status: "none", message: "No context generated yet" };
-    }
+  }
 
-    const currentPaths = Array.from(treeStateStore.selectedPaths).sort();
-    const lastPaths = [...lastContextGeneration.value.selectedPaths].sort();
+  function removeSelectedFile(file: string) {
+    selectedFilesList.value = selectedFilesList.value.filter(f => f !== file)
+  }
 
-    if (
-        currentPaths.length !== lastPaths.length ||
-        !currentPaths.every((path, i) => path === lastPaths[i])
-    ) {
-      return {
-        status: "changed",
-        message: "Selection changed since last generation",
-      };
-    }
+  function clearSelectedFiles() {
+    selectedFilesList.value = []
+  }
 
-    const hasModifiedSelectedFiles = selectedFiles.value.some(
-        (file) => file.gitStatus !== GitStatus.Unmodified,
-    );
-    if (hasModifiedSelectedFiles) {
-      return {
-        status: "changed",
-        message: "Some selected files have uncommitted changes",
-      };
-    }
-
-    const timeSinceGeneration = Date.now() - lastContextGeneration.value.timestamp;
-    if (timeSinceGeneration > 300000) {
-      // 5 minutes
-      return {
-        status: "stale",
-        message: "Context may be outdated (last generated > 5 min ago)",
-      };
-    }
-
-    return { status: "current", message: "Context is current" };
-  });
+  function clearError() {
+    error.value = null
+  }
 
   function setShotgunContext(context: string) {
-    shotgunContextText.value = context;
-    lastContextGeneration.value = {
-      selectedPaths: Array.from(treeStateStore.selectedPaths).sort(),
-      timestamp: Date.now(),
-      contentHash: btoa(context).slice(0, 16),
-    };
-  }
-
-  function buildContext() {
-    if (selectedFiles.value.length === 0) {
-      notifications.addLog("No files selected for context generation", "warn");
-      return;
+    console.log("setShotgunContext called with context length:", context?.length);
+    console.log("Context preview:", context?.substring(0, 200));
+    
+    shotgunContextText.value = context
+    lastContextGeneration.value = new Date()
+    
+    // Update currentContext with real content from backend
+    if (currentContext.value) {
+      currentContext.value.content = context
+      currentContext.value.name = `Контекст ${new Date().toLocaleString('ru-RU')}`
+      currentContext.value.description = `Контекст с ${selectedFilesList.value.length} файлами`
+      currentContext.value.updatedAt = new Date().toISOString()
+      currentContext.value.tokenCount = Math.ceil(context.length / 4)
     }
-    if (!fileTreeStore.rootPath) {
-      notifications.addLog("Cannot build context without a root path.", "error");
-      return;
+    
+    console.log("currentContext updated:", currentContext.value?.content?.substring(0, 100));
+    
+    // Update summary
+    contextSummary.value = {
+      files: selectedFilesList.value.length,
+      characters: context.length,
+      tokens: Math.ceil(context.length / 4), // Rough estimate
+      cost: Math.ceil(context.length / 4) * 0.0001 // Rough estimate
     }
-
-    const paths = selectedFiles.value.map((f) => f.relPath).sort();
-    apiService.requestShotgunContextGeneration(fileTreeStore.rootPath, paths);
-    notifications.addLog(`Building context from ${paths.length} files...`, "info");
-  }
-
-  function clearProjectData() {
-    shotgunContextText.value = "";
-    lastContextGeneration.value = null;
-    notifications.addLog("Context builder data cleared", "info");
+    
+    // Update status
+    contextStatus.value = {
+      status: 'current',
+      message: `Контекст построен с ${selectedFilesList.value.length} файлами`
+    }
   }
 
   return {
-    shotgunContextText,
-    selectedFiles,
-    contextSummary,
-    contextStatus,
-    setShotgunContext,
-    buildContext,
-    clearProjectData,
-  };
-});
+    // State
+    selectedFiles: readonly(selectedFilesList),
+    isBuilding: readonly(isBuilding),
+    error: readonly(error),
+    currentContext: readonly(currentContext),
+    contextLoading: readonly(contextLoading),
+    contextError: readonly(contextError),
+    shotgunContextText: readonly(shotgunContextText),
+    lastContextGeneration: readonly(lastContextGeneration),
+    contextSummary: readonly(contextSummary),
+    contextStatus: readonly(contextStatus),
+    
+    // Computed
+    hasSelectedFiles,
+    selectedFilesCount,
+    totalFilesCount,
+    
+    // Methods
+    buildContextFromSelection,
+    setSelectedFiles,
+    addSelectedFile,
+    removeSelectedFile,
+    clearSelectedFiles,
+    clearError,
+    setShotgunContext
+  }
+})

@@ -24,9 +24,9 @@ export const useExportStore = defineStore("export", () => {
   const fileSizeLimitKB = ref(2048);
 
   const enableAutoSplit = ref(true);
-  const maxTokensPerChunk = ref(150000);
-  const overlapTokens = ref(5000);
-  const splitStrategy = ref<"token" | "file" | "smart">("smart");
+  const maxTokensPerChunk = ref(50000); // Уменьшаем для более частого разделения
+  const overlapTokens = ref(1000); // Уменьшаем перекрытие
+  const splitStrategy = ref<"token" | "file" | "smart">("token"); // Простая стратегия по умолчанию
 
   const theme = ref("Dark");
   const includeLineNumbers = ref(true);
@@ -52,7 +52,7 @@ export const useExportStore = defineStore("export", () => {
 
   const shouldAutoSplit = computed(() => {
     if (!enableAutoSplit.value) return false;
-    const text = contextBuilderStore.shotgunContextText || "";
+    const text = contextBuilderStore.currentContext?.content || "";
     const estimatedTokens = estimator.estimate(text);
     return estimatedTokens > maxTokensPerChunk.value;
   });
@@ -61,15 +61,15 @@ export const useExportStore = defineStore("export", () => {
   function close() { isOpen.value = false; }
 
   async function doExportClipboard() {
-    if (!contextBuilderStore.shotgunContextText) {
-      uiStore.addToast("No context to export", "error");
+    if (!contextBuilderStore.currentContext?.content) {
+      uiStore.addToast("Нет контекста для экспорта", "error");
       return;
     }
     isLoading.value = true;
     try {
       const settings = {
         mode: "clipboard" as ExportMode,
-        context: contextBuilderStore.shotgunContextText,
+        context: contextBuilderStore.currentContext.content,
         exportFormat: exportFormat.value,
         stripComments: stripComments.value,
         includeManifest: includeManifest.value,
@@ -77,25 +77,25 @@ export const useExportStore = defineStore("export", () => {
       const result = await apiService.exportContext(settings);
       if (result.text) {
         await navigator.clipboard.writeText(result.text);
-        uiStore.addToast(`Context copied to clipboard`, "success");
+        uiStore.addToast(`Контекст скопирован в буфер обмена`, "success");
       }
     } catch (error: any) {
-      uiStore.addToast(`Export failed: ${error?.message || error}`, "error");
+      uiStore.addToast(`Ошибка экспорта: ${error?.message || error}`, "error");
     } finally {
       isLoading.value = false;
     }
   }
 
   async function doExportAI() {
-    if (!contextBuilderStore.shotgunContextText) {
-      uiStore.addToast("No context to export", "error");
+    if (!contextBuilderStore.currentContext?.content) {
+      uiStore.addToast("Нет контекста для экспорта", "error");
       return;
     }
     isLoading.value = true;
     try {
       const settings = {
         mode: "ai" as ExportMode,
-        context: contextBuilderStore.shotgunContextText,
+        context: contextBuilderStore.currentContext.content,
         tokenLimit: tokenLimit.value,
         fileSizeLimitKB: fileSizeLimitKB.value,
         aiProfile: aiProfile.value,
@@ -109,7 +109,7 @@ export const useExportStore = defineStore("export", () => {
       if (result.isLarge && result.filePath) {
         // Большой файл - показываем информацию о сохранении
         const sizeInMB = (result.sizeBytes / (1024 * 1024)).toFixed(1);
-        uiStore.addToast(`Large file (${sizeInMB}MB) exported to temp location. Check Downloads folder.`, "success");
+        uiStore.addToast(`Большой файл (${sizeInMB}MB) экспортирован во временную папку. Проверьте папку Downloads.`, "success");
 
         // TODO: В будущем добавить автоматическое перемещение в Downloads
         // или показать диалог сохранения
@@ -123,25 +123,25 @@ export const useExportStore = defineStore("export", () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        uiStore.addToast(`AI export downloaded: ${result.fileName}`, "success");
+        uiStore.addToast(`AI экспорт загружен: ${result.fileName}`, "success");
       }
     } catch (error: any) {
-      uiStore.addToast(`AI export failed: ${error?.message || error}`, "error");
+      uiStore.addToast(`Ошибка AI экспорта: ${error?.message || error}`, "error");
     } finally {
       isLoading.value = false;
     }
   }
 
   async function doExportHuman() {
-    if (!contextBuilderStore.shotgunContextText) {
-      uiStore.addToast("No context to export", "error");
+    if (!contextBuilderStore.currentContext?.content) {
+      uiStore.addToast("Нет контекста для экспорта", "error");
       return;
     }
     isLoading.value = true;
     try {
       const settings = {
         mode: "human" as ExportMode,
-        context: contextBuilderStore.shotgunContextText,
+        context: contextBuilderStore.currentContext.content,
         theme: theme.value,
         includeLineNumbers: includeLineNumbers.value,
         includePageNumbers: includePageNumbers.value,
@@ -151,7 +151,7 @@ export const useExportStore = defineStore("export", () => {
       if (result.isLarge && result.filePath) {
         // Большой файл
         const sizeInMB = (result.sizeBytes / (1024 * 1024)).toFixed(1);
-        uiStore.addToast(`Large file (${sizeInMB}MB) exported to temp location. Check Downloads folder.`, "success");
+        uiStore.addToast(`Большой файл (${sizeInMB}MB) экспортирован во временную папку. Проверьте папку Downloads.`, "success");
         console.log('Large human export saved to:', result.filePath);
 
       } else if (result.dataBase64 && result.fileName) {
@@ -162,10 +162,10 @@ export const useExportStore = defineStore("export", () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        uiStore.addToast(`Human export downloaded`, "success");
+        uiStore.addToast(`PDF экспорт загружен`, "success");
       }
     } catch (error: any) {
-      uiStore.addToast(`Human export failed`, "error");
+      uiStore.addToast(`Ошибка PDF экспорта`, "error");
     } finally {
       isLoading.value = false;
     }

@@ -1,124 +1,79 @@
 <template>
   <aside class="w-80 bg-gray-800/60 p-3 border-r border-gray-700 flex flex-col flex-shrink-0">
-    <div class="flex-shrink-0 mb-2 flex items-center gap-2">
-      <input
-          v-model="fileTreeStore.searchQuery"
-          type="text"
-          placeholder="Фильтр по файлам..."
-          class="w-full px-3 py-1.5 bg-gray-900 border border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      <button
-          @click="rescanFiles"
-          class="p-2 rounded-md hover:bg-gray-700"
-          title="Пересканировать файлы проекта"
-          :disabled="fileTreeStore.isLoading"
-      >
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-gray-400"
-            :class="{ 'animate-spin': fileTreeStore.isLoading }"
-        >
-          <polyline points="23 4 23 10 17 10"></polyline>
-          <polyline points="1 20 1 14 7 14"></polyline>
-          <path
-              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-          ></path>
-        </svg>
-      </button>
+    <div class="flex-shrink-0 mb-2">
+      <h3 class="text-sm font-semibold text-white mb-2">Файлы</h3>
     </div>
 
     <div class="flex-grow bg-gray-900/50 rounded-md border border-gray-700 overflow-hidden min-h-0">
-      <div v-if="fileTreeStore.isLoading" class="p-4 text-center text-gray-400">
-        Сканирование проекта...
-      </div>
-      <div v-else-if="fileTreeStore.error" class="p-4 text-center text-red-400">
-        {{ fileTreeStore.error }}
-      </div>
-      <FileTree v-else :nodes="visibleNodes" />
+      <FileTree />
     </div>
 
-    <!-- Сводка контекста — сразу под деревом -->
+    <!-- Context Summary -->
     <div class="flex-shrink-0 mt-2">
-      <ContextSummary />
-    </div>
-
-    <!-- Секции Git и Правила игнора ниже -->
-    <div class="flex-shrink-0 mt-2 space-y-3 pt-2 border-t border-gray-700/50">
-      <div>
-        <h3 class="font-semibold text-xs mb-2 text-gray-400">Git</h3>
-        <button
-            @click="gitStore.showHistory"
-            class="w-full text-left p-2 text-sm bg-gray-900/50 hover:bg-gray-700/80 rounded-md"
-        >
-          История коммитов
-        </button>
-      </div>
-      <div>
-        <h3 class="font-semibold text-xs mb-2 text-gray-400">
-          Правила игнорирования
-        </h3>
-        <div class="space-y-2 text-sm text-gray-300">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-                type="checkbox"
-                v-model="settingsStore.settings.useGitignore"
-                @change="updateIgnoreRules"
-                class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500 focus:ring-blue-500/50"
-            />
-            Использовать .gitignore
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-                type="checkbox"
-                v-model="settingsStore.settings.useCustomIgnore"
-                @change="updateIgnoreRules"
-                class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500 focus:ring-blue-500/50"
-            />
-            Собственные правила
-            <button
-                @click="uiStore.openDrawer('ignore')"
-                class="text-xs text-blue-400 hover:underline"
-            >
-              (Редактировать)
-            </button>
-          </label>
+      <div class="p-2 bg-gray-900/50 rounded border border-gray-700">
+        <h4 class="text-xs font-medium text-gray-400 mb-1">Сводка контекста</h4>
+        <div class="text-xs text-gray-300">
+          <div>Выбрано: {{ fileTreeStore.selectedFiles.length }}</div>
+          <div>Всего: {{ fileTreeStore.totalFiles }}</div>
         </div>
       </div>
-      <CommitHistoryModal />
+    </div>
+
+    <!-- Ignore Rules -->
+    <div class="flex-shrink-0 mt-2 space-y-2 pt-2 border-t border-gray-700/50">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold text-xs text-gray-400">Правила игнорирования</h3>
+        <button
+          @click="openIgnoreDrawer"
+          class="p-1 text-gray-400 hover:text-white transition-colors"
+          title="Настроить правила игнорирования"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-2 text-sm text-gray-300">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            v-model="fileTreeStore.useGitignore"
+            @change="updateIgnoreRules"
+            class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500"
+          />
+          Использовать .gitignore
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            v-model="fileTreeStore.useCustomIgnore"
+            @change="updateIgnoreRules"
+            class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500"
+          />
+          Пользовательские правила
+        </label>
+      </div>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { useFileTreeStore } from "@/stores/file-tree.store";
-import { useSettingsStore } from "@/stores/settings.store";
-import { useUiStore } from "@/stores/ui.store";
-import { useGitStore } from "@/stores/git.store";
-import { useVisibleNodes } from "@/composables/useVisibleNodes";
-import FileTree from "@/components/workspace/FileTree.vue";
-import ContextSummary from "@/components/workspace/ContextSummary.vue";
-import CommitHistoryModal from "@/components/modals/CommitHistoryModal.vue";
+import { useFileTreeStore } from '@/stores/file-tree.store'
+import { useUiStore } from '@/stores/ui.store'
+import FileTree from '@/components/workspace/FileTree.vue'
+import IgnoreDrawer from '@/components/drawers/IgnoreDrawer.vue'
+import { useContextBuilderStore } from '@/stores/context-builder.store'
 
-const fileTreeStore = useFileTreeStore();
-const settingsStore = useSettingsStore();
-const uiStore = useUiStore();
-const gitStore = useGitStore();
-const { visibleNodes } = useVisibleNodes();
+const fileTreeStore = useFileTreeStore()
+const uiStore = useUiStore()
+const contextBuilderStore = useContextBuilderStore()
 
 async function updateIgnoreRules() {
-  await settingsStore.saveIgnoreSettings();
-  await fileTreeStore.fetchFileTree();
+  await fileTreeStore.refreshFiles()
 }
 
-function rescanFiles() {
-  fileTreeStore.fetchFileTree();
+function openIgnoreDrawer() {
+  uiStore.openDrawer('ignore')
 }
 </script>

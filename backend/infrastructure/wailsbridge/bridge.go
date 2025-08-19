@@ -50,8 +50,10 @@ func (b *Bridge) Fatal(message string) {
 
 func (b *Bridge) Emit(eventName string, data ...interface{}) {
 	if len(data) > 0 {
+		runtime.LogInfo(b.ctx, fmt.Sprintf("Emitting event: %s with data length: %d", eventName, len(fmt.Sprintf("%v", data[0]))))
 		runtime.EventsEmit(b.ctx, eventName, data[0])
 	} else {
+		runtime.LogInfo(b.ctx, fmt.Sprintf("Emitting event: %s without data", eventName))
 		runtime.EventsEmit(b.ctx, eventName)
 	}
 }

@@ -1,0 +1,24 @@
+# GBNF grammar for Edits JSON (llama.cpp)
+root ::= ws "{" ws (sv ws ",")? ws ""edits"" ws ":" ws "[" ws edits_list? ws "]" ws "}" ws
+sv   ::= ""schemaVersion"" ws ":" ws string
+edits_list ::= edit (ws "," ws edit)*
+edit ::= "{" ws edit_body ws "}"
+edit_body ::= pair (ws "," ws pair)*
+pair ::= key ws ":" ws value
+key  ::= """ (letter | digit | "_" | "-")+ """
+value ::= string
+       | number
+       | "null"
+       | "true"
+       | "false"
+       | "{" ws (pair (ws "," ws pair)*)? ws "}"
+       | "[" ws (value (ws "," ws value)*)? ws "]"
+
+string ::= """ chars? """
+chars  ::= char+
+char   ::= escape | ~"[\"\u0000-\u001F]"
+escape ::= "\\" | "\"" | "\/" | "\b" | "\f" | "\n" | "\r" | "\t"
+number ::= "-"? ("0" | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+letter ::= [A-Za-z]
+digit  ::= [0-9]
+ws     ::= ([ \t\n\r])* 

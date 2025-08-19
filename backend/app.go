@@ -11,6 +11,7 @@ import (
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/wailsbridge"
 	"strings"
+	"time"
 )
 
 type App struct {
@@ -24,6 +25,7 @@ type App struct {
 	exportService   *application.ExportService
 	fileReader      domain.FileContentReader
 	bridge          *wailsbridge.Bridge
+	log             domain.Logger
 }
 
 func (a *App) startup(ctx context.Context, container *app.AppContainer) {
@@ -37,6 +39,7 @@ func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.exportService = container.ExportService
 	a.fileReader = container.FileReader
 	a.bridge = container.Bridge
+	a.log = container.Log
 }
 
 func (a *App) domReady(ctx context.Context) {
@@ -65,8 +68,114 @@ func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
 	return a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
 }
 
+// GenerateIntelligentCode выполняет интеллектуальную генерацию кода
+func (a *App) GenerateIntelligentCode(task, context, optionsJson string) (string, error) {
+	var options application.IntelligentGenerationOptions
+	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+		return "", fmt.Errorf("failed to parse options JSON: %w", err)
+	}
+
+	result, err := a.aiService.GenerateIntelligentCode(a.ctx, task, context, options)
+	if err != nil {
+		return "", err
+	}
+
+	// Возвращаем результат как JSON
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return string(resultJson), nil
+}
+
+// GenerateCodeWithOptions генерирует код с дополнительными опциями
+func (a *App) GenerateCodeWithOptions(systemPrompt, userPrompt, optionsJson string) (string, error) {
+	var options application.CodeGenerationOptions
+	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+		return "", fmt.Errorf("failed to parse options JSON: %w", err)
+	}
+
+	return a.aiService.GenerateCodeWithOptions(a.ctx, systemPrompt, userPrompt, options)
+}
+
+// GetProviderInfo возвращает информацию о текущем провайдере
+func (a *App) GetProviderInfo() (string, error) {
+	info, err := a.aiService.GetProviderInfo(a.ctx)
+	if err != nil {
+		return "", err
+	}
+
+	infoJson, err := json.Marshal(info)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal provider info: %w", err)
+	}
+
+	return string(infoJson), nil
+}
+
+// ListAvailableModels возвращает список доступных моделей
+func (a *App) ListAvailableModels() ([]string, error) {
+	return a.aiService.ListAvailableModels(a.ctx)
+}
+
 func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]string, error) {
 	return a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
+}
+
+// AnalyzeTaskAndCollectContext интеллектуально анализирует задачу и автоматически собирает контекст
+func (a *App) AnalyzeTaskAndCollectContext(task string, allFilesJson string, rootDir string) (string, error) {
+	var allFiles []*domain.FileNode
+	if err := json.Unmarshal([]byte(allFilesJson), &allFiles); err != nil {
+		return "", fmt.Errorf("failed to parse files JSON: %w", err)
+	}
+
+	contextAnalysisService := application.NewContextAnalysisService(
+		a.aiService,
+		a.fileReader,
+		a.log, // Now correctly initialized
+		a.settingsService,
+	)
+
+	result, err := contextAnalysisService.AnalyzeTaskAndCollectContext(a.ctx, task, allFiles, rootDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to analyze task and collect context: %w", err)
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return string(resultJson), nil
+}
+
+// TestBackend простой тест для проверки работы backend
+func (a *App) TestBackend(allFilesJson string, rootDir string) (string, error) {
+	var allFiles []*domain.FileNode
+	if err := json.Unmarshal([]byte(allFilesJson), &allFiles); err != nil {
+		return "", fmt.Errorf("failed to parse files JSON: %w", err)
+	}
+
+	// Простой тест - возвращаем информацию о файлах
+	testResult := map[string]interface{}{
+		"status":     "success",
+		"filesCount": len(allFiles),
+		"rootDir":    rootDir,
+		"timestamp":  time.Now().Unix(),
+		"message":    "Backend работает корректно",
+	}
+
+	if len(allFiles) > 0 {
+		testResult["sampleFile"] = allFiles[0].RelPath
+	}
+
+	resultJson, err := json.Marshal(testResult)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal test result: %w", err)
+	}
+
+	return string(resultJson), nil
 }
 
 func (a *App) GetSettings() (domain.SettingsDTO, error) {

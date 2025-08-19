@@ -21,15 +21,30 @@ class EventService {
       notifications.addLog(errorMessage, "error");
     });
 
+    EventsOn("shotgunContextGenerationStarted", (data: { fileCount: number; rootDir: string }) => {
+      uiStore.setProgress({ isActive: true, message: `Starting context generation for ${data.fileCount} files...`, value: 0 });
+    });
+
     EventsOn("shotgunContextGenerationProgress", (progress: { current: number; total: number }) => {
       const percent = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
       uiStore.setProgress({ isActive: true, message: "Building context...", value: percent });
     });
 
     EventsOn("shotgunContextGenerated", (context: string) => {
-      contextBuilderStore.setShotgunContext(context);
-      uiStore.clearProgress();
-      notifications.addLog("Context generated successfully.", "success");
+      console.log("shotgunContextGenerated event received, length:", context?.length);
+      console.log("Context preview (first 200 chars):", context?.substring(0, 200));
+      try {
+        contextBuilderStore.setShotgunContext(context);
+        uiStore.clearProgress();
+        // Убираю дублирование - оставляю только одно уведомление
+        notifications.addLog("Context generated successfully.", "success");
+        console.log("Context generated, length:", context.length);
+        console.log("ContextBuilderStore currentContext updated:", contextBuilderStore.currentContext?.content?.substring(0, 100));
+      } catch (error) {
+        console.error("Error in shotgunContextGenerated handler:", error);
+        uiStore.clearProgress();
+        notifications.addLog("Error processing context: " + error, "error");
+      }
     });
 
     // НОВОЕ: обработка ошибок генерации контекста
@@ -37,6 +52,13 @@ class EventService {
       uiStore.clearProgress();
       notifications.addLog("Context generation failed: " + errorMessage, "error");
       uiStore.addToast("Failed to build context. Check console for details.", "error");
+    });
+
+    // Обработка таймаута
+    EventsOn("shotgunContextGenerationTimeout", () => {
+      uiStore.clearProgress();
+      notifications.addLog("Context generation timed out after 30 seconds", "error");
+      uiStore.addToast("Context generation timed out. Try with fewer files.", "error");
     });
 
     let rescanTimer: number | null = null;

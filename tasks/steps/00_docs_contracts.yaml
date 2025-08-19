@@ -1,0 +1,13 @@
+        id: T-000
+        title: T-000 Bootstrap Docs & Contracts
+        description: "Документы/контракты на месте: INTELLIGENT_AI_SYSTEM.md, ROADMAP.md, схема edits."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'fileExists', 'path': 'docs/INTELLIGENT_AI_SYSTEM.md'}, {'kind': 'fileExists', 'path': 'docs/ROADMAP.md'}, {'kind': 'fileExists', 'path': 'docs/schemas/edits.schema.json'}]
+        onSuccess:
+          - updateStatus: done

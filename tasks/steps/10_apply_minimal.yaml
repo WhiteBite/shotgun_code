@@ -1,0 +1,13 @@
+        id: T-101
+        title: T-101 Apply Engine (anchor/fullFile) + formatters
+        description: "Минимальный применитель правок: anchor/fullFile + форматтеры + импорт-фиксы."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'mcp.build.check', 'scope': 'go+ts'}]
+        onSuccess:
+          - updateStatus: done

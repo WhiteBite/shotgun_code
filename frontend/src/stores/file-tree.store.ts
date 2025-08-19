@@ -1,164 +1,171 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
-import type { FileNode, DomainFileNode } from "@/types/dto";
-import { GitStatus, ContextOrigin } from "@/types/enums";
-import { useNotificationsStore } from "./notifications.store";
-import { useSettingsStore } from "./settings.store";
-import { useTreeStateStore } from "./tree-state.store";
-import { apiService } from "@/services/api.service";
+import { defineStore } from 'pinia'
+import { ref, computed, readonly } from 'vue'
+import { useFileTree } from '@/composables/useFileTree'
+import { useTreeStateStore } from './tree-state.store'
 
-function mapDomainNodeToViewNode(
-    node: DomainFileNode,
-    depth: number,
-    parentPath: string | null,
-): FileNode {
-  return {
-    name: node.name,
-    path: node.path,
-    relPath: node.relPath,
-    isDir: node.isDir,
-    children: node.children?.map((c) => ({ path: c.path })),
-    depth,
-    gitStatus: GitStatus.Unmodified,
-    contextOrigin: ContextOrigin.None,
-    isBinary: false,
-    isIgnored: node.isCustomIgnored || node.isGitignored,
-    isGitignored: node.isGitignored,
-    isCustomIgnored: node.isCustomIgnored,
-    parentPath,
-    size: node.size || 0,
-  };
-}
-
-export const useFileTreeStore = defineStore("fileTree", () => {
-  const notifications = useNotificationsStore();
-  const settingsStore = useSettingsStore();
-  const treeStateStore = useTreeStateStore();
-
-  const isLoading = ref(false);
-  const error = ref<string | null>(null);
-  const rootPath = ref<string>("");
-  const searchQuery = ref("");
-
-  const nodesMap = ref(new Map<string, FileNode>());
-  const rootNodes = ref<FileNode[]>([]);
-
-  async function fetchFileTree() {
-    if (!rootPath.value) {
-      notifications.addLog("No project root path set. Aborting fetch.", "warn");
-      return;
-    }
-    if (isLoading.value) {
-      notifications.addLog("fetchFileTree already in progress.", "debug");
-      return;
-    }
-
-    isLoading.value = true;
-    error.value = null;
-    notifications.addLog(`Starting file tree fetch for: ${rootPath.value}`, "info");
-
-    try {
-      const { useGitignore, useCustomIgnore } = settingsStore.settings;
-      const treeData = await apiService.listFiles(rootPath.value, useGitignore, useCustomIgnore);
-
-      // Process nodes into a map and a root list
-      const newNodesMap = new Map<string, FileNode>();
-      const newRootNodes: FileNode[] = [];
-
-      const stack: {
-        node: DomainFileNode;
-        depth: number;
-        parentPath: string | null;
-      }[] = treeData.map((n) => ({ node: n, depth: 0, parentPath: null }));
-
-      while (stack.length > 0) {
-        const { node, depth, parentPath } = stack.pop()!;
-        const viewNode = mapDomainNodeToViewNode(node, depth, parentPath);
-        newNodesMap.set(viewNode.path, viewNode);
-
-        if (depth === 0) {
-          newRootNodes.push(viewNode);
-        }
-
-        if (node.children) {
-          for (const child of [...node.children].reverse()) {
-            stack.push({ node: child, depth: depth + 1, parentPath: node.path });
-          }
-        }
-      }
-
-      nodesMap.value = newNodesMap;
-      rootNodes.value = newRootNodes.sort((a, b) => {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-
-      // Auto-expand the root node(s)
-      rootNodes.value.forEach((r) => treeStateStore.expandedPaths.add(r.path));
-
-      await updateGitStatuses();
-      notifications.addLog(`Fetched ${nodesMap.value.size} total nodes.`, "info");
-    } catch (err: any) {
-      const message = err.message || String(err);
-      error.value = `Failed to load file tree: ${message}`;
-      notifications.addLog(error.value, "error");
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function updateGitStatuses() {
-    if (!rootPath.value) return;
-    try {
-      const isGit = await apiService.isGitAvailable();
-      if (!isGit) return;
-
-      const statuses = await apiService.getUncommittedFiles(rootPath.value);
-      const statusMap = new Map<string, GitStatus>();
-      statuses.forEach((s) => {
-        let mappedStatus: GitStatus;
-        switch (s.status) {
-          case "M": mappedStatus = GitStatus.Modified; break;
-          case "A": mappedStatus = GitStatus.Added; break;
-          case "D": mappedStatus = GitStatus.Deleted; break;
-          case "R": mappedStatus = GitStatus.Renamed; break;
-          case "C": mappedStatus = GitStatus.Copied; break;
-          case "U": case "??": mappedStatus = GitStatus.Untracked; break;
-          case "UM": mappedStatus = GitStatus.UnmergedConflict; break;
-          default: mappedStatus = GitStatus.Unmodified; break;
-        }
-        statusMap.set(s.path, mappedStatus);
-      });
-
-      nodesMap.value.forEach((node) => {
-        if (!node.isDir) {
-          node.gitStatus = statusMap.get(node.relPath) || GitStatus.Unmodified;
-        }
-      });
-    } catch (err: any) {
-      notifications.addLog(`Git status check failed: ${err.message}`, "error");
-    }
-  }
-
-  function clearProjectData() {
-    isLoading.value = false;
-    error.value = null;
-    rootPath.value = "";
-    searchQuery.value = "";
-    nodesMap.value.clear();
-    rootNodes.value = [];
-    treeStateStore.resetState();
-    notifications.addLog("File tree data cleared", "info");
-  }
-
-  return {
+export const useFileTreeStore = defineStore('file-tree', () => {
+  const {
+    nodes,
+    nodesMap,
     isLoading,
     error,
-    rootPath,
     searchQuery,
-    nodesMap,
-    rootNodes,
+    visibleNodes,
+    selectedFiles,
+    totalFiles,
     fetchFileTree,
-    clearProjectData,
-  };
-});
+    toggleNodeSelection,
+    clearSelection,
+    selectAll,
+    setSearchQuery,
+    clearError
+  } = useFileTree()
+  
+  const rootPath = ref<string>('')
+  const useGitignore = ref(true)
+  const useCustomIgnore = ref(true)
+
+  const hasFiles = computed(() => nodes.value.length > 0)
+  const hasSelectedFiles = computed(() => selectedFiles.value.length > 0)
+
+  // Track expanded state
+  const expandedPaths = ref<Set<string>>(new Set())
+
+  function isNodeExpanded(path: string): boolean {
+    return expandedPaths.value.has(path)
+  }
+
+  function toggleNodeExpanded(path: string) {
+    if (expandedPaths.value.has(path)) {
+      expandedPaths.value.delete(path)
+    } else {
+      expandedPaths.value.add(path)
+    }
+  }
+
+  async function loadProject(projectPath: string) {
+    rootPath.value = projectPath
+    await fetchFileTree(projectPath, useGitignore.value, useCustomIgnore.value)
+    
+    // Auto-expand root folder by default
+    if (nodes.value.length > 0) {
+      expandedPaths.value.add(nodes.value[0].path)
+      // Also expand first level directories
+      nodes.value.forEach(node => {
+        if (node.isDir && node.children && node.children.length > 0) {
+          expandedPaths.value.add(node.path)
+        }
+      })
+    }
+    
+    // Clear previous selections when loading new project
+    clearSelection()
+  }
+
+  async function refreshFiles() {
+    if (!rootPath.value) {
+      return
+    }
+    
+    await fetchFileTree(rootPath.value, useGitignore.value, useCustomIgnore.value)
+  }
+
+  async function updateIgnoreSettings(newUseGitignore: boolean, newUseCustomIgnore: boolean) {
+    useGitignore.value = newUseGitignore
+    useCustomIgnore.value = newUseCustomIgnore
+    
+    if (rootPath.value) {
+      await refreshFiles()
+    }
+  }
+
+  function clearProject() {
+    rootPath.value = ''
+    clearSelection()
+    clearError()
+  }
+
+  function getAllFiles(): any[] {
+    const allFiles: any[] = []
+    
+    const collectFiles = (nodes: readonly any[]) => {
+      for (const node of nodes) {
+        if (!node.isDir) {
+          allFiles.push(node)
+        }
+        if (node.children) {
+          collectFiles(node.children)
+        }
+      }
+    }
+    
+    collectFiles(nodes.value)
+    return allFiles
+  }
+
+  function getFileByPath(path: string): any | undefined {
+    return nodesMap.value.get(path)
+  }
+
+  function getFileByRelPath(relPath: string): any | undefined {
+    for (const node of nodesMap.value.values()) {
+      if (node.relPath === relPath) {
+        return node
+      }
+    }
+    return undefined
+  }
+
+  function setSelectedFiles(filePaths: string[]) {
+    // Очищаем текущий выбор
+    clearSelection()
+    
+    // Добавляем новые файлы
+    filePaths.forEach(relPath => {
+      // Ищем файл по relPath
+      const node = getFileByRelPath(relPath)
+      if (node && !node.isDir && !node.isGitignored && !node.isCustomIgnored) {
+        // Используем toggleNodeSelection для правильного обновления состояния
+        toggleNodeSelection(node.path)
+      }
+    })
+  }
+
+  return {
+    // State
+    rootPath: readonly(rootPath),
+    useGitignore,
+    useCustomIgnore,
+    
+    // From useFileTree
+    nodes: readonly(nodes),
+    nodesMap: readonly(nodesMap),
+    isLoading: readonly(isLoading),
+    error: readonly(error),
+    searchQuery,
+    visibleNodes,
+    selectedFiles,
+    totalFiles,
+    
+    // Computed
+    hasFiles,
+    hasSelectedFiles,
+    
+    // Methods
+    loadProject,
+    refreshFiles,
+    updateIgnoreSettings,
+    clearProject,
+    getAllFiles,
+    getFileByPath,
+    getFileByRelPath,
+    toggleNodeSelection,
+    clearSelection,
+    selectAll,
+    setSearchQuery,
+    clearError,
+    isNodeExpanded,
+    toggleNodeExpanded,
+    setSelectedFiles
+  }
+})

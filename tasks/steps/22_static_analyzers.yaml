@@ -1,0 +1,13 @@
+        id: T-203
+        title: T-203 Static analyzers baseline
+        description: "Подключить staticcheck/ESLint/ErrorProne базово."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'analyze/static', 'scope': 'backend+frontend'}]
+        onSuccess:
+          - updateStatus: done

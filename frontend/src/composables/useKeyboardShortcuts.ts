@@ -72,12 +72,31 @@ export function attachShortcuts() {
         isPinned: true,
       });
     },
+    // Добавляем Ctrl для QuickLook
+    "ctrl": () => {
+      // QuickLook по Ctrl будет обрабатываться в handleKeydown
+    },
+    // Добавляем Alt для рекурсивного разворачивания
+    "alt": () => {
+      // Alt будет обрабатываться в handleKeydown
+    },
     "ctrl+arrowright": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
       treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, true);
     },
     "ctrl+arrowleft": () => {
+      const active = treeStateStore.activeNodePath;
+      if (!active) return;
+      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, false);
+    },
+    // Alt + стрелки для рекурсивного разворачивания
+    "alt+arrowright": () => {
+      const active = treeStateStore.activeNodePath;
+      if (!active) return;
+      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, true);
+    },
+    "alt+arrowleft": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
       treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, false);
@@ -94,6 +113,25 @@ export function attachShortcuts() {
     ].filter(Boolean).join("+");
 
     if (isEditableTarget() && normKey !== "escape") return;
+
+    // Обработка Ctrl для QuickLook
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && normKey !== "ctrl") {
+      const activePath = treeStateStore.activeNodePath;
+      const rootDir = projectStore.currentProject?.path || "";
+      if (activePath && rootDir) {
+        const node = fileTreeStore.nodesMap.get(activePath);
+        if (node && !node.isDir && !node.isIgnored) {
+          const fakeEvent = new MouseEvent("click", { clientX: window.innerWidth/2, clientY: window.innerHeight/2 });
+          uiStore.showQuickLook({
+            rootDir,
+            path: node.relPath,
+            type: "fs",
+            event: fakeEvent,
+            isPinned: false, // Не закрепляем при Ctrl
+          });
+        }
+      }
+    }
 
     if (shortcuts[parts]) {
       event.preventDefault();

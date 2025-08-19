@@ -1,0 +1,117 @@
+version: 1
+defaults:
+  budgets:
+    maxFiles: 12
+    maxChangedLines: 400
+tasks:
+  - id: T-000
+    name: Bootstrap Docs & Contracts
+    dependsOn: []
+    stepFile: tasks/steps/00_docs_contracts.yaml
+    budgets: { maxFiles: 4, maxChangedLines: 120 }
+    status: todo
+
+  - id: T-010
+    name: LSP Servers (Go/TS/Java) up
+    dependsOn: [T-000]
+    stepFile: tasks/steps/01_lsp_up.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-011
+    name: Symbol/Import Graph build
+    dependsOn: [T-010]
+    stepFile: tasks/steps/02_symbol_graph.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-012
+    name: Context Pack builder
+    dependsOn: [T-011]
+    stepFile: tasks/steps/03_context_pack.yaml
+    budgets: { maxFiles: 8, maxChangedLines: 200 }
+    status: todo
+
+  - id: T-101
+    name: Apply Engine (anchor/fullFile) + formatters
+    dependsOn: [T-012]
+    stepFile: tasks/steps/10_apply_minimal.yaml
+    budgets: { maxFiles: 10, maxChangedLines: 300 }
+    status: todo
+
+  - id: T-102
+    name: Derived diff emission
+    dependsOn: [T-101]
+    stepFile: tasks/steps/11_derived_diff.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-201
+    name: Build/Type-check pipeline
+    dependsOn: [T-102]
+    stepFile: tasks/steps/20_build_typecheck.yaml
+    budgets: { maxFiles: 8, maxChangedLines: 220 }
+    status: todo
+
+  - id: T-202
+    name: Targeted tests (affected graph)
+    dependsOn: [T-201]
+    stepFile: tasks/steps/21_tests_targeted.yaml
+    budgets: { maxFiles: 8, maxChangedLines: 220 }
+    status: todo
+
+  - id: T-203
+    name: Static analyzers baseline
+    dependsOn: [T-201]
+    stepFile: tasks/steps/22_static_analyzers.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-204
+    name: SBOM/licensing baseline
+    dependsOn: [T-201]
+    stepFile: tasks/steps/23_sbom_licensing.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-301
+    name: Local LLM + grammar-guided JSON
+    dependsOn: [T-201]
+    stepFile: tasks/steps/30_llm_local_gg.yaml
+    budgets: { maxFiles: 10, maxChangedLines: 300 }
+    status: todo
+
+  - id: T-302
+    name: Short repair loop (rule-fix + retry)
+    dependsOn: [T-301]
+    stepFile: tasks/steps/31_repair_loop.yaml
+    budgets: { maxFiles: 8, maxChangedLines: 240 }
+    status: todo
+
+  - id: T-401
+    name: Guardrails & budgets policy
+    dependsOn: [T-201]
+    stepFile: tasks/steps/40_guardrails_policy.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo
+
+  - id: T-402
+    name: Taskflow integration checks
+    dependsOn: [T-401]
+    stepFile: tasks/steps/41_taskflow_checks.yaml
+    budgets: { maxFiles: 4, maxChangedLines: 120 }
+    status: todo
+
+  - id: T-501
+    name: UX: why view & metrics
+    dependsOn: [T-201]
+    stepFile: tasks/steps/50_ux_metrics.yaml
+    budgets: { maxFiles: 8, maxChangedLines: 240 }
+    status: todo
+
+  - id: T-999
+    name: Final policy gate rehearsal
+    dependsOn: [T-501, T-402, T-302, T-204, T-203, T-202]
+    stepFile: tasks/steps/99_final_gate.yaml
+    budgets: { maxFiles: 6, maxChangedLines: 160 }
+    status: todo

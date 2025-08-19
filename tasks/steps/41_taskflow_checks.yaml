@@ -1,0 +1,13 @@
+        id: T-402
+        title: T-402 Taskflow integration checks
+        description: "Проверить, что Taskflow работает и обновляет statuses."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'fileExists', 'path': 'tasks/status.json'}]
+        onSuccess:
+          - updateStatus: done

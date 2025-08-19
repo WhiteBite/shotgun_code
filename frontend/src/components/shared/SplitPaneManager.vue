@@ -17,6 +17,14 @@
         >
           ⫿ Split Horizontal
         </button>
+        <button
+            @click="closeSplit"
+            v-if="layout !== 'single'"
+            class="flex items-center gap-1 px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs"
+            title="Close split"
+        >
+          ✕ Close Split
+        </button>
       </div>
       <div class="flex items-center gap-2">
         <select v-model="layout" class="bg-gray-700 border-gray-600 rounded px-2 py-1 text-xs">
@@ -58,5 +66,9 @@ function addVerticalSplit() {
 
 function addHorizontalSplit() {
   layout.value = 'horizontal'
+}
+
+function closeSplit() {
+  layout.value = 'single'
 }
 </script>

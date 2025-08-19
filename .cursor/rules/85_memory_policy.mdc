@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+tags: ['memory','policy']
+---
+# Memory Usage Policy (MCP memory/Byteover)
+
+- Хранить ТОЛЬКО метаданные: current_task_id, iteration, last_error_code/summary, timestamps.
+- НЕ хранить исходники, секреты, большие логи.
+- Истина — в репозитории: tasks/status.json, build/test reports.
+- Очистка: при завершении task — сворачивать память до краткого summary.

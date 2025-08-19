@@ -4,15 +4,15 @@
     <div class="flex-grow flex min-h-0">
       <FilePanel />
       <div class="flex-grow flex flex-col min-h-0 min-w-0">
-        <SplitPaneVertical :initialTop="360" :storageKey="splitPaneKey" class="flex-grow">
+        <SplitPaneVertical :initialTop="500" :storageKey="splitPaneKey" class="flex-grow">
           <template #top>
-            <div class="pl-0 p-4 pb-2 h-full">
+            <div class="pl-0 p-4 pb-2 h-full min-h-[300px]">
               <TaskComposer />
             </div>
           </template>
           <template #bottom>
-            <div class="pl-0 p-4 pt-2 h-full">
-              <FilePreview />
+            <div class="pl-0 p-4 pt-2 h-full min-h-[400px]">
+              <ContextPreview />
             </div>
           </template>
         </SplitPaneVertical>
@@ -42,7 +42,7 @@ import { useProjectStore } from "@/stores/project.store";
 import { hashStringFNV1a } from "@/utils/hash";
 
 import FilePanel from "@/components/panels/FilePanel.vue";
-import FilePreview from "@/components/workspace/FilePreview.vue";
+import ContextPreview from "@/components/workspace/ContextPreview.vue";
 import TaskComposer from "@/components/workspace/TaskComposer.vue";
 import CommandBar from "@/components/bars/CommandBar.vue";
 import ActionBar from "@/components/bars/ActionBar.vue";

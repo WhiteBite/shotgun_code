@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+tags: ['guardrails','safety','policy']
+---
+# Guardrails
+
+- Запрещённые пути (forbid): go.mod, package.json/lock, dist/node_modules, secrets, бинарники, временные каталоги.
+- Лимиты: maxFiles, maxChangedLines — соблюдай budgets, не выходи за них.
+- Любая внешняя сеть/облачный LLM — только через MCP-инструмент и requiresEscalation: true.
+- Не генерируй чувствительные данные, секреты, лицензированные фрагменты.

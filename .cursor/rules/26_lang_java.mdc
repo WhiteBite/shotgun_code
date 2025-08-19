@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+tags: ['lang','java','openrewrite']
+---
+# Language Guide — Java/Kotlin
+
+- Семантические изменения — через OpenRewrite (LST, type-aware).
+- Пост-шага: Gradle/Maven build; ErrorProne/NullAway/SpotBugs при необходимости.
+- Не забывай о корректном импортировании и форматировании.
+- Для крупных рефакторингов — recipeOp с параметрами рецептов.

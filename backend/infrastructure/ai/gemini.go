@@ -7,6 +7,7 @@ import (
 	"shotgun_code/domain"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/iterator"
@@ -70,6 +71,7 @@ func (p *GeminiProviderImpl) ListModels(ctx context.Context) ([]string, error) {
 }
 
 func (p *GeminiProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (domain.AIResponse, error) {
+	startTime := time.Now()
 	p.log.Info(fmt.Sprintf("Sending request to Gemini API with model: %s", req.Model))
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(p.apiKey))
@@ -81,6 +83,20 @@ func (p *GeminiProviderImpl) Generate(ctx context.Context, req domain.AIRequest)
 	model := client.GenerativeModel(req.Model)
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(req.SystemPrompt)},
+	}
+
+	// Настраиваем параметры генерации
+	if req.Temperature > 0 {
+		temp := float32(req.Temperature)
+		model.Temperature = &temp
+	}
+	if req.MaxTokens > 0 {
+		maxTokens := int32(req.MaxTokens)
+		model.MaxOutputTokens = &maxTokens
+	}
+	if req.TopP > 0 {
+		topP := float32(req.TopP)
+		model.TopP = &topP
 	}
 
 	resp, err := model.GenerateContent(ctx, genai.Text(req.UserPrompt))
@@ -95,8 +111,74 @@ func (p *GeminiProviderImpl) Generate(ctx context.Context, req domain.AIRequest)
 
 	firstPart := resp.Candidates[0].Content.Parts[0]
 	if text, ok := firstPart.(genai.Text); ok {
-		return domain.AIResponse{Content: string(text)}, nil
+		processingTime := time.Since(startTime)
+
+		// Подсчитываем токены (примерная оценка)
+		tokensUsed := len(string(text)) / 4
+
+		return domain.AIResponse{
+			Content:        string(text),
+			TokensUsed:     tokensUsed,
+			ModelUsed:      req.Model,
+			ProcessingTime: processingTime,
+			FinishReason:   "stop",
+			Confidence:     0.9,
+		}, nil
 	}
 
 	return domain.AIResponse{}, fmt.Errorf("unsupported content type returned from Gemini: %T", firstPart)
+}
+
+func (p *GeminiProviderImpl) GetProviderInfo() domain.ProviderInfo {
+	return domain.ProviderInfo{
+		Name:            "Google Gemini",
+		Version:         "1.0",
+		Capabilities:    []string{"chat", "completion", "embeddings"},
+		Limitations:     []string{"rate_limited", "token_limited"},
+		SupportedModels: []string{"gemini-pro", "gemini-pro-vision", "gemini-1.5-pro"},
+	}
+}
+
+func (p *GeminiProviderImpl) ValidateRequest(req domain.AIRequest) error {
+	if req.Model == "" {
+		return fmt.Errorf("model is required")
+	}
+	if req.UserPrompt == "" {
+		return fmt.Errorf("user prompt is required")
+	}
+	return nil
+}
+
+func (p *GeminiProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
+	// Простая оценка токенов для Gemini
+	totalChars := len(req.SystemPrompt) + len(req.UserPrompt)
+	estimatedTokens := totalChars / 4
+
+	// Добавляем буфер для безопасности
+	return estimatedTokens + 100, nil
+}
+
+func (p *GeminiProviderImpl) GetPricing(model string) domain.PricingInfo {
+	// Базовая информация о стоимости Gemini
+	pricing := domain.PricingInfo{
+		Model:    model,
+		Currency: "USD",
+	}
+
+	switch model {
+	case "gemini-pro":
+		pricing.InputTokensPer1K = 0.0005
+		pricing.OutputTokensPer1K = 0.0015
+	case "gemini-pro-vision":
+		pricing.InputTokensPer1K = 0.0005
+		pricing.OutputTokensPer1K = 0.0015
+	case "gemini-1.5-pro":
+		pricing.InputTokensPer1K = 0.00375
+		pricing.OutputTokensPer1K = 0.015
+	default:
+		pricing.InputTokensPer1K = 0.001
+		pricing.OutputTokensPer1K = 0.002
+	}
+
+	return pricing
 }

@@ -1,0 +1,13 @@
+        id: T-301
+        title: T-301 Local LLM + grammar-guided JSON
+        description: "Интегрировать локальную модель и жёсткую грамматику JSON (GBNF/structured)."
+        actions:
+          - prompt: |
+              Выполни изменения строго структурированными правками (Edits JSON / SAP).
+              Уважай budgets и forbid-пути. Только внутри workspace.
+              После применения: форматирование/импорты → build/type-check → (если нужно) tests/static.
+            budgets: { maxFiles: 10, maxChangedLines: 300 }
+        acceptance:
+[{'kind': 'mcp.build.check', 'scope': 'go+ts'}]
+        onSuccess:
+          - updateStatus: done
