@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { apiService } from "@/services/api.service";
+import { apiService } from "@/infrastructure/api/api.service";
 import { useNotificationsStore } from "./notifications.store";
 import { useUiStore } from "./ui.store";
 
@@ -50,7 +50,7 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
   const lastResult = ref<IntelligentGenerationResult | null>(null);
   const providerInfo = ref<ProviderInfo | null>(null);
   const availableModels = ref<string[]>([]);
-  
+
   const notifications = useNotificationsStore();
   const uiStore = useUiStore();
 
@@ -75,14 +75,20 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
     codeStyle: "",
   });
 
-  const currentOptions = ref<IntelligentGenerationOptions>({ ...defaultOptions.value });
+  const currentOptions = ref<IntelligentGenerationOptions>({
+    ...defaultOptions.value,
+  });
 
   // Computed properties
   const hasResult = computed(() => !!lastResult.value);
   const canGenerate = computed(() => !isLoading.value);
 
   // Actions
-  async function generateIntelligentCode(task: string, context: string, options?: Partial<IntelligentGenerationOptions>) {
+  async function generateIntelligentCode(
+    task: string,
+    context: string,
+    options?: Partial<IntelligentGenerationOptions>,
+  ) {
     if (!task.trim()) {
       notifications.addLog("Задача не может быть пустой", "error");
       return;
@@ -95,37 +101,45 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
     try {
       // Объединяем опции
       const finalOptions = { ...currentOptions.value, ...options };
-      
-      uiStore.setProgress({ 
-        isActive: true, 
-        message: "Выполняется интеллектуальная генерация...", 
-        value: 0 
+
+      uiStore.setProgress({
+        isActive: true,
+        message: "Выполняется интеллектуальная генерация...",
+        value: 0,
       });
 
-      const resultJson = await apiService.generateIntelligentCode(task, context, JSON.stringify(finalOptions));
+      const resultJson = await apiService.generateIntelligentCode(
+        task,
+        context,
+        JSON.stringify(finalOptions),
+      );
       const result = JSON.parse(resultJson) as IntelligentGenerationResult;
-      
+
       lastResult.value = result;
-      
+
       notifications.addLog(
-        `Интеллектуальная генерация завершена. Модель: ${result.modelUsed}, Токены: ${result.tokensUsed}`, 
-        "success"
+        `Интеллектуальная генерация завершена. Модель: ${result.modelUsed}, Токены: ${result.tokensUsed}`,
+        "success",
       );
 
       // Показываем качество результата
       if (result.qualityScore < 0.7) {
-        notifications.addLog("Качество результата ниже ожидаемого. Рекомендуется проверить код.", "warning");
+        notifications.addLog(
+          "Качество результата ниже ожидаемого. Рекомендуется проверить код.",
+          "warning",
+        );
       }
 
       // Показываем предложения если есть
       if (result.suggestions.length > 0) {
-        result.suggestions.forEach(suggestion => {
+        result.suggestions.forEach((suggestion) => {
           notifications.addLog(`Предложение: ${suggestion}`, "info");
         });
       }
-
-    } catch (err: any) {
-      error.value = `Ошибка интеллектуальной генерации: ${err.message || err}`;
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      error.value = `Ошибка интеллектуальной генерации: ${errorMessage}`;
       notifications.addLog(error.value, "error");
     } finally {
       isLoading.value = false;
@@ -134,9 +148,9 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
   }
 
   async function generateCodeWithOptions(
-    systemPrompt: string, 
-    userPrompt: string, 
-    options?: Partial<IntelligentGenerationOptions>
+    systemPrompt: string,
+    userPrompt: string,
+    options?: Partial<IntelligentGenerationOptions>,
   ) {
     if (!userPrompt.trim()) {
       notifications.addLog("Промпт не может быть пустым", "error");
@@ -148,19 +162,19 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
 
     try {
       const finalOptions = { ...currentOptions.value, ...options };
-      
-      uiStore.setProgress({ 
-        isActive: true, 
-        message: "Генерация кода с опциями...", 
-        value: 0 
+
+      uiStore.setProgress({
+        isActive: true,
+        message: "Генерация кода с опциями...",
+        value: 0,
       });
 
       const result = await apiService.generateCodeWithOptions(
-        systemPrompt, 
-        userPrompt, 
-        JSON.stringify(finalOptions)
+        systemPrompt,
+        userPrompt,
+        JSON.stringify(finalOptions),
       );
-      
+
       lastResult.value = {
         content: result,
         modelUsed: "unknown",
@@ -170,13 +184,14 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
         suggestions: [],
         warnings: [],
         requestId: "",
-        provider: "unknown"
+        provider: "unknown",
       };
 
       notifications.addLog("Генерация кода завершена успешно", "success");
-
-    } catch (err: any) {
-      error.value = `Ошибка генерации: ${err.message || err}`;
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      error.value = `Ошибка генерации: ${errorMessage}`;
       notifications.addLog(error.value, "error");
     } finally {
       isLoading.value = false;
@@ -188,18 +203,31 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
     try {
       const infoJson = await apiService.getProviderInfo();
       providerInfo.value = JSON.parse(infoJson) as ProviderInfo;
-      notifications.addLog(`Загружена информация о провайдере: ${providerInfo.value.name}`, "info");
-    } catch (err: any) {
-      notifications.addLog(`Ошибка загрузки информации о провайдере: ${err.message}`, "error");
+      notifications.addLog(
+        `Загружена информация о провайдере: ${providerInfo.value.name}`,
+        "info",
+      );
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      notifications.addLog(
+        `Ошибка загрузки информации о провайдере: ${errorMessage}`,
+        "error",
+      );
     }
   }
 
   async function loadAvailableModels() {
     try {
       availableModels.value = await apiService.listAvailableModels();
-      notifications.addLog(`Загружено ${availableModels.value.length} доступных моделей`, "info");
-    } catch (err: any) {
-      notifications.addLog(`Ошибка загрузки моделей: ${err.message}`, "error");
+      notifications.addLog(
+        `Загружено ${availableModels.value.length} доступных моделей`,
+        "info",
+      );
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      notifications.addLog(`Ошибка загрузки моделей: ${errorMessage}`, "error");
     }
   }
 
@@ -254,4 +282,3 @@ export const useIntelligentAIStore = defineStore("intelligentAI", () => {
     getQualityText,
   };
 });
-

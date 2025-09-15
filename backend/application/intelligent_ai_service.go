@@ -13,7 +13,7 @@ import (
 type IntelligentAIService struct {
 	settingsService *SettingsService
 	log             domain.Logger
-	providerFactory ProviderFactory
+	providerFactory domain.AIProviderFactory
 	providers       map[string]domain.AIProvider
 	rateLimiter     *RateLimiter
 	metrics         *MetricsCollector
@@ -23,15 +23,17 @@ type IntelligentAIService struct {
 func NewIntelligentAIService(
 	settingsService *SettingsService,
 	log domain.Logger,
-	providerFactory ProviderFactory,
+	providerFactory domain.AIProviderFactory,
+	rateLimiter *RateLimiter,
+	metrics *MetricsCollector,
 ) *IntelligentAIService {
 	return &IntelligentAIService{
 		settingsService: settingsService,
 		log:             log,
 		providerFactory: providerFactory,
 		providers:       make(map[string]domain.AIProvider),
-		rateLimiter:     NewRateLimiter(),
-		metrics:         NewMetricsCollector(),
+		rateLimiter:     rateLimiter,
+		metrics:         metrics,
 	}
 }
 

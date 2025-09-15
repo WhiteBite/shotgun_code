@@ -113,13 +113,14 @@ func (b *ContextPackBuilderImpl) BuildPack(
 	constraints := &domain.ContextConstraints{
 		MaxFiles:   options.MaxFiles,
 		MaxLines:   options.MaxLines,
-		TimeBudget: "",
+		TimeBudget: "30m", // 30 минут на выполнение задачи
 	}
 
 	// Создаем provenance
 	provenance := &domain.ContextProvenance{
-		IndexedAt: time.Now().UTC().Format(time.RFC3339),
-		IndexID:   b.generateIndexID(projectRoot, task),
+		IndexedAt:    time.Now().UTC().Format(time.RFC3339),
+		IndexID:      b.generateIndexID(projectRoot, task),
+		SourceMirror: fmt.Sprintf("file://%s", projectRoot),
 	}
 
 	// Создаем цель
@@ -232,15 +233,37 @@ func (b *ContextPackBuilderImpl) createSmartSnippets(
 		}
 	}
 
-	// Сортируем символы для детерминизма
+	// Сортируем символы для детерминизма по позиции и типу
 	sort.Slice(fileSymbols, func(i, j int) bool {
-		return fileSymbols[i].Line < fileSymbols[j].Line
+		if fileSymbols[i].Line != fileSymbols[j].Line {
+			return fileSymbols[i].Line < fileSymbols[j].Line
+		}
+		return fileSymbols[i].Type < fileSymbols[j].Type
 	})
 
-	// Создаем сниппеты для каждого символа
+	// Добавляем заголовок файла (импорты и package)
+	headerSnippet := b.createHeaderSnippet(filePath, lines)
+	if headerSnippet != nil {
+		snippets = append(snippets, headerSnippet)
+	}
+
+	// Создаем сниппеты для каждого символа с умным контекстом
 	for _, symbol := range fileSymbols {
-		startLine := max(1, symbol.Line-5)         // Контекст до символа
-		endLine := min(len(lines), symbol.Line+10) // Контекст после символа
+		// Определяем размер контекста в зависимости от типа символа
+		contextSize := b.getContextSize(symbol.Type)
+		startLine := max(1, symbol.Line-contextSize)
+		endLine := min(len(lines), symbol.Line+contextSize)
+
+		// Проверяем, не перекрывается ли с предыдущим сниппетом
+		if len(snippets) > 0 {
+			lastSnippet := snippets[len(snippets)-1]
+			if lastSnippet.EndLine >= startLine {
+				// Расширяем предыдущий сниппет
+				lastSnippet.EndLine = endLine
+				lastSnippet.Content = strings.Join(lines[lastSnippet.StartLine-1:lastSnippet.EndLine], "\n")
+				continue
+			}
+		}
 
 		content := strings.Join(lines[startLine-1:endLine], "\n")
 
@@ -254,19 +277,12 @@ func (b *ContextPackBuilderImpl) createSmartSnippets(
 		snippets = append(snippets, snippet)
 	}
 
-	// Добавляем заголовок файла если нет символов
+	// Добавляем основной контент если нет символов
 	if len(fileSymbols) == 0 && len(lines) > 0 {
-		headerEnd := min(20, len(lines))
-		content := strings.Join(lines[:headerEnd], "\n")
-
-		snippet := &domain.ContextSnippet{
-			Path:      filePath,
-			Kind:      "header",
-			StartLine: 1,
-			EndLine:   headerEnd,
-			Content:   content,
+		bodySnippet := b.createBodySnippet(filePath, lines)
+		if bodySnippet != nil {
+			snippets = append(snippets, bodySnippet)
 		}
-		snippets = append(snippets, snippet)
 	}
 
 	return snippets
@@ -392,12 +408,38 @@ func (b *ContextPackBuilderImpl) createBuildInfo(language string) *domain.Contex
 
 	switch language {
 	case "go":
-		build.Commands = []string{"go build", "go test"}
+		build.Commands = []string{
+			"go mod tidy",
+			"go build ./...",
+			"go test ./...",
+			"go vet ./...",
+			"gofmt -w .",
+		}
 		build.Env["GOOS"] = "linux"
 		build.Env["GOARCH"] = "amd64"
+		build.Env["CGO_ENABLED"] = "0"
 	case "typescript", "javascript":
-		build.Commands = []string{"npm install", "npm run build", "npm test"}
+		build.Commands = []string{
+			"npm install",
+			"npm run build",
+			"npm test",
+			"npm run lint",
+		}
 		build.Env["NODE_ENV"] = "production"
+	case "java":
+		build.Commands = []string{
+			"mvn clean compile",
+			"mvn test",
+			"mvn package",
+		}
+		build.Env["JAVA_HOME"] = "/usr/lib/jvm/java-11"
+	case "python":
+		build.Commands = []string{
+			"pip install -r requirements.txt",
+			"python -m pytest",
+			"python -m flake8",
+		}
+		build.Env["PYTHONPATH"] = "."
 	}
 
 	return build
@@ -492,6 +534,70 @@ func (b *ContextPackBuilderImpl) getFilePaths(nodes []*domain.FileNode) []string
 func (b *ContextPackBuilderImpl) calculateTextHash(text string) string {
 	hash := sha256.Sum256([]byte(text))
 	return hex.EncodeToString(hash[:])
+}
+
+// createHeaderSnippet создает сниппет заголовка файла
+func (b *ContextPackBuilderImpl) createHeaderSnippet(filePath string, lines []string) *domain.ContextSnippet {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// Ищем конец заголовка (после импортов)
+	headerEnd := 1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" && i > 0 {
+			// Пустая строка после импортов
+			headerEnd = i
+			break
+		}
+		if i >= 20 {
+			// Ограничиваем заголовок 20 строками
+			headerEnd = 20
+			break
+		}
+	}
+
+	content := strings.Join(lines[:headerEnd], "\n")
+	return &domain.ContextSnippet{
+		Path:      filePath,
+		Kind:      "header",
+		StartLine: 1,
+		EndLine:   headerEnd,
+		Content:   content,
+	}
+}
+
+// createBodySnippet создает сниппет основного содержимого
+func (b *ContextPackBuilderImpl) createBodySnippet(filePath string, lines []string) *domain.ContextSnippet {
+	if len(lines) <= 20 {
+		return nil
+	}
+
+	bodyStart := 21
+	bodyEnd := min(len(lines), bodyStart+50)
+	content := strings.Join(lines[bodyStart-1:bodyEnd], "\n")
+
+	return &domain.ContextSnippet{
+		Path:      filePath,
+		Kind:      "body",
+		StartLine: bodyStart,
+		EndLine:   bodyEnd,
+		Content:   content,
+	}
+}
+
+// getContextSize определяет размер контекста для типа символа
+func (b *ContextPackBuilderImpl) getContextSize(symbolType domain.SymbolType) int {
+	switch symbolType {
+	case domain.SymbolTypeFunction, domain.SymbolTypeMethod:
+		return 10 // Больше контекста для функций
+	case domain.SymbolTypeStruct, domain.SymbolTypeInterface:
+		return 15 // Еще больше для типов
+	case domain.SymbolTypeType:
+		return 8
+	default:
+		return 5 // Минимальный контекст для остальных
+	}
 }
 
 // generateIndexID генерирует ID индекса

@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type ExportMode string
 
 const (
@@ -11,6 +13,11 @@ const (
 type ExportSettings struct {
 	Mode    ExportMode `json:"mode"`
 	Context string     `json:"context"`
+
+	// Project export fields for app.go compatibility
+	ProjectPath string                 `json:"projectPath"`
+	Format      string                 `json:"format"`
+	Options     map[string]interface{} `json:"options,omitempty"`
 
 	// Clipboard
 	StripComments   bool   `json:"stripComments"`
@@ -49,4 +56,18 @@ type SplitSettings struct {
 	MaxTokensPerChunk int
 	OverlapTokens     int
 	SplitStrategy     string
+}
+
+// ExportHistoryItem represents a single export operation in history
+type ExportHistoryItem struct {
+	ID          string     `json:"id"`
+	ProjectPath string     `json:"projectPath"`
+	Mode        ExportMode `json:"mode"`
+	Format      string     `json:"format"`
+	FileName    string     `json:"fileName"`
+	SizeBytes   int64      `json:"sizeBytes"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	FilePath    string     `json:"filePath,omitempty"`
+	Status      string     `json:"status"` // "success", "failed", "in_progress"
+	Error       string     `json:"error,omitempty"`
 }

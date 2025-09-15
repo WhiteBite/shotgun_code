@@ -6,16 +6,12 @@ import (
 	"sync"
 )
 
-// ModelFetcher - это функция, которая знает, как получить список моделей для провайдера, используя предоставленный API ключ.
-// Она также может принимать необязательный параметр host (для LocalAI, OpenRouter)
-type ModelFetcher func(apiKey string) ([]string, error)
-
 // SettingsService отвечает за управление настройками приложения.
 type SettingsService struct {
 	log                           domain.Logger
 	bus                           domain.EventBus
 	settingsRepo                  domain.SettingsRepository
-	modelFetchers                 map[string]ModelFetcher
+	modelFetchers                 domain.ModelFetcherRegistry
 	onIgnoreRulesChangedCallbacks []func() error
 	muCallbacks                   sync.RWMutex
 }
@@ -25,7 +21,7 @@ func NewSettingsService(
 	log domain.Logger,
 	bus domain.EventBus,
 	settingsRepo domain.SettingsRepository,
-	modelFetchers map[string]ModelFetcher,
+	modelFetchers domain.ModelFetcherRegistry,
 ) (*SettingsService, error) {
 	s := &SettingsService{
 		log:           log,

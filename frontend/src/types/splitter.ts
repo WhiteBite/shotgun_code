@@ -17,7 +17,7 @@ export interface Segment {
   id: string;
   title?: string;
   start: number; // inclusive
-  end: number;   // exclusive
+  end: number; // exclusive
   isFile?: boolean;
   relPath?: string;
 }

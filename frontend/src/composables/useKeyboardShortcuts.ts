@@ -4,6 +4,7 @@ import { useContextBuilderStore } from "@/stores/context-builder.store";
 import { useGenerationStore } from "@/stores/generation.store";
 import { useTreeStateStore } from "@/stores/tree-state.store";
 import { useProjectStore } from "@/stores/project.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
 import { useVisibleNodes } from "./useVisibleNodes";
 import type { FileNode } from "@/types/dto";
 
@@ -15,7 +16,8 @@ function isEditableTarget(): boolean {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || (el as any).isContentEditable) return true;
+  if (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable)
+    return true;
   return false;
 }
 
@@ -28,17 +30,105 @@ export function attachShortcuts() {
   const generationStore = useGenerationStore();
   const treeStateStore = useTreeStateStore();
   const projectStore = useProjectStore();
+  const workspaceStore = useWorkspaceStore();
   const { visibleNodes } = useVisibleNodes();
 
   const shortcuts: Record<string, () => void> = {
+    // Global Navigation
     "ctrl+k": () => {
-      const el = document.querySelector('input[placeholder*="Фильтр"]') as HTMLInputElement;
+      const el = document.querySelector(
+        'input[placeholder*="Search"], input[placeholder*="Фильтр"]',
+      ) as HTMLInputElement;
       el?.focus();
     },
-    "escape": () => {
+    escape: () => {
       uiStore.closeContextMenu();
       uiStore.hideQuickLook();
+      // Close any open modals or drawers
+      uiStore.closeDrawer('settings');
+      uiStore.closeDrawer('prompts');
+      uiStore.closeDrawer('ignore');
     },
+    
+    // Mode Switching
+    "ctrl+1": () => {
+      workspaceStore.setMode('manual');
+    },
+    "ctrl+2": () => {
+      workspaceStore.setMode('autonomous');
+    },
+    "ctrl+shift+m": () => {
+      workspaceStore.toggleMode();
+    },
+    
+    // Panel Management
+    "ctrl+shift+1": () => {
+      workspaceStore.togglePanelVisibility('contextArea');
+    },
+    "ctrl+shift+2": () => {
+      workspaceStore.togglePanelVisibility('resultsArea');
+    },
+    "ctrl+shift+3": () => {
+      workspaceStore.togglePanelVisibility('console');
+    },
+    "f11": () => {
+      // Toggle fullscreen mode
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
+    },
+    
+    // Context Operations
+    "ctrl+b": () => {
+      if (contextBuilderStore.canBuildContext) {
+        const projectPath = projectStore.currentProject?.path || "";
+        if (projectPath) {
+          contextBuilderStore.buildContextFromSelection(projectPath);
+        }
+      }
+    },
+    "ctrl+shift+a": () => {
+      // Select all files in project
+      visibleNodes.value.forEach((node: FileNode) => {
+        if (!node.isDir && !node.isIgnored) {
+          contextBuilderStore.addSelectedFile(node.path);
+        }
+      });
+    },
+    "ctrl+shift+d": () => {
+      // Clear context selection
+      contextBuilderStore.clearSelectedFiles();
+    },
+    // Generation and Execution
+    "ctrl+g": () => {
+      if (workspaceStore.isManualMode) {
+        if (generationStore.canGenerate) {
+          generationStore.executeGeneration();
+        }
+      } else if (workspaceStore.isAutonomousMode) {
+        // Start autonomous execution
+        console.log('Start autonomous execution');
+      }
+    },
+    "ctrl+enter": () => {
+      // Context-aware execution
+      if (generationStore.canGenerate) {
+        generationStore.executeGeneration();
+      } else if (contextBuilderStore.hasSelectedFiles) {
+        const projectPath = projectStore.currentProject?.path || "";
+        if (projectPath) {
+          contextBuilderStore.buildContextFromSelection(projectPath);
+        }
+      }
+    },
+    "ctrl+shift+g": () => {
+      // Generate smart suggestions
+      contextBuilderStore.generateSmartSuggestions();
+    },
+    
+    // File Navigation and Selection
     "ctrl+d": () => {
       treeStateStore.clearSelection();
     },
@@ -49,57 +139,71 @@ export function attachShortcuts() {
         }
       });
     },
-    "ctrl+enter": () => {
-      if (generationStore.canGenerate) {
-        generationStore.executeGeneration();
-      } else if (contextBuilderStore.selectedFiles.length > 0) {
-        contextBuilderStore.buildContext();
-      }
-    },
-    "space": () => {
-      if (document.activeElement && ["INPUT","TEXTAREA"].includes((document.activeElement as HTMLElement).tagName)) return;
+    space: () => {
+      if (
+        document.activeElement &&
+        ["INPUT", "TEXTAREA"].includes(
+          (document.activeElement as HTMLElement).tagName,
+        )
+      )
+        return;
       const activePath = treeStateStore.activeNodePath;
       const rootDir = projectStore.currentProject?.path || "";
       if (!activePath || !rootDir) return;
       const node = fileTreeStore.nodesMap.get(activePath);
       if (!node || node.isDir || node.isIgnored) return;
-      const fakeEvent = new MouseEvent("click", { clientX: window.innerWidth/2, clientY: window.innerHeight/2 });
       uiStore.showQuickLook({
         rootDir,
         path: node.relPath,
         type: "fs",
-        event: fakeEvent,
         isPinned: true,
+        position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
       });
     },
     // Добавляем Ctrl для QuickLook
-    "ctrl": () => {
+    ctrl: () => {
       // QuickLook по Ctrl будет обрабатываться в handleKeydown
     },
     // Добавляем Alt для рекурсивного разворачивания
-    "alt": () => {
+    alt: () => {
       // Alt будет обрабатываться в handleKeydown
     },
     "ctrl+arrowright": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
-      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, true);
+      treeStateStore.toggleExpansionRecursive(
+        active,
+        fileTreeStore.nodesMap as any,
+        true,
+      );
     },
     "ctrl+arrowleft": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
-      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, false);
+      treeStateStore.toggleExpansionRecursive(
+        active,
+        fileTreeStore.nodesMap as any,
+        false,
+      );
     },
     // Alt + стрелки для рекурсивного разворачивания
     "alt+arrowright": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
-      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, true);
+      treeStateStore.toggleExpansionRecursive(
+        active,
+        fileTreeStore.nodesMap as any,
+        true,
+      );
     },
     "alt+arrowleft": () => {
       const active = treeStateStore.activeNodePath;
       if (!active) return;
-      treeStateStore.toggleExpansionRecursive(active, fileTreeStore.nodesMap, false);
+      treeStateStore.toggleExpansionRecursive(
+        active,
+        fileTreeStore.nodesMap as any,
+        false,
+      );
     },
   };
 
@@ -110,24 +214,30 @@ export function attachShortcuts() {
       event.shiftKey && "shift",
       event.altKey && "alt",
       normKey,
-    ].filter(Boolean).join("+");
+    ]
+      .filter(Boolean)
+      .join("+");
 
     if (isEditableTarget() && normKey !== "escape") return;
 
     // Обработка Ctrl для QuickLook
-    if (event.ctrlKey && !event.altKey && !event.shiftKey && normKey !== "ctrl") {
+    if (
+      event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      normKey !== "ctrl"
+    ) {
       const activePath = treeStateStore.activeNodePath;
       const rootDir = projectStore.currentProject?.path || "";
       if (activePath && rootDir) {
         const node = fileTreeStore.nodesMap.get(activePath);
         if (node && !node.isDir && !node.isIgnored) {
-          const fakeEvent = new MouseEvent("click", { clientX: window.innerWidth/2, clientY: window.innerHeight/2 });
           uiStore.showQuickLook({
             rootDir,
             path: node.relPath,
             type: "fs",
-            event: fakeEvent,
-            isPinned: false, // Не закрепляем при Ctrl
+            isPinned: false,
+            position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
           });
         }
       }

@@ -1,0 +1,478 @@
+/* =============================================================================
+   SHOTGUN CODE - ANIMATIONS & TRANSITIONS
+   Enhanced animations for the redesigned workspace
+   ============================================================================= */
+
+/* =============================================================================
+   GLOBAL ANIMATION VARIABLES
+   ============================================================================= */
+:root {
+  /* Animation Durations */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+  --duration-extra-slow: 500ms;
+  
+  /* Animation Easings */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* Mode Colors */
+  --color-manual: rgb(59 130 246); /* blue-500 */
+  --color-autonomous: rgb(147 51 234); /* purple-500 */
+  --color-success: rgb(34 197 94); /* green-500 */
+  --color-warning: rgb(245 158 11); /* amber-500 */
+  --color-error: rgb(239 68 68); /* red-500 */
+}
+
+/* =============================================================================
+   WORKSPACE MODE TRANSITIONS
+   ============================================================================= */
+
+/* Mode Switching Animation */
+.workspace-transition-enter-active,
+.workspace-transition-leave-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.workspace-transition-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.workspace-transition-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* Mode Specific Panel Animations */
+.manual-mode-enter-active,
+.autonomous-mode-enter-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+  transition-delay: 50ms;
+}
+
+.manual-mode-enter-from,
+.autonomous-mode-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+.manual-mode-leave-active,
+.autonomous-mode-leave-active {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.manual-mode-leave-to,
+.autonomous-mode-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(1.02);
+}
+
+/* =============================================================================
+   PANEL ANIMATIONS
+   ============================================================================= */
+
+/* Panel Slide Animations */
+.panel-slide-left-enter-active,
+.panel-slide-left-leave-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.panel-slide-left-enter-from {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.panel-slide-left-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.panel-slide-right-enter-active,
+.panel-slide-right-leave-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.panel-slide-right-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.panel-slide-right-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.panel-slide-up-enter-active,
+.panel-slide-up-leave-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.panel-slide-up-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.panel-slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+/* Panel Resize Animation */
+.panel-resizing {
+  transition: width var(--duration-fast) var(--ease-out-quad) !important;
+}
+
+/* =============================================================================
+   COMPONENT SPECIFIC ANIMATIONS
+   ============================================================================= */
+
+/* Context Builder Animations */
+.context-item-enter-active {
+  transition: all var(--duration-normal) var(--ease-bounce);
+}
+
+.context-item-enter-from {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.9);
+}
+
+.context-item-leave-active {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.context-item-leave-to {
+  opacity: 0;
+  transform: translateX(20px) scale(0.95);
+}
+
+/* File Explorer Animations */
+.file-item-hover {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.file-item-hover:hover {
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Drag and Drop Animations */
+.drag-preview {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+  transform: rotate(5deg) scale(1.05);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.drop-zone-active {
+  animation: pulse-blue var(--duration-slow) ease-in-out infinite alternate;
+}
+
+@keyframes pulse-blue {
+  from {
+    border-color: var(--color-manual);
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+  to {
+    border-color: rgb(96 165 250); /* blue-400 */
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* =============================================================================
+   LOADING AND PROGRESS ANIMATIONS
+   ============================================================================= */
+
+/* Loading Spinner */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Progress Bar Animation */
+.progress-bar {
+  transition: width var(--duration-normal) var(--ease-out-cubic);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* =============================================================================
+   NOTIFICATION ANIMATIONS
+   ============================================================================= */
+
+/* Toast Notifications */
+.toast-enter-active {
+  transition: all var(--duration-normal) var(--ease-bounce);
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.9);
+}
+
+.toast-leave-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100px) scale(0.95);
+}
+
+/* Status Indicators */
+.status-indicator {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.status-healthy {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+  }
+}
+
+/* =============================================================================
+   MODAL AND OVERLAY ANIMATIONS
+   ============================================================================= */
+
+/* Modal Backdrop */
+.modal-backdrop-enter-active,
+.modal-backdrop-leave-active {
+  transition: opacity var(--duration-normal) var(--ease-out-quad);
+}
+
+.modal-backdrop-enter-from,
+.modal-backdrop-leave-to {
+  opacity: 0;
+}
+
+/* Modal Content */
+.modal-enter-active {
+  transition: all var(--duration-normal) var(--ease-out-cubic);
+}
+
+.modal-enter-from {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.modal-leave-active {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.modal-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(1.05);
+}
+
+/* =============================================================================
+   INTERACTIVE ELEMENT ANIMATIONS
+   ============================================================================= */
+
+/* Button Animations */
+.btn-primary {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  transition-duration: 50ms;
+}
+
+/* Ripple Effect */
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width var(--duration-normal), height var(--duration-normal);
+}
+
+.btn-primary:active::after {
+  width: 200px;
+  height: 200px;
+}
+
+/* Input Focus Animations */
+.input-field {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.input-field:focus {
+    transform: scale(1.01);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* =============================================================================
+   MICRO-INTERACTIONS
+   ============================================================================= */
+
+/* Hover Lift Effect */
+.hover-lift {
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Scale on Hover */
+.hover-scale {
+  transition: transform var(--duration-fast) var(--ease-out-quad);
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Glow Effect */
+.glow-on-hover {
+  transition: box-shadow var(--duration-fast) var(--ease-out-quad);
+}
+
+.glow-on-hover:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* =============================================================================
+   ACCESSIBILITY AND PERFORMANCE
+   ============================================================================= */
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .workspace-manual {
+    border: 2px solid var(--color-manual);
+  }
+  
+  .workspace-autonomous {
+    border: 2px solid var(--color-autonomous);
+  }
+}
+
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
+/* Animation Control */
+.animate-none {
+  animation: none !important;
+  transition: none !important;
+}
+
+.animate-fast {
+  transition-duration: var(--duration-fast) !important;
+}
+
+.animate-slow {
+  transition-duration: var(--duration-slow) !important;
+}
+
+/* Transform Utilities */
+.slide-up {
+  animation: slideUp var(--duration-normal) var(--ease-out-cubic);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out-quad);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.scale-in {
+  animation: scaleIn var(--duration-normal) var(--ease-bounce);
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

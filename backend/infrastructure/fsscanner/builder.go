@@ -71,6 +71,11 @@ func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 			return fs.SkipDir
 		}
 
+		// Пропускаем файлы, которые должны игнорироваться
+		if !d.IsDir() && (isGi || isCi) {
+			return nil
+		}
+
 		var fsize int64
 		if !d.IsDir() {
 			if info, e := d.Info(); e == nil {
@@ -85,6 +90,7 @@ func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 			IsDir:           d.IsDir(),
 			IsGitignored:    isGi,
 			IsCustomIgnored: isCi,
+			IsIgnored:       isGi || isCi, // Вычисляем IsIgnored
 			Children:        []*domain.FileNode{},
 			Size:            fsize,
 		}

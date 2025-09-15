@@ -1,13 +1,20 @@
 // Auto-generated: composable for context actions (copy/split)
 import { shallowRef, watch, computed } from "vue";
-import type { ClipboardFormat, CopyRequest, SplitSettings, SplitPreview } from "@/types/splitter";
-import { createSplitterService } from "@/services/splitter.service";
+import type {
+  ClipboardFormat,
+  CopyRequest,
+  SplitSettings,
+  SplitPreview,
+} from "@/types/splitter";
+import { createSplitterService } from "@/infrastructure/context/splitter.service";
+import { createTokenEstimator } from "@/infrastructure/context/token-estimator.service";
 import { useExportStore } from "@/stores/export.store";
 import { useContextBuilderStore } from "@/stores/context-builder.store";
 import { useUiStore } from "@/stores/ui.store";
-import { apiService } from "@/services/api.service";
+import { apiService } from "@/infrastructure/api/api.service";
 
 const splitter = createSplitterService();
+const estimator = createTokenEstimator();
 
 export function useContextActions() {
   const exportStore = useExportStore();
@@ -42,64 +49,18 @@ export function useContextActions() {
 
   async function computePreviewNow() {
     const text = ctxStore.currentContext?.content || "";
-    if (!text) { splitPreview.value = null; return; }
+    if (!text) {
+      splitPreview.value = null;
+      return;
+    }
     try {
-      // Принудительно включаем сплит для вычисления превью
       const settings = { ...splitSettings.value, enableAutoSplit: true };
-      
-      // Простой split по символам
-      const maxChars = 10000; // 10k символов на часть
-      const overlapChars = 500; // 500 символов перекрытия
-      
-      if (text.length <= maxChars) {
-        // Если текст короткий, не разделяем
-        splitPreview.value = {
-          totalTokens: text.length / 4, // Примерная оценка
-          totalChars: text.length,
-          chunkCount: 1,
-          chunks: [{
-            index: 0,
-            start: 0,
-            end: text.length,
-            text: text,
-            tokens: text.length / 4,
-            chars: text.length
-          }],
-          warnings: []
-        };
-      } else {
-        // Разделяем по символам
-        const chunks = [];
-        let start = 0;
-        let index = 0;
-        
-        while (start < text.length) {
-          const end = Math.min(start + maxChars, text.length);
-          const chunkText = text.substring(start, end);
-          
-          chunks.push({
-            index: index++,
-            start: start,
-            end: end,
-            text: chunkText,
-            tokens: chunkText.length / 4, // Примерная оценка
-            chars: chunkText.length
-          });
-          
-          start = end - overlapChars;
-          if (start >= text.length) break;
-        }
-        
-        splitPreview.value = {
-          totalTokens: text.length / 4,
-          totalChars: text.length,
-          chunkCount: chunks.length,
-          chunks: chunks,
-          warnings: []
-        };
-      }
-      
-      console.log("Split preview computed:", splitPreview.value.chunks.length, "chunks");
+      const preview = splitter.split(
+        { text },
+        settings,
+        { estimator: (t) => estimator.estimate(t) },
+      );
+      splitPreview.value = preview;
     } catch (e: any) {
       console.error("Split preview failed:", e);
       ui.addToast(`Split preview failed: ${e?.message || e}`, "error");
@@ -109,22 +70,38 @@ export function useContextActions() {
 
   function refreshPreview() {
     if (debounceId) window.clearTimeout(debounceId);
-    debounceId = window.setTimeout(() => { computePreviewNow(); debounceId = null; }, 200);
+    debounceId = window.setTimeout(() => {
+      computePreviewNow();
+      debounceId = null;
+    }, 200);
   }
 
-  watch(() => [ctxStore.currentContext?.content, splitSettings.value], refreshPreview, { deep: true });
+  watch(
+    () => [ctxStore.currentContext?.content, splitSettings.value],
+    refreshPreview,
+    { deep: true },
+  );
 
   async function copy(req: CopyRequest) {
     const text = ctxStore.currentContext?.content || "";
-    if (!text) { ui.addToast("No context to copy", "error"); return; }
+    if (!text) {
+      ui.addToast("No context to copy", "error");
+      return;
+    }
 
     let payload = text;
-    if (splitSettings.value.enableAutoSplit && splitPreview.value && splitPreview.value.chunks.length > 1) {
+    if (
+      splitSettings.value.enableAutoSplit &&
+      splitPreview.value &&
+      splitPreview.value.chunks.length > 1
+    ) {
       if (req.target === "chunk" && typeof req.chunkIndex === "number") {
         const c = splitPreview.value.chunks[req.chunkIndex];
         payload = c ? c.text : text;
       } else {
-        const parts = splitPreview.value.chunks.map((c, i, arr) => `=== Part ${i+1}/${arr.length} ===\n${c.text}`);
+        const parts = splitPreview.value.chunks.map(
+          (c, i, arr) => `=== Part ${i + 1}/${arr.length} ===\n${c.text}`,
+        );
         payload = parts.join("\n\n");
       }
     }
@@ -136,6 +113,16 @@ export function useContextActions() {
         exportFormat: req.format,
         stripComments: req.stripComments,
         includeManifest: req.format === "manifest",
+        aiProfile: "Generic",
+        tokenLimit: 180000,
+        fileSizeLimitKB: 2048,
+        enableAutoSplit: false,
+        maxTokensPerChunk: 50000,
+        overlapTokens: 1000,
+        splitStrategy: "token",
+        theme: "Dark",
+        includeLineNumbers: true,
+        includePageNumbers: true,
       });
       if (result?.text) {
         await navigator.clipboard.writeText(result.text);
@@ -148,11 +135,19 @@ export function useContextActions() {
     }
   }
 
-  function openExportModal() { const s = useExportStore(); s.open(); }
+  function openExportModal() {
+    const s = useExportStore();
+    s.open();
+  }
 
   return {
-    exportFormat, stripComments, splitSettings, splitPreview,
-    refreshPreview, copy, openExportModal,
+    exportFormat,
+    stripComments,
+    splitSettings,
+    splitPreview,
+    refreshPreview,
+    copy,
+    openExportModal,
   };
 }
 

@@ -19,27 +19,20 @@ export function useVisibleNodes() {
   const { expandedPaths } = storeToRefs(treeStateStore);
 
   const visibleNodes = computed((): FileNode[] => {
-    if (rootNodes.value.length === 0) return [];
-
-    const query = searchQuery.value.toLowerCase().trim();
-    if (!query) {
-      const result: FileNode[] = [];
-      const build = (nodes: FileNode[]) => {
-        const childrenSorted = sortNodes(nodes);
-        for (const node of childrenSorted) {
-          result.push(node);
-          if (node.isDir && expandedPaths.value.has(node.path) && node.children) {
-            const children = node.children
-              .map((c) => nodesMap.value.get(c.path))
-              .filter(Boolean) as FileNode[];
-            build(children);
-          }
-        }
-      };
-      build(sortNodes(rootNodes.value));
-      return result;
+    // Проверяем, что все необходимые значения существуют
+    if (!rootNodes.value || !nodesMap.value || !expandedPaths.value) {
+      return [];
     }
 
+    if (rootNodes.value.length === 0) return [];
+
+    const query = (searchQuery.value || "").toLowerCase().trim();
+    if (!query) {
+      // Без поиска возвращаем только корневые узлы
+      return sortNodes(rootNodes.value);
+    }
+
+    // При поиске находим узлы, которые соответствуют запросу
     const matchedNodes = new Set<string>();
     for (const node of nodesMap.value.values()) {
       if (node.name.toLowerCase().includes(query)) {
@@ -47,29 +40,18 @@ export function useVisibleNodes() {
         while (current) {
           matchedNodes.add(current.path);
           if (!current.parentPath) break;
-          current = nodesMap.value.get(current.parentPath) as FileNode | undefined;
+          current = nodesMap.value.get(current.parentPath) as
+            | FileNode
+            | undefined;
         }
       }
     }
 
-    const result: FileNode[] = [];
-    const buildFiltered = (nodes: FileNode[]) => {
-      const sorted = sortNodes(nodes);
-      for (const node of sorted) {
-        if (matchedNodes.has(node.path)) {
-          result.push(node);
-          if (node.isDir && node.children) {
-            const children = node.children
-              .map((c) => nodesMap.value.get(c.path))
-              .filter(Boolean) as FileNode[];
-            buildFiltered(children);
-          }
-        }
-      }
-    };
-
-    buildFiltered(rootNodes.value);
-    return result;
+    // Возвращаем только корневые узлы, которые содержат совпадения
+    return sortNodes(rootNodes.value).filter(node => 
+      matchedNodes.has(node.path) || 
+      (node.children && node.children.some(child => matchedNodes.has(child.path)))
+    );
   });
 
   return { visibleNodes };

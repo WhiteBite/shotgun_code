@@ -49,7 +49,7 @@ export function useIgnoreRules() {
     settingsStore.settings.customIgnoreRules = lines.join("\n") + "\n";
     await settingsStore.saveIgnoreSettings();
     scheduleRescan(async () => {
-      await fileTreeStore.fetchFileTree();
+      await fileTreeStore.refreshFiles();
       uiStore.addToast("Правило добавлено в игнор", "success");
     });
   }
@@ -63,10 +63,11 @@ export function useIgnoreRules() {
       uiStore.addToast("Правило не найдено в игноре", "info");
       return;
     }
-    settingsStore.settings.customIgnoreRules = next.join("\n") + (next.length ? "\n" : "");
+    settingsStore.settings.customIgnoreRules =
+      next.join("\n") + (next.length ? "\n" : "");
     await settingsStore.saveIgnoreSettings();
     scheduleRescan(async () => {
-      await fileTreeStore.fetchFileTree();
+      await fileTreeStore.refreshFiles();
       uiStore.addToast("Правило убрано из игнора", "success");
     });
   }

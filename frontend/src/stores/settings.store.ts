@@ -7,7 +7,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import type { SettingsDTO } from "@/types/dto";
 import { useUiStore } from "./ui.store";
-import { useErrorHandler } from "@/composables/useErrorHandler";
+import { useAdvancedErrorHandler } from "@/composables/useErrorHandler";
 
 const emptySettings: SettingsDTO = {
   customIgnoreRules: "",
@@ -23,14 +23,21 @@ const emptySettings: SettingsDTO = {
   availableModels: {},
   useGitignore: true,
   useCustomIgnore: true,
+  // Context splitting defaults
+  maxTokensPerChunk: 8000,
+  overlapTokens: 200,
+  splitStrategy: 'semantic',
 };
 
 export const useSettingsStore = defineStore("settings", () => {
   const uiStore = useUiStore();
-  const { handleError } = useErrorHandler();
+  const { handleStructuredError } = useAdvancedErrorHandler();
   const settings = ref<SettingsDTO>(JSON.parse(JSON.stringify(emptySettings)));
   const isLoading = ref(false);
   const isRefreshingModels = ref(false);
+  
+  // UI-specific settings (stored locally)
+  const autoOpenLastProject = ref(true);
 
   async function fetchSettings() {
     isLoading.value = true;
@@ -38,7 +45,7 @@ export const useSettingsStore = defineStore("settings", () => {
       const newSettings = await GetSettings();
       settings.value = newSettings;
     } catch (err) {
-      handleError(err, "Fetch Settings");
+      handleStructuredError(err, { operation: "Fetch Settings", component: "SettingsStore" });
     } finally {
       isLoading.value = false;
     }
@@ -51,7 +58,7 @@ export const useSettingsStore = defineStore("settings", () => {
       await SaveSettings(JSON.stringify(settings.value));
       uiStore.addToast("Settings saved successfully", "success");
     } catch (err) {
-      handleError(err, "Save Settings");
+      handleStructuredError(err, { operation: "Save Settings", component: "SettingsStore" });
     } finally {
       isLoading.value = false;
     }
@@ -62,7 +69,7 @@ export const useSettingsStore = defineStore("settings", () => {
       // Keep in sync with backend contract
       await SaveSettings(JSON.stringify(settings.value));
     } catch (err) {
-      handleError(err, "Save Ignore Settings");
+      handleStructuredError(err, { operation: "Save Ignore Settings", component: "SettingsStore" });
     }
   }
 
@@ -93,25 +100,62 @@ export const useSettingsStore = defineStore("settings", () => {
       await RefreshAIModels(provider, apiKey);
       await fetchSettings();
       uiStore.addToast(
-          `Model list for ${provider} has been updated.`,
-          "success",
+        `Model list for ${provider} has been updated.`,
+        "success",
       );
     } catch (err) {
-      handleError(err, `Refresh Models for ${provider}`);
+      handleStructuredError(err, { operation: `Refresh Models for ${provider}`, component: "SettingsStore" });
     } finally {
       isRefreshingModels.value = false;
     }
   }
 
+  // Load UI settings from localStorage
+  function loadUISettings() {
+    try {
+      const uiSettings = localStorage.getItem("ui-settings");
+      if (uiSettings) {
+        const parsed = JSON.parse(uiSettings);
+        autoOpenLastProject.value = parsed.autoOpenLastProject ?? true;
+      }
+    } catch (err) {
+      console.warn("Failed to load UI settings:", err);
+    }
+  }
+
+  // Save UI settings to localStorage
+  function saveUISettings() {
+    try {
+      const uiSettings = {
+        autoOpenLastProject: autoOpenLastProject.value,
+      };
+      localStorage.setItem("ui-settings", JSON.stringify(uiSettings));
+    } catch (err) {
+      console.warn("Failed to save UI settings:", err);
+    }
+  }
+
+  // Toggle auto-open last project setting
+  function toggleAutoOpenLastProject() {
+    autoOpenLastProject.value = !autoOpenLastProject.value;
+    saveUISettings();
+  }
+
+  // Initialize settings
   fetchSettings();
+  loadUISettings();
 
   return {
     settings,
     isLoading,
     isRefreshingModels,
+    autoOpenLastProject,
     fetchSettings,
     saveSettings,
     saveIgnoreSettings,
     refreshModels,
+    toggleAutoOpenLastProject,
+    loadUISettings,
+    saveUISettings,
   };
 });

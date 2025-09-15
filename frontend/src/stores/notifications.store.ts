@@ -4,7 +4,7 @@ import { useUiStore } from "./ui.store";
 import type { LogEntry, LogType } from "@/types/dto";
 
 let nextId = 1;
-const maxLogs = 200;
+import { MAX_CONSOLE_LOGS } from "@/lib/constants";
 
 export const useNotificationsStore = defineStore("notifications", () => {
   const logs = ref<LogEntry[]>([]);
@@ -18,10 +18,10 @@ export const useNotificationsStore = defineStore("notifications", () => {
       timestamp: new Date().toLocaleTimeString(),
     };
     logs.value.unshift(newLog);
-    if (logs.value.length > maxLogs) {
+    if (logs.value.length > MAX_CONSOLE_LOGS) {
       logs.value.pop();
     }
-    if (type === "error" || type === "success" || type === "warn") {
+    if (type === "error" || type === "success" || type === "warning") {
       uiStore.addToast(message, type);
     }
   }

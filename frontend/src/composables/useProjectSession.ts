@@ -1,38 +1,40 @@
-import { ref, watch } from 'vue'
-import { useProjectStore } from '@/stores/project.store'
-import { useFileTreeStore } from '@/stores/file-tree.store'
-import { useContextBuilderStore } from '@/stores/context-builder.store'
-import { useTreeStateStore } from '@/stores/tree-state.store'
+import { ref, watch } from "vue";
+import { useProjectStore } from "@/stores/project.store";
+import { useFileTreeStore } from "@/stores/file-tree.store";
+import { useContextBuilderStore } from "@/stores/context-builder.store";
+import { useTreeStateStore } from "@/stores/tree-state.store";
 
 interface SessionData {
-  selectedFiles: string[]
-  expandedPaths: string[]
+  selectedFiles: string[];
+  expandedPaths: string[];
 }
 
-const KEY_PREFIX = 'shotgun_session_'
+const KEY_PREFIX = "shotgun_session_";
 
 export function setupProjectSession() {
-  const projectStore = useProjectStore()
-  const fileTreeStore = useFileTreeStore()
-  const contextBuilderStore = useContextBuilderStore()
-  const treeStateStore = useTreeStateStore()
-  const restored = ref(false)
+  const projectStore = useProjectStore();
+  const fileTreeStore = useFileTreeStore();
+  const contextBuilderStore = useContextBuilderStore();
+  const treeStateStore = useTreeStateStore();
+  const restored = ref(false);
 
   function sessionKey(): string | null {
-    return projectStore.currentProject ? KEY_PREFIX + projectStore.currentProject.path : null
+    return projectStore.currentProject
+      ? KEY_PREFIX + projectStore.currentProject.path
+      : null;
   }
 
   function save() {
-    const key = sessionKey()
-    if (!key) return
-    
+    const key = sessionKey();
+    if (!key) return;
+
     const data: SessionData = {
       selectedFiles: contextBuilderStore.selectedFiles,
-      expandedPaths: Array.from(treeStateStore.expandedPaths)
-    }
-    
+      expandedPaths: Array.from(treeStateStore.expandedPaths),
+    };
+
     try {
-      localStorage.setItem(key, JSON.stringify(data))
+      localStorage.setItem(key, JSON.stringify(data));
     } catch {
       // ignore storage errors
     }
@@ -40,60 +42,64 @@ export function setupProjectSession() {
 
   async function loadProject(projectPath: string) {
     try {
-      await fileTreeStore.loadProject(projectPath)
+      await fileTreeStore.loadProject(projectPath);
     } catch (error) {
-      console.error('Failed to load project:', error)
+      console.error("Failed to load project:", error);
     }
   }
 
   function tryRestore() {
-    if (restored.value) return
-    if (!projectStore.currentProject) return
-    if (fileTreeStore.isLoading) return
-    if (fileTreeStore.nodesMap.size === 0) return
+    if (restored.value) return;
+    if (!projectStore.currentProject) return;
+    if (fileTreeStore.isLoading) return;
+    if (fileTreeStore.nodesMap.size === 0) return;
 
-    const key = sessionKey()
-    if (!key) { 
-      restored.value = true
-      return 
+    const key = sessionKey();
+    if (!key) {
+      restored.value = true;
+      return;
     }
-    
-    const raw = localStorage.getItem(key)
-    if (!raw) { 
-      restored.value = true
-      return 
+
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      restored.value = true;
+      return;
     }
 
     try {
-      const data = JSON.parse(raw) as SessionData
-      
+      const data = JSON.parse(raw) as SessionData;
+
       // Восстанавливаем развернутые пути
       if (Array.isArray(data.expandedPaths)) {
-        data.expandedPaths.forEach(path => {
-          treeStateStore.expandedPaths.add(path)
-        })
+        data.expandedPaths.forEach((path) => {
+          treeStateStore.expandedPaths.add(path);
+        });
       }
-      
+
       // Восстанавливаем выделенные файлы
       if (Array.isArray(data.selectedFiles) && data.selectedFiles.length > 0) {
         // Используем treeStateStore для восстановления выделения
-        data.selectedFiles.forEach(relPath => {
-          const node = fileTreeStore.getFileByRelPath(relPath)
-          if (node && !node.isDir && !node.isGitignored && !node.isCustomIgnored) {
-            treeStateStore.selectedPaths.add(node.path)
-            // Обновляем isSelected в node
-            node.isSelected = true
+        data.selectedFiles.forEach((relPath) => {
+          const node = fileTreeStore.getFileByRelPath(relPath);
+          if (
+            node &&
+            !node.isDir &&
+            !node.isGitignored &&
+            !node.isCustomIgnored
+          ) {
+            // Используем treeStateStore для выделения
+            treeStateStore.selectedPaths.add(node.path);
           }
-        })
-        
+        });
+
         // Обновляем contextBuilderStore
-        contextBuilderStore.setSelectedFiles(data.selectedFiles)
+        contextBuilderStore.setSelectedFiles(data.selectedFiles);
       }
     } catch {
       // ignore parse errors
     }
-    
-    restored.value = true
+
+    restored.value = true;
   }
 
   // Watch for project changes and load files
@@ -101,32 +107,40 @@ export function setupProjectSession() {
     () => projectStore.currentProject?.path,
     async (newPath) => {
       if (newPath) {
-        await loadProject(newPath)
+        await loadProject(newPath);
       } else {
-        fileTreeStore.clearProject()
-        contextBuilderStore.clearSelectedFiles()
-        treeStateStore.resetState()
+        fileTreeStore.clearProject();
+        contextBuilderStore.clearSelectedFiles();
+        treeStateStore.resetState();
       }
-      restored.value = false
+      restored.value = false;
     },
-    { immediate: true }
-  )
+    { immediate: true },
+  );
 
   // autosave selected files and expanded paths
-  watch(() => [contextBuilderStore.selectedFiles, treeStateStore.expandedPaths], save, { deep: true })
+  watch(
+    () => [contextBuilderStore.selectedFiles, treeStateStore.expandedPaths],
+    save,
+    { deep: true },
+  );
 
   // restore when both project loaded and tree ready
   watch(
-    () => [projectStore.currentProject?.path, fileTreeStore.isLoading, fileTreeStore.nodesMap.size],
+    () => [
+      projectStore.currentProject?.path,
+      fileTreeStore.isLoading,
+      fileTreeStore.nodesMap.size,
+    ],
     () => tryRestore(),
-    { immediate: true }
-  )
+    { immediate: true },
+  );
 
   // reset restore flag on project change
   watch(
     () => projectStore.currentProject?.path,
     () => {
-      restored.value = false
-    }
-  )
+      restored.value = false;
+    },
+  );
 }

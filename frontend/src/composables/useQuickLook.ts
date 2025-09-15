@@ -4,13 +4,17 @@ import type { FileNode } from "@/types/dto";
 export function useQuickLook() {
   const uiStore = useUiStore();
 
-  function handleMouseEnter(event: MouseEvent, node: FileNode, rootDir: string) {
+  function handleMouseEnter(
+    event: MouseEvent,
+    node: FileNode,
+    rootDir: string,
+  ) {
     if ((event.ctrlKey || event.metaKey) && !node.isDir && !node.isIgnored) {
       uiStore.showQuickLook({
         rootDir,
         path: node.relPath,
         type: "fs",
-        event,
+        position: { x: event.clientX, y: event.clientY },
         isPinned: false,
       });
     }
@@ -20,13 +24,17 @@ export function useQuickLook() {
     uiStore.hideQuickLook();
   }
 
-  function showPinnedQuickLook(event: MouseEvent, node: FileNode, rootDir: string) {
+  function showPinnedQuickLook(
+    event: MouseEvent,
+    node: FileNode,
+    rootDir: string,
+  ) {
     if (!node.isDir && !node.isIgnored) {
       uiStore.showQuickLook({
         rootDir,
         path: node.relPath,
         type: "fs",
-        event,
+        position: { x: event.clientX, y: event.clientY },
         isPinned: true,
       });
     }

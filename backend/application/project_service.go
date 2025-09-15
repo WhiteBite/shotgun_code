@@ -10,7 +10,10 @@ type ProjectService struct {
 	bus                      domain.EventBus
 	treeBuilder              domain.TreeBuilder
 	gitRepo                  domain.GitRepository
-	contextGenerationService *ContextGenerationService
+	contextBuilder           domain.ContextBuilder     // NEW: Using ContextBuilder interface
+	contextGenerator         *ContextGenerator         // NEW: Using ContextGenerator for async operations
+	pathProvider             domain.PathProvider
+	fileStatProvider         domain.FileStatProvider
 }
 
 func NewProjectService(
@@ -18,14 +21,20 @@ func NewProjectService(
 	bus domain.EventBus,
 	treeBuilder domain.TreeBuilder,
 	gitRepo domain.GitRepository,
-	contextGenerationService *ContextGenerationService,
+	contextBuilder domain.ContextBuilder,     // NEW: Using ContextBuilder interface
+	contextGenerator *ContextGenerator,       // NEW: Using ContextGenerator for async operations
+	pathProvider domain.PathProvider,
+	fileStatProvider domain.FileStatProvider,
 ) *ProjectService {
 	return &ProjectService{
-		log:                      log,
-		bus:                      bus,
-		treeBuilder:              treeBuilder,
-		gitRepo:                  gitRepo,
-		contextGenerationService: contextGenerationService,
+		log:              log,
+		bus:              bus,
+		treeBuilder:      treeBuilder,
+		gitRepo:          gitRepo,
+		contextBuilder:   contextBuilder,     // NEW: Using ContextBuilder interface
+		contextGenerator: contextGenerator,   // NEW: Using ContextGenerator for async operations
+		pathProvider:     pathProvider,
+		fileStatProvider: fileStatProvider,
 	}
 }
 
@@ -66,6 +75,6 @@ func (s *ProjectService) IsGitAvailable() bool {
 
 func (s *ProjectService) GenerateContext(ctx context.Context, rootDir string, includedPaths []string) {
 	s.log.Info("Starting context generation")
-	// Теперь используем безопасный метод с panic recovery
-	s.contextGenerationService.GenerateContext(ctx, rootDir, includedPaths)
+	// Use the context generator with panic recovery
+	s.contextGenerator.GenerateContext(ctx, rootDir, includedPaths)
 }

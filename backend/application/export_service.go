@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/contextbuilder"
@@ -18,18 +17,26 @@ const (
 )
 
 type ExportService struct {
-	contextSplitter domain.ContextSplitter
-	log             domain.Logger
-	pdf             domain.PDFGenerator
-	archiver        domain.Archiver
+	contextSplitter   domain.ContextSplitter
+	log               domain.Logger
+	pdf               domain.PDFGenerator
+	archiver          domain.Archiver
+	tempFileProvider  domain.TempFileProvider
+	pathProvider      domain.PathProvider
+	fileSystemWriter  domain.FileSystemWriter
+	fileStatProvider  domain.FileStatProvider
 }
 
-func NewExportService(log domain.Logger, splitter domain.ContextSplitter, pdf domain.PDFGenerator, arch domain.Archiver) *ExportService {
+func NewExportService(log domain.Logger, splitter domain.ContextSplitter, pdf domain.PDFGenerator, arch domain.Archiver, tempFileProvider domain.TempFileProvider, pathProvider domain.PathProvider, fileSystemWriter domain.FileSystemWriter, fileStatProvider domain.FileStatProvider) *ExportService {
 	return &ExportService{
-		contextSplitter: splitter,
-		log:             log,
-		pdf:             pdf,
-		archiver:        arch,
+		contextSplitter:   splitter,
+		log:               log,
+		pdf:               pdf,
+		archiver:          arch,
+		tempFileProvider:  tempFileProvider,
+		pathProvider:      pathProvider,
+		fileSystemWriter:  fileSystemWriter,
+		fileStatProvider:  fileStatProvider,
 	}
 }
 
@@ -114,7 +121,7 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 		}
 
 		// Большой PDF или много чанков -> файл
-		tempDir, err := os.MkdirTemp("", "shotgun-export-*")
+		tempDir, err := s.tempFileProvider.MkdirTemp("", "shotgun-export-*")
 		if err != nil {
 			return domain.ExportResult{}, fmt.Errorf("failed to create temp dir: %w", err)
 		}
@@ -124,9 +131,9 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 
 		if len(chunks) == 1 {
 			fileName = "context-ai.pdf"
-			outputPath = filepath.Join(tempDir, fileName)
+			outputPath = s.pathProvider.Join(tempDir, fileName)
 			if err := s.pdf.WriteAtomic(chunks[0], domain.PDFOptions{}, outputPath); err != nil {
-				os.RemoveAll(tempDir)
+				s.fileSystemWriter.RemoveAll(tempDir)
 				return domain.ExportResult{}, fmt.Errorf("failed to generate AI PDF: %w", err)
 			}
 		} else {
@@ -134,20 +141,20 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			for i, chunk := range chunks {
 				b, err := s.pdf.Generate(chunk, domain.PDFOptions{})
 				if err != nil {
-					os.RemoveAll(tempDir)
+					s.fileSystemWriter.RemoveAll(tempDir)
 					return domain.ExportResult{}, fmt.Errorf("failed to generate PDF chunk %d: %w", i+1, err)
 				}
 				files[fmt.Sprintf("context-ai-part-%02d.pdf", i+1)] = b
 			}
 			fileName = "context-ai.zip"
-			outputPath = filepath.Join(tempDir, fileName)
+			outputPath = s.pathProvider.Join(tempDir, fileName)
 			if err := s.archiver.ZipFilesAtomic(files, outputPath); err != nil {
-				os.RemoveAll(tempDir)
+				s.fileSystemWriter.RemoveAll(tempDir)
 				return domain.ExportResult{}, fmt.Errorf("failed to create ZIP: %w", err)
 			}
 		}
 
-		fi, err := os.Stat(outputPath)
+		fi, err := s.fileStatProvider.Stat(outputPath)
 		if err != nil {
 			os.RemoveAll(tempDir)
 			return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
@@ -178,21 +185,21 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			}, nil
 		}
 
-		tempDir, err := os.MkdirTemp("", "shotgun-export-*")
+		tempDir, err := s.tempFileProvider.MkdirTemp("", "shotgun-export-*")
 		if err != nil {
 			return domain.ExportResult{}, fmt.Errorf("failed to create temp dir: %w", err)
 		}
 		fileName := "context-human.pdf"
-		outputPath := filepath.Join(tempDir, fileName)
+		outputPath := s.pathProvider.Join(tempDir, fileName)
 
 		if err := s.pdf.WriteAtomic(settings.Context, opts, outputPath); err != nil {
-			os.RemoveAll(tempDir)
+			s.fileSystemWriter.RemoveAll(tempDir)
 			return domain.ExportResult{}, fmt.Errorf("failed to generate human-readable PDF: %w", err)
 		}
 
-		fi, err := os.Stat(outputPath)
+		fi, err := s.fileStatProvider.Stat(outputPath)
 		if err != nil {
-			os.RemoveAll(tempDir)
+			s.fileSystemWriter.RemoveAll(tempDir)
 			return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
 		}
 
@@ -207,4 +214,22 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 	default:
 		return domain.ExportResult{}, fmt.Errorf("unknown export mode: %s", settings.Mode)
 	}
+}
+
+// GetExportHistory returns export history for a project
+func (s *ExportService) GetExportHistory(ctx context.Context, projectPath string) ([]domain.ExportHistoryItem, error) {
+	s.log.Info(fmt.Sprintf("Getting export history for project: %s", projectPath))
+
+	// For now, return an empty history as this is a new feature
+	// In the future, this could read from a history file or database
+	var history []domain.ExportHistoryItem
+
+	// TODO: Implement actual history tracking
+	// This could involve:
+	// 1. Reading from a history file in the project directory
+	// 2. Querying a database of export operations
+	// 3. Scanning export directories for previous exports
+
+	s.log.Debug(fmt.Sprintf("Found %d export history items for project %s", len(history), projectPath))
+	return history, nil
 }

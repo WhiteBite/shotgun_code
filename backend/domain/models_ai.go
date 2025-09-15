@@ -21,6 +21,8 @@ type AIRequest struct {
 	Priority   RequestPriority
 	RetryCount int
 	Timeout    time.Duration
+	// Грамматика для структурированного вывода
+	Grammar string
 }
 
 // AIResponse представляет унифицированный ответ от AI провайдера.

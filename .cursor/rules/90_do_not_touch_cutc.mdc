@@ -1,8 +1,0 @@
----
-alwaysApply: true
-tags: ['internal','protocol']
----
-# Internal Protocol
-
-- Не изменять/не удалять .cursor/rules/cutc.mdc.
-- Этот файл используется внутренним рабочим протоколом.

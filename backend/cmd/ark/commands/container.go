@@ -1,0 +1,436 @@
+package commands
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"shotgun_code/application"
+	"shotgun_code/domain"
+	"shotgun_code/infrastructure/ai"
+	"shotgun_code/infrastructure/exec"
+	"shotgun_code/infrastructure/filereader"
+	"shotgun_code/infrastructure/filesystem"
+	"shotgun_code/infrastructure/formatters"
+	"shotgun_code/infrastructure/fsscanner"
+	"shotgun_code/infrastructure/git"
+	"shotgun_code/infrastructure/policy"
+	"shotgun_code/infrastructure/sbomlicensing"
+	"shotgun_code/infrastructure/settingsfs"
+	"shotgun_code/infrastructure/taskflowrepo"
+	"shotgun_code/infrastructure/textutils"
+	"shotgun_code/infrastructure/uxreports"
+
+	// new wiring
+	archiverinfra "shotgun_code/infrastructure/archiver"
+	"shotgun_code/infrastructure/pdfgen"
+	"shotgun_code/infrastructure/symbolgraph"
+	"shotgun_code/infrastructure/testengine"
+	"shotgun_code/infrastructure/staticanalyzer"
+	"shotgun_code/infrastructure/buildpipeline"
+	"shotgun_code/infrastructure/applyengine"
+	"shotgun_code/infrastructure/diffengine"
+)
+
+const openRouterHost = "https://openrouter.ai/api/v1"
+
+// CLIContainer holds all the services and repositories for the application.
+type CLIContainer struct {
+	Log                      domain.Logger
+	EventBus                 domain.EventBus // Add EventBus field
+	SettingsRepo             domain.SettingsRepository
+	FileReader               domain.FileContentReader
+	GitRepo                  domain.GitRepository
+	TreeBuilder              domain.TreeBuilder
+	ContextSplitter          domain.ContextSplitter
+	CommandRunner            domain.CommandRunner
+	SettingsService          *application.SettingsService
+	ProjectService           *application.ProjectService
+	AIService                *application.AIService
+	ContextAnalysis          domain.ContextAnalyzer
+	SymbolGraph              *application.SymbolGraphService
+	TestService              *application.TestService
+	StaticAnalyzerService    *application.StaticAnalyzerService
+	SBOMService              *application.SBOMService
+	RepairService            domain.RepairService
+	GuardrailService         domain.GuardrailService
+	TaskflowService          domain.TaskflowService
+	UXMetricsService         domain.UXMetricsService
+	ApplyService             *application.ApplyService
+	DiffService              *application.DiffService
+	BuildService             *application.BuildService
+	ExportService            *application.ExportService
+	VerificationService      *application.VerificationPipelineService
+	opaService               domain.OPAService
+}
+
+// NewCLIContainer creates and wires up all the application dependencies.
+func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt string, verbose bool) (*CLIContainer, error) {
+	c := &CLIContainer{}
+	var err error
+
+	// Logger for CLI
+	logger := NewCLILogger(verbose)
+	c.Log = logger
+
+	// Repositories and Infrastructure
+	c.SettingsRepo, err = settingsfs.New(c.Log, embeddedIgnoreGlob, defaultCustomPrompt)
+	if err != nil {
+		return nil, err
+	}
+	c.FileReader = filereader.NewSecureFileReader(c.Log)
+	c.GitRepo = git.New(c.Log)
+	c.TreeBuilder = fsscanner.New(c.SettingsRepo, c.Log)
+	c.ContextSplitter = textutils.NewContextSplitter(c.Log)
+	c.CommandRunner = exec.NewCommandRunnerImpl(c.Log)
+
+	// Application Services
+	modelFetchers := createModelFetchers(ctx, c.Log, c.SettingsRepo)
+	c.SettingsService, err = application.NewSettingsService(c.Log, nil, c.SettingsRepo, modelFetchers)
+	if err != nil {
+		return nil, err
+	}
+
+	// AI Service needs to be created before context service
+	providerFactory := createProviderFactory(c.Log, c.SettingsService)
+	
+	// Create rate limiter and metrics collector
+	rateLimiter := application.NewRateLimiter()
+	metrics := application.NewMetricsCollector()
+	
+	// Create intelligent service with dependencies
+	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerFactory, rateLimiter, metrics)
+	
+	// Create AI service with intelligent service
+	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
+
+	// CONSOLIDATED: Create unified context service
+	tokenCounter := &application.SimpleTokenCounter{}
+	
+	// Create OPA service
+	c.opaService = policy.NewOPAService(c.Log)
+	
+	// Create path provider (using standard filepath implementation)
+	pathProvider := filesystem.NewFilePathProvider()
+	
+	// Create file system writer (using standard os implementation)
+	fileSystemWriter := &OSFileSystemWriter{}
+	
+	// Create file stat provider (using standard os implementation)
+	fileStatProvider := filesystem.NewOSFileStatProvider()
+	
+	// Create context directory
+	homeDir, _ := os.UserHomeDir()
+	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
+	os.MkdirAll(contextDir, 0755)
+	
+	consolidatedContextService := application.NewContextService(
+		c.FileReader,
+		tokenCounter,
+		c.Log,
+		c.AIService,
+		c.SettingsService,
+		nil, // No event bus for CLI
+		c.opaService, // OPA service
+		pathProvider, // Path provider
+		fileSystemWriter, // File system writer
+	)
+
+	// Create ContextGenerator for async operations
+	contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, c.EventBus, contextDir)
+	
+	// Create ProjectService with consolidated context service
+	c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, consolidatedContextService, contextGenerator, pathProvider, fileStatProvider)
+	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+	// Create symbol graph builders
+	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
+	symbolGraphBuilders := make(map[string]domain.SymbolGraphBuilder)
+	symbolGraphBuilders["go"] = goSymbolGraphBuilder
+
+	// Create import graph builders (currently no implementation, using nil map)
+	importGraphBuilders := make(map[string]domain.ImportGraphBuilder)
+
+	c.SymbolGraph = application.NewSymbolGraphService(c.Log, symbolGraphBuilders, importGraphBuilders)
+	testEngine := testengine.NewTestEngine(c.Log, goSymbolGraphBuilder)
+	c.TestService = application.NewTestService(c.Log, testEngine)
+	staticAnalyzerEngine := staticanalyzer.NewStaticAnalyzerEngine(c.Log)
+	c.StaticAnalyzerService = application.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
+	
+	// Create SBOM infrastructure components
+	sbomGenerator := sbomlicensing.NewSyftGenerator(c.Log)
+	vulnScanner := sbomlicensing.NewGrypeScanner(c.Log)
+	licenseScanner := sbomlicensing.NewLicenseScanner(c.Log)
+	
+	// Create SBOM service with all required dependencies
+	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, fileStatProvider)
+	
+	c.RepairService = application.NewRepairService(c.Log)
+	
+	// Create Taskflow infrastructure components
+	taskflowRepo := taskflowrepo.NewInMemoryTaskflowRepository()
+	routerPlanner := application.NewRouterPlannerService(c.Log)
+	
+	// Create Guardrail service with required dependencies
+	c.GuardrailService = application.NewGuardrailService(c.Log, c.opaService, fileStatProvider)
+	
+	// Create Taskflow service
+	c.TaskflowService = application.NewTaskflowService(c.Log, routerPlanner, c.GuardrailService, taskflowRepo)
+	
+	// Update GuardrailService with TaskflowService to resolve circular dependency
+	// Cast TaskflowService to TaskTypeProvider
+	if taskTypeProvider, ok := c.TaskflowService.(domain.TaskTypeProvider); ok {
+		c.GuardrailService.(*application.GuardrailServiceImpl).SetTaskTypeProvider(taskTypeProvider)
+	}
+	
+	// Create UX Metrics infrastructure components
+	uxRepo := uxreports.NewInMemoryUXReportRepository()
+	
+	// Create UX Metrics service
+	c.UXMetricsService = application.NewUXMetricsService(c.Log, uxRepo)
+
+	// Create Apply service infrastructure components
+	applyEngine := applyengine.NewApplyEngine(c.Log, &domain.ApplyEngineConfig{
+		AutoFormat:     true,
+		AutoFixImports: true,
+		BackupFiles:    true,
+		ValidateAfter:  true,
+		Languages:      []string{"go", "typescript", "ts"},
+	})
+	
+	// Create formatters and import fixers
+	formattersMap := make(map[string]domain.Formatter)
+	importFixers := make(map[string]domain.ImportFixer)
+	
+	// Create and register Go formatter and import fixer
+	goFormatter := formatters.NewGoFormatter(c.Log)
+	formattersMap["go"] = goFormatter
+	importFixers["go"] = goFormatter
+	
+	// Create and register TypeScript formatter and import fixer
+	tsFormatter := formatters.NewTypeScriptFormatter(c.Log)
+	formattersMap["typescript"] = tsFormatter
+	formattersMap["ts"] = tsFormatter
+	importFixers["typescript"] = tsFormatter
+	importFixers["ts"] = tsFormatter
+	
+	// Register formatters and import fixers with the engine
+	for lang, formatter := range formattersMap {
+		applyEngine.RegisterFormatter(lang, formatter)
+	}
+	
+	for lang, fixer := range importFixers {
+		applyEngine.RegisterImportFixer(lang, fixer)
+	}
+	
+	// Create Apply service with all required dependencies
+	applyConfig := &domain.ApplyEngineConfig{
+		AutoFormat:     true,
+		AutoFixImports: true,
+		BackupFiles:    true,
+		ValidateAfter:  true,
+		Languages:      []string{"go", "typescript", "ts"},
+	}
+	c.ApplyService = application.NewApplyService(c.Log, applyConfig, applyEngine, formattersMap, importFixers)
+	
+	// Create Diff service
+	diffEngine := diffengine.NewDiffEngine(c.Log)
+	c.DiffService = application.NewDiffService(c.Log, diffEngine)
+	
+	buildPipeline := buildpipeline.NewBuildPipeline(c.Log)
+	c.BuildService = application.NewBuildService(c.Log, buildPipeline)
+
+	// Create formatter service
+	formatterService := application.NewFormatterService(c.Log, c.CommandRunner)
+
+	// Create verification pipeline service
+	c.VerificationService = application.NewVerificationPipelineService(
+		c.Log,
+		c.BuildService,
+		c.TestService,
+		c.StaticAnalyzerService,
+		formatterService,
+		&OSFileSystemWriter{},
+		nil, // Task Protocol Service not needed for CLI
+	)
+
+	// new: wire PDF and ZIP implementations
+	pdfGen := pdfgen.NewGofpdfGenerator(c.Log)
+	arch := archiverinfra.NewZipArchiver(c.Log)
+	
+	// Create Export service with all required dependencies
+	c.ExportService = application.NewExportService(
+		c.Log,
+		c.ContextSplitter,
+		pdfGen,
+		arch,
+		&OSTempFileProvider{}, // Temp file provider
+		pathProvider,          // Path provider
+		&OSFileSystemWriter{}, // File system writer
+		fileStatProvider,      // File stat provider
+	)
+
+	return c, nil
+}
+
+// CLILogger реализует простой логгер для CLI
+type CLILogger struct {
+	verbose bool
+}
+
+// NewCLILogger создает новый CLI логгер
+func NewCLILogger(verbose bool) *CLILogger {
+	return &CLILogger{
+		verbose: verbose,
+	}
+}
+
+// Info логирует информационное сообщение
+func (l *CLILogger) Info(message string) {
+	if l.verbose {
+		fmt.Printf("[INFO] %s\n", message)
+	}
+}
+
+// Warning логирует предупреждение
+func (l *CLILogger) Warning(message string) {
+	fmt.Printf("[WARN] %s\n", message)
+}
+
+// Error логирует ошибку
+func (l *CLILogger) Error(message string) {
+	fmt.Printf("[ERROR] %s\n", message)
+}
+
+// Debug логирует отладочное сообщение
+func (l *CLILogger) Debug(message string) {
+	if l.verbose {
+		fmt.Printf("[DEBUG] %s\n", message)
+	}
+}
+
+// Fatal логирует фатальную ошибку и завершает программу
+func (l *CLILogger) Fatal(message string) {
+	fmt.Printf("[FATAL] %s\n", message)
+	os.Exit(1)
+}
+
+func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.SettingsRepository) domain.ModelFetcherRegistry {
+	fetchers := make(domain.ModelFetcherRegistry)
+	
+	// Gemini
+	fetchers["gemini"] = func(apiKey string) ([]string, error) {
+		p, err := ai.NewGemini(apiKey, "", log)
+		if err != nil {
+			log.Warning("Failed to create Gemini client for model listing: " + err.Error())
+			return nil, err
+		}
+		return p.(*ai.GeminiProviderImpl).ListModels(ctx)
+	}
+	
+	// OpenAI
+	fetchers["openai"] = func(apiKey string) ([]string, error) {
+		p, err := ai.NewOpenAI(apiKey, "", log)
+		if err != nil {
+			log.Warning("Failed to create OpenAI client for model listing: " + err.Error())
+			return nil, err
+		}
+		return p.(*ai.OpenAIProviderImpl).ListModels(ctx)
+	}
+	
+	// OpenRouter
+	fetchers["openrouter"] = func(apiKey string) ([]string, error) {
+		p, err := ai.NewOpenAI(apiKey, openRouterHost, log)
+		if err != nil {
+			log.Warning("Failed to create OpenRouter client for model listing: " + err.Error())
+			return nil, err
+		}
+		return p.(*ai.OpenAIProviderImpl).ListModels(ctx)
+	}
+	
+	// LocalAI
+	fetchers["localai"] = func(apiKey string) ([]string, error) {
+		localAIHost := repo.GetLocalAIHost()
+		p, err := ai.NewLocalAI(apiKey, localAIHost, log)
+		if err != nil {
+			log.Warning("Failed to create LocalAI client for model listing: " + err.Error())
+			return nil, err
+		}
+		return p.(*ai.LocalAIProviderImpl).ListModels(ctx)
+	}
+	
+	return fetchers
+}
+
+func createProviderFactory(log domain.Logger, settingsService *application.SettingsService) domain.AIProviderFactory {
+	return func(providerType, apiKey string) (domain.AIProvider, error) {
+		switch providerType {
+		case "openai":
+			return ai.NewOpenAI(apiKey, "", log)
+		case "gemini":
+			return ai.NewGemini(apiKey, "", log)
+		case "openrouter":
+			return ai.NewOpenAI(apiKey, openRouterHost, log)
+		case "localai":
+			dto, err := settingsService.GetSettingsDTO()
+			if err != nil {
+				return nil, err
+			}
+			return ai.NewOpenAI(apiKey, dto.LocalAIHost, log)
+		default:
+			return nil, fmt.Errorf("unknown AI provider: %s", providerType)
+		}
+	}
+}
+
+// FilePathProvider implements domain.PathProvider using standard filepath functions
+type FilePathProvider struct{}
+
+func (p *FilePathProvider) Join(elem ...string) string {
+	return filepath.Join(elem...)
+}
+
+func (p *FilePathProvider) Base(path string) string {
+	return filepath.Base(path)
+}
+
+func (p *FilePathProvider) Dir(path string) string {
+	return filepath.Dir(path)
+}
+
+func (p *FilePathProvider) IsAbs(path string) bool {
+	return filepath.IsAbs(path)
+}
+
+func (p *FilePathProvider) Clean(path string) string {
+	return filepath.Clean(path)
+}
+
+func (p *FilePathProvider) Getwd() (string, error) {
+	return os.Getwd()
+}
+
+// OSFileSystemWriter implements domain.FileSystemWriter using standard os functions
+type OSFileSystemWriter struct{}
+
+func (w *OSFileSystemWriter) WriteFile(filename string, data []byte, perm int) error {
+	return os.WriteFile(filename, data, os.FileMode(perm))
+}
+
+func (w *OSFileSystemWriter) MkdirAll(path string, perm int) error {
+	return os.MkdirAll(path, os.FileMode(perm))
+}
+
+func (w *OSFileSystemWriter) Remove(name string) error {
+	return os.Remove(name)
+}
+
+func (w *OSFileSystemWriter) RemoveAll(path string) error {
+	return os.RemoveAll(path)
+}
+
+// OSTempFileProvider implements domain.TempFileProvider using standard os functions
+type OSTempFileProvider struct{}
+
+func (t *OSTempFileProvider) MkdirTemp(dir, pattern string) (string, error) {
+	return os.MkdirTemp(dir, pattern)
+}

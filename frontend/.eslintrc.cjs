@@ -1,5 +1,6 @@
 /* eslint-env node */
-require('@rushstack/eslint-patch/modern-module-resolution');
+import eslintPatch from '@rushstack/eslint-patch/modern-module-resolution';
+eslintPatch.apply();
 
 module.exports = {
   root: true,

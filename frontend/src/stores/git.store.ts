@@ -1,14 +1,14 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { useErrorHandler } from "@/composables/useErrorHandler";
+import { useAdvancedErrorHandler } from "@/composables/useErrorHandler";
 import { useProjectStore } from "./project.store";
 import { useTreeStateStore } from "./tree-state.store";
 import { useFileTreeStore } from "./file-tree.store";
-import { apiService } from "@/services/api.service";
+import { apiService } from "@/infrastructure/api/api.service";
 import type { CommitWithFiles } from "@/types/dto";
 
 export const useGitStore = defineStore("git", () => {
-  const { handleError } = useErrorHandler();
+  const { handleStructuredError } = useAdvancedErrorHandler();
   const projectStore = useProjectStore();
 
   const isHistoryVisible = ref(false);
@@ -27,7 +27,7 @@ export const useGitStore = defineStore("git", () => {
       );
       commits.value = history;
     } catch (err) {
-      handleError(err, "Fetch Git History");
+      handleStructuredError(err, { operation: "Fetch Git History", component: "GitStore" });
     } finally {
       isLoading.value = false;
     }
@@ -51,11 +51,14 @@ export const useGitStore = defineStore("git", () => {
 
     for (const commit of commits.value) {
       if (selectedHashesSet.has(commit.hash)) {
-        commit.files.forEach(fileRelPath => filesToSelect.add(fileRelPath));
+        commit.files.forEach((fileRelPath) => filesToSelect.add(fileRelPath));
       }
     }
 
-    treeStateStore.selectFilesByRelPaths(Array.from(filesToSelect), fileTreeStore.nodesMap);
+    treeStateStore.selectFilesByRelPaths(
+      Array.from(filesToSelect),
+      (fileTreeStore as any).nodesRelMap,
+    );
   }
 
   return {
@@ -64,6 +67,6 @@ export const useGitStore = defineStore("git", () => {
     commits,
     showHistory,
     hideHistory,
-    applyCommitSelection
+    applyCommitSelection,
   };
 });

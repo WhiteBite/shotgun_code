@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"shotgun_code/domain"
+	"sort"
 	"strings"
 )
 
@@ -40,8 +41,10 @@ func (b *GoSymbolGraphBuilder) BuildGraph(ctx context.Context, projectRoot strin
 		}
 
 		if info.IsDir() {
-			// Пропускаем vendor и node_modules
-			if info.Name() == "vendor" || info.Name() == "node_modules" {
+			// Пропускаем vendor, node_modules и другие служебные директории
+			if info.Name() == "vendor" || info.Name() == "node_modules" ||
+				info.Name() == ".git" || info.Name() == "dist" ||
+				strings.HasPrefix(info.Name(), ".") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -67,6 +70,9 @@ func (b *GoSymbolGraphBuilder) BuildGraph(ctx context.Context, projectRoot strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to build symbol graph: %w", err)
 	}
+
+	// Обеспечиваем детерминизм: сортируем узлы и ребра
+	b.sortGraphForDeterminism(graph)
 
 	b.log.Info(fmt.Sprintf("Built symbol graph with %d nodes and %d edges", len(graph.Nodes), len(graph.Edges)))
 	return graph, nil
@@ -138,6 +144,19 @@ func (b *GoSymbolGraphBuilder) parseGoFile(filePath, projectRoot string) ([]*dom
 			}
 			if x.Recv != nil {
 				funcNode.Type = domain.SymbolTypeMethod
+				// Добавляем связь с типом-получателем
+				if len(x.Recv.List) > 0 && len(x.Recv.List[0].Names) > 0 {
+					receiverType := b.getReceiverType(x.Recv.List[0].Type)
+					if receiverType != "" {
+						receiverEdge := &domain.SymbolEdge{
+							From:   funcNode.ID,
+							To:     fmt.Sprintf("type:%s:%s", relPath, receiverType),
+							Type:   domain.EdgeTypeReferences,
+							Weight: 1.0,
+						}
+						edges = append(edges, receiverEdge)
+					}
+				}
 			}
 			nodes = append(nodes, funcNode)
 
@@ -147,10 +166,45 @@ func (b *GoSymbolGraphBuilder) parseGoFile(filePath, projectRoot string) ([]*dom
 				// Тип
 				for _, spec := range x.Specs {
 					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+						var symbolType domain.SymbolType = domain.SymbolTypeType
+
+						// Определяем конкретный тип
+						switch typeSpec.Type.(type) {
+						case *ast.StructType:
+							symbolType = domain.SymbolTypeStruct
+							// Обрабатываем поля структуры
+							if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+								for _, field := range structType.Fields.List {
+									for _, name := range field.Names {
+										fieldNode := &domain.SymbolNode{
+											ID:         fmt.Sprintf("field:%s:%s.%s", relPath, typeSpec.Name.Name, name.Name),
+											Name:       name.Name,
+											Type:       domain.SymbolTypeField,
+											Path:       relPath,
+											Package:    packageName,
+											Visibility: b.getVisibility(name.Name),
+										}
+										nodes = append(nodes, fieldNode)
+
+										// Добавляем связь с родительским типом
+										fieldEdge := &domain.SymbolEdge{
+											From:   fieldNode.ID,
+											To:     fmt.Sprintf("type:%s:%s", relPath, typeSpec.Name.Name),
+											Type:   domain.EdgeTypeReferences,
+											Weight: 1.0,
+										}
+										edges = append(edges, fieldEdge)
+									}
+								}
+							}
+						case *ast.InterfaceType:
+							symbolType = domain.SymbolTypeInterface
+						}
+
 						typeNode := &domain.SymbolNode{
 							ID:         fmt.Sprintf("type:%s:%s", relPath, typeSpec.Name.Name),
 							Name:       typeSpec.Name.Name,
-							Type:       domain.SymbolTypeType,
+							Type:       symbolType,
 							Path:       relPath,
 							Package:    packageName,
 							Visibility: b.getVisibility(typeSpec.Name.Name),
@@ -171,7 +225,7 @@ func (b *GoSymbolGraphBuilder) parseGoFile(filePath, projectRoot string) ([]*dom
 							}
 
 							varNode := &domain.SymbolNode{
-								ID:         fmt.Sprintf("%s:%s:%s", strings.ToLower(string(x.Tok)), relPath, name.Name),
+								ID:         fmt.Sprintf("%s:%s:%s", strings.ToLower(x.Tok.String()), relPath, name.Name),
 								Name:       name.Name,
 								Type:       symbolType,
 								Path:       relPath,
@@ -201,6 +255,19 @@ func (b *GoSymbolGraphBuilder) getVisibility(name string) domain.Visibility {
 		return domain.VisibilityPublic
 	}
 	return domain.VisibilityPrivate
+}
+
+// getReceiverType извлекает тип получателя из AST
+func (b *GoSymbolGraphBuilder) getReceiverType(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		if ident, ok := t.X.(*ast.Ident); ok {
+			return ident.Name
+		}
+	}
+	return ""
 }
 
 // UpdateGraph обновляет граф для измененных файлов
@@ -267,4 +334,20 @@ func (b *GoSymbolGraphBuilder) GetDependents(ctx context.Context, symbolID strin
 	}
 
 	return dependents, nil
+}
+
+// sortGraphForDeterminism сортирует узлы и ребра для обеспечения детерминизма
+func (b *GoSymbolGraphBuilder) sortGraphForDeterminism(graph *domain.SymbolGraph) {
+	// Сортируем узлы по ID для детерминизма
+	sort.Slice(graph.Nodes, func(i, j int) bool {
+		return graph.Nodes[i].ID < graph.Nodes[j].ID
+	})
+
+	// Сортируем ребра по From, затем по To для детерминизма
+	sort.Slice(graph.Edges, func(i, j int) bool {
+		if graph.Edges[i].From != graph.Edges[j].From {
+			return graph.Edges[i].From < graph.Edges[j].From
+		}
+		return graph.Edges[i].To < graph.Edges[j].To
+	})
 }
