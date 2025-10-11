@@ -237,6 +237,15 @@ func (s *GuardrailServiceImpl) EnableEphemeralMode(taskID string, taskType strin
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Safety check: verify taskTypeProvider is initialized
+	if s.taskTypeProvider == nil {
+		s.log.Warning("TaskTypeProvider not initialized - ephemeral mode validation skipped")
+		// Fallback: allow only if explicitly scaffold/deps_fix
+		if taskType != "scaffold" && taskType != "deps_fix" {
+			return fmt.Errorf("ephemeral mode only allowed for scaffold/deps_fix tasks")
+		}
+	}
+
 	// Проверяем, что это задача scaffold или deps_fix
 	if taskType != "scaffold" && taskType != "deps_fix" {
 		return fmt.Errorf("ephemeral mode only allowed for scaffold/deps_fix tasks")

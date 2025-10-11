@@ -242,7 +242,9 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create TaskflowService with injected dependencies
 	c.TaskflowService = application.NewTaskflowService(c.Log, planner, c.RouterLLMService, c.GuardrailService, taskflowRepo, c.GitRepo)
 
-	// Update GuardrailService with TaskTypeProvider to resolve circular dependency
+	// ⚠️ CRITICAL: Update GuardrailService with TaskTypeProvider to resolve circular dependency
+	// This MUST be called AFTER TaskflowService is created
+	// Order matters: TaskflowService → GuardrailService.SetTaskTypeProvider
 	c.GuardrailService.(domain.GuardrailService).SetTaskTypeProvider(c.TaskflowService.(domain.TaskTypeProvider))
 
 	// Create UXReportRepository

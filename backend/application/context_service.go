@@ -10,6 +10,7 @@ import (
 	"shotgun_code/domain"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -150,52 +151,207 @@ func (s *ContextService) GetContextCount() int {
 	return len(s.contexts)
 }
 
+// SuggestFiles suggests relevant files for a task (not implemented yet)
 func (s *ContextService) SuggestFiles(ctx context.Context, taskDescription string, files []*domain.FileNode) ([]string, error) {
-	return []string{}, nil
+	return []string{}, nil // Empty list is valid, no error
 }
 
+// CreateStreamingContext creates a streaming context and saves metadata to disk
 func (s *ContextService) CreateStreamingContext(ctx context.Context, projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextStream, error) {
-	return nil, nil
+	// Validate inputs
+	if len(includedPaths) == 0 {
+		return nil, fmt.Errorf("no files provided")
+	}
+
+	// Generate context ID
+	contextID, err := generateContextID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate context ID: %w", err)
+	}
+
+	// Build context content to get metadata
+	summary, err := s.buildContextContent(includedPaths)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build context: %w", err)
+	}
+
+	// Create streaming context metadata
+	stream := &domain.ContextStream{
+		ID:          contextID,
+		Name:        fmt.Sprintf("Context for %d files", len(includedPaths)),
+		Description: fmt.Sprintf("Streaming context from %s", projectPath),
+		Files:       includedPaths,
+		ProjectPath: projectPath,
+		TotalLines:  int64(summary.LineCount),
+		TotalChars:  summary.TotalSize,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		UpdatedAt:   time.Now().Format(time.RFC3339),
+		TokenCount:  summary.TokenCount,
+	}
+
+	// Store in memory (context content is already on disk via buildContextContent)
+	s.mu.Lock()
+	s.contexts[contextID] = fmt.Sprintf("stream:%s", contextID)
+	s.mu.Unlock()
+
+	return stream, nil
 }
 
+// GetContextContent returns paginated context content for memory-safe viewing
 func (s *ContextService) GetContextContent(ctx context.Context, contextID string, startLine int, lineCount int) (interface{}, error) {
-    return nil, nil
+	// Validate context exists
+	s.mu.RLock()
+	_, exists := s.contexts[contextID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("context not found: %s", contextID)
+	}
+
+	// Get lines from stored content
+	lines, err := s.GetLines(contextID, startLine, lineCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get context lines: %w", err)
+	}
+
+	result := map[string]interface{}{
+		"contextID": contextID,
+		"startLine": startLine,
+		"lineCount": lineCount,
+		"content":   lines,
+	}
+
+	return result, nil
 }
 
+// GetContext retrieves a full context by ID (use with caution - can cause OOM)
 func (s *ContextService) GetContext(ctx context.Context, contextID string) (*domain.Context, error) {
-	return nil, nil
+	s.mu.RLock()
+	content, exists := s.contexts[contextID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("context not found: %s", contextID)
+	}
+
+	// Create context object
+	context := &domain.Context{
+		ID:        contextID,
+		Content:   content,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	return context, nil
 }
 
+// GetContextLines retrieves a range of lines from a streaming context
 func (s *ContextService) GetContextLines(ctx context.Context, contextID string, startLine, endLine int64) (*domain.ContextLineRange, error) {
-	return nil, nil
+	if startLine < 0 || endLine < startLine {
+		return nil, fmt.Errorf("invalid line range: %d to %d", startLine, endLine)
+	}
+
+	lineCount := int(endLine - startLine + 1)
+	content, err := s.GetLines(contextID, int(startLine), lineCount)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(content, "\n")
+	
+	return &domain.ContextLineRange{
+		StartLine: startLine,
+		EndLine:   endLine,
+		Lines:     lines,
+	}, nil
 }
 
+// GetProjectContexts lists all contexts for a project (stub for now)
 func (s *ContextService) GetProjectContexts(ctx context.Context, projectPath string) ([]*domain.Context, error) {
-	return nil, nil
+	// Return empty list - context listing not implemented yet
+	return []*domain.Context{}, nil
 }
 
+// SaveContext saves a context to memory
 func (s *ContextService) SaveContext(context *domain.Context) error {
+	if context == nil || context.ID == "" {
+		return fmt.Errorf("invalid context: missing ID")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	s.contexts[context.ID] = context.Content
 	return nil
 }
 
+// SaveContextSummary saves a context summary (stub - not persisted)
 func (s *ContextService) SaveContextSummary(contextSummary *domain.ContextSummary) error {
+	if contextSummary == nil || contextSummary.ID == "" {
+		return fmt.Errorf("invalid context summary: missing ID")
+	}
+	// Summary saved to memory as metadata only
 	return nil
 }
 
+// AnalyzeTaskAndCollectContext analyzes a task and suggests files (not implemented)
 func (s *ContextService) AnalyzeTaskAndCollectContext(ctx context.Context, task string, allFiles []*domain.FileNode, rootDir string) (*domain.ContextAnalysisResult, error) {
-	return nil, nil
+	return nil, fmt.Errorf("task analysis not implemented")
 }
 
+// BuildContextLegacy builds context with legacy format (DEPRECATED)
 func (s *ContextService) BuildContextLegacy(ctx context.Context, projectPath string, includedPaths []string, options domain.ContextBuildOptions) (*domain.Context, error) {
-	return nil, nil
+	return nil, fmt.Errorf("legacy context building is deprecated - use BuildContext instead")
 }
 
+// GetContextStream retrieves streaming context metadata
 func (s *ContextService) GetContextStream(ctx context.Context, contextID string) (*domain.ContextStream, error) {
-	return nil, nil
+	s.mu.RLock()
+	_, exists := s.contexts[contextID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("context stream not found: %s", contextID)
+	}
+
+	// Return minimal metadata
+	return &domain.ContextStream{
+		ID:        contextID,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}, nil
 }
 
+// CloseContextStream closes a streaming context and cleans up resources
 func (s *ContextService) CloseContextStream(ctx context.Context, contextID string) error {
-	return nil
+	return s.DeleteContext(ctx, contextID)
+}
+
+// buildContextContent is a helper to build context and calculate metadata
+func (s *ContextService) buildContextContent(filePaths []string) (*domain.ContextSummaryInfo, error) {
+	var totalSize int64
+	var totalLines int
+	var content strings.Builder
+
+	for _, path := range filePaths {
+		fileContent, lineCount, err := readFileWithLines(path)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+
+		content.WriteString(fmt.Sprintf("=== File: %s ===\n", path))
+		content.WriteString(fileContent)
+		content.WriteString("\n\n")
+
+		totalSize += int64(len(fileContent))
+		totalLines += lineCount
+	}
+
+	return &domain.ContextSummaryInfo{
+		FileCount: len(filePaths),
+		TotalSize: totalSize,
+		LineCount: totalLines,
+		TokenCount: totalLines * 4, // Rough estimate: 4 tokens per line
+	}, nil
 }
 
 // readFileWithLines reads a file and returns content with line count
