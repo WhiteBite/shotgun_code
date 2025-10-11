@@ -43,7 +43,6 @@ func NewStaticAnalyzerEngine(log domain.Logger) *StaticAnalyzerEngineImpl {
 func (e *StaticAnalyzerEngineImpl) RegisterAnalyzer(analyzer domain.StaticAnalyzer) {
 	analyzerType := analyzer.GetAnalyzerType()
 	e.analyzers[string(analyzerType)] = analyzer
-	e.log.Info(fmt.Sprintf("Registered static analyzer: %s", analyzerType))
 }
 
 // AnalyzeProject выполняет анализ проекта

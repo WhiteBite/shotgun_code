@@ -201,26 +201,26 @@ func (s *StaticService) ValidateAnalysisResults(results map[string]*domain.Stati
 		Languages:      make(map[string]*domain.LanguageAnalysisValidation),
 	}
 
-	for language, result := range results {
-		langValidation := &domain.LanguageAnalysisValidation{
-			Language: language,
-		}
+    for language, result := range results {
+        langValidation := &domain.LanguageAnalysisValidation{Language: language}
 
-		if result != nil && result.Success {
-			validation.SuccessCount++
-			langValidation.Success = true
-			langValidation.IssueCount = len(result.Issues)
-			validation.TotalIssues += len(result.Issues)
-		} else {
-			validation.FailureCount++
-			langValidation.Success = false
-			if result != nil {
-				langValidation.Error = result.Error
-			}
-		}
+        if result != nil {
+            langValidation.Success = result.Success
+            langValidation.IssueCount = len(result.Issues)
+            validation.TotalIssues += len(result.Issues)
+            if !result.Success {
+                langValidation.Error = result.Error
+            }
+        }
 
-		validation.Languages[language] = langValidation
-	}
+        if result != nil && result.Success {
+            validation.SuccessCount++
+        } else {
+            validation.FailureCount++
+        }
+
+        validation.Languages[language] = langValidation
+    }
 
 	return validation
 }

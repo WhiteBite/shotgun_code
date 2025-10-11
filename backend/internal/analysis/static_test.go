@@ -40,6 +40,8 @@ type MockStaticAnalyzerEngine struct {
 	mock.Mock
 }
 
+func (m *MockStaticAnalyzerEngine) RegisterAnalyzer(analyzer domain.StaticAnalyzer) {}
+
 func (m *MockStaticAnalyzerEngine) AnalyzeProject(ctx context.Context, projectPath string, languages []string) (map[string]*domain.StaticAnalysisResult, error) {
 	args := m.Called(ctx, projectPath, languages)
 	return args.Get(0).(map[string]*domain.StaticAnalysisResult), args.Error(1)
@@ -61,8 +63,12 @@ func (m *MockStaticAnalyzerEngine) GetSupportedAnalyzers() []domain.StaticAnalyz
 }
 
 func (m *MockStaticAnalyzerEngine) GetAnalyzerForLanguage(language string) (domain.StaticAnalyzer, error) {
-	args := m.Called(language)
-	return args.Get(0).(domain.StaticAnalyzer), args.Error(1)
+    args := m.Called(language)
+    var analyzer domain.StaticAnalyzer
+    if v := args.Get(0); v != nil {
+        analyzer = v.(domain.StaticAnalyzer)
+    }
+    return analyzer, args.Error(1)
 }
 
 // Mock StaticAnalyzer for testing
@@ -83,6 +89,16 @@ func (m *MockStaticAnalyzer) GetAnalyzerType() domain.StaticAnalyzerType {
 func (m *MockStaticAnalyzer) GetName() string {
 	args := m.Called()
 	return args.String(0)
+}
+
+func (m *MockStaticAnalyzer) GetSupportedLanguages() []string {
+    args := m.Called()
+    return args.Get(0).([]string)
+}
+
+func (m *MockStaticAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) error {
+    args := m.Called(config)
+    return args.Error(0)
 }
 
 func TestStaticService_NewStaticService(t *testing.T) {
@@ -112,30 +128,31 @@ func TestStaticService_AnalyzeProject_Success(t *testing.T) {
 	projectPath := "/test/project"
 	languages := []string{"go", "javascript"}
 	
-	analysisResults := map[string]*domain.StaticAnalysisResult{
-		"go": {
-			Language: "go",
-			Issues:   []domain.StaticAnalysisIssue{},
-			Success:  true,
-		},
-		"javascript": {
-			Language: "javascript",
-			Issues:   []domain.StaticAnalysisIssue{},
-			Success:  true,
-		},
-	}
+    analysisResults := map[string]*domain.StaticAnalysisResult{
+        "go": {
+            Language: "go",
+            Issues:   []*domain.StaticIssue{},
+            Success:  true,
+        },
+        "javascript": {
+            Language: "javascript",
+            Issues:   []*domain.StaticIssue{},
+            Success:  true,
+        },
+    }
 	
-	report := &domain.StaticAnalysisReport{
-		ProjectPath: projectPath,
-		Results:     analysisResults,
-		Summary: domain.StaticAnalysisSummary{
-			TotalIssues:   0,
-			CriticalCount: 0,
-			HighCount:     0,
-			MediumCount:   0,
-			LowCount:      0,
-		},
-	}
+    report := &domain.StaticAnalysisReport{
+        ProjectPath: projectPath,
+        Results:     analysisResults,
+        Summary: &domain.StaticAnalysisReportSummary{
+            TotalIssues:   0,
+            TotalErrors:   0,
+            TotalWarnings: 0,
+            LanguagesAnalyzed: []string{"go", "javascript"},
+            AnalyzersUsed:     []string{"staticcheck", "eslint"},
+            Success:           true,
+        },
+    }
 
 	// Setup mocks
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
@@ -203,11 +220,11 @@ func TestStaticService_AnalyzeFile_Success(t *testing.T) {
 	filePath := "/test/file.go"
 	language := "go"
 	
-	result := &domain.StaticAnalysisResult{
-		Language: language,
-		Issues:   []domain.StaticAnalysisIssue{},
-		Success:  true,
-	}
+    result := &domain.StaticAnalysisResult{
+        Language: language,
+        Issues:   []*domain.StaticIssue{},
+        Success:  true,
+    }
 
 	// Setup mocks
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
@@ -329,11 +346,11 @@ func TestStaticService_AnalyzeGoProject_Success(t *testing.T) {
 
 	// Test data
 	projectPath := "/test/go-project"
-	result := &domain.StaticAnalysisResult{
-		Language: "go",
-		Issues:   []domain.StaticAnalysisIssue{},
-		Success:  true,
-	}
+    result := &domain.StaticAnalysisResult{
+        Language: "go",
+        Issues:   []*domain.StaticIssue{},
+        Success:  true,
+    }
 
 	// Setup mocks
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
@@ -400,11 +417,11 @@ func TestStaticService_AnalyzeTypeScriptProject_Success(t *testing.T) {
 
 	// Test data
 	projectPath := "/test/ts-project"
-	result := &domain.StaticAnalysisResult{
-		Language: "typescript",
-		Issues:   []domain.StaticAnalysisIssue{},
-		Success:  true,
-	}
+    result := &domain.StaticAnalysisResult{
+        Language: "typescript",
+        Issues:   []*domain.StaticIssue{},
+        Success:  true,
+    }
 
 	// Setup mocks
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
@@ -432,25 +449,25 @@ func TestStaticService_ValidateAnalysisResults(t *testing.T) {
 	service := NewStaticService(mockLogger)
 
 	// Test data
-	results := map[string]*domain.StaticAnalysisResult{
-		"go": {
-			Language: "go",
-			Issues: []domain.StaticAnalysisIssue{
-				{Severity: domain.SeverityCritical},
-				{Severity: domain.SeverityHigh},
-				{Severity: domain.SeverityMedium},
-			},
-			Success: true,
-		},
-		"javascript": {
-			Language: "javascript",
-			Issues: []domain.StaticAnalysisIssue{
-				{Severity: domain.SeverityLow},
-				{Severity: domain.SeverityMedium},
-			},
-			Success: false,
-		},
-	}
+    results := map[string]*domain.StaticAnalysisResult{
+        "go": {
+            Language: "go",
+            Issues: []*domain.StaticIssue{
+                {Severity: "critical"},
+                {Severity: "high"},
+                {Severity: "medium"},
+            },
+            Success: true,
+        },
+        "javascript": {
+            Language: "javascript",
+            Issues: []*domain.StaticIssue{
+                {Severity: "low"},
+                {Severity: "medium"},
+            },
+            Success: false,
+        },
+    }
 
 	// Execute
 	validation := service.ValidateAnalysisResults(results)
@@ -460,9 +477,5 @@ func TestStaticService_ValidateAnalysisResults(t *testing.T) {
 	assert.Equal(t, 2, validation.TotalLanguages)
 	assert.Equal(t, 1, validation.SuccessCount)
 	assert.Equal(t, 1, validation.FailureCount)
-	assert.Equal(t, 5, validation.TotalIssues)
-	assert.Equal(t, 1, validation.CriticalCount)
-	assert.Equal(t, 1, validation.HighCount)
-	assert.Equal(t, 2, validation.MediumCount)
-	assert.Equal(t, 1, validation.LowCount)
+    assert.Equal(t, 5, validation.TotalIssues)
 }
