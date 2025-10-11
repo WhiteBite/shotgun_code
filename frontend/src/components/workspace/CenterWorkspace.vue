@@ -13,6 +13,6 @@
 </template>
 
 <script setup lang="ts">
-import TaskPanel from '@/components/TaskPanel.vue'
-import ContextPanel from '@/components/ContextPanel.vue'
+import TaskPanel from '../TaskPanel.vue'
+import ContextPanel from '../ContextPanel.vue'
 </script>
