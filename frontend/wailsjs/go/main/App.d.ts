@@ -32,7 +32,7 @@ export function BuildAndTypeCheck(arg1:string,arg2:string):Promise<domain.BuildR
 
 export function BuildContext(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 
-export function BuildContextFromRequest(arg1:string,arg2:Array<string>,arg3:domain.ContextBuildOptions):Promise<domain.ContextSummary>;
+export function BuildContextFromRequest(arg1:string,arg2:Array<string>,arg3:domain.ContextBuildOptions):Promise<domain.ContextSummaryInfo>;
 
 export function BuildContextLegacy(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 

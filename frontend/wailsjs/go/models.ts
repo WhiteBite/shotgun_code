@@ -593,75 +593,39 @@ export namespace domain {
 	        this.maxTokens = source["maxTokens"];
 	    }
 	}
-	export class ContextMetadata {
-	    buildDuration: number;
+	export class ContextSummaryInfo {
+	    FileCount: number;
+	    TotalSize: number;
+	    TokenCount: number;
+	    LineCount: number;
+	    LanguageStats: Record<string, number>;
 	    // Go type: time
-	    lastModified: any;
-	    selectedFiles: string[];
-	    buildOptions?: ContextBuildOptions;
-	    warnings: string[];
-	    errors: string[];
+	    LastModified: any;
+	    GitRepo: boolean;
+	    BuildSystem: string;
+	    Frameworks: string[];
+	    HasTests: boolean;
+	    HasDockerfile: boolean;
+	    HasCICD: boolean;
 	
 	    static createFrom(source: any = {}) {
-	        return new ContextMetadata(source);
+	        return new ContextSummaryInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.buildDuration = source["buildDuration"];
-	        this.lastModified = this.convertValues(source["lastModified"], null);
-	        this.selectedFiles = source["selectedFiles"];
-	        this.buildOptions = this.convertValues(source["buildOptions"], ContextBuildOptions);
-	        this.warnings = source["warnings"];
-	        this.errors = source["errors"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class ContextSummary {
-	    id: string;
-	    projectPath: string;
-	    fileCount: number;
-	    totalSize: number;
-	    tokenCount: number;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	    status: string;
-	    metadata: ContextMetadata;
-	
-	    static createFrom(source: any = {}) {
-	        return new ContextSummary(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.projectPath = source["projectPath"];
-	        this.fileCount = source["fileCount"];
-	        this.totalSize = source["totalSize"];
-	        this.tokenCount = source["tokenCount"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	        this.status = source["status"];
-	        this.metadata = this.convertValues(source["metadata"], ContextMetadata);
+	        this.FileCount = source["FileCount"];
+	        this.TotalSize = source["TotalSize"];
+	        this.TokenCount = source["TokenCount"];
+	        this.LineCount = source["LineCount"];
+	        this.LanguageStats = source["LanguageStats"];
+	        this.LastModified = this.convertValues(source["LastModified"], null);
+	        this.GitRepo = source["GitRepo"];
+	        this.BuildSystem = source["BuildSystem"];
+	        this.Frameworks = source["Frameworks"];
+	        this.HasTests = source["HasTests"];
+	        this.HasDockerfile = source["HasDockerfile"];
+	        this.HasCICD = source["HasCICD"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

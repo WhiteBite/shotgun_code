@@ -1,218 +1,124 @@
 /**
- * Clean Architecture Project Store
- * Refactored to use use cases and follow Clean Architecture principles
+ * Simple Project Store - No Clean Architecture dependencies
+ * Direct localStorage integration for simplicity
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed, readonly } from 'vue';
-import { Project, WorkspaceState, Context } from '../domain/entities';
-import { getUseCase } from '../infrastructure/di/setup';
-import { TOKENS } from '../infrastructure/di/container';
-import type { 
-  LoadProjectUseCase, 
-  ProjectLoadResult,
-  UseCaseResult 
-} from '../application/use-cases';
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export interface RecentProject {
+  path: string
+  name: string
+  lastOpened: number
+}
+
+const RECENT_PROJECTS_KEY = 'shotgun_recent_projects'
+const MAX_RECENT = 10
 
 export const useProjectStore = defineStore('project', () => {
   // State
-  const currentProject = ref<Project | null>(null);
-  const recentProjects = ref<Project[]>([]);
-  const workspace = ref<WorkspaceState | null>(null);
-  const isLoading = ref(false);
-  const error = ref<string | null>(null);
-
-  // Use Cases
-  const loadProjectUseCase = getUseCase<LoadProjectUseCase>(TOKENS.LOAD_PROJECT_USE_CASE);
+  const currentPath = ref<string | null>(null)
+  const currentName = ref<string | null>(null)
+  const recentProjects = ref<RecentProject[]>([])
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
   // Computed
-  const hasProject = computed(() => currentProject.value !== null);
-  const projectName = computed(() => currentProject.value?.name || '');
-  const projectPath = computed(() => currentProject.value?.path.value || '');
-  const isValidProject = computed(() => currentProject.value?.isValid() || false);
+  const hasProject = computed(() => currentPath.value !== null)
+  const projectName = computed(() => currentName.value || '')
+  const projectPath = computed(() => currentPath.value || '')
+  const hasRecentProjects = computed(() => recentProjects.value.length > 0)
 
   // Actions
-  async function loadProject(path: string): Promise<boolean> {
-    console.log('Loading project with path:', path);
-    isLoading.value = true;
-    error.value = null;
+  async function openProjectByPath(path: string): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
 
     try {
-      const result: UseCaseResult<ProjectLoadResult> = await loadProjectUseCase.execute(path);
-      
-      if (result.isSuccess && result.data) {
-        currentProject.value = result.data.project;
-        workspace.value = result.data.workspace;
-        console.log('Project loaded successfully:', result.data.project);
-        
-        // Update recent projects
-        await loadRecentProjects();
-        
-        return true;
-      } else {
-        error.value = result.error || 'Failed to load project';
-        console.error('Failed to load project:', error.value);
-        return false;
+      // Simple: just set the path and name
+      currentPath.value = path
+      currentName.value = path.split(/[\\/]/).pop() || path
+
+      // Update recent projects
+      addToRecent(path)
+      saveRecentProjects()
+
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load project'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  function addToRecent(path: string) {
+    const name = path.split(/[\\/]/).pop() || path
+    const existing = recentProjects.value.findIndex(p => p.path === path)
+
+    if (existing !== -1) {
+      recentProjects.value.splice(existing, 1)
+    }
+
+    recentProjects.value.unshift({
+      path,
+      name,
+      lastOpened: Date.now()
+    })
+
+    if (recentProjects.value.length > MAX_RECENT) {
+      recentProjects.value = recentProjects.value.slice(0, MAX_RECENT)
+    }
+  }
+
+  function loadRecentProjects() {
+    try {
+      const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
+      if (stored) {
+        recentProjects.value = JSON.parse(stored)
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unknown error occurred';
-      console.error('Exception while loading project:', error.value);
-      return false;
-    } finally {
-      isLoading.value = false;
+      console.warn('Failed to load recent projects:', err)
     }
   }
 
-  async function loadRecentProjects(): Promise<void> {
+  function saveRecentProjects() {
     try {
-      const projectRepository = getUseCase(TOKENS.PROJECT_REPOSITORY);
-      recentProjects.value = await projectRepository.getRecentProjects(10);
+      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recentProjects.value))
     } catch (err) {
-      console.warn('Failed to load recent projects:', err);
+      console.warn('Failed to save recent projects:', err)
     }
   }
 
-  async function removeFromRecent(projectId: string): Promise<void> {
-    try {
-      const projectRepository = getUseCase(TOKENS.PROJECT_REPOSITORY);
-      await projectRepository.removeFromRecent(projectId);
-      
-      // Update local state
-      recentProjects.value = recentProjects.value.filter(p => p.id.value !== projectId);
-    } catch (err) {
-      console.warn('Failed to remove project from recent:', err);
-    }
+  function removeFromRecent(path: string) {
+    recentProjects.value = recentProjects.value.filter(p => p.path !== path)
+    saveRecentProjects()
   }
 
-  function clearProject(): void {
-    currentProject.value = null;
-    workspace.value = null;
-    error.value = null;
+  function clearProject() {
+    currentPath.value = null
+    currentName.value = null
+    error.value = null
   }
 
-  function clearError(): void {
-    error.value = null;
-  }
+  // Initialize
+  loadRecentProjects()
 
-  // Workspace Management
-  function switchWorkspaceMode(mode: any): void {
-    if (workspace.value) {
-      workspace.value.switchMode(mode);
-    }
-  }
-
-  function updatePanelConfiguration(panelId: string, config: any): void {
-    if (workspace.value) {
-      workspace.value.setPanelConfiguration(panelId, config);
-    }
-  }
-
-  function getPanelConfiguration(panelId: string): any {
-    return workspace.value?.getPanelConfiguration(panelId) || null;
-  }
-
-  // Initialize store
-  async function initialize(): Promise<void> {
-    await loadRecentProjects();
-  }
-
-  // Add the missing methods that ProjectSelectionView expects
-  async function tryAutoOpenLastProject(): Promise<void> {
-    // Implementation would go here
-    console.log("tryAutoOpenLastProject called");
-  }
-
-  async function openProject(): Promise<boolean> {
-    try {
-      isLoading.value = true;
-      error.value = null;
-      
-      // Use the project repository to select a directory
-      const projectRepository = getUseCase(TOKENS.PROJECT_REPOSITORY);
-      const selectedPath = await projectRepository.selectDirectory();
-      
-      if (selectedPath) {
-        const success = await loadProject(selectedPath);
-        return success;
-      }
-      
-      return false;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to open project';
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function openRecentProject(project: any): Promise<boolean> {
-    try {
-      isLoading.value = true;
-      error.value = null;
-      
-      const success = await loadProject(project.path);
-      return success;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to open recent project';
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function tryLoadCurrentDirectory(): Promise<void> {
-    // Implementation would go here
-    console.log("tryLoadCurrentDirectory called");
-  }
-
-  function removeRecent(path: string): void {
-    // Find and remove the project with the given path
-    recentProjects.value = recentProjects.value.filter(p => p.path.value !== path);
-    
-    // Also remove from the repository
-    const projectRepository = getUseCase(TOKENS.PROJECT_REPOSITORY);
-    // We would need the project ID to remove it from the repository
-    // This is a simplified implementation
-  }
-
-  // Computed property for hasRecentProjects
-  const hasRecentProjects = computed(() => recentProjects.value.length > 0);
-
-  // Return public interface
   return {
-    // State (readonly)
-    currentProject: readonly(currentProject),
-    recentProjects: readonly(recentProjects),
-    workspace: readonly(workspace),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-
+    // State
+    currentPath,
+    currentName,
+    recentProjects,
+    isLoading,
+    error,
     // Computed
     hasProject,
     projectName,
     projectPath,
-    isValidProject,
-    hasRecentProjects, // Add the missing computed property
-
+    hasRecentProjects,
     // Actions
-    loadProject,
-    loadRecentProjects,
+    openProjectByPath,
     removeFromRecent,
-    clearProject,
-    clearError,
-    switchWorkspaceMode,
-    updatePanelConfiguration,
-    getPanelConfiguration,
-    initialize,
-    
-    // Add the missing methods
-    tryAutoOpenLastProject,
-    openProject,
-    openRecentProject,
-    tryLoadCurrentDirectory,
-    removeRecent
-  };
-});
-
-// Removed auto-initialization to prevent Pinia error
-// The store will be initialized properly in the main application after Pinia setup
+    clearProject
+  }
+})

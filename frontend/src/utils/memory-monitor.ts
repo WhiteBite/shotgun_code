@@ -8,7 +8,7 @@
  * 4. Forcing garbage collection when possible
  */
 
-import { useUiStore } from '@/stores/ui.store';
+import { useUIStore } from '@/stores/ui.store';
 
 export interface MemoryStats {
   used: number;        // Used memory in MB
@@ -38,7 +38,7 @@ export class MemoryMonitor {
   private monitorInterval: number | null = null;
   private warningIssued = false;
   private criticalIssued = false;
-  private uiStore = useUiStore();
+  private uiStore = useUIStore();
 
   private constructor(options: MemoryWarningOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };

@@ -9,22 +9,22 @@
       <div class="space-y-4">
         <!-- Open Project Button -->
         <button
-          :disabled="projectStore.isLoading"
-          class="w-full p-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-          @click="openProject"
+            :disabled="projectStore.isLoading"
+            class="w-full p-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+            @click="openProject"
         >
           <div class="flex items-center justify-center gap-2">
             <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
             >
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
               />
             </svg>
             {{ projectStore.isLoading ? "Opening..." : "Open Project" }}
@@ -36,10 +36,10 @@
           <h2 class="text-lg font-semibold text-white">Recent Projects</h2>
           <div class="space-y-2">
             <div
-              v-for="project in projectStore.recentProjects"
-              :key="project.path"
-              class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg cursor-pointer transition-colors group"
-              @click="openRecentProject(project)"
+                v-for="project in projectStore.recentProjects"
+                :key="project.path"
+                class="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg cursor-pointer transition-colors group"
+                @click="openRecentProject(project)"
             >
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0">
@@ -55,21 +55,21 @@
                 </div>
                 <div class="flex items-center gap-2 ml-4">
                   <button
-                    class="p-1 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove from recent"
-                    @click.stop="removeProject(project.path)"
+                      class="p-1 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove from recent"
+                      @click.stop="removeProject(project.path)"
                   >
                     <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                     >
                       <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
                       />
                     </svg>
                   </button>
@@ -84,10 +84,10 @@
           <h3 class="text-white font-medium mb-3">Settings</h3>
           <label class="flex items-center gap-2 text-gray-300 cursor-pointer">
             <input
-              v-model="settingsStore.autoOpenLastProject"
-              type="checkbox"
-              class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500"
-              @change="settingsStore.toggleAutoOpenLastProject"
+                v-model="settingsStore.autoOpenLastProject"
+                type="checkbox"
+                class="form-checkbox bg-gray-700 border-gray-500 rounded text-blue-500"
+                @change="settingsStore.toggleAutoOpenLastProject"
             />
             <span>Automatically open last project on startup</span>
           </label>
@@ -95,8 +95,8 @@
 
         <!-- Error Display -->
         <div
-          v-if="projectStore.error"
-          class="p-3 bg-red-900/50 border border-red-700 rounded-lg"
+            v-if="projectStore.error"
+            class="p-3 bg-red-900/50 border border-red-700 rounded-lg"
         >
           <p class="text-red-300 text-sm">{{ projectStore.error }}</p>
         </div>
@@ -108,6 +108,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { SelectDirectory } from "../../../../wailsjs/go/main/App";
 import { useProjectStore } from "@/stores/project.store";
 import { useSettingsStore } from "@/stores/settings.store";
 import { container } from "@/infrastructure/container";

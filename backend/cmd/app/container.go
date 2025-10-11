@@ -76,6 +76,7 @@ type AppContainer struct {
 	ReportService     *application.ReportService
 	RouterLLMService  *application.RouterLLMService
 	Bridge            *wailsbridge.Bridge
+	GitService        domain.GitService
 
 	// Task Protocol Services
 	TaskProtocolService         domain.TaskProtocolService
@@ -135,7 +136,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
 
 	// NEW: Create separate context services following SRP
-	tokenCounter := &application.SimpleTokenCounter{}
+	tokenCounter := application.SimpleTokenCounter
 
 	// Create OPA service
 	opaService := policy.NewOPAService(c.Log)
@@ -173,17 +174,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	)
 
 	// Create unified ContextService that implements all context-related interfaces
-	c.ContextService = application.NewContextService(
-		c.FileReader,
-		tokenCounter,
-		c.Log,
-		c.AIService,
-		c.SettingsService,
-		c.Bus,
-		opaService,
-		pathProvider,
-		fileSystemWriter,
-	)
+	c.ContextService = application.NewContextService()
 
 	c.ContextAnalyzer = c.ContextService
 	c.ContextStreamer = c.ContextService
@@ -241,7 +232,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	taskflowRepo := taskflowrepo.NewFileSystemTaskflowRepository("tasks/status.json")
 
 	// Create RouterPlannerService
-	planner := application.NewRouterPlannerService(c.Log)
+	planner := application.NewRouterPlannerService(c.Log, c.BuildService, c.TestService, c.StaticAnalyzerService, c.RepairService)
 
 	// Create OPA service and file stat provider for GuardrailService
 	guardrailOPAService := policy.NewOPAService(c.Log)
@@ -249,7 +240,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	c.GuardrailService = application.NewGuardrailService(c.Log, guardrailOPAService, guardrailFileStatProvider)
 
 	// Create TaskflowService with injected dependencies
-	c.TaskflowService = application.NewTaskflowService(c.Log, planner, c.GuardrailService, taskflowRepo)
+	c.TaskflowService = application.NewTaskflowService(c.Log, planner, c.RouterLLMService, c.GuardrailService, taskflowRepo, c.GitRepo)
 
 	// Update GuardrailService with TaskTypeProvider to resolve circular dependency
 	c.GuardrailService.(domain.GuardrailService).SetTaskTypeProvider(c.TaskflowService.(domain.TaskTypeProvider))

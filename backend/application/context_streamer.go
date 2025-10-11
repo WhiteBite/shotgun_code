@@ -15,7 +15,7 @@ import (
 // ContextStreamerImpl implements the ContextStreamer interface
 type ContextStreamerImpl struct {
 	fileReader domain.FileContentReader
-	tokenCounter TokenCounter
+	tokenCounter domain.TokenCounter
 	logger     domain.Logger
 	contextDir string
 	// Streaming context support
@@ -27,7 +27,7 @@ type ContextStreamerImpl struct {
 // NewContextStreamer creates a new ContextStreamer implementation
 func NewContextStreamer(
 	fileReader domain.FileContentReader,
-	tokenCounter TokenCounter,
+	tokenCounter domain.TokenCounter,
 	logger domain.Logger,
 	contextDir string,
 ) *ContextStreamerImpl {
@@ -122,7 +122,7 @@ func (cs *ContextStreamerImpl) CreateStreamingContext(ctx context.Context, proje
 		TotalChars:  totalChars,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		UpdatedAt:   time.Now().Format(time.RFC3339),
-		TokenCount:  int(totalChars / 4), // Simple approximation
+		TokenCount:  cs.tokenCounter(string(totalChars)), // Simple approximation
 	}
 	
 	// Store stream reference and path

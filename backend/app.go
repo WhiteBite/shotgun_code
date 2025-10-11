@@ -821,7 +821,7 @@ func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJs
 	}
 
 	// Use new memory-safe BuildContext that returns ContextSummary
-	contextSummary, err := a.contextService.BuildContext(a.ctx, projectPath, includedPaths, &options)
+	contextSummary, err := a.contextService.BuildContext(includedPaths)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -917,8 +917,8 @@ func (a *App) DeleteContext(contextID string) error {
 }
 
 // BuildContextFromRequest builds context with proper JSON handling and returns ContextSummary to prevent OOM
-func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummary, error) {
-	return a.contextService.BuildContext(a.ctx, projectPath, includedPaths, options)
+func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummaryInfo, error) {
+	return a.contextService.BuildContext(includedPaths)
 }
 
 // GetContextLines retrieves a range of lines from a streaming context

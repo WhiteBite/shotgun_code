@@ -11,13 +11,28 @@ import (
 
 // RouterPlannerService предоставляет эвристический планировщик TPL (DAG) без LLM
 type RouterPlannerService struct {
-	log domain.Logger
+	log            domain.Logger
+	buildService   *BuildService
+	testService    *TestService
+	staticAnalyzer *StaticAnalyzerService
+	repairService  domain.RepairService
+	// Добавьте другие необходимые сервисы
 }
 
 // NewRouterPlannerService создает новый сервис планировщика
-func NewRouterPlannerService(log domain.Logger) *RouterPlannerService {
+func NewRouterPlannerService(
+	log domain.Logger,
+	buildService *BuildService,
+	testService *TestService,
+	staticAnalyzer *StaticAnalyzerService,
+	repairService domain.RepairService,
+) *RouterPlannerService {
 	return &RouterPlannerService{
-		log: log,
+		log:            log,
+		buildService:   buildService,
+		testService:    testService,
+		staticAnalyzer: staticAnalyzer,
+		repairService:  repairService,
 	}
 }
 
@@ -114,11 +129,13 @@ type PipelinePolicy struct {
 }
 
 // CreatePipeline создает пайплайн для задачи
-func (r *RouterPlannerService) CreatePipeline(ctx context.Context, task domain.Task) (*TaskPipeline, error) {
+func (r *RouterPlannerService) CreatePipeline(ctx context.Context, task domain.Task, policy *PipelinePolicy) (*TaskPipeline, error) {
 	r.log.Info(fmt.Sprintf("Creating pipeline for task: %s", task.ID))
 
-	// Определяем политику на основе типа задачи
-	policy := r.determinePolicy(task)
+	// Если политика не предоставлена, определяем ее на основе типа задачи
+	if policy == nil {
+		policy = r.determinePolicy(task)
+	}
 
 	// Создаем шаги пайплайна
 	steps := r.createPipelineSteps(task, policy)
@@ -293,9 +310,10 @@ func (r *RouterPlannerService) createPipelineSteps(task domain.Task, policy *Pip
 			Priority:  3,
 			DependsOn: dependsOn,
 			Config: map[string]interface{}{
-				"task_id":    task.ID,
-				"language":   "go",
-				"build_mode": "debug",
+				"task_id":      task.ID,
+				"project_path": task.Metadata["project_path"], // Добавляем project_path
+				"language":     "go",
+				"build_mode":   "debug",
 			},
 		})
 		stepID++
@@ -319,9 +337,10 @@ func (r *RouterPlannerService) createPipelineSteps(task domain.Task, policy *Pip
 			Priority:  4,
 			DependsOn: dependsOn,
 			Config: map[string]interface{}{
-				"task_id":   task.ID,
-				"test_mode": "targeted",
-				"coverage":  true,
+				"task_id":      task.ID,
+				"project_path": task.Metadata["project_path"],
+				"test_mode":    "targeted",
+				"coverage":     true,
 			},
 		})
 		stepID++
@@ -348,6 +367,7 @@ func (r *RouterPlannerService) createPipelineSteps(task domain.Task, policy *Pip
 			DependsOn: dependsOn,
 			Config: map[string]interface{}{
 				"task_id":       task.ID,
+				"project_path":  task.Metadata["project_path"],
 				"analyzers":     []string{"staticcheck", "go vet", "eslint"},
 				"fail_on_error": false,
 			},
@@ -442,8 +462,10 @@ func (r *RouterPlannerService) createPipelineSteps(task domain.Task, policy *Pip
 			DependsOn: dependsOn,
 			Config: map[string]interface{}{
 				"task_id":           task.ID,
+				"project_path":      task.Metadata["project_path"],
 				"repair_strategies": []string{"auto_fix", "suggestions", "rollback"},
 				"max_attempts":      policy.MaxRetries,
+				// error_output будет добавлен динамически во время выполнения
 			},
 		})
 	}
@@ -563,22 +585,153 @@ func (r *RouterPlannerService) executeASTSynthStep(ctx context.Context, step *Ta
 
 // executeCompileStep выполняет шаг компиляции
 func (r *RouterPlannerService) executeCompileStep(ctx context.Context, step *TaskPipelineStep) error {
-	// Симуляция выполнения шага compile
-	time.Sleep(300 * time.Millisecond)
+	projectPath, ok := step.Config["project_path"].(string)
+	if !ok {
+		return fmt.Errorf("project_path not found in step config")
+	}
+	language, ok := step.Config["language"].(string)
+	if !ok {
+		language = "go" // default to go
+	}
+
+	result, err := r.buildService.Build(ctx, projectPath, language)
+	if err != nil {
+		return fmt.Errorf("build failed: %w", err)
+	}
+
+	step.Result = &TaskPipelineStepResult{
+		Success: result.Success,
+		Message: result.Output,
+		Data: map[string]interface{}{
+			"duration": result.Duration,
+		},
+		Artifacts: result.Artifacts,
+	}
+
+	if !result.Success {
+		return fmt.Errorf("compilation failed: %s", result.Output)
+	}
+
 	return nil
 }
 
 // executeTestStep выполняет шаг тестирования
 func (r *RouterPlannerService) executeTestStep(ctx context.Context, step *TaskPipelineStep) error {
-	// Симуляция выполнения шага test
-	time.Sleep(400 * time.Millisecond)
+	projectPath, ok := step.Config["project_path"].(string)
+	if !ok {
+		// Пытаемся получить из зависимостей, если не нашли в конфиге
+		// Это временное решение, в идеале project_path должен быть везде
+		if pipeline, ok := ctx.Value("pipeline").(*TaskPipeline); ok {
+			if task, ok := pipeline.Steps[0].Config["task"].(domain.Task); ok {
+				projectPath = task.Metadata["project_path"].(string)
+			}
+		}
+		if projectPath == "" {
+			return fmt.Errorf("project_path not found for test step")
+		}
+	}
+
+	testConfig := &domain.TestConfig{
+		ProjectPath: projectPath,
+		Language:    "go", // Пока что хардкод
+		Scope:       domain.TestScopeAll,
+		Coverage:    true,
+		Timeout:     int((5 * time.Minute).Seconds()),
+	}
+
+	results, err := r.testService.RunTests(ctx, testConfig)
+	if err != nil {
+		return fmt.Errorf("test execution failed: %w", err)
+	}
+
+	// Агрегируем результаты
+	success := true
+	var messages []string
+	totalDuration := 0.0
+	for _, res := range results {
+		if !res.Success {
+			success = false
+		}
+		messages = append(messages, fmt.Sprintf("Test: %s, Success: %v, Output: %s", res.TestName, res.Success, res.Output))
+		totalDuration += res.Duration
+	}
+
+	step.Result = &TaskPipelineStepResult{
+		Success: success,
+		Message: strings.Join(messages, "\n"),
+		Data: map[string]interface{}{
+			"duration":  totalDuration,
+			"tests_run": len(results),
+		},
+	}
+
+	if !success {
+		return fmt.Errorf("one or more tests failed")
+	}
+
 	return nil
 }
 
 // executeStaticStep выполняет шаг статического анализа
 func (r *RouterPlannerService) executeStaticStep(ctx context.Context, step *TaskPipelineStep) error {
-	// Симуляция выполнения шага static
-	time.Sleep(250 * time.Millisecond)
+	projectPath, ok := step.Config["project_path"].(string)
+	if !ok {
+		// Временное решение для получения project_path
+		if pipeline, ok := ctx.Value("pipeline").(*TaskPipeline); ok {
+			if task, ok := pipeline.Steps[0].Config["task"].(domain.Task); ok {
+				projectPath = task.Metadata["project_path"].(string)
+			}
+		}
+		if projectPath == "" {
+			return fmt.Errorf("project_path not found for static analysis step")
+		}
+	}
+
+	languages, ok := step.Config["languages"].([]string)
+	if !ok {
+		languages = []string{"go"} // default
+	}
+
+	failOnError, ok := step.Config["fail_on_error"].(bool)
+	if !ok {
+		failOnError = false // default
+	}
+
+	results, err := r.staticAnalyzer.AnalyzeProject(ctx, projectPath, languages)
+	if err != nil {
+		return fmt.Errorf("static analysis failed: %w", err)
+	}
+
+	// Агрегируем результаты
+	success := true
+	var messages []string
+	totalIssues := 0
+	totalDuration := 0.0
+	for _, result := range results.Results {
+		totalIssues += len(result.Issues)
+		totalDuration += result.Duration
+		for _, issue := range result.Issues {
+			messages = append(messages, fmt.Sprintf("File %s: %s", issue.File, issue.Message))
+		}
+	}
+
+	if failOnError && totalIssues > 0 {
+		success = false
+	}
+
+	step.Result = &TaskPipelineStepResult{
+		Success: success,
+		Message: fmt.Sprintf("Static analysis completed with %d issues.", totalIssues),
+		Data: map[string]interface{}{
+			"total_issues": totalIssues,
+			"duration":     totalDuration,
+		},
+	}
+
+	if !success {
+		return fmt.Errorf("static analysis found critical issues")
+	}
+
 	return nil
 }
 
@@ -598,8 +751,63 @@ func (r *RouterPlannerService) executeValidateStep(ctx context.Context, step *Ta
 
 // executeRepairStep выполняет шаг исправления
 func (r *RouterPlannerService) executeRepairStep(ctx context.Context, step *TaskPipelineStep) error {
-	// Симуляция выполнения шага repair
-	time.Sleep(500 * time.Millisecond)
+	projectPath, ok := step.Config["project_path"].(string)
+	if !ok {
+		// Временное решение
+		if pipeline, ok := ctx.Value("pipeline").(*TaskPipeline); ok {
+			if task, ok := pipeline.Steps[0].Config["task"].(domain.Task); ok {
+				projectPath = task.Metadata["project_path"].(string)
+			}
+		}
+		if projectPath == "" {
+			return fmt.Errorf("project_path not found for repair step")
+		}
+	}
+
+	errorOutput, ok := step.Config["error_output"].(string)
+	if !ok {
+		// Если ошибки нет в конфиге, значит предыдущие шаги прошли успешно
+		step.Result = &TaskPipelineStepResult{
+			Success: true,
+			Message: "No errors to repair.",
+		}
+		return nil
+	}
+
+	language, ok := step.Config["language"].(string)
+	if !ok {
+		language = "go" // default
+	}
+
+	maxAttempts, ok := step.Config["max_attempts"].(int)
+	if !ok {
+		maxAttempts = 3 // default
+	}
+
+	repairRequest := domain.RepairRequest{
+		ProjectPath: projectPath,
+		ErrorOutput: errorOutput,
+		Language:    language,
+		MaxAttempts: maxAttempts,
+	}
+
+	result, err := r.repairService.ExecuteRepair(ctx, repairRequest)
+	if err != nil {
+		return fmt.Errorf("repair execution failed: %w", err)
+	}
+
+	step.Result = &TaskPipelineStepResult{
+		Success: result.Success,
+		Message: fmt.Sprintf("Repair finished. Success: %v. Attempts: %d.", result.Success, result.Attempts),
+		Data: map[string]interface{}{
+			"attempts": result.Attempts,
+		},
+	}
+
+	if !result.Success {
+		return fmt.Errorf("automated repair failed after %d attempts", result.Attempts)
+	}
+
 	return nil
 }
 

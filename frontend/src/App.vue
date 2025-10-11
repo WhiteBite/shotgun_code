@@ -1,115 +1,93 @@
 ﻿﻿﻿﻿<template>
-  <ThemeProvider>
-    <TooltipProvider>
-      <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
-        <!-- Global Error Handler -->
-        <div v-if="globalError" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div class="bg-red-900 border border-red-700 rounded-lg p-6 max-w-md mx-4">
-            <h3 class="text-lg font-semibold text-red-200 mb-2">Critical Error</h3>
-            <p class="text-red-300 text-sm mb-4">{{ globalError }}</p>
-            <button
-              @click="clearGlobalError"
-              class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-
-        <!-- Global Loading Overlay -->
-        <div v-if="projectStore.isLoading" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div class="bg-gray-800 border border-gray-600 rounded-lg p-8 max-w-sm mx-4 text-center">
-            <div class="flex items-center justify-center mb-4">
-              <svg
-                class="animate-spin h-8 w-8 text-blue-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                ></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                ></path>
-              </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-white mb-2">Loading Project</h3>
-            <p class="text-gray-300 text-sm">Please wait...</p>
-          </div>
-        </div>
-
-        <!-- Main Content -->
-        <router-view />
-
-        <!-- Global Notifications -->
-        <ToastNotifications />
-        
-        <!-- QuickLook Component -->
-        <QuickLook />
+  <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
+    <!-- Global Error Handler -->
+    <div v-if="globalError" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-red-900 border border-red-700 rounded-lg p-6 max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-red-200 mb-2">Critical Error</h3>
+        <p class="text-red-300 text-sm mb-4">{{ globalError }}</p>
+        <button
+          @click="clearGlobalError"
+          class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded transition-colors"
+        >
+          Dismiss
+        </button>
       </div>
-    </TooltipProvider>
-  </ThemeProvider>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div v-if="projectStore.isLoading" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-gray-800 border border-gray-600 rounded-lg p-8 max-w-sm mx-4 text-center">
+        <div class="flex items-center justify-center mb-4">
+          <svg
+            class="animate-spin h-8 w-8 text-blue-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            ></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-white mb-2">Loading Project</h3>
+        <p class="text-gray-300 text-sm">Please wait...</p>
+      </div>
+    </div>
+
+    <!-- Main Content: Show ProjectSelector if no project, otherwise show workspace -->
+    <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
+    <div v-else class="h-full">
+      <p class="p-4">Project: {{ projectStore.projectName }}</p>
+      <!-- TODO: Add main workspace components here -->
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed top-4 right-4 z-50 space-y-2">
+      <div
+        v-for="toast in uiStore.toasts"
+        :key="toast.id"
+        :class="[
+          'px-4 py-3 rounded-lg shadow-lg max-w-sm',
+          toast.type === 'error' ? 'bg-red-900 border border-red-700 text-red-100' :
+          toast.type === 'success' ? 'bg-green-900 border border-green-700 text-green-100' :
+          toast.type === 'warning' ? 'bg-yellow-900 border border-yellow-700 text-yellow-100' :
+          'bg-blue-900 border border-blue-700 text-blue-100'
+        ]"
+      >
+        {{ toast.message }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import ToastNotifications from '@/presentation/components/shared/ToastNotifications.vue'
-import QuickLook from '@/presentation/components/shared/QuickLook.vue'
-import ThemeProvider from '@/presentation/components/shared/ThemeProvider.vue'
-import TooltipProvider from '@/presentation/components/shared/TooltipProvider.vue'
+import { ref } from 'vue'
+import ProjectSelector from '@/components/ProjectSelector.vue'
 import { useProjectStore } from '@/stores/project.store'
-import { useMemoryMonitor } from '@/utils/memory-monitor'
+import { useUIStore } from '@/stores/ui.store'
 
 const projectStore = useProjectStore()
+const uiStore = useUIStore()
 const globalError = ref<string | null>(null)
-const memoryMonitor = useMemoryMonitor({
-  warningThreshold: 65,   // Warn at 65% memory usage
-  criticalThreshold: 80,  // Critical at 80% memory usage
-  pollingInterval: 3000,  // Check every 3 seconds
-  showToasts: true,       // Show toast notifications
-  autoCleanup: true       // Auto cleanup when critical
-})
-
 
 function clearGlobalError() {
   globalError.value = null
 }
 
-onMounted(() => {
-  console.log('App mounted successfully');
-  
-  // Start memory monitoring
-  memoryMonitor.startMonitoring();
-  
-  // Set up global error handler for memory errors
-  window.addEventListener('error', (event) => {
-    if (event.error && event.error.message && (
-        event.error.message.includes('memory') ||
-        event.error.message.includes('heap') ||
-        event.error.message.includes('allocation')
-      )) {
-      console.error('Memory error detected:', event.error);
-      globalError.value = 'An out of memory error occurred. Please reduce the context size or reload the application.';
-      memoryMonitor.forceCleanup();
-    }
-  });
-})
-
-onUnmounted(() => {
-  // Stop memory monitoring
-  memoryMonitor.stopMonitoring();
-  
-  // Remove global error handler
-  window.removeEventListener('error', () => {});
-})
+function onProjectOpened(path: string) {
+  console.log('Project opened:', path)
+  uiStore.addToast('Project loaded successfully', 'success')
+}
 </script>
 
 <style>

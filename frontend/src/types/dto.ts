@@ -95,6 +95,21 @@ export interface LogEntry {
   timestamp: string;
 }
 
+export interface AICodeGenerationRequest {
+  prompt: string;
+  language?: string;
+  includeTests?: boolean;
+  includeComments?: boolean;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+export interface AICodeGenerationResponse {
+  code?: string;
+  analysis?: string;
+  complexity?: 'low' | 'medium' | 'high';
+}
+
 // Autonomous Mode DTOs (синхронизировано с api.ts)
 export interface AutonomousTaskRequest {
   task: string;

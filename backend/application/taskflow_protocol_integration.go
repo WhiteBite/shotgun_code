@@ -340,7 +340,7 @@ func (t *TaskflowProtocolIntegration) attemptAICorrection(ctx context.Context, r
 func containsGoKeywords(context string) bool {
 	goKeywords := []string{"package", "func", "import", "go.mod", "go.sum", ".go"}
 	for _, keyword := range goKeywords {
-		if contains(context, keyword) {
+		if strings.Contains(context, keyword) {
 			return true
 		}
 	}
@@ -350,7 +350,7 @@ func containsGoKeywords(context string) bool {
 func containsTypeScriptKeywords(context string) bool {
 	tsKeywords := []string{"interface", "type", "typescript", ".ts", ".tsx", "tsconfig.json"}
 	for _, keyword := range tsKeywords {
-		if contains(context, keyword) {
+		if strings.Contains(context, keyword) {
 			return true
 		}
 	}
@@ -360,17 +360,11 @@ func containsTypeScriptKeywords(context string) bool {
 func containsJavaScriptKeywords(context string) bool {
 	jsKeywords := []string{"javascript", ".js", ".jsx", "package.json", "node_modules"}
 	for _, keyword := range jsKeywords {
-		if contains(context, keyword) {
+		if strings.Contains(context, keyword) {
 			return true
 		}
 	}
 	return false
-}
-
-func contains(text, substr string) bool {
-	return len(text) >= len(substr) && text != substr && 
-		   (text[:len(substr)] == substr || text[len(text)-len(substr):] == substr ||
-		    strings.Contains(text, substr))
 }
 
 // Supporting types

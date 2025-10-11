@@ -17,7 +17,7 @@ import (
 // ContextBuilderImpl implements the ContextBuilder interface
 type ContextBuilderImpl struct {
 	fileReader      domain.FileContentReader
-	tokenCounter    TokenCounter
+	tokenCounter    domain.TokenCounter
 	logger          domain.Logger
 	settingsService *SettingsService
 	bus             domain.EventBus
@@ -30,7 +30,7 @@ type ContextBuilderImpl struct {
 // NewContextBuilder creates a new ContextBuilder implementation
 func NewContextBuilder(
 	fileReader domain.FileContentReader,
-	tokenCounter TokenCounter,
+	tokenCounter domain.TokenCounter,
 	logger domain.Logger,
 	settingsService *SettingsService,
 	bus domain.EventBus,
@@ -124,7 +124,7 @@ func (cb *ContextBuilderImpl) BuildContext(ctx context.Context, projectPath stri
 		totalChars += 7 // Account for code block closing and spacing
 		
 		// Update token count incrementally
-		tokenCount += cb.tokenCounter.CountTokens(fileContent)
+		tokenCount += cb.tokenCounter(fileContent)
 	}
 	
 	// Check token limit
@@ -222,7 +222,7 @@ func (cb *ContextBuilderImpl) buildContextLegacy(ctx context.Context, projectPat
 	contextContent := contentBuilder.String()
 	
 	// Check token limit
-	tokenCount := cb.tokenCounter.CountTokens(contextContent)
+	tokenCount := cb.tokenCounter(contextContent)
 	if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
 		return nil, fmt.Errorf("context exceeds token limit: %d > %d", tokenCount, options.MaxTokens)
 	}

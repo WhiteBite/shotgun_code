@@ -54,6 +54,8 @@ type GitRepository interface {
 	IsGitAvailable() bool
 	GetBranches(projectRoot string) ([]string, error)
 	GetCurrentBranch(projectRoot string) (string, error)
+	GetAllFiles(projectPath string) ([]string, error)
+	GenerateDiff(projectPath string) (string, error)
 }
 
 // SettingsRepository определяет интерфейс для работы с настройками

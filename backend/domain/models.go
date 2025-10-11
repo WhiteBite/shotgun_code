@@ -36,6 +36,24 @@ type CommitWithFiles struct {
 	IsMerge bool     `json:"isMerge"`
 }
 
+// TokenCounter defines a function type for counting tokens.
+type TokenCounter func(text string) int
+
+type ContextSummaryInfo struct {
+	FileCount      int
+	TotalSize      int64
+	TokenCount     int
+	LineCount      int
+	LanguageStats  map[string]int
+	LastModified   time.Time
+	GitRepo        bool
+	BuildSystem    string
+	Frameworks     []string
+	HasTests       bool
+	HasDockerfile  bool
+	HasCICD        bool
+}
+
 type ParsedDiff struct {
 	FileDiffs []FileDiff `json:"fileDiffs"`
 }
@@ -151,6 +169,13 @@ type ContextChunk struct {
 	HasMore   bool     `json:"hasMore"`
 	ChunkID   string   `json:"chunkId"`
 	ContextID string   `json:"contextId"`
+}
+
+// SuggestedFile represents a file suggested by the AI analyzer
+type SuggestedFile struct {
+	Path       string  `json:"path"`
+	Reason     string  `json:"reason"`
+	Confidence float64 `json:"confidence"`
 }
 
 // SLAPolicy определяет SLA политику для автономных задач

@@ -254,3 +254,41 @@ func (r *Repository) GetCurrentBranch(projectRoot string) (string, error) {
 	r.log.Info(fmt.Sprintf("Current branch in %s: %s", projectRoot, branch))
 	return branch, nil
 }
+
+// GetAllFiles returns a list of all files in the repository.
+func (r *Repository) GetAllFiles(projectPath string) ([]string, error) {
+	cmd := exec.Command("git", "ls-files")
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+
+	var files []string
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		files = append(files, scanner.Text())
+	}
+
+	return files, nil
+}
+
+// GenerateDiff generates a git diff between HEAD and HEAD~1.
+func (r *Repository) GenerateDiff(projectPath string) (string, error) {
+	cmd := exec.Command("git", "diff", "HEAD~1", "HEAD")
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		// If HEAD~1 does not exist (e.g., first commit), try diffing against the empty tree
+		cmd = exec.Command("git", "diff", "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "HEAD") // magic empty tree hash
+		cmd.Dir = projectPath
+		output, err = cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate diff: %w", err)
+		}
+	}
+
+	return string(output), nil
+}

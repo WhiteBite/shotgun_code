@@ -1,4 +1,0 @@
-export const SCROLL_INDICATOR_HIDE_MS = 2000;
-export const VIRTUAL_SCROLLER_LINE_HEIGHT = 20;
-export const MAX_QUICKLOOK_CHARS = 400_000;
-export const MAX_CONSOLE_LOGS = 200;

@@ -2,7 +2,7 @@
  * Error handling utility specifically designed for memory issues and large context handling
  */
 
-import { useUiStore } from '@/stores/ui.store';
+import { useUIStore } from '@/stores/ui.store';
 
 export interface ErrorOptions {
   silent?: boolean;
@@ -81,7 +81,7 @@ export class MemoryErrorHandler {
    * Handle an error with appropriate measures based on type
    */
   public static handle(error: Error | string, options: ErrorOptions = {}): ErrorDetails {
-    const uiStore = useUiStore();
+    const uiStore = useUIStore();
     const errorObj = typeof error === 'string' ? new Error(error) : error;
     const category = this.categorizeError(errorObj);
     
@@ -212,9 +212,6 @@ declare global {
   interface Window {
     gc?: () => void;
   }
-  
-  // Also extend global for Node.js environments
-  var gc: undefined | (() => void);
 }
 
 export default MemoryErrorHandler;

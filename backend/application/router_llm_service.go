@@ -11,10 +11,10 @@ import (
 
 // RouterLLMService предоставляет интеграцию LLM с Router/Planner
 type RouterLLMService struct {
-	log         domain.Logger
-	llmClient   domain.LLMClient
-	fileReader  domain.FileReader
-	enabled     bool
+	log        domain.Logger
+	llmClient  domain.LLMClient
+	fileReader domain.FileReader
+	enabled    bool
 }
 
 // RouterLLMConfig конфигурация для Router LLM сервиса
@@ -41,11 +41,11 @@ type LLMPipelineRequest struct {
 
 // LLMPipelineResponse ответ от LLM с пайплайном
 type LLMPipelineResponse struct {
-	Pipeline     *TaskPipeline `json:"pipeline"`
-	Confidence   float64       `json:"confidence"`
-	Reasoning    string        `json:"reasoning"`
-	FallbackUsed bool          `json:"fallback_used"`
-	Error        string        `json:"error,omitempty"`
+	Policy       *PipelinePolicy `json:"policy"`
+	Confidence   float64         `json:"confidence"`
+	Reasoning    string          `json:"reasoning"`
+	FallbackUsed bool            `json:"fallback_used"`
+	Error        string          `json:"error,omitempty"`
 }
 
 // NewRouterLLMService создает новый сервис Router LLM
@@ -61,10 +61,10 @@ func NewRouterLLMService(config RouterLLMConfig, log domain.Logger) *RouterLLMSe
 // NewRouterLLMServiceWithClient создает новый сервис Router LLM с внедренным клиентом
 func NewRouterLLMServiceWithClient(config RouterLLMConfig, log domain.Logger, llmClient domain.LLMClient, fileReader domain.FileReader) *RouterLLMService {
 	return &RouterLLMService{
-		log:         log,
-		llmClient:   llmClient,
-		fileReader:  fileReader,
-		enabled:     config.Enabled,
+		log:        log,
+		llmClient:  llmClient,
+		fileReader: fileReader,
+		enabled:    config.Enabled,
 	}
 }
 
@@ -121,7 +121,7 @@ func (r *RouterLLMService) CreatePipelineWithLLM(ctx context.Context, task domai
 	}
 
 	// Парсим ответ LLM
-	pipeline, confidence, reasoning, err := r.parseLLMResponse([]byte(response.Content))
+	policy, confidence, reasoning, err := r.parseLLMResponse([]byte(response.Content))
 	if err != nil {
 		r.log.Error(fmt.Sprintf("Failed to parse LLM response: %v", err))
 		return &LLMPipelineResponse{
@@ -131,7 +131,7 @@ func (r *RouterLLMService) CreatePipelineWithLLM(ctx context.Context, task domai
 	}
 
 	return &LLMPipelineResponse{
-		Pipeline:     pipeline,
+		Policy:       policy,
 		Confidence:   confidence,
 		Reasoning:    reasoning,
 		FallbackUsed: false,
@@ -223,7 +223,7 @@ func (r *RouterLLMService) generatePipelinePrompt(request LLMPipelineRequest) st
 }
 
 // parseLLMResponse парсит ответ от LLM
-func (r *RouterLLMService) parseLLMResponse(response []byte) (*TaskPipeline, float64, string, error) {
+func (r *RouterLLMService) parseLLMResponse(response []byte) (*PipelinePolicy, float64, string, error) {
 	// Парсим JSON ответ
 	var llmResponse struct {
 		SchemaVersion string `json:"schemaVersion"`
@@ -317,37 +317,10 @@ func (r *RouterLLMService) parseLLMResponse(response []byte) (*TaskPipeline, flo
 		}
 	}
 
-	// Создаем временную задачу для создания пайплайна
-	tempTask := domain.Task{
-		ID:        "temp-task",
-		Name:      "Temporary Task",
-		State:     domain.TaskStateTodo,
-		DependsOn: []string{},
-		StepFile:  "",
-		Budgets: domain.TaskBudgets{
-			MaxFiles:        150,
-			MaxChangedLines: 1500,
-		},
-		Status:    "todo",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Metadata:  make(map[string]interface{}),
-	}
-
-	// Создаем пайплайн с помощью эвристического планировщика
-	planner := NewRouterPlannerService(r.log)
-	createdPipeline, err := planner.CreatePipeline(context.Background(), tempTask)
-	if err != nil {
-		return nil, 0, "", fmt.Errorf("failed to create pipeline: %w", err)
-	}
-
-	// Применяем политику из LLM
-	createdPipeline.Policy = policy
-
 	confidence := edit.Operation.Params.Confidence
 	reasoning := edit.Operation.Params.Reasoning
 
-	return createdPipeline, confidence, reasoning, nil
+	return policy, confidence, reasoning, nil
 }
 
 // ValidatePipelineWithLLM валидирует пайплайн с помощью LLM
@@ -385,7 +358,7 @@ func (r *RouterLLMService) ValidatePipelineWithLLM(ctx context.Context, pipeline
 	}
 
 	return &LLMPipelineResponse{
-		Pipeline:     validation,
+		Policy:       validation,
 		Confidence:   confidence,
 		Reasoning:    reasoning,
 		FallbackUsed: false,
@@ -439,7 +412,7 @@ func (r *RouterLLMService) generateValidationPrompt(pipeline *TaskPipeline) stri
 }
 
 // parseValidationResponse парсит ответ валидации от LLM
-func (r *RouterLLMService) parseValidationResponse(response []byte) (*TaskPipeline, float64, string, error) {
+func (r *RouterLLMService) parseValidationResponse(response []byte) (*PipelinePolicy, float64, string, error) {
 	// Парсим JSON ответ валидации
 	var validationResponse struct {
 		SchemaVersion string `json:"schemaVersion"`
@@ -447,11 +420,12 @@ func (r *RouterLLMService) parseValidationResponse(response []byte) (*TaskPipeli
 			Kind      string `json:"kind"`
 			Operation struct {
 				Params struct {
-					IsValid     bool     `json:"isValid"`
-					Confidence  float64  `json:"confidence"`
-					Reasoning   string   `json:"reasoning"`
-					Suggestions []string `json:"suggestions"`
-					Warnings    []string `json:"warnings"`
+					IsValid     bool                   `json:"isValid"`
+					Confidence  float64                `json:"confidence"`
+					Reasoning   string                 `json:"reasoning"`
+					Suggestions []string               `json:"suggestions"`
+					Warnings    []string               `json:"warnings"`
+					Policy      map[string]interface{} `json:"policy"`
 				} `json:"params"`
 			} `json:"operation"`
 		} `json:"edits"`
@@ -467,19 +441,57 @@ func (r *RouterLLMService) parseValidationResponse(response []byte) (*TaskPipeli
 
 	validation := validationResponse.Edits[0]
 
-	// Создаем пустой пайплайн для возврата результатов валидации
-	pipeline := &TaskPipeline{
-		TaskID:    "validation-result",
-		Steps:     []*TaskPipelineStep{},
-		Status:    PipelineStatusCompleted,
-		CreatedAt: time.Now(),
-		Policy:    &PipelinePolicy{},
+	// Создаем политику пайплайна
+	policy := &PipelinePolicy{}
+
+	// Применяем политику из LLM ответа
+	if validation.Operation.Params.Policy != nil {
+		llmPolicy := validation.Operation.Params.Policy
+		if enableRetrieve, ok := llmPolicy["enableRetrieve"].(bool); ok {
+			policy.EnableRetrieve = enableRetrieve
+		}
+		if enableASTSynth, ok := llmPolicy["enableASTSynth"].(bool); ok {
+			policy.EnableASTSynth = enableASTSynth
+		}
+		if enableCompile, ok := llmPolicy["enableCompile"].(bool); ok {
+			policy.EnableCompile = enableCompile
+		}
+		if enableTest, ok := llmPolicy["enableTest"].(bool); ok {
+			policy.EnableTest = enableTest
+		}
+		if enableStatic, ok := llmPolicy["enableStatic"].(bool); ok {
+			policy.EnableStatic = enableStatic
+		}
+		if enableFormat, ok := llmPolicy["enableFormat"].(bool); ok {
+			policy.EnableFormat = enableFormat
+		}
+		if enableValidate, ok := llmPolicy["enableValidate"].(bool); ok {
+			policy.EnableValidate = enableValidate
+		}
+		if enableRepair, ok := llmPolicy["enableRepair"].(bool); ok {
+			policy.EnableRepair = enableRepair
+		}
+		if failFast, ok := llmPolicy["failFast"].(bool); ok {
+			policy.FailFast = failFast
+		}
+		if retryFailed, ok := llmPolicy["retryFailed"].(bool); ok {
+			policy.RetryFailed = retryFailed
+		}
+		if parallelSteps, ok := llmPolicy["parallelSteps"].(bool); ok {
+			policy.ParallelSteps = parallelSteps
+		}
+		if maxRetries, ok := llmPolicy["maxRetries"].(float64); ok {
+			policy.MaxRetries = int(maxRetries)
+		}
+		if timeout, ok := llmPolicy["timeout"].(float64); ok {
+			policy.Timeout = time.Duration(timeout)
+		}
 	}
 
 	confidence := validation.Operation.Params.Confidence
 	reasoning := validation.Operation.Params.Reasoning
 
-	return pipeline, confidence, reasoning, nil
+	return policy, confidence, reasoning, nil
 }
 
 // LoadGBNFGrammar загружает GBNF грамматику из файла
