@@ -17,7 +17,6 @@ import (
 	"shotgun_code/infrastructure/policy"
 	"shotgun_code/infrastructure/sbomlicensing"
 	"shotgun_code/infrastructure/settingsfs"
-	"shotgun_code/infrastructure/taskflowrepo"
 	"shotgun_code/infrastructure/textutils"
 	"shotgun_code/infrastructure/uxreports"
 
@@ -104,8 +103,8 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// Create AI service with intelligent service
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
 
-	// CONSOLIDATED: Create unified context service
-	tokenCounter := &application.SimpleTokenCounter{}
+    // Token counter function
+    tokenCounter := application.SimpleTokenCounter
 	
 	// Create OPA service
 	c.opaService = policy.NewOPAService(c.Log)
@@ -119,29 +118,32 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// Create file stat provider (using standard os implementation)
 	fileStatProvider := filesystem.NewOSFileStatProvider()
 	
-	// Create context directory
-	homeDir, _ := os.UserHomeDir()
-	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	os.MkdirAll(contextDir, 0755)
-	
-	consolidatedContextService := application.NewContextService(
-		c.FileReader,
-		tokenCounter,
-		c.Log,
-		c.AIService,
-		c.SettingsService,
-		nil, // No event bus for CLI
-		c.opaService, // OPA service
-		pathProvider, // Path provider
-		fileSystemWriter, // File system writer
-	)
+    // Create context directory
+    homeDir, _ := os.UserHomeDir()
+    contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
+    os.MkdirAll(contextDir, 0755)
 
-	// Create ContextGenerator for async operations
-	contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, c.EventBus, contextDir)
-	
-	// Create ProjectService with consolidated context service
-	c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, consolidatedContextService, contextGenerator, pathProvider, fileStatProvider)
-	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+    // Create comment stripper and ContextBuilder for CLI
+    commentStripper := textutils.NewCommentStripper(c.Log)
+    contextBuilder := application.NewContextBuilder(
+        c.FileReader,
+        tokenCounter,
+        c.Log,
+        c.SettingsService,
+        nil, // No event bus for CLI
+        c.opaService,
+        pathProvider,
+        fileSystemWriter,
+        commentStripper,
+        contextDir,
+    )
+
+    // Create ContextGenerator for async operations
+    contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, nil, contextDir)
+
+    // Create ProjectService with ContextBuilder and ContextGenerator
+    c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, contextBuilder, contextGenerator, pathProvider, fileStatProvider)
+    c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
 	// Create symbol graph builders
 	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
 	symbolGraphBuilders := make(map[string]domain.SymbolGraphBuilder)
@@ -166,21 +168,11 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	
 	c.RepairService = application.NewRepairService(c.Log)
 	
-	// Create Taskflow infrastructure components
-	taskflowRepo := taskflowrepo.NewInMemoryTaskflowRepository()
-	routerPlanner := application.NewRouterPlannerService(c.Log)
-	
-	// Create Guardrail service with required dependencies
+    // Taskflow components not used in CLI currently
+
+    // Create Guardrail service with required dependencies
 	c.GuardrailService = application.NewGuardrailService(c.Log, c.opaService, fileStatProvider)
-	
-	// Create Taskflow service
-	c.TaskflowService = application.NewTaskflowService(c.Log, routerPlanner, c.GuardrailService, taskflowRepo)
-	
-	// Update GuardrailService with TaskflowService to resolve circular dependency
-	// Cast TaskflowService to TaskTypeProvider
-	if taskTypeProvider, ok := c.TaskflowService.(domain.TaskTypeProvider); ok {
-		c.GuardrailService.(*application.GuardrailServiceImpl).SetTaskTypeProvider(taskTypeProvider)
-	}
+    
 	
 	// Create UX Metrics infrastructure components
 	uxRepo := uxreports.NewInMemoryUXReportRepository()

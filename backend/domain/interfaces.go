@@ -103,6 +103,12 @@ type ContextSplitter interface {
 	SplitContext(ctxText string, settings SplitSettings) ([]string, error)
 }
 
+// CommentStripper определяет интерфейс для удаления комментариев из исходного кода
+type CommentStripper interface {
+    // Strip удаляет комментарии из содержимого файла, опираясь на расширение filePath
+    Strip(content string, filePath string) string
+}
+
 // AIProviderFactory is a function type that creates an AIProvider.
 type AIProviderFactory func(providerType, apiKey string) (AIProvider, error)
 

@@ -24,6 +24,7 @@ type ContextBuilderImpl struct {
 	opaService      domain.OPAService
 	pathProvider    domain.PathProvider
 	fileSystemWriter domain.FileSystemWriter
+    commentStripper domain.CommentStripper
 	contextDir      string
 }
 
@@ -37,6 +38,7 @@ func NewContextBuilder(
 	opaService domain.OPAService,
 	pathProvider domain.PathProvider,
 	fileSystemWriter domain.FileSystemWriter,
+    commentStripper domain.CommentStripper,
 	contextDir string,
 ) *ContextBuilderImpl {
 	return &ContextBuilderImpl{
@@ -48,6 +50,7 @@ func NewContextBuilder(
 		opaService:      opaService,
 		pathProvider:    pathProvider,
 		fileSystemWriter: fileSystemWriter,
+        commentStripper: commentStripper,
 		contextDir:      contextDir,
 	}
 }
@@ -101,16 +104,16 @@ func (cb *ContextBuilderImpl) BuildContext(ctx context.Context, projectPath stri
 		actualFiles = append(actualFiles, filePath)
 		
 		// Process content based on options
-		if options.StripComments {
-			fileContent = cb.stripComments(fileContent, filePath)
-		}
+        if options.StripComments && cb.commentStripper != nil {
+            fileContent = cb.commentStripper.Strip(fileContent, filePath)
+        }
 		
 		// Write file content to context file
 		fileHeader := fmt.Sprintf("## File: %s\n\n", filePath)
 		writer.WriteString(fileHeader)
 		totalChars += int64(len(fileHeader))
 		
-		writer.WriteString("``")
+        writer.WriteString("```")
 		if ext := filepath.Ext(filePath); len(ext) > 1 {
 			writer.WriteString(ext[1:])
 		}
@@ -204,9 +207,11 @@ func (cb *ContextBuilderImpl) buildContextLegacy(ctx context.Context, projectPat
 		actualFiles = append(actualFiles, filePath)
 		
 		// Process content based on options
-		if options.StripComments {
-			content = cb.stripComments(content, filePath)
-		}
+        if options.StripComments {
+            if cb.commentStripper != nil {
+                content = cb.commentStripper.Strip(content, filePath)
+            }
+        }
 		
 		// Add file content to context
 		contentBuilder.WriteString(fmt.Sprintf("## File: %s\n\n", filePath))
@@ -308,98 +313,4 @@ func (cb *ContextBuilderImpl) generateContextName(projectPath string, files []st
 }
 
 // stripComments removes comments from code content
-func (cb *ContextBuilderImpl) stripComments(content, filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	
-	switch ext {
-	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs":
-		return cb.stripCStyleComments(content)
-	case ".py", ".sh":
-		return cb.stripHashComments(content)
-	case ".html", ".xml":
-		return cb.stripXMLComments(content)
-	default:
-		return content
-	}
-}
-
-// stripCStyleComments removes C-style comments (// and /* */)
-func (cb *ContextBuilderImpl) stripCStyleComments(content string) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	
-	inBlockComment := false
-	
-	for _, line := range lines {
-		// Handle block comments
-		if inBlockComment {
-			if strings.Contains(line, "*/") {
-				parts := strings.SplitN(line, "*/", 2)
-				if len(parts) > 1 {
-					line = parts[1]
-					inBlockComment = false
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
-		}
-		
-		// Handle start of block comment
-		if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
-			parts := strings.SplitN(line, "/*", 2)
-			line = parts[0]
-			inBlockComment = true
-		}
-		
-		// Handle single line comments
-		if idx := strings.Index(line, "//"); idx != -1 {
-			line = line[:idx]
-		}
-		
-		// Remove inline block comments
-		for strings.Contains(line, "/*") && strings.Contains(line, "*/") {
-			start := strings.Index(line, "/*")
-			end := strings.Index(line, "*/")
-			if end > start {
-				line = line[:start] + line[end+2:]
-			}
-		}
-		
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			result = append(result, line)
-		}
-	}
-	
-	return strings.Join(result, "\n")
-}
-
-// stripHashComments removes hash-style comments (#)
-func (cb *ContextBuilderImpl) stripHashComments(content string) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	
-	for _, line := range lines {
-		if idx := strings.Index(line, "#"); idx != -1 {
-			line = line[:idx]
-		}
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			result = append(result, line)
-		}
-	}
-	
-	return strings.Join(result, "\n")
-}
-
-// stripXMLComments removes XML-style comments (<!-- -->)
-func (cb *ContextBuilderImpl) stripXMLComments(content string) string {
-	for strings.Contains(content, "<!--") && strings.Contains(content, "-->") {
-		start := strings.Index(content, "<!--")
-		end := strings.Index(content, "-->")
-		if end > start {
-			content = content[:start] + content[end+3:]
-		}
-	}
-	return content
-}
+// Comment stripping is delegated to domain.CommentStripper implementation via DI

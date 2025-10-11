@@ -152,6 +152,9 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
 	os.MkdirAll(contextDir, 0755)
 
+	// Create comment stripper for code preprocessing
+	commentStripper := textutils.NewCommentStripper(c.Log)
+
 	// Create separate context services
 	c.ContextBuilder = application.NewContextBuilder(
 		c.FileReader,
@@ -162,6 +165,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		opaService,
 		pathProvider,
 		fileSystemWriter,
+		commentStripper,
 		contextDir,
 	)
 

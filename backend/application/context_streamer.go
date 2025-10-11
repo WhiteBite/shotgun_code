@@ -18,6 +18,7 @@ type ContextStreamerImpl struct {
 	tokenCounter domain.TokenCounter
 	logger     domain.Logger
 	contextDir string
+    commentStripper domain.CommentStripper
 	// Streaming context support
 	streams   map[string]*domain.ContextStream
 	streamPaths map[string]string  // Map context ID to file path
@@ -30,12 +31,14 @@ func NewContextStreamer(
 	tokenCounter domain.TokenCounter,
 	logger domain.Logger,
 	contextDir string,
+    commentStripper domain.CommentStripper,
 ) *ContextStreamerImpl {
 	return &ContextStreamerImpl{
 		fileReader:   fileReader,
 		tokenCounter: tokenCounter,
 		logger:       logger,
 		contextDir:   contextDir,
+        commentStripper: commentStripper,
 		streams:      make(map[string]*domain.ContextStream),
 		streamPaths:  make(map[string]string), // Initialize the stream paths map
 	}
@@ -70,7 +73,8 @@ func (cs *ContextStreamerImpl) CreateStreamingContext(ctx context.Context, proje
 	
 	var totalLines int64
 	var totalChars int64
-	var actualFiles []string
+    var actualFiles []string
+    var totalTokens int
 	
 	// Write header
 	header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
@@ -88,9 +92,9 @@ func (cs *ContextStreamerImpl) CreateStreamingContext(ctx context.Context, proje
 		actualFiles = append(actualFiles, filePath)
 		
 		// Process content based on options
-		if options.StripComments {
-			content = cs.stripComments(content, filePath)
-		}
+        if options.StripComments && cs.commentStripper != nil {
+            content = cs.commentStripper.Strip(content, filePath)
+        }
 		
 		// Write file content to context file
 		fileHeader := fmt.Sprintf("## File: %s\n\n", filePath)
@@ -103,8 +107,9 @@ func (cs *ContextStreamerImpl) CreateStreamingContext(ctx context.Context, proje
 		totalChars += 4
 		
 		writer.WriteString(content)
-		totalLines += int64(strings.Count(content, "\n")) + 1
-		totalChars += int64(len(content))
+        totalLines += int64(strings.Count(content, "\n")) + 1
+        totalChars += int64(len(content))
+        totalTokens += cs.tokenCounter(content)
 		
 		writer.WriteString("\n```\n\n")
 		totalLines += 3
@@ -122,7 +127,7 @@ func (cs *ContextStreamerImpl) CreateStreamingContext(ctx context.Context, proje
 		TotalChars:  totalChars,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		UpdatedAt:   time.Now().Format(time.RFC3339),
-		TokenCount:  cs.tokenCounter(string(totalChars)), // Simple approximation
+        TokenCount:  totalTokens,
 	}
 	
 	// Store stream reference and path
@@ -205,99 +210,4 @@ func (cs *ContextStreamerImpl) generateContextName(projectPath string, files []s
 	return fmt.Sprintf("%s - %d files", projectName, len(files))
 }
 
-// stripComments removes comments from code content
-func (cs *ContextStreamerImpl) stripComments(content, filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	
-	switch ext {
-	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs":
-		return cs.stripCStyleComments(content)
-	case ".py", ".sh":
-		return cs.stripHashComments(content)
-	case ".html", ".xml":
-		return cs.stripXMLComments(content)
-	default:
-		return content
-	}
-}
-
-// stripCStyleComments removes C-style comments (// and /* */)
-func (cs *ContextStreamerImpl) stripCStyleComments(content string) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	
-	inBlockComment := false
-	
-	for _, line := range lines {
-		// Handle block comments
-		if inBlockComment {
-			if strings.Contains(line, "*/") {
-				parts := strings.SplitN(line, "*/", 2)
-				if len(parts) > 1 {
-					line = parts[1]
-					inBlockComment = false
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
-		}
-		
-		// Handle start of block comment
-		if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
-			parts := strings.SplitN(line, "/*", 2)
-			line = parts[0]
-			inBlockComment = true
-		}
-		
-		// Handle single line comments
-		if idx := strings.Index(line, "//"); idx != -1 {
-			line = line[:idx]
-		}
-		
-		// Remove inline block comments
-		for strings.Contains(line, "/*") && strings.Contains(line, "*/") {
-			start := strings.Index(line, "/*")
-			end := strings.Index(line, "*/")
-			if end > start {
-				line = line[:start] + line[end+2:]
-			}
-		}
-		
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			result = append(result, line)
-		}
-	}
-	
-	return strings.Join(result, "\n")
-}
-
-// stripHashComments removes hash-style comments (#)
-func (cs *ContextStreamerImpl) stripHashComments(content string) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	
-	for _, line := range lines {
-		if idx := strings.Index(line, "#"); idx != -1 {
-			line = line[:idx]
-		}
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			result = append(result, line)
-		}
-	}
-	
-	return strings.Join(result, "\n")
-}
-
-// stripXMLComments removes XML-style comments (<!-- -->)
-func (cs *ContextStreamerImpl) stripXMLComments(content string) string {
-	for strings.Contains(content, "<!--") && strings.Contains(content, "-->") {
-		start := strings.Index(content, "<!--")
-		end := strings.Index(content, "-->")
-		if end > start {
-			content = content[:start] + content[end+3:]
-		}
-	}
-	return content
-}
+// Comment stripping helpers removed; delegated to domain.CommentStripper
