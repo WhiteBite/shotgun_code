@@ -2,7 +2,7 @@ package filesystem
 
 import (
 	"os"
-	
+
 	"shotgun_code/domain"
 )
 

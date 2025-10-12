@@ -28,8 +28,8 @@ type GuardrailsService struct {
 	ephemeralMode bool
 	ephemeralEnd  time.Time
 	opaService    *policy.OPAService
-    // internal flag to suppress per-path info logs during batch validations
-    suppressPathInfo bool
+	// internal flag to suppress per-path info logs during batch validations
+	suppressPathInfo bool
 }
 
 // NewGuardrailsService creates a new guardrails service
@@ -98,7 +98,7 @@ func (s *GuardrailsService) ValidatePath(path string) ([]domain.GuardrailViolati
 		}
 	}
 
-    for _, policy := range s.policies {
+	for _, policy := range s.policies {
 		if !policy.Enabled {
 			continue
 		}
@@ -131,11 +131,11 @@ func (s *GuardrailsService) ValidatePath(path string) ([]domain.GuardrailViolati
 		}
 	}
 
-    // Log validation summary only for fully allowed paths to match tests
-    if len(violations) == 0 && !s.suppressPathInfo {
-        s.log.Info(fmt.Sprintf("Path %s validated with %d violations", path, len(violations)))
-    }
-    return violations, nil
+	// Log validation summary only for fully allowed paths to match tests
+	if len(violations) == 0 && !s.suppressPathInfo {
+		s.log.Info(fmt.Sprintf("Path %s validated with %d violations", path, len(violations)))
+	}
+	return violations, nil
 }
 
 // ValidateBudget checks budget constraints
@@ -192,18 +192,18 @@ func (s *GuardrailsService) ValidateTask(taskID string, files []string, linesCha
 		Timestamp:        time.Now(),
 	}
 
-    // External task validation via TaskflowService
-    if s.taskflowSvc != nil {
-        if err := s.taskflowSvc.ValidateTask(taskID); err != nil {
-            result.Valid = false
-            result.Error = fmt.Sprintf("task validation failed: %v", err)
-            return result, err
-        }
-    }
+	// External task validation via TaskflowService
+	if s.taskflowSvc != nil {
+		if err := s.taskflowSvc.ValidateTask(taskID); err != nil {
+			result.Valid = false
+			result.Error = fmt.Sprintf("task validation failed: %v", err)
+			return result, err
+		}
+	}
 
-    // Check file paths
-    s.suppressPathInfo = true
-    for _, file := range files {
+	// Check file paths
+	s.suppressPathInfo = true
+	for _, file := range files {
 		pathViolations, err := s.ValidatePath(file)
 		if err != nil {
 			result.Valid = false
@@ -212,7 +212,7 @@ func (s *GuardrailsService) ValidateTask(taskID string, files []string, linesCha
 		}
 		result.Violations = append(result.Violations, pathViolations...)
 	}
-    s.suppressPathInfo = false
+	s.suppressPathInfo = false
 
 	// Check file budget
 	if s.config.EnableBudgetTracking {
@@ -234,15 +234,15 @@ func (s *GuardrailsService) ValidateTask(taskID string, files []string, linesCha
 		result.BudgetViolations = append(result.BudgetViolations, linesBudgetViolations...)
 	}
 
-    // Set validation result: valid unless any blocking violations present
-    hasBlocking := false
-    for _, v := range result.Violations {
-        if v.Severity == domain.GuardrailSeverityBlock {
-            hasBlocking = true
-            break
-        }
-    }
-    result.Valid = !hasBlocking && len(result.BudgetViolations) == 0
+	// Set validation result: valid unless any blocking violations present
+	hasBlocking := false
+	for _, v := range result.Violations {
+		if v.Severity == domain.GuardrailSeverityBlock {
+			hasBlocking = true
+			break
+		}
+	}
+	result.Valid = !hasBlocking && len(result.BudgetViolations) == 0
 
 	return result, nil
 }
@@ -256,8 +256,8 @@ func (s *GuardrailsService) EnableEphemeralMode(duration time.Duration) error {
 		return fmt.Errorf("ephemeral mode is disabled in configuration")
 	}
 
-    s.ephemeralMode = true
-    s.ephemeralEnd = time.Now().Add(duration)
+	s.ephemeralMode = true
+	s.ephemeralEnd = time.Now().Add(duration)
 
 	return nil
 }
@@ -293,7 +293,7 @@ func (s *GuardrailsService) AddPolicy(policy domain.GuardrailPolicy) error {
 		return fmt.Errorf("invalid policy: %w", err)
 	}
 
-    s.policies = append(s.policies, policy)
+	s.policies = append(s.policies, policy)
 
 	return nil
 }
@@ -305,7 +305,7 @@ func (s *GuardrailsService) RemovePolicy(policyID string) error {
 
 	for i, policy := range s.policies {
 		if policy.ID == policyID {
-            s.policies = append(s.policies[:i], s.policies[i+1:]...)
+			s.policies = append(s.policies[:i], s.policies[i+1:]...)
 			return nil
 		}
 	}
@@ -323,7 +323,7 @@ func (s *GuardrailsService) AddBudgetPolicy(budget domain.BudgetPolicy) error {
 		return fmt.Errorf("invalid budget policy: %w", err)
 	}
 
-    s.budgets = append(s.budgets, budget)
+	s.budgets = append(s.budgets, budget)
 
 	return nil
 }
@@ -333,7 +333,7 @@ func (s *GuardrailsService) UpdateConfig(config domain.GuardrailConfig) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-    s.config = config
+	s.config = config
 
 	return nil
 }
@@ -432,10 +432,10 @@ func (s *GuardrailsService) isCriticalPath(path string) bool {
 }
 
 func (s *GuardrailsService) isEphemeralExpired() bool {
-    if !s.ephemeralMode {
-        return false
-    }
-    return time.Now().After(s.ephemeralEnd)
+	if !s.ephemeralMode {
+		return false
+	}
+	return time.Now().After(s.ephemeralEnd)
 }
 
 func (s *GuardrailsService) disableEphemeralMode() {

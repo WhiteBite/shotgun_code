@@ -9,11 +9,11 @@ import (
 
 // SBOMService предоставляет высокоуровневый API для работы с SBOM и лицензиями
 type SBOMService struct {
-	log               domain.Logger
-	sbomGenerator     domain.SBOMGenerator
-	vulnScanner       domain.VulnerabilityScanner
-	licenseScanner    domain.LicenseScanner
-	fileStatProvider  domain.FileStatProvider
+	log              domain.Logger
+	sbomGenerator    domain.SBOMGenerator
+	vulnScanner      domain.VulnerabilityScanner
+	licenseScanner   domain.LicenseScanner
+	fileStatProvider domain.FileStatProvider
 }
 
 // NewSBOMService создает новый сервис SBOM

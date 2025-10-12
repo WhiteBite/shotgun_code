@@ -64,19 +64,37 @@
         {{ toast.message }}
       </div>
     </div>
+
+    <!-- Global components (lazy loaded) -->
+    <CommandPalette v-if="projectStore.hasProject" />
+    <KeyboardShortcutsModal v-if="projectStore.hasProject" />
+    
+    <!-- Theme toggle (always available) -->
+    <div class="fixed bottom-4 right-4 z-40">
+      <ThemeToggle />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, defineAsyncComponent } from 'vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
 import { useProjectStore } from '@/stores/project.store'
 import { useUIStore } from '@/stores/ui.store'
+import { useTheme } from '@/composables/useTheme'
+
+// Lazy load heavy components
+const CommandPalette = defineAsyncComponent(() => import('@/components/CommandPalette.vue'))
+const KeyboardShortcutsModal = defineAsyncComponent(() => import('@/components/KeyboardShortcutsModal.vue'))
+const ThemeToggle = defineAsyncComponent(() => import('@/components/ThemeToggle.vue'))
 
 const projectStore = useProjectStore()
 const uiStore = useUIStore()
 const globalError = ref<string | null>(null)
+
+// Initialize theme early to prevent white flash on load
+useTheme()
 
 function clearGlobalError() {
   globalError.value = null

@@ -22,9 +22,9 @@ func TestErrorAnalyzer_AnalyzeError(t *testing.T) {
 			stage:       domain.StageBuilding,
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeCompilation &&
-					   details.SourceFile == "main.go" &&
-					   details.LineNumber == 10 &&
-					   details.Column == 5
+					details.SourceFile == "main.go" &&
+					details.LineNumber == 10 &&
+					details.Column == 5
 			},
 		},
 		{
@@ -33,8 +33,8 @@ func TestErrorAnalyzer_AnalyzeError(t *testing.T) {
 			stage:       domain.StageBuilding,
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeImport &&
-					   details.SourceFile == "src/main.ts" &&
-					   details.LineNumber == 25
+					details.SourceFile == "src/main.ts" &&
+					details.LineNumber == 25
 			},
 		},
 		{
@@ -43,7 +43,7 @@ func TestErrorAnalyzer_AnalyzeError(t *testing.T) {
 			stage:       domain.StageLinting,
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeLinting &&
-					   details.Stage == domain.StageLinting
+					details.Stage == domain.StageLinting
 			},
 		},
 		{
@@ -52,7 +52,7 @@ func TestErrorAnalyzer_AnalyzeError(t *testing.T) {
 			stage:       domain.StageTesting,
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeTesting &&
-					   details.Stage == domain.StageTesting
+					details.Stage == domain.StageTesting
 			},
 		},
 	}
@@ -91,7 +91,7 @@ func TestErrorAnalyzer_SuggestCorrections(t *testing.T) {
 			},
 			expected: func(steps []*domain.CorrectionStep) bool {
 				return len(steps) > 0 &&
-					   steps[0].Action == domain.ActionFixImport
+					steps[0].Action == domain.ActionFixImport
 			},
 		},
 		{
@@ -104,7 +104,7 @@ func TestErrorAnalyzer_SuggestCorrections(t *testing.T) {
 			},
 			expected: func(steps []*domain.CorrectionStep) bool {
 				return len(steps) > 0 &&
-					   steps[0].Action == domain.ActionFixSyntax
+					steps[0].Action == domain.ActionFixSyntax
 			},
 		},
 		{
@@ -117,7 +117,7 @@ func TestErrorAnalyzer_SuggestCorrections(t *testing.T) {
 			},
 			expected: func(steps []*domain.CorrectionStep) bool {
 				return len(steps) > 0 &&
-					   steps[0].Action == domain.ActionFixType
+					steps[0].Action == domain.ActionFixType
 			},
 		},
 		{
@@ -130,7 +130,7 @@ func TestErrorAnalyzer_SuggestCorrections(t *testing.T) {
 			},
 			expected: func(steps []*domain.CorrectionStep) bool {
 				return len(steps) > 0 &&
-					   steps[0].Action == domain.ActionFormatCode
+					steps[0].Action == domain.ActionFormatCode
 			},
 		},
 	}
@@ -220,7 +220,7 @@ func TestCorrectionEngine_ApplyCorrection(t *testing.T) {
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return result.Success &&
-					   result.Message != ""
+					result.Message != ""
 			},
 		},
 		{
@@ -245,7 +245,7 @@ func TestCorrectionEngine_ApplyCorrection(t *testing.T) {
 			logger := &TestLogger{}
 			fileSystemProvider := &MockFileSystemProvider{}
 			tt.mockSetup(fileSystemProvider)
-			
+
 			engine := NewCorrectionEngine(logger, fileSystemProvider)
 
 			// Execute
@@ -286,8 +286,8 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return result.Success &&
-					   len(result.FilesChanged) > 0 &&
-					   result.Message != ""
+					len(result.FilesChanged) > 0 &&
+					result.Message != ""
 			},
 		},
 		{
@@ -319,7 +319,7 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 			logger := &TestLogger{}
 			fileSystemProvider := &MockFileSystemProvider{}
 			tt.mockSetup(fileSystemProvider)
-			
+
 			engine := NewCorrectionEngine(logger, fileSystemProvider)
 
 			// Execute
@@ -410,8 +410,8 @@ func TestGoErrorAnalyzer(t *testing.T) {
 			errorOutput: "undefined: fmt",
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeCompilation &&
-					   details.Tool == "go" &&
-					   len(details.Suggestions) > 0
+					details.Tool == "go" &&
+					len(details.Suggestions) > 0
 			},
 		},
 		{
@@ -419,8 +419,8 @@ func TestGoErrorAnalyzer(t *testing.T) {
 			errorOutput: "cannot use string as int in assignment",
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeTypeCheck &&
-					   details.Tool == "go" &&
-					   len(details.Suggestions) > 0
+					details.Tool == "go" &&
+					len(details.Suggestions) > 0
 			},
 		},
 	}
@@ -452,8 +452,8 @@ func TestTypeScriptErrorAnalyzer(t *testing.T) {
 			errorOutput: "error TS2304: Cannot find name 'SomeType'",
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeImport &&
-					   details.Tool == "tsc" &&
-					   len(details.Suggestions) > 0
+					details.Tool == "tsc" &&
+					len(details.Suggestions) > 0
 			},
 		},
 		{
@@ -461,8 +461,8 @@ func TestTypeScriptErrorAnalyzer(t *testing.T) {
 			errorOutput: "error TS2322: Type 'string' is not assignable to type 'number'",
 			expected: func(details *domain.ErrorDetails) bool {
 				return details.ErrorType == domain.ErrorTypeTypeCheck &&
-					   details.Tool == "tsc" &&
-					   len(details.Suggestions) > 0
+					details.Tool == "tsc" &&
+					len(details.Suggestions) > 0
 			},
 		},
 	}

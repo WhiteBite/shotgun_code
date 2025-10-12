@@ -1,5 +1,5 @@
-﻿import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+﻿import {defineStore} from "pinia";
+import {ref, computed} from "vue";
 
 export interface Hunk {
   header: string;
@@ -13,8 +13,10 @@ export const useReviewStore = defineStore("review", () => {
     // Parsing logic here...
     return [];
   });
+
   function setGeneratedDiff(diff: string) {
     gitDiff.value = diff;
   }
-  return { gitDiff, parsedDiff, setGeneratedDiff };
+
+  return {gitDiff, parsedDiff, setGeneratedDiff};
 });

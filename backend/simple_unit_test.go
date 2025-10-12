@@ -102,7 +102,7 @@ func TestDomainModels_AutonomousTaskRequestValidation(t *testing.T) {
 	assert.NotEmpty(t, validRequest.Task)
 	assert.Contains(t, []string{"lite", "standard", "strict"}, validRequest.SlaPolicy)
 	assert.NotEmpty(t, validRequest.ProjectPath)
-	
+
 	// Validate options
 	assert.Greater(t, validRequest.Options.MaxTokens, 0)
 	assert.GreaterOrEqual(t, validRequest.Options.Temperature, 0.0)
@@ -153,7 +153,7 @@ func TestTokenEstimation_SimpleAlgorithm(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			estimated := len(tc.content) / 4
 			assert.Equal(t, tc.expected, estimated)
-			
+
 			// Validate token count is reasonable
 			if len(tc.content) > 0 {
 				assert.Greater(t, estimated, -1) // Should be >= 0
@@ -173,7 +173,7 @@ func TestContextBuildOptions_Validation(t *testing.T) {
 	// Validate boolean options
 	assert.IsType(t, true, options.IncludeManifest)
 	assert.IsType(t, false, options.StripComments)
-	
+
 	// Validate numeric constraints
 	if options.MaxTokens > 0 {
 		assert.Greater(t, options.MaxTokens, 0)
@@ -233,7 +233,7 @@ func TestFileNodeValidation(t *testing.T) {
 
 	// Validate path consistency
 	assert.True(t, strings.HasSuffix(fileNode.Path, fileNode.RelPath))
-	
+
 	// Test JSON serialization
 	jsonData, err := json.Marshal(fileNode)
 	assert.NoError(t, err)

@@ -291,64 +291,27 @@ type FileSystemProvider interface {
 type ContextBuilder interface {
 	// BuildContext builds a context from project files and returns a ContextSummary to prevent OOM issues
 	BuildContext(ctx context.Context, projectPath string, includedPaths []string, options *ContextBuildOptions) (*ContextSummary, error)
-
-	// BuildContextLegacy builds context with legacy format (DEPRECATED - can cause OOM)
-	BuildContextLegacy(ctx context.Context, projectPath string, includedPaths []string, options ContextBuildOptions) (*Context, error)
-
-	// GenerateContext builds a context asynchronously with progress tracking
-	GenerateContext(ctx context.Context, rootDir string, includedPaths []string)
-}
-
-// ContextStreamer определяет интерфейс для стриминга контекста
-type ContextStreamer interface {
-	// CreateStreamingContext creates a streaming context from project files
-	CreateStreamingContext(ctx context.Context, projectPath string, includedPaths []string, options *ContextBuildOptions) (*ContextStream, error)
-
-	// GetContextLines retrieves a range of lines from a streaming context
-	GetContextLines(ctx context.Context, contextID string, startLine, endLine int64) (*ContextLineRange, error)
-
-	// GetContextContent returns paginated context content for memory-safe viewing
-	GetContextContent(ctx context.Context, contextID string, startLine int, lineCount int) (interface{}, error)
 }
 
 // ContextRepository определяет интерфейс для хранения контекста
 type ContextRepository interface {
-	// GetContext retrieves a context by ID
-	GetContext(ctx context.Context, contextID string) (*Context, error)
+	// SaveContextSummary persists lightweight context metadata on disk
+	SaveContextSummary(summary *ContextSummary) error
 
-	// GetProjectContexts lists all contexts for a project
-	GetProjectContexts(ctx context.Context, projectPath string) ([]*Context, error)
+	// GetContextSummary retrieves persisted context metadata by ID
+	GetContextSummary(ctx context.Context, contextID string) (*ContextSummary, error)
 
-	// DeleteContext deletes a context by ID
+	// GetProjectContextSummaries lists context metadata for a project path
+	GetProjectContextSummaries(ctx context.Context, projectPath string) ([]*ContextSummary, error)
+
+	// DeleteContext removes context metadata and content from disk
 	DeleteContext(ctx context.Context, contextID string) error
 
-	// SaveContext saves a context to disk
-	SaveContext(context *Context) error
+	// ReadContextChunk returns a memory-safe chunk of context content
+	ReadContextChunk(ctx context.Context, contextID string, startLine int, lineCount int) (*ContextChunk, error)
 
-	// SaveContextSummary saves a context summary to disk
-	SaveContextSummary(contextSummary *ContextSummary) error
-}
-
-// ContextStream represents a streaming context
-type ContextStream struct {
-	ID          string
-	Name        string
-	Description string
-	Files       []string
-	ProjectPath string
-	TotalLines  int64
-	TotalChars  int64
-	CreatedAt   string
-	UpdatedAt   string
-	TokenCount  int
-	contextPath string
-}
-
-// ContextLineRange represents a range of lines from a context
-type ContextLineRange struct {
-	StartLine int64    `json:"startLine"`
-	EndLine   int64    `json:"endLine"`
-	Lines     []string `json:"lines"`
+	// ReadContextContent returns the full context content as a string
+	ReadContextContent(ctx context.Context, contextID string) (string, error)
 }
 
 // TaskAnalysis contains analysis results for a task

@@ -1,4 +1,4 @@
-﻿import type { GitStatus, ContextOrigin } from "./enums";
+﻿import type {ContextOrigin, GitStatus} from "./enums";
 
 export interface DomainFileNode {
   name: string;
@@ -11,6 +11,7 @@ export interface DomainFileNode {
   isIgnored: boolean; // Добавляем для синхронизации с api.ts
   size: number;
 }
+
 export interface FileNode {
   name: string;
   path: string;
@@ -28,10 +29,12 @@ export interface FileNode {
   size: number;
   // isSelected removed - this is UI state, managed in stores
 }
+
 export interface FileStatus {
   path: string;
   status: string;
 }
+
 export interface CommitWithFiles {
   hash: string;
   subject: string;
@@ -40,6 +43,7 @@ export interface CommitWithFiles {
   isMerge: boolean;
   files: string[];
 }
+
 export interface SettingsDTO {
   customIgnoreRules: string;
   customPromptRules: string;
@@ -77,17 +81,21 @@ export interface SettingsDTO {
   autoTest?: boolean;
   validateSyntax?: boolean;
 }
+
 export interface Hunk {
   header: string;
   lines: string[];
 }
+
 export interface FileDiff {
   filePath: string;
   hunks: Hunk[];
   stats: { added: number; removed: number };
 }
+
 export type ToastType = "info" | "success" | "error" | "warning";
 export type LogType = ToastType | "warning" | "debug";
+
 export interface LogEntry {
   id: number;
   message: string;
@@ -221,11 +229,11 @@ export interface DerivedDiffReport {
 export interface GenericReport {
   id: string;
   type:
-    | "why_view"
-    | "time_to_green"
-    | "derived_diff"
-    | "guardrails"
-    | "sbom_licensing";
+      | "why_view"
+      | "time_to_green"
+      | "derived_diff"
+      | "guardrails"
+      | "sbom_licensing";
   taskId: string;
   title: string;
   summary: string;

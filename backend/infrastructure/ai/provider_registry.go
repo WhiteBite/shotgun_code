@@ -41,7 +41,11 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 		},
 		"openrouter": {
 			FactoryFunc: func(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
-				return NewOpenAI(apiKey, openRouterHost, log)
+				effectiveHost := host
+				if effectiveHost == "" {
+					effectiveHost = openRouterHost
+				}
+				return NewOpenAI(apiKey, effectiveHost, log)
 			},
 			ModelFetcher: func(ctx context.Context, apiKey, host string, log domain.Logger) ([]string, error) {
 				p, err := NewOpenAI(apiKey, openRouterHost, log)
@@ -64,4 +68,35 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 			},
 		},
 	}
+}
+
+// HostResolver resolves provider-specific host configuration at runtime.
+type HostResolver func(providerType string) (string, error)
+
+// NewAIProviderFactoryRegistry builds a registry mapping provider type to domain.AIProviderFactory implementations.
+// This enables Open/Closed principle compliance for selecting providers in application services.
+func NewAIProviderFactoryRegistry(
+	log domain.Logger,
+	openRouterHost string,
+	resolveHost HostResolver,
+) map[string]domain.AIProviderFactory {
+	configs := GetProviderRegistry(openRouterHost)
+	factories := make(map[string]domain.AIProviderFactory, len(configs))
+
+	for providerType, cfg := range configs {
+		cfg := cfg
+		factories[providerType] = func(pt, apiKey string) (domain.AIProvider, error) {
+			host := ""
+			if resolveHost != nil {
+				resolvedHost, err := resolveHost(pt)
+				if err != nil {
+					return nil, err
+				}
+				host = resolvedHost
+			}
+			return cfg.FactoryFunc(apiKey, host, log)
+		}
+	}
+
+	return factories
 }

@@ -111,9 +111,9 @@ export interface Context {
 // Error types
 export class ApiError extends Error {
   constructor(
-    message: string,
-    public statusCode?: number,
-    public code?: string,
+      message: string,
+      public statusCode?: number,
+      public code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -122,8 +122,8 @@ export class ApiError extends Error {
 
 export class ValidationError extends Error {
   constructor(
-    message: string,
-    public field?: string,
+      message: string,
+      public field?: string,
   ) {
     super(message);
     this.name = "ValidationError";
@@ -240,11 +240,11 @@ export interface DerivedDiffReport {
 export interface GenericReport {
   id: string;
   type:
-    | "why_view"
-    | "time_to_green"
-    | "derived_diff"
-    | "guardrails"
-    | "sbom_licensing";
+      | "why_view"
+      | "time_to_green"
+      | "derived_diff"
+      | "guardrails"
+      | "sbom_licensing";
   taskId: string;
   title: string;
   summary: string;

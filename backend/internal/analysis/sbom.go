@@ -264,12 +264,12 @@ func (s *SBOMService) GetVulnerabilityStats(result *domain.VulnerabilityScanResu
 func (s *SBOMService) GetLicenseStats(result *domain.LicenseScanResult) *domain.LicenseStats {
 	if result == nil || !result.Success || len(result.Licenses) == 0 {
 		return &domain.LicenseStats{
-			Total:         0,
-			ByLicense:     make(map[string]int),
-			Permissive:    0,
-			Copyleft:      0,
-			Proprietary:   0,
-			Unknown:       0,
+			Total:       0,
+			ByLicense:   make(map[string]int),
+			Permissive:  0,
+			Copyleft:    0,
+			Proprietary: 0,
+			Unknown:     0,
 		}
 	}
 
@@ -280,7 +280,7 @@ func (s *SBOMService) GetLicenseStats(result *domain.LicenseScanResult) *domain.
 	for _, license := range result.Licenses {
 		stats.Total++
 		stats.ByLicense[license.SPDXID]++
-		
+
 		// Categorize license types
 		switch s.categorizeLicense(license.SPDXID) {
 		case "permissive":
@@ -299,14 +299,14 @@ func (s *SBOMService) GetLicenseStats(result *domain.LicenseScanResult) *domain.
 
 func (s *SBOMService) analyzeCompliance(projectPath string, requirements *domain.ComplianceRequirements, sbom *domain.SBOMResult, vuln *domain.VulnerabilityScanResult, license *domain.LicenseScanResult) *domain.ComplianceReport {
 	report := &domain.ComplianceReport{
-		ProjectPath:       projectPath,
-		Success:           true,
-		Compliant:         true,
-		GeneratedAt:       time.Now(),
-		SBOMResult:        sbom,
+		ProjectPath:         projectPath,
+		Success:             true,
+		Compliant:           true,
+		GeneratedAt:         time.Now(),
+		SBOMResult:          sbom,
 		VulnerabilityResult: vuln,
-		LicenseResult:     license,
-		Issues:            make([]*domain.ComplianceIssue, 0),
+		LicenseResult:       license,
+		Issues:              make([]*domain.ComplianceIssue, 0),
 	}
 
 	// Check SBOM generation success
@@ -322,7 +322,7 @@ func (s *SBOMService) analyzeCompliance(projectPath string, requirements *domain
 	// Check vulnerability compliance
 	if vuln != nil && vuln.Success && requirements != nil {
 		vulnStats := s.GetVulnerabilityStats(vuln)
-		
+
 		if requirements.MaxCriticalVulnerabilities >= 0 && vulnStats.Critical > requirements.MaxCriticalVulnerabilities {
 			report.Issues = append(report.Issues, &domain.ComplianceIssue{
 				Type:        "vulnerability-critical",

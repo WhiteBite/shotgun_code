@@ -13,7 +13,7 @@ import (
 func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 	// Setup - create all required services
 	logger := &TestLogger{}
-	
+
 	// Create mock services
 	staticAnalyzer := &MockStaticAnalyzerService{}
 	testService := &MockTestService{}
@@ -21,12 +21,12 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 	guardrailService := &MockGuardrailService{}
 	aiService := &MockIntelligentAIService{}
 	fileSystemProvider := &MockFileSystemProvider{}
-	
+
 	// Create protocol services
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
 	verificationPipeline := &MockVerificationPipelineService{}
-	
+
 	taskProtocolService := NewTaskProtocolService(
 		logger,
 		verificationPipeline,
@@ -282,7 +282,7 @@ func TestProtocolReportingAndMetrics(t *testing.T) {
 	logger := &TestLogger{}
 	fileSystemProvider := &MockFileSystemProvider{}
 	fileSystemWriter := &MockFileSystemWriter{}
-	
+
 	// Create services
 	staticAnalyzer := &MockStaticAnalyzerService{}
 	testService := &MockTestService{}
@@ -373,7 +373,7 @@ func TestProtocolReportingAndMetrics(t *testing.T) {
 func TestProtocolPerformance(t *testing.T) {
 	logger := &TestLogger{}
 	fileSystemProvider := &MockFileSystemProvider{}
-	
+
 	// Create services
 	staticAnalyzer := &MockStaticAnalyzerService{}
 	testService := &MockTestService{}
@@ -417,7 +417,7 @@ func TestProtocolPerformance(t *testing.T) {
 		assert.True(t, result.Success)
 		assert.Less(t, duration, 10*time.Second, "Protocol should complete within reasonable time")
 
-		t.Logf("Protocol execution took %v for %d languages and %d stages", 
+		t.Logf("Protocol execution took %v for %d languages and %d stages",
 			duration, len(config.Languages), len(config.EnabledStages))
 	})
 
@@ -455,7 +455,7 @@ func (m *MockTaskflowService) LoadTasks() ([]domain.Task, error) {
 			},
 		},
 		{
-			ID:    "task-2", 
+			ID:    "task-2",
 			Name:  "Test Task 2",
 			State: domain.TaskStateTodo,
 			Metadata: map[string]interface{}{

@@ -14,10 +14,10 @@ import (
 
 // UXMetricsServiceImpl реализует UXMetricsService
 type UXMetricsServiceImpl struct {
-	log      domain.Logger
-	reports  map[string]*domain.UXReport
-	mu       sync.RWMutex
-	repo     domain.UXReportRepository
+	log     domain.Logger
+	reports map[string]*domain.UXReport
+	mu      sync.RWMutex
+	repo    domain.UXReportRepository
 }
 
 // NewUXMetricsService создает новый сервис UX метрик
@@ -292,12 +292,12 @@ func (s *UXMetricsServiceImpl) GetUXReport(reportID string) (*domain.UXReport, e
 		if err != nil {
 			return nil, fmt.Errorf("UX report not found: %s", reportID)
 		}
-		
+
 		// Кэшируем загруженный отчет
 		s.mu.Lock()
 		s.reports[reportID] = report
 		s.mu.Unlock()
-		
+
 		return report, nil
 	}
 

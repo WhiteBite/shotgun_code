@@ -20,16 +20,16 @@ import (
 
 // Service handles all context management operations with memory-safe streaming by default
 type Service struct {
-	fileReader    domain.FileContentReader
-	tokenCounter  TokenCounter
-	eventBus      domain.EventBus
-	logger        domain.Logger
-	contextDir    string
-	
+	fileReader   domain.FileContentReader
+	tokenCounter TokenCounter
+	eventBus     domain.EventBus
+	logger       domain.Logger
+	contextDir   string
+
 	// Streaming support
-	streams    map[string]*Stream
-	streamsMu  sync.RWMutex
-	
+	streams   map[string]*Stream
+	streamsMu sync.RWMutex
+
 	// Memory limits
 	defaultMaxMemoryMB int
 	defaultMaxTokens   int
@@ -42,17 +42,17 @@ type TokenCounter interface {
 
 // Stream represents a memory-safe streaming context
 type Stream struct {
-	ID          string                    `json:"id"`
-	Name        string                    `json:"name"`
-	Description string                    `json:"description"`
-	Files       []string                  `json:"files"`
-	ProjectPath string                    `json:"projectPath"`
-	TotalLines  int64                     `json:"totalLines"`
-	TotalChars  int64                     `json:"totalChars"`
-	CreatedAt   time.Time                 `json:"createdAt"`
-	UpdatedAt   time.Time                 `json:"updatedAt"`
-	TokenCount  int                       `json:"tokenCount"`
-	contextPath string                    `json:"-"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Files       []string  `json:"files"`
+	ProjectPath string    `json:"projectPath"`
+	TotalLines  int64     `json:"totalLines"`
+	TotalChars  int64     `json:"totalChars"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	TokenCount  int       `json:"tokenCount"`
+	contextPath string    `json:"-"`
 }
 
 // LineRange represents a range of lines from a streaming context
@@ -64,25 +64,25 @@ type LineRange struct {
 
 // BuildOptions controls how context is built
 type BuildOptions struct {
-	MaxTokens           int  `json:"maxTokens,omitempty"`
-	MaxMemoryMB         int  `json:"maxMemoryMB,omitempty"`
-	StripComments       bool `json:"stripComments,omitempty"`
-	IncludeManifest     bool `json:"includeManifest,omitempty"`
-	ForceStream         bool `json:"forceStream,omitempty"`
+	MaxTokens            int  `json:"maxTokens,omitempty"`
+	MaxMemoryMB          int  `json:"maxMemoryMB,omitempty"`
+	StripComments        bool `json:"stripComments,omitempty"`
+	IncludeManifest      bool `json:"includeManifest,omitempty"`
+	ForceStream          bool `json:"forceStream,omitempty"`
 	EnableProgressEvents bool `json:"enableProgressEvents,omitempty"`
 }
 
 // NewService creates a new unified context service
 func NewService(
-	fileReader domain.FileContentReader, 
-	tokenCounter TokenCounter, 
+	fileReader domain.FileContentReader,
+	tokenCounter TokenCounter,
 	eventBus domain.EventBus,
 	logger domain.Logger,
 ) *Service {
 	homeDir, _ := os.UserHomeDir()
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
 	os.MkdirAll(contextDir, 0755)
-	
+
 	return &Service{
 		fileReader:         fileReader,
 		tokenCounter:       tokenCounter,
@@ -90,7 +90,7 @@ func NewService(
 		logger:             logger,
 		contextDir:         contextDir,
 		streams:            make(map[string]*Stream),
-		defaultMaxMemoryMB: 50,  // Strict 50MB default limit
+		defaultMaxMemoryMB: 50,   // Strict 50MB default limit
 		defaultMaxTokens:   8000, // Strict 8000 token default limit
 	}
 }
@@ -114,12 +114,12 @@ func (s *Service) BuildContext(ctx context.Context, projectPath string, included
 		// ALWAYS force streaming regardless of options
 		options.ForceStream = true
 	}
-	
+
 	// Validate limits before proceeding
 	if err := s.validateLimits(options); err != nil {
 		return nil, err
 	}
-	
+
 	// Always use streaming for memory safety
 	return s.buildStreamingContext(ctx, projectPath, includedPaths, options)
 }
@@ -137,29 +137,29 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 			MaxTokens:   s.defaultMaxTokens,
 		}
 	}
-	
+
 	// Validate limits
 	if err := s.validateLimits(options); err != nil {
 		return nil, err
 	}
-	
+
 	s.logger.Info(fmt.Sprintf("Creating streaming context for project: %s, files: %d", projectPath, len(includedPaths)))
-	
+
 	// Pre-check file sizes to prevent memory issues
 	totalSize, oversizedFiles, err := s.estimateTotalSize(projectPath, includedPaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate file sizes: %w", err)
 	}
-	
+
 	// Check memory limit
 	if options.MaxMemoryMB > 0 {
 		maxBytes := int64(options.MaxMemoryMB) * 1024 * 1024
 		if totalSize > maxBytes {
-			return nil, fmt.Errorf("context would exceed memory limit: %d MB > %d MB. Oversized files: %v", 
+			return nil, fmt.Errorf("context would exceed memory limit: %d MB > %d MB. Oversized files: %v",
 				totalSize/(1024*1024), options.MaxMemoryMB, oversizedFiles)
 		}
 	}
-	
+
 	// Read file contents with progress tracking
 	contents, err := s.fileReader.ReadContents(ctx, includedPaths, projectPath, func(current, total int64) {
 		if options.EnableProgressEvents && s.eventBus != nil {
@@ -177,25 +177,25 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file contents: %w", err)
 	}
-	
+
 	// Create context content and save to file
 	contextID := fmt.Sprintf("stream_%s", uuid.New().String())
 	contextPath := filepath.Join(s.contextDir, contextID+".ctx")
-	
+
 	file, err := os.Create(contextPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
 	defer file.Close()
-	
+
 	writer := bufio.NewWriter(file)
 	defer writer.Flush()
-	
+
 	var totalLines int64
 	var totalChars int64
 	var actualFiles []string
 	var tokenCount int
-	
+
 	// Write header if manifest requested
 	if options.IncludeManifest {
 		header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
@@ -203,25 +203,25 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		totalLines += int64(strings.Count(header, "\n"))
 		totalChars += int64(len(header))
 	}
-	
+
 	// Write file contents with token counting
 	for _, filePath := range includedPaths {
 		content, exists := contents[filePath]
 		if !exists {
 			continue
 		}
-		
+
 		actualFiles = append(actualFiles, filePath)
-		
+
 		// Process content based on options
 		if options.StripComments {
 			content = s.stripComments(content, filePath)
 		}
-		
+
 		// Count tokens for this file
 		fileTokens := s.tokenCounter.CountTokens(content)
 		tokenCount += fileTokens
-		
+
 		// Check token limit
 		if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
 			// Clean up partial file
@@ -229,13 +229,13 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 			os.Remove(contextPath)
 			return nil, fmt.Errorf("context would exceed token limit: %d > %d", tokenCount, options.MaxTokens)
 		}
-		
+
 		// Write file content to context file
 		fileHeader := fmt.Sprintf("## File: %s\n\n", filePath)
 		writer.WriteString(fileHeader)
 		totalLines += int64(strings.Count(fileHeader, "\n"))
 		totalChars += int64(len(fileHeader))
-		
+
 		writer.WriteString("```")
 		if ext := filepath.Ext(filePath); len(ext) > 1 {
 			writer.WriteString(ext[1:])
@@ -243,15 +243,15 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		writer.WriteString("\n")
 		totalLines += 1
 		totalChars += 4
-		
+
 		writer.WriteString(content)
 		totalLines += int64(strings.Count(content, "\n")) + 1
 		totalChars += int64(len(content))
-		
+
 		writer.WriteString("\n```\n\n")
 		totalLines += 3
 		totalChars += 6
-		
+
 		// Memory safety check - flush if getting too large
 		if options.MaxMemoryMB > 0 && totalChars > int64(options.MaxMemoryMB*1024*1024)/2 {
 			if err := writer.Flush(); err != nil {
@@ -259,9 +259,9 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 			}
 		}
 	}
-	
+
 	now := time.Now()
-	
+
 	// Create context stream object
 	stream := &Stream{
 		ID:          contextID,
@@ -276,12 +276,12 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		TokenCount:  tokenCount,
 		contextPath: contextPath,
 	}
-	
+
 	// Store stream reference
 	s.streamsMu.Lock()
 	s.streams[contextID] = stream
 	s.streamsMu.Unlock()
-	
+
 	s.logger.Info(fmt.Sprintf("Created streaming context %s with %d lines, %d tokens", contextID, totalLines, tokenCount))
 	return stream, nil
 }
@@ -291,36 +291,36 @@ func (s *Service) GetContextLines(ctx context.Context, contextID string, startLi
 	s.streamsMu.RLock()
 	stream, exists := s.streams[contextID]
 	s.streamsMu.RUnlock()
-	
+
 	if !exists {
 		return nil, fmt.Errorf("streaming context not found: %s", contextID)
 	}
-	
+
 	file, err := os.Open(stream.contextPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open context file: %w", err)
 	}
 	defer file.Close()
-	
+
 	scanner := bufio.NewScanner(file)
 	var lines []string
 	var currentLine int64 = 0
-	
+
 	// Skip to start line
 	for currentLine < startLine && scanner.Scan() {
 		currentLine++
 	}
-	
+
 	// Read lines in range
 	for currentLine >= startLine && currentLine <= endLine && scanner.Scan() {
 		lines = append(lines, scanner.Text())
 		currentLine++
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading context file: %w", err)
 	}
-	
+
 	return &LineRange{
 		StartLine: startLine,
 		EndLine:   endLine,
@@ -331,7 +331,7 @@ func (s *Service) GetContextLines(ctx context.Context, contextID string, startLi
 // GetContext retrieves a context by ID (backward compatibility)
 func (s *Service) GetContext(ctx context.Context, contextID string) (*domain.Context, error) {
 	contextPath := filepath.Join(s.contextDir, contextID+".json")
-	
+
 	data, err := os.ReadFile(contextPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -339,12 +339,12 @@ func (s *Service) GetContext(ctx context.Context, contextID string) (*domain.Con
 		}
 		return nil, fmt.Errorf("failed to read context file: %w", err)
 	}
-	
+
 	var context domain.Context
 	if err := json.Unmarshal(data, &context); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal context: %w", err)
 	}
-	
+
 	return &context, nil
 }
 
@@ -353,11 +353,11 @@ func (s *Service) GetStream(ctx context.Context, contextID string) (*Stream, err
 	s.streamsMu.RLock()
 	stream, exists := s.streams[contextID]
 	s.streamsMu.RUnlock()
-	
+
 	if !exists {
 		return nil, fmt.Errorf("streaming context not found: %s", contextID)
 	}
-	
+
 	return stream, nil
 }
 
@@ -367,26 +367,26 @@ func (s *Service) ListProjectContexts(ctx context.Context, projectPath string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to read context directory: %w", err)
 	}
-	
+
 	var contexts []*domain.Context
-	
+
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		
+
 		contextID := strings.TrimSuffix(entry.Name(), ".json")
 		context, err := s.GetContext(ctx, contextID)
 		if err != nil {
 			s.logger.Warning(fmt.Sprintf("Failed to load context %s: %v", contextID, err))
 			continue
 		}
-		
+
 		if context.ProjectPath == projectPath {
 			contexts = append(contexts, context)
 		}
 	}
-	
+
 	return contexts, nil
 }
 
@@ -395,26 +395,26 @@ func (s *Service) DeleteContext(ctx context.Context, contextID string) error {
 	// Try to delete both JSON and streaming contexts
 	jsonPath := filepath.Join(s.contextDir, contextID+".json")
 	streamPath := filepath.Join(s.contextDir, contextID+".ctx")
-	
+
 	var errors []string
-	
+
 	if err := os.Remove(jsonPath); err != nil && !os.IsNotExist(err) {
 		errors = append(errors, fmt.Sprintf("failed to delete JSON context: %v", err))
 	}
-	
+
 	if err := os.Remove(streamPath); err != nil && !os.IsNotExist(err) {
 		errors = append(errors, fmt.Sprintf("failed to delete streaming context: %v", err))
 	}
-	
+
 	// Remove from streams map
 	s.streamsMu.Lock()
 	delete(s.streams, contextID)
 	s.streamsMu.Unlock()
-	
+
 	if len(errors) > 0 && !(len(errors) == 2 && strings.Contains(errors[0], "no such file") && strings.Contains(errors[1], "no such file")) {
 		return fmt.Errorf("context deletion errors: %s", strings.Join(errors, "; "))
 	}
-	
+
 	s.logger.Info(fmt.Sprintf("Deleted context %s", contextID))
 	return nil
 }
@@ -426,19 +426,19 @@ func (s *Service) validateLimits(options *BuildOptions) error {
 	if options.MaxMemoryMB > 0 && options.MaxMemoryMB > 100 {
 		return fmt.Errorf("memory limit cannot exceed 100MB for safety")
 	}
-	
+
 	// Strict token limit validation
 	if options.MaxTokens > 0 && options.MaxTokens > 16000 {
 		return fmt.Errorf("token limit cannot exceed 16000 for safety")
 	}
-	
+
 	return nil
 }
 
 func (s *Service) estimateTotalSize(projectPath string, includedPaths []string) (int64, []string, error) {
 	var totalSize int64
 	var oversizedFiles []string
-	
+
 	for _, filePath := range includedPaths {
 		fullPath := filepath.Join(projectPath, filePath)
 		if info, err := os.Stat(fullPath); err == nil {
@@ -449,7 +449,7 @@ func (s *Service) estimateTotalSize(projectPath string, includedPaths []string) 
 			}
 		}
 	}
-	
+
 	return totalSize, oversizedFiles, nil
 }
 
@@ -459,7 +459,7 @@ func (s *Service) buildStreamingContext(ctx context.Context, projectPath string,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert to domain.Context for backward compatibility
 	domainContext := &domain.Context{
 		ID:          stream.ID,
@@ -472,42 +472,42 @@ func (s *Service) buildStreamingContext(ctx context.Context, projectPath string,
 		ProjectPath: stream.ProjectPath,
 		TokenCount:  stream.TokenCount,
 	}
-	
+
 	return domainContext, nil
 }
 
 func (s *Service) buildLegacyContext(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (*domain.Context, error) {
 	s.logger.Info(fmt.Sprintf("Building legacy context for project: %s, files: %d", projectPath, len(includedPaths)))
-	
+
 	// Read file contents
 	contents, err := s.fileReader.ReadContents(ctx, includedPaths, projectPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file contents: %w", err)
 	}
-	
+
 	// Build context content
 	var contentBuilder strings.Builder
 	var actualFiles []string
-	
+
 	if options.IncludeManifest {
 		contentBuilder.WriteString("# Project Context\n\n")
 		contentBuilder.WriteString(fmt.Sprintf("Project Path: %s\n", projectPath))
 		contentBuilder.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format(time.RFC3339)))
 	}
-	
+
 	for _, filePath := range includedPaths {
 		content, exists := contents[filePath]
 		if !exists {
 			continue
 		}
-		
+
 		actualFiles = append(actualFiles, filePath)
-		
+
 		// Process content based on options
 		if options.StripComments {
 			content = s.stripComments(content, filePath)
 		}
-		
+
 		// Add file content to context
 		contentBuilder.WriteString(fmt.Sprintf("## File: %s\n\n", filePath))
 		contentBuilder.WriteString("```")
@@ -518,19 +518,19 @@ func (s *Service) buildLegacyContext(ctx context.Context, projectPath string, in
 		contentBuilder.WriteString(content)
 		contentBuilder.WriteString("\n```\n\n")
 	}
-	
+
 	contextContent := contentBuilder.String()
-	
+
 	// Check token limit
 	tokenCount := s.tokenCounter.CountTokens(contextContent)
 	if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
 		return nil, fmt.Errorf("context exceeds token limit: %d > %d", tokenCount, options.MaxTokens)
 	}
-	
+
 	// Create context object
 	contextID := uuid.New().String()
 	now := time.Now()
-	
+
 	context := &domain.Context{
 		ID:          contextID,
 		Name:        s.generateContextName(projectPath, actualFiles),
@@ -542,12 +542,12 @@ func (s *Service) buildLegacyContext(ctx context.Context, projectPath string, in
 		ProjectPath: projectPath,
 		TokenCount:  tokenCount,
 	}
-	
+
 	// Save context to disk
 	if err := s.saveContext(context); err != nil {
 		return nil, fmt.Errorf("failed to save context: %w", err)
 	}
-	
+
 	s.logger.Info(fmt.Sprintf("Built legacy context %s with %d tokens", contextID, tokenCount))
 	return context, nil
 }
@@ -672,7 +672,7 @@ type treeNode struct {
 }
 
 func (s *Service) buildSimpleTree(paths []string) string {
-	
+
 	root := &treeNode{name: ".", children: make(map[string]*treeNode)}
 
 	// Build tree structure
@@ -732,23 +732,23 @@ func (s *Service) saveContext(context *domain.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal context: %w", err)
 	}
-	
+
 	contextPath := filepath.Join(s.contextDir, context.ID+".json")
 	if err := os.WriteFile(contextPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write context file: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (s *Service) generateContextName(projectPath string, files []string) string {
 	projectName := filepath.Base(projectPath)
-	
+
 	if len(files) == 1 {
 		fileName := filepath.Base(files[0])
 		return fmt.Sprintf("%s - %s", projectName, fileName)
 	}
-	
+
 	return fmt.Sprintf("%s - %d files", projectName, len(files))
 }
 
@@ -759,7 +759,7 @@ func (s *Service) estimateTokens(totalChars int64) int {
 
 func (s *Service) stripComments(content, filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	
+
 	switch ext {
 	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs":
 		return s.stripCStyleComments(content)
@@ -775,11 +775,11 @@ func (s *Service) stripComments(content, filePath string) string {
 func (s *Service) stripCStyleComments(content string) string {
 	lines := strings.Split(content, "\n")
 	var result []string
-	
+
 	inBlockComment := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Handle block comments
 		if inBlockComment {
 			if strings.Contains(line, "*/") {
@@ -795,7 +795,7 @@ func (s *Service) stripCStyleComments(content string) string {
 				continue
 			}
 		}
-		
+
 		// Handle start of block comments
 		if strings.Contains(line, "/*") {
 			inBlockComment = true
@@ -805,22 +805,22 @@ func (s *Service) stripCStyleComments(content string) string {
 				continue
 			}
 		}
-		
+
 		// Handle line comments
 		if strings.HasPrefix(trimmed, "//") {
 			continue
 		}
-		
+
 		result = append(result, line)
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 
 func (s *Service) stripHashComments(content string) string {
 	lines := strings.Split(content, "\n")
 	var result []string
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "#") {
@@ -828,7 +828,7 @@ func (s *Service) stripHashComments(content string) string {
 		}
 		result = append(result, line)
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 

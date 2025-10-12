@@ -11,29 +11,29 @@ import (
 
 // IntelligentAIService предоставляет интеллектуальные возможности для работы с ИИ
 type IntelligentAIService struct {
-	settingsService *SettingsService
-	log             domain.Logger
-	providerFactory domain.AIProviderFactory
-	providers       map[string]domain.AIProvider
-	rateLimiter     *RateLimiter
-	metrics         *MetricsCollector
+	settingsService  *SettingsService
+	log              domain.Logger
+	providerRegistry map[string]domain.AIProviderFactory
+	providers        map[string]domain.AIProvider
+	rateLimiter      *RateLimiter
+	metrics          *MetricsCollector
 }
 
 // NewIntelligentAIService создает новый интеллектуальный сервис ИИ
 func NewIntelligentAIService(
 	settingsService *SettingsService,
 	log domain.Logger,
-	providerFactory domain.AIProviderFactory,
+	providerRegistry map[string]domain.AIProviderFactory,
 	rateLimiter *RateLimiter,
 	metrics *MetricsCollector,
 ) *IntelligentAIService {
 	return &IntelligentAIService{
-		settingsService: settingsService,
-		log:             log,
-		providerFactory: providerFactory,
-		providers:       make(map[string]domain.AIProvider),
-		rateLimiter:     rateLimiter,
-		metrics:         metrics,
+		settingsService:  settingsService,
+		log:              log,
+		providerRegistry: providerRegistry,
+		providers:        make(map[string]domain.AIProvider),
+		rateLimiter:      rateLimiter,
+		metrics:          metrics,
 	}
 }
 
@@ -209,23 +209,30 @@ func (s *IntelligentAIService) selectOptimalProvider(
 
 // createProvider создает провайдер
 func (s *IntelligentAIService) createProvider(providerType string, dto domain.SettingsDTO) (domain.AIProvider, error) {
-	var apiKey string
-	switch providerType {
-	case "openai":
-		apiKey = dto.OpenAIAPIKey
-	case "gemini":
-		apiKey = dto.GeminiAPIKey
-	case "openrouter":
-		apiKey = dto.OpenRouterAPIKey
-	case "localai":
-		apiKey = dto.LocalAIAPIKey
+	keyExtractors := map[string]func(domain.SettingsDTO) string{
+		"openai":     func(d domain.SettingsDTO) string { return d.OpenAIAPIKey },
+		"gemini":     func(d domain.SettingsDTO) string { return d.GeminiAPIKey },
+		"openrouter": func(d domain.SettingsDTO) string { return d.OpenRouterAPIKey },
+		"localai":    func(d domain.SettingsDTO) string { return d.LocalAIAPIKey },
 	}
+
+	extractor, ok := keyExtractors[providerType]
+	if !ok {
+		return nil, fmt.Errorf("unsupported AI provider: %s", providerType)
+	}
+
+	apiKey := extractor(dto)
 
 	if apiKey == "" && providerType != "localai" {
 		return nil, fmt.Errorf("API key for %s is not set", providerType)
 	}
 
-	return s.providerFactory(providerType, apiKey)
+	factory, exists := s.providerRegistry[providerType]
+	if !exists {
+		return nil, fmt.Errorf("no factory registered for provider %s", providerType)
+	}
+
+	return factory(providerType, apiKey)
 }
 
 // optimizePrompt оптимизирует промпт

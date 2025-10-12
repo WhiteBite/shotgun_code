@@ -12,14 +12,14 @@ import (
 
 // GuardrailServiceImpl реализует GuardrailService
 type GuardrailServiceImpl struct {
-	log             domain.Logger
-	policies        []domain.GuardrailPolicy
-	budgets         []domain.BudgetPolicy
-	mu              sync.RWMutex
-	config          domain.GuardrailConfig
-	ephemeralMode   bool
-	ephemeralEnd    time.Time
-	opaService      domain.OPAService
+	log              domain.Logger
+	policies         []domain.GuardrailPolicy
+	budgets          []domain.BudgetPolicy
+	mu               sync.RWMutex
+	config           domain.GuardrailConfig
+	ephemeralMode    bool
+	ephemeralEnd     time.Time
+	opaService       domain.OPAService
 	fileStatProvider domain.FileStatProvider
 	taskTypeProvider domain.TaskTypeProvider // Replace taskflowService field with taskTypeProvider
 }
@@ -27,9 +27,9 @@ type GuardrailServiceImpl struct {
 // NewGuardrailService создает новый сервис guardrails
 func NewGuardrailService(log domain.Logger, opaService domain.OPAService, fileStatProvider domain.FileStatProvider) domain.GuardrailService {
 	service := &GuardrailServiceImpl{
-		log:             log,
-		policies:        make([]domain.GuardrailPolicy, 0),
-		budgets:         make([]domain.BudgetPolicy, 0),
+		log:      log,
+		policies: make([]domain.GuardrailPolicy, 0),
+		budgets:  make([]domain.BudgetPolicy, 0),
 		config: domain.GuardrailConfig{
 			FailClosed:           true,
 			EnableEphemeralMode:  true,
@@ -38,7 +38,7 @@ func NewGuardrailService(log domain.Logger, opaService domain.OPAService, fileSt
 			EnableBudgetTracking: true,
 			EnablePathValidation: true,
 		},
-		opaService:      opaService,
+		opaService:       opaService,
 		fileStatProvider: fileStatProvider,
 	}
 

@@ -310,8 +310,8 @@ func (s *VerificationPipelineService) RunTaskProtocolStage(ctx context.Context, 
 // CreateTaskProtocolConfig creates a TaskProtocolConfig from VerificationConfig
 func (s *VerificationPipelineService) CreateTaskProtocolConfig(verifyConfig *domain.VerificationConfig) *domain.TaskProtocolConfig {
 	return &domain.TaskProtocolConfig{
-		ProjectPath:   verifyConfig.ProjectPath,
-		Languages:     verifyConfig.Languages,
+		ProjectPath: verifyConfig.ProjectPath,
+		Languages:   verifyConfig.Languages,
 		EnabledStages: []domain.ProtocolStage{
 			domain.StageLinting,
 			domain.StageBuilding,
@@ -321,8 +321,8 @@ func (s *VerificationPipelineService) CreateTaskProtocolConfig(verifyConfig *dom
 		MaxRetries: 3,
 		FailFast:   false,
 		SelfCorrection: domain.SelfCorrectionConfig{
-			Enabled:     true,
-			MaxAttempts: 5,
+			Enabled:      true,
+			MaxAttempts:  5,
 			AIAssistance: true,
 		},
 		Timeouts: map[string]time.Duration{
@@ -373,12 +373,12 @@ func (s *VerificationPipelineService) serializeTaskProtocolResult(result *domain
   "correctionCycles": %d,
   "stages": %d,
   "finalError": "%s"
-}`, 
-		result.TaskID, 
-		result.Success, 
-		result.StartedAt.Format(time.RFC3339), 
-		result.CompletedAt.Format(time.RFC3339), 
-		result.CorrectionCycles, 
+}`,
+		result.TaskID,
+		result.Success,
+		result.StartedAt.Format(time.RFC3339),
+		result.CompletedAt.Format(time.RFC3339),
+		result.CorrectionCycles,
 		len(result.Stages),
 		result.FinalError)
 

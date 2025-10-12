@@ -199,7 +199,7 @@ type GuardrailService interface {
 
 	// UpdateConfig обновляет конфигурацию guardrails
 	UpdateConfig(config GuardrailConfig) error
-	
+
 	// SetTaskTypeProvider устанавливает провайдер типов задач для разрешения циклической зависимости
 	SetTaskTypeProvider(taskTypeProvider TaskTypeProvider)
 }

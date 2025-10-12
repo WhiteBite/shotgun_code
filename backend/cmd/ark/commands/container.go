@@ -21,46 +21,46 @@ import (
 	"shotgun_code/infrastructure/uxreports"
 
 	// new wiring
+	"shotgun_code/infrastructure/applyengine"
 	archiverinfra "shotgun_code/infrastructure/archiver"
+	"shotgun_code/infrastructure/buildpipeline"
+	"shotgun_code/infrastructure/diffengine"
 	"shotgun_code/infrastructure/pdfgen"
+	"shotgun_code/infrastructure/staticanalyzer"
 	"shotgun_code/infrastructure/symbolgraph"
 	"shotgun_code/infrastructure/testengine"
-	"shotgun_code/infrastructure/staticanalyzer"
-	"shotgun_code/infrastructure/buildpipeline"
-	"shotgun_code/infrastructure/applyengine"
-	"shotgun_code/infrastructure/diffengine"
 )
 
 const openRouterHost = "https://openrouter.ai/api/v1"
 
 // CLIContainer holds all the services and repositories for the application.
 type CLIContainer struct {
-	Log                      domain.Logger
-	EventBus                 domain.EventBus // Add EventBus field
-	SettingsRepo             domain.SettingsRepository
-	FileReader               domain.FileContentReader
-	GitRepo                  domain.GitRepository
-	TreeBuilder              domain.TreeBuilder
-	ContextSplitter          domain.ContextSplitter
-	CommandRunner            domain.CommandRunner
-	SettingsService          *application.SettingsService
-	ProjectService           *application.ProjectService
-	AIService                *application.AIService
-	ContextAnalysis          domain.ContextAnalyzer
-	SymbolGraph              *application.SymbolGraphService
-	TestService              *application.TestService
-	StaticAnalyzerService    *application.StaticAnalyzerService
-	SBOMService              *application.SBOMService
-	RepairService            domain.RepairService
-	GuardrailService         domain.GuardrailService
-	TaskflowService          domain.TaskflowService
-	UXMetricsService         domain.UXMetricsService
-	ApplyService             *application.ApplyService
-	DiffService              *application.DiffService
-	BuildService             *application.BuildService
-	ExportService            *application.ExportService
-	VerificationService      *application.VerificationPipelineService
-	opaService               domain.OPAService
+	Log                   domain.Logger
+	EventBus              domain.EventBus // Add EventBus field
+	SettingsRepo          domain.SettingsRepository
+	FileReader            domain.FileContentReader
+	GitRepo               domain.GitRepository
+	TreeBuilder           domain.TreeBuilder
+	ContextSplitter       domain.ContextSplitter
+	CommandRunner         domain.CommandRunner
+	SettingsService       *application.SettingsService
+	ProjectService        *application.ProjectService
+	AIService             *application.AIService
+	ContextAnalysis       domain.ContextAnalyzer
+	SymbolGraph           *application.SymbolGraphService
+	TestService           *application.TestService
+	StaticAnalyzerService *application.StaticAnalyzerService
+	SBOMService           *application.SBOMService
+	RepairService         domain.RepairService
+	GuardrailService      domain.GuardrailService
+	TaskflowService       domain.TaskflowService
+	UXMetricsService      domain.UXMetricsService
+	ApplyService          *application.ApplyService
+	DiffService           *application.DiffService
+	BuildService          *application.BuildService
+	ExportService         *application.ExportService
+	VerificationService   *application.VerificationPipelineService
+	opaService            domain.OPAService
 }
 
 // NewCLIContainer creates and wires up all the application dependencies.
@@ -91,59 +91,61 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	}
 
 	// AI Service needs to be created before context service
-	providerFactory := createProviderFactory(c.Log, c.SettingsService)
-	
+	providerRegistry := createProviderRegistry(c.Log, c.SettingsService)
+
 	// Create rate limiter and metrics collector
 	rateLimiter := application.NewRateLimiter()
 	metrics := application.NewMetricsCollector()
-	
-	// Create intelligent service with dependencies
-	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerFactory, rateLimiter, metrics)
-	
-	// Create AI service with intelligent service
-	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
 
-    // Token counter function
-    tokenCounter := application.SimpleTokenCounter
-	
+	// Create intelligent service with dependencies
+	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerRegistry, rateLimiter, metrics)
+
+	// Create AI service with intelligent service
+	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
+
+	// Token counter function
+	tokenCounter := application.SimpleTokenCounter
+
 	// Create OPA service
 	c.opaService = policy.NewOPAService(c.Log)
-	
+
 	// Create path provider (using standard filepath implementation)
 	pathProvider := filesystem.NewFilePathProvider()
-	
+
 	// Create file system writer (using standard os implementation)
 	fileSystemWriter := &OSFileSystemWriter{}
-	
+
 	// Create file stat provider (using standard os implementation)
 	fileStatProvider := filesystem.NewOSFileStatProvider()
-	
-    // Create context directory
-    homeDir, _ := os.UserHomeDir()
-    contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-    os.MkdirAll(contextDir, 0755)
 
-    // Create comment stripper and ContextBuilder for CLI
-    commentStripper := textutils.NewCommentStripper(c.Log)
-    contextBuilder := application.NewContextBuilder(
-        c.FileReader,
-        tokenCounter,
-        c.Log,
-        c.SettingsService,
-        nil, // No event bus for CLI
-        c.opaService,
-        pathProvider,
-        fileSystemWriter,
-        commentStripper,
-        contextDir,
-    )
+	// Create context directory
+	homeDir, _ := os.UserHomeDir()
+	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
+	os.MkdirAll(contextDir, 0755)
 
-    // Create ContextGenerator for async operations
-    contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, nil, contextDir)
+	// Create comment stripper and ContextBuilder for CLI
+	commentStripper := textutils.NewCommentStripper(c.Log)
+	contextRepository := application.NewContextRepository(c.Log, contextDir)
+	contextBuilder := application.NewContextBuilder(
+		c.FileReader,
+		tokenCounter,
+		c.Log,
+		c.SettingsService,
+		nil, // No event bus for CLI
+		c.opaService,
+		pathProvider,
+		fileSystemWriter,
+		commentStripper,
+		contextRepository,
+		contextDir,
+	)
 
-    // Create ProjectService with ContextBuilder and ContextGenerator
-    c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, contextBuilder, contextGenerator, pathProvider, fileStatProvider)
-    c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+	// Create ContextGenerator for async operations
+	contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, nil, contextDir)
+
+	// Create ProjectService with ContextBuilder and ContextGenerator
+	c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, contextBuilder, contextGenerator, pathProvider, fileStatProvider)
+	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
 	// Create symbol graph builders
 	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
 	symbolGraphBuilders := make(map[string]domain.SymbolGraphBuilder)
@@ -157,26 +159,25 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	c.TestService = application.NewTestService(c.Log, testEngine)
 	staticAnalyzerEngine := staticanalyzer.NewStaticAnalyzerEngine(c.Log)
 	c.StaticAnalyzerService = application.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
-	
+
 	// Create SBOM infrastructure components
 	sbomGenerator := sbomlicensing.NewSyftGenerator(c.Log)
 	vulnScanner := sbomlicensing.NewGrypeScanner(c.Log)
 	licenseScanner := sbomlicensing.NewLicenseScanner(c.Log)
-	
+
 	// Create SBOM service with all required dependencies
 	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, fileStatProvider)
-	
-	c.RepairService = application.NewRepairService(c.Log)
-	
-    // Taskflow components not used in CLI currently
 
-    // Create Guardrail service with required dependencies
+	c.RepairService = application.NewRepairService(c.Log)
+
+	// Taskflow components not used in CLI currently
+
+	// Create Guardrail service with required dependencies
 	c.GuardrailService = application.NewGuardrailService(c.Log, c.opaService, fileStatProvider)
-    
-	
+
 	// Create UX Metrics infrastructure components
 	uxRepo := uxreports.NewInMemoryUXReportRepository()
-	
+
 	// Create UX Metrics service
 	c.UXMetricsService = application.NewUXMetricsService(c.Log, uxRepo)
 
@@ -188,32 +189,32 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		ValidateAfter:  true,
 		Languages:      []string{"go", "typescript", "ts"},
 	})
-	
+
 	// Create formatters and import fixers
 	formattersMap := make(map[string]domain.Formatter)
 	importFixers := make(map[string]domain.ImportFixer)
-	
+
 	// Create and register Go formatter and import fixer
 	goFormatter := formatters.NewGoFormatter(c.Log)
 	formattersMap["go"] = goFormatter
 	importFixers["go"] = goFormatter
-	
+
 	// Create and register TypeScript formatter and import fixer
 	tsFormatter := formatters.NewTypeScriptFormatter(c.Log)
 	formattersMap["typescript"] = tsFormatter
 	formattersMap["ts"] = tsFormatter
 	importFixers["typescript"] = tsFormatter
 	importFixers["ts"] = tsFormatter
-	
+
 	// Register formatters and import fixers with the engine
 	for lang, formatter := range formattersMap {
 		applyEngine.RegisterFormatter(lang, formatter)
 	}
-	
+
 	for lang, fixer := range importFixers {
 		applyEngine.RegisterImportFixer(lang, fixer)
 	}
-	
+
 	// Create Apply service with all required dependencies
 	applyConfig := &domain.ApplyEngineConfig{
 		AutoFormat:     true,
@@ -223,11 +224,11 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		Languages:      []string{"go", "typescript", "ts"},
 	}
 	c.ApplyService = application.NewApplyService(c.Log, applyConfig, applyEngine, formattersMap, importFixers)
-	
+
 	// Create Diff service
 	diffEngine := diffengine.NewDiffEngine(c.Log)
 	c.DiffService = application.NewDiffService(c.Log, diffEngine)
-	
+
 	buildPipeline := buildpipeline.NewBuildPipeline(c.Log)
 	c.BuildService = application.NewBuildService(c.Log, buildPipeline)
 
@@ -248,7 +249,7 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// new: wire PDF and ZIP implementations
 	pdfGen := pdfgen.NewGofpdfGenerator(c.Log)
 	arch := archiverinfra.NewZipArchiver(c.Log)
-	
+
 	// Create Export service with all required dependencies
 	c.ExportService = application.NewExportService(
 		c.Log,
@@ -308,7 +309,7 @@ func (l *CLILogger) Fatal(message string) {
 
 func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.SettingsRepository) domain.ModelFetcherRegistry {
 	fetchers := make(domain.ModelFetcherRegistry)
-	
+
 	// Gemini
 	fetchers["gemini"] = func(apiKey string) ([]string, error) {
 		p, err := ai.NewGemini(apiKey, "", log)
@@ -318,7 +319,7 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 		}
 		return p.(*ai.GeminiProviderImpl).ListModels(ctx)
 	}
-	
+
 	// OpenAI
 	fetchers["openai"] = func(apiKey string) ([]string, error) {
 		p, err := ai.NewOpenAI(apiKey, "", log)
@@ -328,7 +329,7 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 		}
 		return p.(*ai.OpenAIProviderImpl).ListModels(ctx)
 	}
-	
+
 	// OpenRouter
 	fetchers["openrouter"] = func(apiKey string) ([]string, error) {
 		p, err := ai.NewOpenAI(apiKey, openRouterHost, log)
@@ -338,7 +339,7 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 		}
 		return p.(*ai.OpenAIProviderImpl).ListModels(ctx)
 	}
-	
+
 	// LocalAI
 	fetchers["localai"] = func(apiKey string) ([]string, error) {
 		localAIHost := repo.GetLocalAIHost()
@@ -349,29 +350,27 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 		}
 		return p.(*ai.LocalAIProviderImpl).ListModels(ctx)
 	}
-	
+
 	return fetchers
 }
 
-func createProviderFactory(log domain.Logger, settingsService *application.SettingsService) domain.AIProviderFactory {
-	return func(providerType, apiKey string) (domain.AIProvider, error) {
+func createProviderRegistry(log domain.Logger, settingsService *application.SettingsService) map[string]domain.AIProviderFactory {
+	resolveHost := func(providerType string) (string, error) {
 		switch providerType {
-		case "openai":
-			return ai.NewOpenAI(apiKey, "", log)
-		case "gemini":
-			return ai.NewGemini(apiKey, "", log)
 		case "openrouter":
-			return ai.NewOpenAI(apiKey, openRouterHost, log)
+			return openRouterHost, nil
 		case "localai":
 			dto, err := settingsService.GetSettingsDTO()
 			if err != nil {
-				return nil, err
+				return "", err
 			}
-			return ai.NewOpenAI(apiKey, dto.LocalAIHost, log)
+			return dto.LocalAIHost, nil
 		default:
-			return nil, fmt.Errorf("unknown AI provider: %s", providerType)
+			return "", nil
 		}
 	}
+
+	return ai.NewAIProviderFactoryRegistry(log, openRouterHost, resolveHost)
 }
 
 // FilePathProvider implements domain.PathProvider using standard filepath functions

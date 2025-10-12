@@ -112,7 +112,7 @@ func BenchmarkStaticService_AnalyzeProject(b *testing.B) {
 	// Setup
 	mockLogger := &mockStaticLogger{}
 	mockEngine := &mockStaticAnalyzerEngine{delayMs: 10}
-	
+
 	service := &StaticService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -137,7 +137,7 @@ func BenchmarkStaticService_AnalyzeFile(b *testing.B) {
 	// Setup
 	mockLogger := &mockStaticLogger{}
 	mockEngine := &mockStaticAnalyzerEngine{delayMs: 5}
-	
+
 	service := &StaticService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -162,7 +162,7 @@ func BenchmarkStaticService_AnalyzeGoProject(b *testing.B) {
 	// Setup
 	mockLogger := &mockStaticLogger{}
 	mockEngine := &mockStaticAnalyzerEngine{delayMs: 15}
-	
+
 	service := &StaticService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -186,7 +186,7 @@ func BenchmarkStaticService_AnalyzeTypeScriptProject(b *testing.B) {
 	// Setup
 	mockLogger := &mockStaticLogger{}
 	mockEngine := &mockStaticAnalyzerEngine{delayMs: 15}
-	
+
 	service := &StaticService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -210,7 +210,7 @@ func BenchmarkStaticService_GetSupportedAnalyzers(b *testing.B) {
 	// Setup
 	mockLogger := &mockStaticLogger{}
 	mockEngine := &mockStaticAnalyzerEngine{}
-	
+
 	service := &StaticService{
 		log:    mockLogger,
 		engine: mockEngine,

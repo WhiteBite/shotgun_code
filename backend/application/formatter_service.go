@@ -11,14 +11,14 @@ import (
 
 // FormatterService предоставляет высокоуровневый API для форматирования кода
 type FormatterService struct {
-	log domain.Logger
+	log           domain.Logger
 	commandRunner domain.CommandRunner
 }
 
 // NewFormatterService создает новый сервис форматирования
 func NewFormatterService(log domain.Logger, commandRunner domain.CommandRunner) *FormatterService {
 	return &FormatterService{
-		log: log,
+		log:           log,
 		commandRunner: commandRunner,
 	}
 }

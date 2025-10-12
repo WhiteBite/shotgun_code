@@ -8,9 +8,9 @@ import (
 
 // TestService предоставляет высокоуровневый API для работы с тестами
 type TestService struct {
-	log           domain.Logger
-	testEngine    domain.TestEngine
-	symbolGraph   domain.SymbolGraphBuilder
+	log         domain.Logger
+	testEngine  domain.TestEngine
+	symbolGraph domain.SymbolGraphBuilder
 }
 
 // NewTestService создает новый сервис тестирования
@@ -30,7 +30,7 @@ func (s *TestService) RunTests(ctx context.Context, config *domain.TestConfig) (
 		// Для демонстрации используем пустой список измененных файлов
 		// В реальном использовании этот список должен приходить из системы контроля версий
 		changedFiles := []string{}
-		
+
 		affectedGraph, err := s.testEngine.BuildAffectedGraph(ctx, changedFiles, config.ProjectPath)
 		if err != nil {
 			s.log.Warning(fmt.Sprintf("Failed to build affected graph: %v", err))
@@ -119,11 +119,11 @@ func (s *TestService) RunIntegrationTests(ctx context.Context, projectPath, lang
 // ValidateTestResults валидирует результаты тестов
 func (s *TestService) ValidateTestResults(results []*domain.TestResult) *domain.TestValidationResult {
 	validation := &domain.TestValidationResult{
-		TotalTests:     len(results),
-		PassedTests:    0,
-		FailedTests:    0,
-		SkippedTests:   0,
-		TotalDuration:  0.0,
+		TotalTests:      len(results),
+		PassedTests:     0,
+		FailedTests:     0,
+		SkippedTests:    0,
+		TotalDuration:   0.0,
 		FailedTestPaths: []string{},
 	}
 

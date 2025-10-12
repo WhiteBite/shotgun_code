@@ -1,6 +1,6 @@
 // Performance Optimization Utilities
 
-import { ref, computed } from 'vue'
+import {computed, ref} from 'vue'
 
 /**
  * Virtual Scrolling Utilities
@@ -14,8 +14,8 @@ export interface VirtualScrollOptions {
 }
 
 export function useVirtualScroll<T>(
-  items: T[],
-  options: VirtualScrollOptions
+    items: T[],
+    options: VirtualScrollOptions
 ) {
   const scrollTop = ref(0)
   const containerHeight = options.containerHeight
@@ -63,8 +63,8 @@ export function useVirtualScroll<T>(
  */
 
 export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
+    func: T,
+    wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null
 
@@ -77,8 +77,8 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
+    func: T,
+    limit: number
 ): (...args: Parameters<T>) => void {
   let inThrottle = false
 
@@ -102,21 +102,21 @@ export function useLazyLoading(threshold: number = 100) {
   function observe(element: HTMLElement, id: string, callback: () => void) {
     if (!observer.value) {
       observer.value = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              const itemId = entry.target.getAttribute('data-id')
-              if (itemId && !loadedItems.value.has(itemId)) {
-                loadedItems.value.add(itemId)
-                callback()
-                observer.value?.unobserve(entry.target)
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const itemId = entry.target.getAttribute('data-id')
+                if (itemId && !loadedItems.value.has(itemId)) {
+                  loadedItems.value.add(itemId)
+                  callback()
+                  observer.value?.unobserve(entry.target)
+                }
               }
-            }
-          })
-        },
-        {
-          rootMargin: `${threshold}px`
-        }
+            })
+          },
+          {
+            rootMargin: `${threshold}px`
+          }
       )
     }
 
@@ -223,7 +223,7 @@ export class PerformanceMonitor {
     const duration = performance.now() - startTime
     this.measurements.set(name, duration)
     this.marks.delete(name)
-    
+
     return duration
   }
 
@@ -253,14 +253,14 @@ export class PerformanceMonitor {
  */
 
 export function withPerformanceMonitoring<T extends (...args: any[]) => any>(
-  func: T,
-  name: string,
-  monitor: PerformanceMonitor
+    func: T,
+    name: string,
+    monitor: PerformanceMonitor
 ): T {
   return ((...args: any[]) => {
     monitor.startMeasurement(name)
     const result = func(...args)
-    
+
     if (result && typeof result.then === 'function') {
       // Handle promises
       return result.finally(() => {
@@ -312,9 +312,9 @@ export class RequestBatcher {
   }
 
   batch<T>(
-    key: string,
-    data: any,
-    batchHandler: (requests: any[]) => Promise<T[]>
+      key: string,
+      data: any,
+      batchHandler: (requests: any[]) => Promise<T[]>
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       let batch = this.batches.get(key)
@@ -329,13 +329,13 @@ export class RequestBatcher {
         this.batches.set(key, batch)
       }
 
-      batch.requests.push({ resolve, reject, data })
+      batch.requests.push({resolve, reject, data})
     })
   }
 
   private async executeBatch<T>(
-    key: string,
-    batchHandler: (requests: any[]) => Promise<T[]>
+      key: string,
+      batchHandler: (requests: any[]) => Promise<T[]>
   ): Promise<void> {
     const batch = this.batches.get(key)
     if (!batch) return

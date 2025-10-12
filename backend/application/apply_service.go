@@ -25,7 +25,7 @@ func NewApplyService(
 	for lang, formatter := range formatters {
 		engine.RegisterFormatter(lang, formatter)
 	}
-	
+
 	for lang, fixer := range importFixers {
 		engine.RegisterImportFixer(lang, fixer)
 	}

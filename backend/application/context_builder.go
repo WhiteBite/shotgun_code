@@ -3,11 +3,11 @@ package application
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"shotgun_code/domain"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,16 +16,17 @@ import (
 
 // ContextBuilderImpl implements the ContextBuilder interface
 type ContextBuilderImpl struct {
-	fileReader      domain.FileContentReader
-	tokenCounter    domain.TokenCounter
-	logger          domain.Logger
-	settingsService *SettingsService
-	bus             domain.EventBus
-	opaService      domain.OPAService
-	pathProvider    domain.PathProvider
+	fileReader       domain.FileContentReader
+	tokenCounter     domain.TokenCounter
+	logger           domain.Logger
+	settingsService  *SettingsService
+	bus              domain.EventBus
+	opaService       domain.OPAService
+	pathProvider     domain.PathProvider
 	fileSystemWriter domain.FileSystemWriter
-    commentStripper domain.CommentStripper
-	contextDir      string
+	commentStripper  domain.CommentStripper
+	repository       domain.ContextRepository
+	contextDir       string
 }
 
 // NewContextBuilder creates a new ContextBuilder implementation
@@ -38,20 +39,22 @@ func NewContextBuilder(
 	opaService domain.OPAService,
 	pathProvider domain.PathProvider,
 	fileSystemWriter domain.FileSystemWriter,
-    commentStripper domain.CommentStripper,
+	commentStripper domain.CommentStripper,
+	repository domain.ContextRepository,
 	contextDir string,
 ) *ContextBuilderImpl {
 	return &ContextBuilderImpl{
-		fileReader:      fileReader,
-		tokenCounter:    tokenCounter,
-		logger:          logger,
-		settingsService: settingsService,
-		bus:             bus,
-		opaService:      opaService,
-		pathProvider:    pathProvider,
+		fileReader:       fileReader,
+		tokenCounter:     tokenCounter,
+		logger:           logger,
+		settingsService:  settingsService,
+		bus:              bus,
+		opaService:       opaService,
+		pathProvider:     pathProvider,
 		fileSystemWriter: fileSystemWriter,
-        commentStripper: commentStripper,
-		contextDir:      contextDir,
+		commentStripper:  commentStripper,
+		repository:       repository,
+		contextDir:       contextDir,
 	}
 }
 
@@ -60,257 +63,208 @@ func (cb *ContextBuilderImpl) BuildContext(ctx context.Context, projectPath stri
 	if options == nil {
 		options = &domain.ContextBuildOptions{}
 	}
-	
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	start := time.Now()
 	cb.logger.Info(fmt.Sprintf("Building context for project: %s, files: %d", projectPath, len(includedPaths)))
-	
-	// Create context content and save to file instead of using strings.Builder to prevent OOM
+
+	if err := cb.fileSystemWriter.MkdirAll(cb.contextDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to prepare context directory: %w", err)
+	}
+
+	sortedPaths := make([]string, len(includedPaths))
+	copy(sortedPaths, includedPaths)
+	sort.Strings(sortedPaths)
+
+	contents, err := cb.fileReader.ReadContents(ctx, sortedPaths, projectPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read project files: %w", err)
+	}
+
 	contextID := uuid.New().String()
-	contextPath := filepath.Join(cb.contextDir, contextID+".ctx")
-	
+	contextFileName := contextID + ".ctx"
+	contextPath := filepath.Join(cb.contextDir, contextFileName)
+
 	file, err := os.Create(contextPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
-	defer file.Close()
-	
+
 	writer := bufio.NewWriter(file)
-	defer writer.Flush()
-	
-	var totalChars int64
-	var actualFiles []string
-	var tokenCount int
-	
-	// Write header if requested
+	cleanup := func() {
+		writer.Flush()
+		file.Close()
+	}
+	defer cleanup()
+
+	var (
+		totalBytes  int64
+		totalTokens int
+		totalLines  int
+		processed   []string
+	)
+
 	if options.IncludeManifest {
-		header := fmt.Sprintf("# Project Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
-		writer.WriteString(header)
-		totalChars += int64(len(header))
+		manifest := cb.buildManifest(projectPath, sortedPaths)
+		if _, err := writer.WriteString(manifest); err != nil {
+			cb.cleanupContextFile(contextPath)
+			return nil, fmt.Errorf("failed to write manifest: %w", err)
+		}
+		totalBytes += int64(len(manifest))
 	}
-	
-	// Process files one by one to prevent loading all content into memory
-	for _, filePath := range includedPaths {
-		// Read individual file content to avoid loading all files at once
-		content, err := cb.fileReader.ReadContents(ctx, []string{filePath}, projectPath, nil)
-		if err != nil {
-			cb.logger.Warning(fmt.Sprintf("Failed to read file %s: %v", filePath, err))
+
+	for _, relPath := range sortedPaths {
+		content, ok := contents[relPath]
+		if !ok {
+			cb.logger.Warning(fmt.Sprintf("Skipping missing file content: %s", relPath))
 			continue
 		}
-		
-		fileContent, exists := content[filePath]
-		if !exists {
-			continue
+
+		if options.StripComments && cb.commentStripper != nil {
+			content = cb.commentStripper.Strip(content, relPath)
 		}
-		
-		actualFiles = append(actualFiles, filePath)
-		
-		// Process content based on options
-        if options.StripComments && cb.commentStripper != nil {
-            fileContent = cb.commentStripper.Strip(fileContent, filePath)
-        }
-		
-		// Write file content to context file
-		fileHeader := fmt.Sprintf("## File: %s\n\n", filePath)
-		writer.WriteString(fileHeader)
-		totalChars += int64(len(fileHeader))
-		
-        writer.WriteString("```")
-		if ext := filepath.Ext(filePath); len(ext) > 1 {
-			writer.WriteString(ext[1:])
+
+		if err := cb.writeFileSection(writer, relPath, content); err != nil {
+			cb.cleanupContextFile(contextPath)
+			return nil, err
 		}
-		writer.WriteString("\n")
-		totalChars += 4 // Account for code block markers
-		
-		writer.WriteString(fileContent)
-		totalChars += int64(len(fileContent))
-		
-		writer.WriteString("\n```\n\n")
-		totalChars += 7 // Account for code block closing and spacing
-		
-		// Update token count incrementally
-		tokenCount += cb.tokenCounter(fileContent)
+
+		totalBytes += int64(len(content))
+		totalTokens += cb.tokenCounter(content)
+		totalLines += countLines(content)
+		processed = append(processed, relPath)
 	}
-	
-	// Check token limit
-	if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
-		// Clean up the context file if token limit exceeded
-		os.Remove(contextPath)
-		return nil, fmt.Errorf("context exceeds token limit: %d > %d", tokenCount, options.MaxTokens)
+
+	if err := writer.Flush(); err != nil {
+		cb.cleanupContextFile(contextPath)
+		return nil, fmt.Errorf("failed to flush context file: %w", err)
 	}
-	
+
+	if options.MaxTokens > 0 && totalTokens > options.MaxTokens {
+		cb.cleanupContextFile(contextPath)
+		return nil, fmt.Errorf("context exceeds token limit: %d > %d", totalTokens, options.MaxTokens)
+	}
+
 	now := time.Now()
-	
-	// Create context summary object instead of full context
-	contextSummary := &domain.ContextSummary{
+	summary := &domain.ContextSummary{
 		ID:          contextID,
 		ProjectPath: projectPath,
-		FileCount:   len(actualFiles),
-		TotalSize:   totalChars,
-		TokenCount:  tokenCount,
+		FileCount:   len(processed),
+		TotalSize:   totalBytes,
+		TokenCount:  totalTokens,
+		LineCount:   totalLines,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		Status:      "ready",
 		Metadata: domain.ContextMetadata{
-			BuildDuration: 0, // Would need to measure this properly
+			BuildDuration: time.Since(start).Milliseconds(),
 			LastModified:  now,
-			SelectedFiles: actualFiles,
-			BuildOptions:  options,
+			SelectedFiles: processed,
+			BuildOptions:  copyBuildOptions(options),
 			Warnings:      []string{},
 			Errors:        []string{},
+			ContentPath:   contextFileName,
 		},
 	}
-	
-	// Save context summary to disk
-	if err := cb.saveContextSummary(contextSummary); err != nil {
-		// Clean up the context file if summary save fails
-		os.Remove(contextPath)
-		return nil, fmt.Errorf("failed to save context summary: %w", err)
+
+	if err := cb.repository.SaveContextSummary(summary); err != nil {
+		cb.cleanupContextFile(contextPath)
+		return nil, fmt.Errorf("failed to persist context summary: %w", err)
 	}
-	
-	cb.logger.Info(fmt.Sprintf("Built context summary %s with %d tokens", contextID, tokenCount))
-	return contextSummary, nil
+
+	if cb.bus != nil {
+		cb.bus.Emit("shotgunContextBuilt", summary)
+	}
+
+	cb.logger.Info(fmt.Sprintf("Built context summary %s with %d files", contextID, len(processed)))
+	return summary, nil
+}
+func (cb *ContextBuilderImpl) buildManifest(projectPath string, files []string) string {
+	if len(files) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.WriteString("# Project Context\n")
+	builder.WriteString(fmt.Sprintf("Project Path: %s\n", projectPath))
+	builder.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format(time.RFC3339)))
+	builder.WriteString("## Included Files\n")
+	for _, file := range files {
+		builder.WriteString("- ")
+		builder.WriteString(file)
+		builder.WriteString("\n")
+	}
+	builder.WriteString("\n")
+	return builder.String()
 }
 
-// BuildContextLegacy builds context with legacy format (DEPRECATED - can cause OOM)
-func (cb *ContextBuilderImpl) BuildContextLegacy(ctx context.Context, projectPath string, includedPaths []string, options domain.ContextBuildOptions) (*domain.Context, error) {
-	// This is the legacy BuildContext method that returns full context
-	// WARNING: This can cause OOM issues with large contexts
-	cb.logger.Warning("Using deprecated BuildContextLegacy method - consider using BuildContext instead")
-	return cb.buildContextLegacy(ctx, projectPath, includedPaths, options)
-}
+func (cb *ContextBuilderImpl) writeFileSection(writer *bufio.Writer, relPath, content string) error {
+	if relPath == "" {
+		return fmt.Errorf("file path is empty")
+	}
 
-// buildContextLegacy is the internal implementation of BuildContextLegacy
-func (cb *ContextBuilderImpl) buildContextLegacy(ctx context.Context, projectPath string, includedPaths []string, options domain.ContextBuildOptions) (*domain.Context, error) {
-	cb.logger.Info(fmt.Sprintf("Building legacy context for project: %s, files: %d", projectPath, len(includedPaths)))
-	
-	// Read file contents
-	contents, err := cb.fileReader.ReadContents(ctx, includedPaths, projectPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file contents: %w", err)
+	if _, err := writer.WriteString(fmt.Sprintf("## File: %s\n\n", relPath)); err != nil {
+		return fmt.Errorf("failed to write file header: %w", err)
 	}
-	
-	// Build context content
-	var contentBuilder strings.Builder
-	var actualFiles []string
-	
-	if options.IncludeManifest {
-		contentBuilder.WriteString("# Project Context\n\n")
-		contentBuilder.WriteString(fmt.Sprintf("Project Path: %s\n", projectPath))
-		contentBuilder.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format(time.RFC3339)))
+
+	lang := strings.TrimPrefix(filepath.Ext(relPath), ".")
+	if _, err := writer.WriteString("```"); err != nil {
+		return fmt.Errorf("failed to start code fence: %w", err)
 	}
-	
-	for _, filePath := range includedPaths {
-		content, exists := contents[filePath]
-		if !exists {
-			continue
+	if lang != "" {
+		if _, err := writer.WriteString(lang); err != nil {
+			return fmt.Errorf("failed to write code fence language: %w", err)
 		}
-		
-		actualFiles = append(actualFiles, filePath)
-		
-		// Process content based on options
-        if options.StripComments {
-            if cb.commentStripper != nil {
-                content = cb.commentStripper.Strip(content, filePath)
-            }
-        }
-		
-		// Add file content to context
-		contentBuilder.WriteString(fmt.Sprintf("## File: %s\n\n", filePath))
-		contentBuilder.WriteString("```")
-		if ext := filepath.Ext(filePath); len(ext) > 1 {
-			contentBuilder.WriteString(ext[1:])
+	}
+	if _, err := writer.WriteString("\n"); err != nil {
+		return fmt.Errorf("failed to terminate code fence header: %w", err)
+	}
+
+	if _, err := writer.WriteString(content); err != nil {
+		return fmt.Errorf("failed to write file content: %w", err)
+	}
+
+	if !strings.HasSuffix(content, "\n") {
+		if _, err := writer.WriteString("\n"); err != nil {
+			return fmt.Errorf("failed to append newline to file content: %w", err)
 		}
-		contentBuilder.WriteString("\n")
-		contentBuilder.WriteString(content)
-		contentBuilder.WriteString("\n```\n\n")
 	}
-	
-	contextContent := contentBuilder.String()
-	
-	// Check token limit
-	tokenCount := cb.tokenCounter(contextContent)
-	if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
-		return nil, fmt.Errorf("context exceeds token limit: %d > %d", tokenCount, options.MaxTokens)
-	}
-	
-	// Create context object
-	contextID := uuid.New().String()
-	now := time.Now()
-	
-	context := &domain.Context{
-		ID:          contextID,
-		Name:        cb.generateContextName(projectPath, actualFiles),
-		Description: fmt.Sprintf("Context with %d files from %s", len(actualFiles), filepath.Base(projectPath)),
-		Content:     contextContent,
-		Files:       actualFiles,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		ProjectPath: projectPath,
-		TokenCount:  tokenCount,
-	}
-	
-	// Save context to disk
-	if err := cb.saveContext(context); err != nil {
-		return nil, fmt.Errorf("failed to save context: %w", err)
-	}
-	
-	cb.logger.Info(fmt.Sprintf("Built legacy context %s with %d tokens", contextID, tokenCount))
-	return context, nil
-}
 
-// GenerateContext builds a context asynchronously with progress tracking
-func (cb *ContextBuilderImpl) GenerateContext(ctx context.Context, rootDir string, includedPaths []string) {
-	// Run in separate goroutine with panic recovery
-	go cb.generateContextSafe(ctx, rootDir, includedPaths)
-}
-
-// generateContextSafe is a helper method that generates context safely with panic recovery
-func (cb *ContextBuilderImpl) generateContextSafe(ctx context.Context, rootDir string, includedPaths []string) {
-	// Note: This implementation would need access to fileReader and other dependencies
-	// For now, we'll leave it as a placeholder since it requires significant dependencies
-	// In a full implementation, this would be moved to a separate service or the implementation would be updated
-}
-
-// saveContext saves a context to disk
-func (cb *ContextBuilderImpl) saveContext(context *domain.Context) error {
-	data, err := json.MarshalIndent(context, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal context: %w", err)
+	if _, err := writer.WriteString("```\n\n"); err != nil {
+		return fmt.Errorf("failed to close code fence: %w", err)
 	}
-	
-	contextPath := filepath.Join(cb.contextDir, context.ID+".json")
-	if err := os.WriteFile(contextPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write context file: %w", err)
-	}
-	
+
 	return nil
 }
 
-// saveContextSummary saves a context summary to disk
-func (cb *ContextBuilderImpl) saveContextSummary(contextSummary *domain.ContextSummary) error {
-	data, err := json.MarshalIndent(contextSummary, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal context summary: %w", err)
+func (cb *ContextBuilderImpl) cleanupContextFile(path string) {
+	if path == "" {
+		return
 	}
-	
-	contextPath := filepath.Join(cb.contextDir, contextSummary.ID+".json")
-	if err := os.WriteFile(contextPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write context summary file: %w", err)
+	if err := cb.fileSystemWriter.Remove(path); err != nil {
+		cb.logger.Warning(fmt.Sprintf("failed to cleanup context file %s: %v", path, err))
 	}
-	
-	return nil
 }
 
-// generateContextName generates a descriptive name for the context
-func (cb *ContextBuilderImpl) generateContextName(projectPath string, files []string) string {
-	projectName := filepath.Base(projectPath)
-	
-	if len(files) == 1 {
-		fileName := filepath.Base(files[0])
-		return fmt.Sprintf("%s - %s", projectName, fileName)
+func copyBuildOptions(options *domain.ContextBuildOptions) *domain.ContextBuildOptions {
+	if options == nil {
+		return nil
 	}
-	
-	return fmt.Sprintf("%s - %d files", projectName, len(files))
+	clone := *options
+	return &clone
 }
 
-// stripComments removes comments from code content
-// Comment stripping is delegated to domain.CommentStripper implementation via DI
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+
+	lines := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lines++
+	}
+	return lines
+}

@@ -76,7 +76,7 @@ func TestGuardrailsService_ValidatePath_Allowed(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data
@@ -99,7 +99,7 @@ func TestGuardrailsService_ValidatePath_Forbidden(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Add a forbidden path policy
@@ -117,7 +117,7 @@ func TestGuardrailsService_ValidatePath_Forbidden(t *testing.T) {
 			},
 		},
 	}
-	
+
 	service.mu.Lock()
 	service.policies = append(service.policies, forbiddenPolicy)
 	service.mu.Unlock()
@@ -146,7 +146,7 @@ func TestGuardrailsService_ValidatePath_WarningOnly(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Add a warning path policy
@@ -164,7 +164,7 @@ func TestGuardrailsService_ValidatePath_WarningOnly(t *testing.T) {
 			},
 		},
 	}
-	
+
 	service.mu.Lock()
 	service.policies = append(service.policies, warningPolicy)
 	service.mu.Unlock()
@@ -189,7 +189,7 @@ func TestGuardrailsService_ValidateBudget_WithinLimit(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Add a budget policy
@@ -201,7 +201,7 @@ func TestGuardrailsService_ValidateBudget_WithinLimit(t *testing.T) {
 		Unit:    "files",
 		Enabled: true,
 	}
-	
+
 	service.mu.Lock()
 	service.budgets = append(service.budgets, budgetPolicy)
 	service.mu.Unlock()
@@ -221,7 +221,7 @@ func TestGuardrailsService_ValidateBudget_Exceeded(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Add a budget policy
@@ -233,7 +233,7 @@ func TestGuardrailsService_ValidateBudget_Exceeded(t *testing.T) {
 		Unit:    "files",
 		Enabled: true,
 	}
-	
+
 	service.mu.Lock()
 	service.budgets = append(service.budgets, budgetPolicy)
 	service.mu.Unlock()
@@ -261,7 +261,7 @@ func TestGuardrailsService_ValidateBudget_WarningOnly(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	// Disable fail-closed for this test
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 	service.config.FailClosed = false
@@ -275,7 +275,7 @@ func TestGuardrailsService_ValidateBudget_WarningOnly(t *testing.T) {
 		Unit:    "files",
 		Enabled: true,
 	}
-	
+
 	service.mu.Lock()
 	service.budgets = append(service.budgets, budgetPolicy)
 	service.mu.Unlock()
@@ -297,7 +297,7 @@ func TestGuardrailsService_ValidateTask_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data
@@ -326,7 +326,7 @@ func TestGuardrailsService_ValidateTask_PathViolation(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Add a forbidden path policy
@@ -344,7 +344,7 @@ func TestGuardrailsService_ValidateTask_PathViolation(t *testing.T) {
 			},
 		},
 	}
-	
+
 	service.mu.Lock()
 	service.policies = append(service.policies, forbiddenPolicy)
 	service.mu.Unlock()
@@ -376,7 +376,7 @@ func TestGuardrailsService_ValidateTask_TaskflowError(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data
@@ -404,7 +404,7 @@ func TestGuardrailsService_EnableEphemeralMode(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Execute
@@ -420,7 +420,7 @@ func TestGuardrailsService_DisableEphemeralMode(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 	service.EnableEphemeralMode()
 
@@ -435,7 +435,7 @@ func TestGuardrailsService_IsEphemeralExpired(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test when not in ephemeral mode
@@ -454,7 +454,7 @@ func TestGuardrailsService_AddPolicy(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data
@@ -487,7 +487,7 @@ func TestGuardrailsService_AddBudget(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data
@@ -514,7 +514,7 @@ func TestGuardrailsService_GetConfig(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Execute
@@ -533,7 +533,7 @@ func TestGuardrailsService_SetConfig(t *testing.T) {
 	// Setup
 	mockLogger := new(MockGuardrailsLogger)
 	mockTaskflow := new(MockTaskflowService)
-	
+
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Test data

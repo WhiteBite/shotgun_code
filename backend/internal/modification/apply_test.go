@@ -76,23 +76,23 @@ func TestApplyService_ApplyEdits_Success(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content 1",
-			NewContent:  "new content 1",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content 1",
+			NewContent: "new content 1",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content 2",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content 2",
+			Position:   20,
 		},
 	}
 
@@ -120,17 +120,17 @@ func TestApplyService_ApplyEdits_ApplyError(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -156,17 +156,17 @@ func TestApplyService_ApplyEdits_FormatError(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -193,29 +193,29 @@ func TestApplyService_ValidateEdits_Success(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content",
+			Position:   20,
 		},
 		{
-			FilePath:    "/test/file3.py",
-			Type:        domain.EditTypeDelete,
-			OldContent:  "old content",
-			Position:    30,
+			FilePath:   "/test/file3.py",
+			Type:       domain.EditTypeDelete,
+			OldContent: "old content",
+			Position:   30,
 		},
 	}
 
@@ -237,17 +237,17 @@ func TestApplyService_ValidateEdits_EmptyFilePath(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "", // Empty file path
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "", // Empty file path
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -270,17 +270,17 @@ func TestApplyService_ValidateEdits_EmptyType(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        "", // Empty type
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       "", // Empty type
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -303,17 +303,17 @@ func TestApplyService_ValidateEdits_ReplaceWithEmptyOldContent(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "", // Empty old content
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "", // Empty old content
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -336,17 +336,17 @@ func TestApplyService_ValidateEdits_ReplaceWithIdenticalContent(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "same content",
-			NewContent:  "same content", // Identical content
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "same content",
+			NewContent: "same content", // Identical content
+			Position:   10,
 		},
 	}
 
@@ -369,16 +369,16 @@ func TestApplyService_ValidateEdits_InsertWithEmptyNewContent(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "", // Empty new content
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeInsert,
+			NewContent: "", // Empty new content
+			Position:   10,
 		},
 	}
 
@@ -401,16 +401,16 @@ func TestApplyService_ValidateEdits_InsertWithNegativePosition(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content",
-			Position:    -1, // Negative position
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content",
+			Position:   -1, // Negative position
 		},
 	}
 
@@ -433,16 +433,16 @@ func TestApplyService_ValidateEdits_DeleteWithEmptyOldContent(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeDelete,
-			OldContent:  "", // Empty old content
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeDelete,
+			OldContent: "", // Empty old content
+			Position:   10,
 		},
 	}
 
@@ -465,17 +465,17 @@ func TestApplyService_ValidateEdits_UnsupportedType(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        "unsupported_type", // Unsupported type
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       "unsupported_type", // Unsupported type
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -498,23 +498,23 @@ func TestApplyService_RollbackEdits_Success(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content 1",
-			NewContent:  "new content 1",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content 1",
+			NewContent: "new content 1",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content 2",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content 2",
+			Position:   20,
 		},
 	}
 
@@ -522,18 +522,18 @@ func TestApplyService_RollbackEdits_Success(t *testing.T) {
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
 	// For rollback of replace edit (swap old and new content)
 	mockEngine.On("ApplyEdit", mock.Anything, domain.Edit{
-		FilePath:    "/test/file1.go",
-		Type:        domain.EditTypeReplace,
-		OldContent:  "new content 1",
-		NewContent:  "old content 1",
-		Position:    10,
+		FilePath:   "/test/file1.go",
+		Type:       domain.EditTypeReplace,
+		OldContent: "new content 1",
+		NewContent: "old content 1",
+		Position:   10,
 	}).Return(nil)
 	// For rollback of insert edit (convert to delete)
 	mockEngine.On("ApplyEdit", mock.Anything, domain.Edit{
-		FilePath:    "/test/file2.js",
-		Type:        domain.EditTypeDelete,
-		OldContent:  "new content 2",
-		Position:    20,
+		FilePath:   "/test/file2.js",
+		Type:       domain.EditTypeDelete,
+		OldContent: "new content 2",
+		Position:   20,
 	}).Return(nil)
 
 	// Execute
@@ -552,17 +552,17 @@ func TestApplyService_RollbackEdits_RollbackError(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -571,11 +571,11 @@ func TestApplyService_RollbackEdits_RollbackError(t *testing.T) {
 	mockLogger.On("Error", mock.AnythingOfType("string")).Return()
 	// For rollback of replace edit (swap old and new content)
 	mockEngine.On("ApplyEdit", mock.Anything, domain.Edit{
-		FilePath:    "/test/file.go",
-		Type:        domain.EditTypeReplace,
-		OldContent:  "new content",
-		NewContent:  "old content",
-		Position:    10,
+		FilePath:   "/test/file.go",
+		Type:       domain.EditTypeReplace,
+		OldContent: "new content",
+		NewContent: "old content",
+		Position:   10,
 	}).Return(errors.New("rollback failed"))
 
 	// Execute
@@ -594,17 +594,17 @@ func TestApplyService_RollbackEdits_UnsupportedType(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file.go",
-			Type:        "unsupported_type", // Unsupported type
-			OldContent:  "old content",
-			NewContent:  "new content",
-			Position:    10,
+			FilePath:   "/test/file.go",
+			Type:       "unsupported_type", // Unsupported type
+			OldContent: "old content",
+			NewContent: "new content",
+			Position:   10,
 		},
 	}
 
@@ -628,12 +628,12 @@ func TestApplyService_ShouldFormat(t *testing.T) {
 	mockEngine := new(MockApplyEngine)
 	mockFormatter := new(MockFormatter)
 	mockLogger := new(MockApplyLogger)
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test cases
 	testCases := []struct {
-		filePath   string
+		filePath     string
 		shouldFormat bool
 	}{
 		{"/test/file.go", true},

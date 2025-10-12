@@ -44,7 +44,7 @@ func TestTaskProtocolService_ExecuteProtocol_Basic(t *testing.T) {
 		MaxRetries: 1,
 		FailFast:   false,
 		SelfCorrection: domain.SelfCorrectionConfig{
-			Enabled:     false,
+			Enabled: false,
 		},
 	}
 
@@ -199,8 +199,8 @@ func TestTaskProtocolService_Integration(t *testing.T) {
 		MaxRetries: 2,
 		FailFast:   false,
 		SelfCorrection: domain.SelfCorrectionConfig{
-			Enabled:     true,
-			MaxAttempts: 3,
+			Enabled:      true,
+			MaxAttempts:  3,
 			AIAssistance: true,
 		},
 		Timeouts: map[string]time.Duration{
@@ -228,7 +228,7 @@ func TestTaskProtocolService_Integration(t *testing.T) {
 	for _, stage := range result.Stages {
 		stageNames[stage.Stage] = true
 	}
-	
+
 	assert.True(t, stageNames[domain.StageLinting], "Linting stage should be executed")
 	assert.True(t, stageNames[domain.StageBuilding], "Building stage should be executed")
 	assert.True(t, stageNames[domain.StageTesting], "Testing stage should be executed")

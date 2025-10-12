@@ -17,26 +17,26 @@ const (
 )
 
 type ExportService struct {
-	contextSplitter   domain.ContextSplitter
-	log               domain.Logger
-	pdf               domain.PDFGenerator
-	archiver          domain.Archiver
-	tempFileProvider  domain.TempFileProvider
-	pathProvider      domain.PathProvider
-	fileSystemWriter  domain.FileSystemWriter
-	fileStatProvider  domain.FileStatProvider
+	contextSplitter  domain.ContextSplitter
+	log              domain.Logger
+	pdf              domain.PDFGenerator
+	archiver         domain.Archiver
+	tempFileProvider domain.TempFileProvider
+	pathProvider     domain.PathProvider
+	fileSystemWriter domain.FileSystemWriter
+	fileStatProvider domain.FileStatProvider
 }
 
 func NewExportService(log domain.Logger, splitter domain.ContextSplitter, pdf domain.PDFGenerator, arch domain.Archiver, tempFileProvider domain.TempFileProvider, pathProvider domain.PathProvider, fileSystemWriter domain.FileSystemWriter, fileStatProvider domain.FileStatProvider) *ExportService {
 	return &ExportService{
-		contextSplitter:   splitter,
-		log:               log,
-		pdf:               pdf,
-		archiver:          arch,
-		tempFileProvider:  tempFileProvider,
-		pathProvider:      pathProvider,
-		fileSystemWriter:  fileSystemWriter,
-		fileStatProvider:  fileStatProvider,
+		contextSplitter:  splitter,
+		log:              log,
+		pdf:              pdf,
+		archiver:         arch,
+		tempFileProvider: tempFileProvider,
+		pathProvider:     pathProvider,
+		fileSystemWriter: fileSystemWriter,
+		fileStatProvider: fileStatProvider,
 	}
 }
 

@@ -33,7 +33,7 @@ func (s *ApplyService) ApplyEdits(ctx context.Context, edits []domain.Edit) erro
 
 	for i, edit := range edits {
 		s.log.Info(fmt.Sprintf("Applying edit %d/%d to file: %s", i+1, len(edits), edit.FilePath))
-		
+
 		if err := s.applyEngine.ApplyEdit(ctx, edit); err != nil {
 			return fmt.Errorf("failed to apply edit to %s: %w", edit.FilePath, err)
 		}
@@ -59,7 +59,7 @@ func (s *ApplyService) ValidateEdits(ctx context.Context, edits []domain.Edit) e
 
 	for i, edit := range edits {
 		s.log.Info(fmt.Sprintf("Validating edit %d/%d for file: %s", i+1, len(edits), edit.FilePath))
-		
+
 		if err := s.validateEdit(edit); err != nil {
 			return fmt.Errorf("validation failed for edit to %s: %w", edit.FilePath, err)
 		}
@@ -77,7 +77,7 @@ func (s *ApplyService) RollbackEdits(ctx context.Context, edits []domain.Edit) e
 	for i := len(edits) - 1; i >= 0; i-- {
 		edit := edits[i]
 		s.log.Info(fmt.Sprintf("Rolling back edit %d/%d for file: %s", len(edits)-i, len(edits), edit.FilePath))
-		
+
 		if err := s.rollbackEdit(ctx, edit); err != nil {
 			s.log.Error(fmt.Sprintf("Failed to rollback edit for %s: %v", edit.FilePath, err))
 			// Continue with other rollbacks even if one fails
@@ -91,13 +91,13 @@ func (s *ApplyService) RollbackEdits(ctx context.Context, edits []domain.Edit) e
 // shouldFormat determines if a file should be formatted based on its extension
 func (s *ApplyService) shouldFormat(filePath string) bool {
 	supportedExtensions := []string{".go", ".ts", ".tsx", ".js", ".jsx", ".json"}
-	
+
 	for _, ext := range supportedExtensions {
 		if strings.HasSuffix(strings.ToLower(filePath), ext) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -141,16 +141,16 @@ func (s *ApplyService) validateEdit(edit domain.Edit) error {
 func (s *ApplyService) rollbackEdit(ctx context.Context, edit domain.Edit) error {
 	// Create inverse edit for rollback
 	var inverseEdit domain.Edit
-	
+
 	switch edit.Type {
 	case domain.EditTypeReplace:
 		// For replace, swap old and new content
 		inverseEdit = domain.Edit{
-			FilePath:    edit.FilePath,
-			Type:        domain.EditTypeReplace,
-			OldContent:  edit.NewContent,
-			NewContent:  edit.OldContent,
-			Position:    edit.Position,
+			FilePath:   edit.FilePath,
+			Type:       domain.EditTypeReplace,
+			OldContent: edit.NewContent,
+			NewContent: edit.OldContent,
+			Position:   edit.Position,
 		}
 	case domain.EditTypeInsert:
 		// For insert, create delete edit
@@ -163,10 +163,10 @@ func (s *ApplyService) rollbackEdit(ctx context.Context, edit domain.Edit) error
 	case domain.EditTypeDelete:
 		// For delete, create insert edit
 		inverseEdit = domain.Edit{
-			FilePath:    edit.FilePath,
-			Type:        domain.EditTypeInsert,
-			NewContent:  edit.OldContent,
-			Position:    edit.Position,
+			FilePath:   edit.FilePath,
+			Type:       domain.EditTypeInsert,
+			NewContent: edit.OldContent,
+			Position:   edit.Position,
 		}
 	default:
 		return fmt.Errorf("cannot rollback unsupported edit type: %s", edit.Type)

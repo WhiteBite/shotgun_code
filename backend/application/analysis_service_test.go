@@ -38,7 +38,7 @@ func TestSuggestFiles_MatchingFiles(t *testing.T) {
 	result := service.SuggestFiles("fix authentication bug in auth module", files)
 
 	assert.NotEmpty(t, result, "Should return suggestions")
-	
+
 	// Check that auth files are suggested
 	found := false
 	for _, suggestion := range result {
@@ -69,8 +69,8 @@ func TestSuggestFiles_WithNestedFiles(t *testing.T) {
 	service := NewAnalysisService()
 	files := []domain.FileNode{
 		{
-			Name: "src", 
-			Path: "/project/src", 
+			Name:  "src",
+			Path:  "/project/src",
 			IsDir: true,
 			Children: []domain.FileNode{
 				{Name: "auth.go", Path: "/project/src/auth.go", IsDir: false},
@@ -82,7 +82,7 @@ func TestSuggestFiles_WithNestedFiles(t *testing.T) {
 	result := service.SuggestFiles("modify auth", files)
 
 	assert.NotEmpty(t, result, "Should find files in nested structure")
-	
+
 	found := false
 	for _, suggestion := range result {
 		if suggestion.Path == "/project/src/auth.go" {
@@ -93,7 +93,7 @@ func TestSuggestFiles_WithNestedFiles(t *testing.T) {
 }
 
 func TestExtractKeywords(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name     string
 		input    string
 		expected int

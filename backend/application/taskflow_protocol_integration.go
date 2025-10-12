@@ -107,7 +107,7 @@ func (t *TaskflowProtocolIntegration) ExecuteTaskflowWithProtocol(ctx context.Co
 				t.log.Error(fmt.Sprintf("Task %s failed: %v", task.ID, err))
 				result.Success = false
 				result.FailedTasks = append(result.FailedTasks, task.ID)
-				
+
 				if options.FailFast {
 					result.CompletedAt = time.Now()
 					return result, fmt.Errorf("taskflow execution failed at task %s: %w", task.ID, err)
@@ -172,7 +172,7 @@ func (t *TaskflowProtocolIntegration) ValidateAIGeneratedCode(ctx context.Contex
 	// If validation failed and AI correction is enabled, attempt correction
 	if !result.Success && protocolConfig.SelfCorrection.Enabled && protocolConfig.SelfCorrection.AIAssistance {
 		t.log.Info("Attempting AI-assisted correction")
-		
+
 		correctionResult, err := t.attemptAICorrection(ctx, result, request)
 		if err != nil {
 			t.log.Warning(fmt.Sprintf("AI correction failed: %v", err))
@@ -377,11 +377,11 @@ type TaskflowProtocolOptions struct {
 }
 
 type TaskflowProtocolResult struct {
-	StartedAt     time.Time                              `json:"startedAt"`
-	CompletedAt   time.Time                              `json:"completedAt"`
-	Success       bool                                   `json:"success"`
-	TaskResults   map[string]*domain.TaskProtocolResult  `json:"taskResults"`
-	FailedTasks   []string                               `json:"failedTasks"`
+	StartedAt   time.Time                             `json:"startedAt"`
+	CompletedAt time.Time                             `json:"completedAt"`
+	Success     bool                                  `json:"success"`
+	TaskResults map[string]*domain.TaskProtocolResult `json:"taskResults"`
+	FailedTasks []string                              `json:"failedTasks"`
 }
 
 type AICodeGenerationRequest struct {

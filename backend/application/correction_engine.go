@@ -122,7 +122,7 @@ func (c *CorrectionEngineImpl) CanHandle(error *domain.ErrorDetails) bool {
 
 func (c *CorrectionEngineImpl) applyImportFix(ctx context.Context, step *domain.CorrectionStep, projectPath string) (*domain.CorrectionResult, error) {
 	filePath := filepath.Join(projectPath, step.Target)
-	
+
 	// Read the file
 	content, err := c.fileSystem.ReadFile(filePath)
 	if err != nil {
@@ -191,7 +191,7 @@ func (c *CorrectionEngineImpl) applyFormatCode(ctx context.Context, step *domain
 
 	// Determine file type and apply appropriate formatting
 	ext := filepath.Ext(filePath)
-	
+
 	switch ext {
 	case ".go":
 		return c.formatGoFile(filePath)
@@ -220,7 +220,7 @@ func (c *CorrectionEngineImpl) addMissingImports(content string, step *domain.Co
 	// Simplified import addition logic
 	// In a real implementation, this would intelligently analyze and add missing imports
 	lines := strings.Split(content, "\n")
-	
+
 	// Look for import section and add missing imports
 	for i, line := range lines {
 		if strings.Contains(line, "import") && i < len(lines)-1 {
@@ -229,7 +229,7 @@ func (c *CorrectionEngineImpl) addMissingImports(content string, step *domain.Co
 			continue
 		}
 	}
-	
+
 	return content // Return unchanged for now
 }
 
@@ -421,14 +421,14 @@ func (r *LintingCorrectionRule) GetErrorTypes() []domain.ErrorType {
 func removeDuplicates(slice []string) []string {
 	keys := make(map[string]bool)
 	list := []string{}
-	
+
 	for _, item := range slice {
 		if !keys[item] {
 			keys[item] = true
 			list = append(list, item)
 		}
 	}
-	
+
 	return list
 }
 

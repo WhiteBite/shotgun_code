@@ -166,7 +166,7 @@ func (b *GoSymbolGraphBuilder) parseGoFile(filePath, projectRoot string) ([]*dom
 				// Тип
 				for _, spec := range x.Specs {
 					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-						var symbolType domain.SymbolType = domain.SymbolTypeType
+						var symbolType = domain.SymbolTypeType
 
 						// Определяем конкретный тип
 						switch typeSpec.Type.(type) {

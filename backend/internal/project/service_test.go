@@ -114,14 +114,14 @@ func TestProjectService_ListFiles_Success(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
 	dirPath := "/test/project"
 	useGitignore := true
 	useCustomIgnore := true
-	
+
 	fileNodes := []*domain.FileNode{
 		{
 			Name:  "file1.go",
@@ -159,7 +159,7 @@ func TestProjectService_ListFiles_Error(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
@@ -191,12 +191,12 @@ func TestProjectService_GetUncommittedFiles_Success(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
 	projectRoot := "/test/project"
-	
+
 	fileStatuses := []domain.FileStatus{
 		{
 			Path:   "file1.go",
@@ -232,7 +232,7 @@ func TestProjectService_GetUncommittedFiles_Error(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
@@ -262,14 +262,14 @@ func TestProjectService_GetRichCommitHistory_Success(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
 	projectRoot := "/test/project"
 	branchName := "main"
 	limit := 10
-	
+
 	commits := []domain.CommitWithFiles{
 		{
 			Hash:    "abc123",
@@ -307,7 +307,7 @@ func TestProjectService_GetRichCommitHistory_Error(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
@@ -339,14 +339,14 @@ func TestProjectService_IsGitAvailable(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test cases
 	testCases := []struct {
-		name     string
+		name      string
 		available bool
-		expected bool
+		expected  bool
 	}{
 		{"Git available", true, true},
 		{"Git not available", false, false},
@@ -375,7 +375,7 @@ func TestProjectService_GenerateContext(t *testing.T) {
 	mockTreeBuilder := new(MockTreeBuilder)
 	mockGitRepo := new(MockGitRepository)
 	mockContextSvc := new(MockContextService)
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data

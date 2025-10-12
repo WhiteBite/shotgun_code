@@ -1,6 +1,6 @@
 /**
  * Application Configuration
- * 
+ *
  * This file serves as a centralized configuration for component selection
  * throughout the application. This helps eliminate duplicated components
  * and clarify which version of a component should be used.
@@ -9,7 +9,7 @@
 export const APP_CONFIG = {
   // View Components - Define which workspace view is the primary one
   PRIMARY_WORKSPACE_VIEW: 'EnhancedWorkspaceView', // 'WorkspaceView' or 'EnhancedWorkspaceView'
-  
+
   // UI Components - Define which UI components are the primary ones
   UI_COMPONENTS: {
     HEADER_BAR: 'HeaderBar', // 'HeaderBar' or 'CommandBar'
@@ -17,7 +17,7 @@ export const APP_CONFIG = {
     CONTEXT_VIEWER: 'ContextViewer',
     FILE_TREE: 'FilePanelModern' // 'FileTree' or 'FilePanelModern'
   },
-  
+
   // Feature Flags - Enable/disable features
   FEATURES: {
     ENABLE_CONSOLE: true,
@@ -26,7 +26,7 @@ export const APP_CONFIG = {
     ENABLE_RESIZE_HANDLES: true,
     ENABLE_MEMORY_MONITORING: true
   },
-  
+
   // Layout Settings
   LAYOUT: {
     DEFAULT_CONTEXT_PANEL_WIDTH: 400,

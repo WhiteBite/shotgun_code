@@ -28,7 +28,7 @@ func (a *LlamaCppClientAdapter) GenerateWithGBNF(ctx context.Context, prompt str
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert ai.LlamaCppResponse to domain.LlamaCppResponse
 	domainResponse := &domain.LlamaCppResponse{
 		Content:    response.Content,
@@ -49,7 +49,7 @@ func (a *LlamaCppClientAdapter) GenerateWithGBNF(ctx context.Context, prompt str
 		TokensPredicted: response.TokensPredicted,
 		Truncated:       response.Truncated,
 	}
-	
+
 	return domainResponse, nil
 }
 

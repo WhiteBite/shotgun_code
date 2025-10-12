@@ -3,16 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 	"shotgun_code/domain"
-	
+	"time"
+
 	// Internal service packages - gradually migrating
 	contextservice "shotgun_code/internal/context"
 	projectservice "shotgun_code/internal/project"
-	
+
 	// Legacy services (to be migrated)
 	"shotgun_code/application"
-	
+
 	// Infrastructure
 	"shotgun_code/infrastructure/ai"
 	"shotgun_code/infrastructure/filereader"
@@ -38,34 +38,34 @@ type Container struct {
 	ContextSplitter domain.ContextSplitter
 	Watcher         domain.FileSystemWatcher
 	Bridge          *wailsbridge.Bridge
-	
+
 	// Bounded Context Services (New Internal Architecture)
 	ProjectService *projectservice.Service
 	ContextService *contextservice.Service
-	
+
 	// Legacy Services (To be migrated)
-	SettingsService          *application.SettingsService
-	AIService                *application.AIService
-	ContextAnalysis          domain.ContextAnalyzer
-	SymbolGraph              *application.SymbolGraphService
-	TestService              *application.TestService
-	StaticAnalyzerService    *application.StaticAnalyzerService
-	SBOMService              *application.SBOMService
-	RepairService            domain.RepairService
-	GuardrailService         domain.GuardrailService
-	TaskflowService          domain.TaskflowService
-	UXMetricsService         domain.UXMetricsService
-	ApplyService             *application.ApplyService
-	DiffService              *application.DiffService
-	BuildService             *application.BuildService
-	ExportService            *application.ExportService
-	ReportService            *application.ReportService
-	
+	SettingsService       *application.SettingsService
+	AIService             *application.AIService
+	ContextAnalysis       domain.ContextAnalyzer
+	SymbolGraph           *application.SymbolGraphService
+	TestService           *application.TestService
+	StaticAnalyzerService *application.StaticAnalyzerService
+	SBOMService           *application.SBOMService
+	RepairService         domain.RepairService
+	GuardrailService      domain.GuardrailService
+	TaskflowService       domain.TaskflowService
+	UXMetricsService      domain.UXMetricsService
+	ApplyService          *application.ApplyService
+	DiffService           *application.DiffService
+	BuildService          *application.BuildService
+	ExportService         *application.ExportService
+	ReportService         *application.ReportService
+
 	// Task Protocol Services (New)
-	TaskProtocolService      domain.TaskProtocolService
-	ErrorAnalyzer            domain.ErrorAnalyzer
-	CorrectionEngine         domain.CorrectionEngine
-	TaskProtocolConfigService *application.TaskProtocolConfigService
+	TaskProtocolService         domain.TaskProtocolService
+	ErrorAnalyzer               domain.ErrorAnalyzer
+	CorrectionEngine            domain.CorrectionEngine
+	TaskProtocolConfigService   *application.TaskProtocolConfigService
 	VerificationPipelineService *application.VerificationPipelineService
 }
 
@@ -101,12 +101,12 @@ func (c *Container) initializeInfrastructure(ctx context.Context, embeddedIgnore
 	if err != nil {
 		return err
 	}
-	
+
 	c.FileReader = filereader.NewSecureFileReader(c.Log)
 	c.GitRepo = git.New(c.Log)
 	c.TreeBuilder = fsscanner.New(c.SettingsRepo, c.Log)
 	c.ContextSplitter = textutils.NewContextSplitter(c.Log)
-	
+
 	c.Watcher, err = fswatcher.New(ctx, c.Bus)
 	if err != nil {
 		return err
@@ -120,28 +120,28 @@ func (c *Container) initializeBoundedContexts() error {
 	// Initialize application services that were previously in initializeLegacyServices
 	modelFetchers := c.createModelFetchers(context.Background())
 	var err error
-	
+
 	c.SettingsService, err = application.NewSettingsService(c.Log, c.Bus, c.SettingsRepo, modelFetchers)
 	if err != nil {
 		return err
 	}
-	
+
 	// Connect watcher to settings changes
 	c.SettingsService.OnIgnoreRulesChanged(c.Watcher.RefreshAndRescan)
 
 	// AI Service needs to be created before context service
-	providerFactory := c.createProviderFactory()
-	
+	providerRegistry := c.createProviderRegistry()
+
 	// Create rate limiter and metrics collector
 	rateLimiter := application.NewRateLimiter()
 	metrics := application.NewMetricsCollector()
-	
+
 	// Create intelligent service with dependencies
-	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerFactory, rateLimiter, metrics)
-	
+	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerRegistry, rateLimiter, metrics)
+
 	// Create AI service with intelligent service
-	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
-	
+	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
+
 	// Context Analysis service
 	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
 
@@ -174,12 +174,12 @@ func (c *Container) initializeBoundedContexts() error {
 func (c *Container) createModelFetchers(ctx context.Context) domain.ModelFetcherRegistry {
 	registry := ai.GetProviderRegistry(openRouterHost)
 	fetchers := make(domain.ModelFetcherRegistry)
-	
+
 	for providerType, config := range registry {
 		// Capture variables for closure
 		providerType := providerType
 		config := config
-		
+
 		fetchers[providerType] = func(apiKey string) ([]string, error) {
 			// For the model fetchers, we need to provide the host and logger
 			// We'll use the container's logger and get the host based on provider type
@@ -189,7 +189,7 @@ func (c *Container) createModelFetchers(ctx context.Context) domain.ModelFetcher
 			} else if providerType == "localai" {
 				host = c.SettingsRepo.GetLocalAIHost()
 			}
-			
+
 			models, err := config.ModelFetcher(ctx, apiKey, host, c.Log)
 			if err != nil {
 				c.Log.Warning(fmt.Sprintf("Failed to create %s client for model listing: %s", providerType, err.Error()))
@@ -198,33 +198,27 @@ func (c *Container) createModelFetchers(ctx context.Context) domain.ModelFetcher
 			return models, nil
 		}
 	}
-	
+
 	return fetchers
 }
 
-func (c *Container) createProviderFactory() domain.AIProviderFactory {
-	registry := ai.GetProviderRegistry(openRouterHost)
-	
-	return func(providerType, apiKey string) (domain.AIProvider, error) {
-		config, exists := registry[providerType]
-		if !exists {
-			return nil, fmt.Errorf("unknown AI provider: %s", providerType)
-		}
-		
-		host := ""
-		if providerType == "openrouter" {
-			host = openRouterHost
-		} else if providerType == "localai" {
+func (c *Container) createProviderRegistry() map[string]domain.AIProviderFactory {
+	resolveHost := func(providerType string) (string, error) {
+		switch providerType {
+		case "openrouter":
+			return openRouterHost, nil
+		case "localai":
 			dto, err := c.SettingsService.GetSettingsDTO()
 			if err != nil {
-				return nil, err
+				return "", err
 			}
-			// Use settings-based host for localai provider factory
-			host = dto.LocalAIHost
+			return dto.LocalAIHost, nil
+		default:
+			return "", nil
 		}
-		
-		return config.FactoryFunc(apiKey, host, c.Log)
 	}
+
+	return ai.NewAIProviderFactoryRegistry(c.Log, openRouterHost, resolveHost)
 }
 
 // SimpleTokenCounter provides basic token estimation for context services
@@ -280,7 +274,7 @@ func (c *Container) initializeTaskProtocolServices() error {
 	// Since we can't easily modify the existing constructor, we'll create a new instance
 	fileSystemWriter := &FileSystemWriterImpl{}
 	formatterService := application.NewFormatterService(c.Log, &CommandRunnerImpl{})
-	
+
 	c.VerificationPipelineService = application.NewVerificationPipelineService(
 		c.Log,
 		c.BuildService,
@@ -298,10 +292,10 @@ func (c *Container) initializeTaskProtocolServices() error {
 func (c *Container) initializeBasicServices() error {
 	// For now, we'll use the existing services if they exist
 	// In a production environment, these would be properly initialized
-	
+
 	// Create minimal stub implementations if services don't exist
 	// These should be replaced with proper service initialization
-	
+
 	return nil
 }
 
@@ -400,17 +394,27 @@ func (g *GuardrailServiceStub) ValidateTask(taskID string, files []string, lines
 
 // Implement additional methods required by GuardrailService interface
 func (g *GuardrailServiceStub) AddBudgetPolicy(policy interface{}) {}
-func (g *GuardrailServiceStub) ValidatePath(path string) ([]domain.GuardrailViolation, error) { return []domain.GuardrailViolation{}, nil }
-func (g *GuardrailServiceStub) ValidateBudget(budgetType domain.BudgetType, current int64) ([]domain.BudgetViolation, error) { return []domain.BudgetViolation{}, nil }
-func (g *GuardrailServiceStub) EnableEphemeralMode(taskID string, taskType string, duration time.Duration) error { return nil }
+func (g *GuardrailServiceStub) ValidatePath(path string) ([]domain.GuardrailViolation, error) {
+	return []domain.GuardrailViolation{}, nil
+}
+func (g *GuardrailServiceStub) ValidateBudget(budgetType domain.BudgetType, current int64) ([]domain.BudgetViolation, error) {
+	return []domain.BudgetViolation{}, nil
+}
+func (g *GuardrailServiceStub) EnableEphemeralMode(taskID string, taskType string, duration time.Duration) error {
+	return nil
+}
 func (g *GuardrailServiceStub) DisableEphemeralMode() {}
-func (g *GuardrailServiceStub) GetPolicies() ([]domain.GuardrailPolicy, error) { return []domain.GuardrailPolicy{}, nil }
-func (g *GuardrailServiceStub) GetBudgetPolicies() ([]domain.BudgetPolicy, error) { return []domain.BudgetPolicy{}, nil }
-func (g *GuardrailServiceStub) AddPolicy(policy domain.GuardrailPolicy) error { return nil }
-func (g *GuardrailServiceStub) RemovePolicy(policyID string) error { return nil }
-func (g *GuardrailServiceStub) UpdatePolicy(policy domain.GuardrailPolicy) error { return nil }
-func (g *GuardrailServiceStub) RemoveBudgetPolicy(policyID string) error { return nil }
-func (g *GuardrailServiceStub) UpdateBudgetPolicy(policy domain.BudgetPolicy) error { return nil }
-func (g *GuardrailServiceStub) GetConfig() domain.GuardrailConfig { return domain.GuardrailConfig{} }
-func (g *GuardrailServiceStub) UpdateConfig(config domain.GuardrailConfig) error { return nil }
+func (g *GuardrailServiceStub) GetPolicies() ([]domain.GuardrailPolicy, error) {
+	return []domain.GuardrailPolicy{}, nil
+}
+func (g *GuardrailServiceStub) GetBudgetPolicies() ([]domain.BudgetPolicy, error) {
+	return []domain.BudgetPolicy{}, nil
+}
+func (g *GuardrailServiceStub) AddPolicy(policy domain.GuardrailPolicy) error             { return nil }
+func (g *GuardrailServiceStub) RemovePolicy(policyID string) error                        { return nil }
+func (g *GuardrailServiceStub) UpdatePolicy(policy domain.GuardrailPolicy) error          { return nil }
+func (g *GuardrailServiceStub) RemoveBudgetPolicy(policyID string) error                  { return nil }
+func (g *GuardrailServiceStub) UpdateBudgetPolicy(policy domain.BudgetPolicy) error       { return nil }
+func (g *GuardrailServiceStub) GetConfig() domain.GuardrailConfig                         { return domain.GuardrailConfig{} }
+func (g *GuardrailServiceStub) UpdateConfig(config domain.GuardrailConfig) error          { return nil }
 func (g *GuardrailServiceStub) SetTaskflowService(taskflowService domain.TaskflowService) {}

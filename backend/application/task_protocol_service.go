@@ -55,9 +55,9 @@ func (s *TaskProtocolServiceImpl) ExecuteProtocol(ctx context.Context, config *d
 	s.log.Info(fmt.Sprintf("Starting Task Protocol verification for project: %s", config.ProjectPath))
 
 	result := &domain.TaskProtocolResult{
-		TaskID:          generateTaskID(),
-		StartedAt:       time.Now(),
-		Stages:          make([]*domain.ProtocolStageResult, 0),
+		TaskID:           generateTaskID(),
+		StartedAt:        time.Now(),
+		Stages:           make([]*domain.ProtocolStageResult, 0),
 		CorrectionCycles: 0,
 	}
 
@@ -81,7 +81,7 @@ func (s *TaskProtocolServiceImpl) ExecuteProtocol(ctx context.Context, config *d
 	result.Success = s.determineOverallSuccess(result.Stages)
 	result.CompletedAt = time.Now()
 
-	s.log.Info(fmt.Sprintf("Task Protocol completed with success: %t, correction cycles: %d", 
+	s.log.Info(fmt.Sprintf("Task Protocol completed with success: %t, correction cycles: %d",
 		result.Success, result.CorrectionCycles))
 
 	return result, nil
@@ -100,12 +100,12 @@ func (s *TaskProtocolServiceImpl) executeStageWithRetry(ctx context.Context, sta
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		stageResult.Attempts = attempt
-		
+
 		s.log.Info(fmt.Sprintf("Executing stage %s, attempt %d/%d", stage, attempt, maxAttempts))
 
 		// Execute the stage
 		err := s.executeStage(ctx, stage, config)
-		
+
 		if err == nil {
 			// Stage succeeded
 			stageResult.Success = true
@@ -116,7 +116,7 @@ func (s *TaskProtocolServiceImpl) executeStageWithRetry(ctx context.Context, sta
 		// Stage failed - analyze error and attempt correction if enabled
 		if config.SelfCorrection.Enabled && attempt < maxAttempts {
 			s.log.Info(fmt.Sprintf("Stage %s failed, attempting self-correction", stage))
-			
+
 			if correctionApplied, corrErr := s.attemptSelfCorrection(ctx, err, stage, config); corrErr == nil && correctionApplied {
 				s.log.Info(fmt.Sprintf("Self-correction applied for stage %s", stage))
 				continue // Retry the stage
@@ -212,7 +212,7 @@ func (s *TaskProtocolServiceImpl) executeGuardrailsStage(ctx context.Context, co
 	// For now, perform basic guardrail validation
 	// In a real implementation, this would check security policies, resource limits, etc.
 	taskID := generateTaskID()
-	files := []string{} // Would be populated with actual changed files
+	files := []string{}      // Would be populated with actual changed files
 	linesChanged := int64(0) // Would be calculated from actual changes
 
 	result, err := s.guardrailService.ValidateTask(taskID, files, linesChanged)
@@ -267,7 +267,7 @@ func (s *TaskProtocolServiceImpl) RequestCorrectionGuidance(ctx context.Context,
 
 	// Create a prompt for correction guidance
 	// prompt := s.buildCorrectionPrompt(error, taskContext)
-	
+
 	// Request AI guidance (simplified implementation)
 	// In a real implementation, this would call the AI service with the prompt
 	guidance := &domain.CorrectionGuidance{

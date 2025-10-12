@@ -2,7 +2,6 @@ package modification
 
 import (
 	"context"
-	"errors"
 	"shotgun_code/domain"
 	"testing"
 	"time"

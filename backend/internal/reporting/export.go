@@ -59,7 +59,7 @@ func (s *ExportService) exportToClipboard(settings domain.ExportSettings) (domai
 	if format == "" {
 		format = "manifest"
 	}
-	
+
 	out, err := contextbuilder.BuildFromContext(format, settings.Context, contextbuilder.BuildOptions{
 		StripComments:   settings.StripComments,
 		IncludeManifest: settings.IncludeManifest,
@@ -67,14 +67,14 @@ func (s *ExportService) exportToClipboard(settings domain.ExportSettings) (domai
 	if err != nil {
 		return domain.ExportResult{}, fmt.Errorf("failed to build clipboard context: %w", err)
 	}
-	
+
 	return domain.ExportResult{Mode: settings.Mode, Text: out}, nil
 }
 
 // exportForAI exports context optimized for AI consumption
 func (s *ExportService) exportForAI(settings domain.ExportSettings) (domain.ExportResult, error) {
 	var chunks []string
-	
+
 	if settings.EnableAutoSplit {
 		splitSettings := domain.SplitSettings{
 			MaxTokensPerChunk: settings.MaxTokensPerChunk,
@@ -122,7 +122,7 @@ func (s *ExportService) exportForHuman(settings domain.ExportSettings) (domain.E
 		LineNumbers: settings.IncludeLineNumbers,
 		PageNumbers: settings.IncludePageNumbers,
 	}
-	
+
 	estimatedSize := int64(len(settings.Context) * 2)
 
 	if estimatedSize < maxInMemorySize {
@@ -142,7 +142,7 @@ func (s *ExportService) exportForHuman(settings domain.ExportSettings) (domain.E
 	if err != nil {
 		return domain.ExportResult{}, fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	
+
 	fileName := "context-human.pdf"
 	outputPath := filepath.Join(tempDir, fileName)
 
@@ -206,7 +206,7 @@ func (s *ExportService) createLargePDFExport(chunks []string, prefix string) (do
 		os.RemoveAll(tempDir)
 		return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
 	}
-	
+
 	return domain.ExportResult{
 		Mode:      domain.ExportModeAI,
 		FileName:  fileName,

@@ -20,7 +20,7 @@ func (m *mockProjectLogger) Fatal(msg string)   {}
 // Mock EventBus for benchmarking
 type mockEventBus struct{}
 
-func (m *mockEventBus) Publish(event string, data interface{})          {}
+func (m *mockEventBus) Publish(event string, data interface{})            {}
 func (m *mockEventBus) Subscribe(event string, handler func(interface{})) {}
 
 // Mock TreeBuilder for benchmarking
@@ -110,7 +110,7 @@ func BenchmarkProjectService_ListFiles(b *testing.B) {
 	mockTreeBuilder := &mockTreeBuilder{delayMs: 5}
 	mockGitRepo := &mockGitRepository{}
 	mockContextSvc := &mockContextService{}
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	b.ResetTimer()
@@ -135,7 +135,7 @@ func BenchmarkProjectService_GetUncommittedFiles(b *testing.B) {
 	mockTreeBuilder := &mockTreeBuilder{}
 	mockGitRepo := &mockGitRepository{delayMs: 10}
 	mockContextSvc := &mockContextService{}
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	b.ResetTimer()
@@ -158,7 +158,7 @@ func BenchmarkProjectService_GetRichCommitHistory(b *testing.B) {
 	mockTreeBuilder := &mockTreeBuilder{}
 	mockGitRepo := &mockGitRepository{delayMs: 15}
 	mockContextSvc := &mockContextService{}
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	b.ResetTimer()
@@ -183,7 +183,7 @@ func BenchmarkProjectService_IsGitAvailable(b *testing.B) {
 	mockTreeBuilder := &mockTreeBuilder{}
 	mockGitRepo := &mockGitRepository{}
 	mockContextSvc := &mockContextService{}
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	b.ResetTimer()
@@ -202,7 +202,7 @@ func BenchmarkProjectService_GenerateContext(b *testing.B) {
 	mockTreeBuilder := &mockTreeBuilder{}
 	mockGitRepo := &mockGitRepository{}
 	mockContextSvc := &mockContextService{delayMs: 20}
-	
+
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	b.ResetTimer()

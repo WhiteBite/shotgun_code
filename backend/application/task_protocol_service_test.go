@@ -34,8 +34,8 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				MaxRetries: 3,
 				FailFast:   false,
 				SelfCorrection: domain.SelfCorrectionConfig{
-					Enabled:     true,
-					MaxAttempts: 5,
+					Enabled:      true,
+					MaxAttempts:  5,
 					AIAssistance: true,
 				},
 			},
@@ -49,10 +49,10 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				mocks.guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
 			},
 			expectedResult: func(result *domain.TaskProtocolResult) bool {
-				return result.Success && 
-					   len(result.Stages) == 4 &&
-					   result.CorrectionCycles == 0 &&
-					   result.FinalError == ""
+				return result.Success &&
+					len(result.Stages) == 4 &&
+					result.CorrectionCycles == 0 &&
+					result.FinalError == ""
 			},
 		},
 		{
@@ -68,7 +68,7 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				MaxRetries: 1,
 				FailFast:   true,
 				SelfCorrection: domain.SelfCorrectionConfig{
-					Enabled:     false,
+					Enabled: false,
 				},
 			},
 			mockSetup: func(mocks *testMocks) {
@@ -78,9 +78,9 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				mocks.buildService.On("ValidateProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.ProjectValidationResult{Success: false}, nil)
 			},
 			expectedResult: func(result *domain.TaskProtocolResult) bool {
-				return !result.Success && 
-					   len(result.Stages) >= 2 && // Should have linting and building stages
-					   result.FinalError != ""
+				return !result.Success &&
+					len(result.Stages) >= 2 && // Should have linting and building stages
+					result.FinalError != ""
 			},
 		},
 		{
@@ -94,8 +94,8 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				MaxRetries: 2,
 				FailFast:   false,
 				SelfCorrection: domain.SelfCorrectionConfig{
-					Enabled:     true,
-					MaxAttempts: 3,
+					Enabled:      true,
+					MaxAttempts:  3,
 					AIAssistance: true,
 				},
 			},
@@ -103,7 +103,7 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				// First attempt fails, second succeeds after correction
 				mocks.buildService.On("ValidateProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.ProjectValidationResult{Success: false}, assert.AnError).Once()
 				mocks.buildService.On("ValidateProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.ProjectValidationResult{Success: true}, nil).Once()
-				
+
 				// Error analysis and correction
 				mocks.errorAnalyzer.On("AnalyzeError", mock.Anything, domain.StageBuilding).Return(&domain.ErrorDetails{
 					Stage:     domain.StageBuilding,
@@ -123,10 +123,10 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 				}, nil)
 			},
 			expectedResult: func(result *domain.TaskProtocolResult) bool {
-				return result.Success && 
-					   result.CorrectionCycles > 0 &&
-					   len(result.Stages) == 1 &&
-					   result.Stages[0].Attempts > 1
+				return result.Success &&
+					result.CorrectionCycles > 0 &&
+					len(result.Stages) == 1 &&
+					result.Stages[0].Attempts > 1
 			},
 		},
 	}
@@ -171,12 +171,12 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 // TestTaskProtocolService_ValidateStage tests individual stage validation
 func TestTaskProtocolService_ValidateStage(t *testing.T) {
 	tests := []struct {
-		name          string
-		stage         domain.ProtocolStage
-		config        *domain.TaskProtocolConfig
-		mockSetup     func(*testMocks)
+		name            string
+		stage           domain.ProtocolStage
+		config          *domain.TaskProtocolConfig
+		mockSetup       func(*testMocks)
 		expectedSuccess bool
-		expectedError string
+		expectedError   string
 	}{
 		{
 			name:  "linting_stage_success",

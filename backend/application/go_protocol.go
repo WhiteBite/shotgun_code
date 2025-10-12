@@ -33,7 +33,7 @@ func NewGoProtocolImplementation(
 // ExecuteLintingStage executes Go-specific linting
 func (g *GoProtocolImplementation) ExecuteLintingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	g.log.Info("Running Go linting stage")
-	
+
 	// Run staticcheck for Go
 	report, err := g.staticAnalyzer.AnalyzeProject(ctx, config.ProjectPath, []string{"go"})
 	if err != nil {
@@ -51,7 +51,7 @@ func (g *GoProtocolImplementation) ExecuteLintingStage(ctx context.Context, conf
 // ExecuteBuildingStage executes Go-specific building
 func (g *GoProtocolImplementation) ExecuteBuildingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	g.log.Info("Running Go building stage")
-	
+
 	// Validate Go project compilation
 	validation, err := g.buildService.ValidateProject(ctx, config.ProjectPath, []string{"go"})
 	if err != nil {
@@ -68,7 +68,7 @@ func (g *GoProtocolImplementation) ExecuteBuildingStage(ctx context.Context, con
 // ExecuteTestingStage executes Go-specific testing
 func (g *GoProtocolImplementation) ExecuteTestingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	g.log.Info("Running Go testing stage")
-	
+
 	// Run Go tests
 	results, err := g.testService.RunSmokeTests(ctx, config.ProjectPath, "go")
 	if err != nil {
@@ -97,7 +97,7 @@ func (g *GoProtocolImplementation) AnalyzeGoError(errorOutput string) (*domain.E
 		details.ErrorType = domain.ErrorTypeCompilation
 		details.Message = errorOutput
 		details.Suggestions = append(details.Suggestions, "Check if the identifier is declared or imported correctly")
-		
+
 		// Extract identifier name
 		if parts := strings.Split(errorOutput, "undefined:"); len(parts) > 1 {
 			identifier := strings.TrimSpace(parts[1])
@@ -225,57 +225,57 @@ func (g *GoProtocolImplementation) hasGoLintingErrors(report interface{}) bool {
 // ApplyGoFormatting applies Go-specific code formatting
 func (g *GoProtocolImplementation) ApplyGoFormatting(ctx context.Context, projectPath string, files []string) error {
 	g.log.Info("Applying Go formatting")
-	
+
 	// In a real implementation, this would:
 	// 1. Run gofmt on specified files
 	// 2. Run goimports to organize imports
 	// 3. Apply any project-specific formatting rules
-	
+
 	for _, file := range files {
 		if strings.HasSuffix(file, ".go") {
 			g.log.Debug(fmt.Sprintf("Formatting Go file: %s", file))
 			// gofmt formatting logic would go here
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidateGoModules validates Go module structure
 func (g *GoProtocolImplementation) ValidateGoModules(ctx context.Context, projectPath string) error {
 	g.log.Info("Validating Go modules")
-	
+
 	// In a real implementation, this would:
 	// 1. Check go.mod file exists and is valid
 	// 2. Verify dependencies are properly declared
 	// 3. Check for module version conflicts
 	// 4. Validate replace directives
-	
+
 	return nil
 }
 
 // RunGoSecurityChecks runs Go-specific security analysis
 func (g *GoProtocolImplementation) RunGoSecurityChecks(ctx context.Context, projectPath string) error {
 	g.log.Info("Running Go security checks")
-	
+
 	// In a real implementation, this would:
 	// 1. Run gosec for security vulnerabilities
 	// 2. Check for known vulnerable dependencies
 	// 3. Validate input sanitization patterns
 	// 4. Check for hardcoded secrets
-	
+
 	return nil
 }
 
 // OptimizeGoImports optimizes Go import statements
 func (g *GoProtocolImplementation) OptimizeGoImports(ctx context.Context, projectPath string, files []string) error {
 	g.log.Info("Optimizing Go imports")
-	
+
 	// In a real implementation, this would:
 	// 1. Remove unused imports
 	// 2. Group imports properly (standard, third-party, local)
 	// 3. Sort imports alphabetically within groups
 	// 4. Add missing imports
-	
+
 	return nil
 }

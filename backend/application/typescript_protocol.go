@@ -33,7 +33,7 @@ func NewTypeScriptProtocolImplementation(
 // ExecuteLintingStage executes TypeScript-specific linting
 func (ts *TypeScriptProtocolImplementation) ExecuteLintingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	ts.log.Info("Running TypeScript linting stage")
-	
+
 	// Run ESLint for TypeScript
 	report, err := ts.staticAnalyzer.AnalyzeProject(ctx, config.ProjectPath, []string{"typescript"})
 	if err != nil {
@@ -51,7 +51,7 @@ func (ts *TypeScriptProtocolImplementation) ExecuteLintingStage(ctx context.Cont
 // ExecuteBuildingStage executes TypeScript-specific building
 func (ts *TypeScriptProtocolImplementation) ExecuteBuildingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	ts.log.Info("Running TypeScript building stage")
-	
+
 	// Validate TypeScript project compilation
 	validation, err := ts.buildService.ValidateProject(ctx, config.ProjectPath, []string{"typescript"})
 	if err != nil {
@@ -68,7 +68,7 @@ func (ts *TypeScriptProtocolImplementation) ExecuteBuildingStage(ctx context.Con
 // ExecuteTestingStage executes TypeScript-specific testing
 func (ts *TypeScriptProtocolImplementation) ExecuteTestingStage(ctx context.Context, config *domain.TaskProtocolConfig) error {
 	ts.log.Info("Running TypeScript testing stage")
-	
+
 	// Run TypeScript tests
 	results, err := ts.testService.RunSmokeTests(ctx, config.ProjectPath, "typescript")
 	if err != nil {
@@ -195,18 +195,18 @@ func (ts *TypeScriptProtocolImplementation) GetTypeScriptLintingConfiguration() 
 func (ts *TypeScriptProtocolImplementation) GetTypeScriptBuildConfiguration() map[string]interface{} {
 	return map[string]interface{}{
 		"compiler_options": map[string]interface{}{
-			"strict":                 true,
-			"noImplicitAny":         true,
-			"strictNullChecks":      true,
-			"strictFunctionTypes":   true,
-			"noImplicitReturns":     true,
-			"noFallthroughCasesInSwitch": true,
-			"target":                "ES2020",
-			"module":                "ESNext",
-			"moduleResolution":      "node",
-			"esModuleInterop":       true,
-			"allowSyntheticDefaultImports": true,
-			"skipLibCheck":          true,
+			"strict":                           true,
+			"noImplicitAny":                    true,
+			"strictNullChecks":                 true,
+			"strictFunctionTypes":              true,
+			"noImplicitReturns":                true,
+			"noFallthroughCasesInSwitch":       true,
+			"target":                           "ES2020",
+			"module":                           "ESNext",
+			"moduleResolution":                 "node",
+			"esModuleInterop":                  true,
+			"allowSyntheticDefaultImports":     true,
+			"skipLibCheck":                     true,
 			"forceConsistentCasingInFileNames": true,
 		},
 		"include": []string{
@@ -217,7 +217,7 @@ func (ts *TypeScriptProtocolImplementation) GetTypeScriptBuildConfiguration() ma
 			"node_modules",
 			"dist",
 		},
-		"type_checking": true,
+		"type_checking":     true,
 		"declaration_files": true,
 	}
 }
@@ -230,10 +230,10 @@ func (ts *TypeScriptProtocolImplementation) GetTypeScriptTestingConfiguration() 
 			"**/*.test.ts",
 			"**/*.spec.ts",
 		},
-		"coverage_threshold": 85,
-		"parallel_execution": true,
+		"coverage_threshold":     85,
+		"parallel_execution":     true,
 		"type_checking_in_tests": true,
-		"test_timeout": "30s",
+		"test_timeout":           "30s",
 		"setup_files": []string{
 			"tests/setup.ts",
 		},
@@ -251,74 +251,74 @@ func (ts *TypeScriptProtocolImplementation) hasTypeScriptLintingErrors(report in
 // ApplyTypeScriptFormatting applies TypeScript-specific code formatting
 func (ts *TypeScriptProtocolImplementation) ApplyTypeScriptFormatting(ctx context.Context, projectPath string, files []string) error {
 	ts.log.Info("Applying TypeScript formatting")
-	
+
 	// In a real implementation, this would:
 	// 1. Run Prettier on TypeScript files
 	// 2. Apply ESLint auto-fix rules
 	// 3. Organize imports
 	// 4. Apply project-specific formatting rules
-	
+
 	for _, file := range files {
 		if strings.HasSuffix(file, ".ts") || strings.HasSuffix(file, ".tsx") {
 			ts.log.Debug(fmt.Sprintf("Formatting TypeScript file: %s", file))
 			// Prettier/ESLint formatting logic would go here
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidateTypeScriptProject validates TypeScript project structure
 func (ts *TypeScriptProtocolImplementation) ValidateTypeScriptProject(ctx context.Context, projectPath string) error {
 	ts.log.Info("Validating TypeScript project")
-	
+
 	// In a real implementation, this would:
 	// 1. Check tsconfig.json exists and is valid
 	// 2. Verify all TypeScript files can be compiled
 	// 3. Check for missing type declarations
 	// 4. Validate import/export statements
 	// 5. Check for circular dependencies
-	
+
 	return nil
 }
 
 // RunTypeScriptSecurityChecks runs TypeScript-specific security analysis
 func (ts *TypeScriptProtocolImplementation) RunTypeScriptSecurityChecks(ctx context.Context, projectPath string) error {
 	ts.log.Info("Running TypeScript security checks")
-	
+
 	// In a real implementation, this would:
 	// 1. Run npm audit for dependency vulnerabilities
 	// 2. Check for unsafe type assertions
 	// 3. Validate external API usage
 	// 4. Check for XSS vulnerabilities in frontend code
 	// 5. Analyze dynamic imports and eval usage
-	
+
 	return nil
 }
 
 // OptimizeTypeScriptImports optimizes TypeScript import statements
 func (ts *TypeScriptProtocolImplementation) OptimizeTypeScriptImports(ctx context.Context, projectPath string, files []string) error {
 	ts.log.Info("Optimizing TypeScript imports")
-	
+
 	// In a real implementation, this would:
 	// 1. Remove unused imports
 	// 2. Sort imports alphabetically
 	// 3. Group imports by source (external, internal, relative)
 	// 4. Convert to consistent import syntax
 	// 5. Add missing imports
-	
+
 	return nil
 }
 
 // GenerateTypeDeclarations generates missing TypeScript type declarations
 func (ts *TypeScriptProtocolImplementation) GenerateTypeDeclarations(ctx context.Context, projectPath string) error {
 	ts.log.Info("Generating TypeScript type declarations")
-	
+
 	// In a real implementation, this would:
 	// 1. Analyze untyped JavaScript dependencies
 	// 2. Generate .d.ts files for missing types
 	// 3. Create interface definitions for API responses
 	// 4. Add type annotations to function parameters and return types
-	
+
 	return nil
 }

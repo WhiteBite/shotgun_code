@@ -92,7 +92,7 @@ func extractKeywords(text string) []string {
 // flattenFileTree converts tree structure to flat list
 func flattenFileTree(nodes []*domain.FileNode) []domain.FileNode {
 	result := []domain.FileNode{}
-	
+
 	var traverse func([]*domain.FileNode)
 	traverse = func(nodeList []*domain.FileNode) {
 		for _, node := range nodeList {
@@ -102,7 +102,7 @@ func flattenFileTree(nodes []*domain.FileNode) []domain.FileNode {
 			}
 		}
 	}
-	
+
 	traverse(nodes)
 	return result
 }
@@ -111,7 +111,7 @@ func flattenFileTree(nodes []*domain.FileNode) []domain.FileNode {
 func scoreFile(file domain.FileNode, keywords []string) (float64, []string) {
 	fileLower := strings.ToLower(file.Path)
 	fileName := strings.ToLower(file.Name)
-	
+
 	score := 0.0
 	matched := []string{}
 
@@ -121,7 +121,7 @@ func scoreFile(file domain.FileNode, keywords []string) (float64, []string) {
 			score += 0.5
 			matched = append(matched, keyword)
 		}
-		
+
 		// Check filename (higher weight)
 		if strings.Contains(fileName, keyword) {
 			score += 1.0

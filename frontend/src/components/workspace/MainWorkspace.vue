@@ -3,26 +3,42 @@
     <!-- Action Bar -->
     <ActionBar />
 
-    <!-- Main Workspace: 3-column layout with visual separators -->
+    <!-- Main Workspace: 3-column layout with resizable panels -->
     <div class="flex-1 flex overflow-hidden">
-      <!-- Left Sidebar: File Explorer -->
-      <div class="w-80 flex-shrink-0 border-r border-gray-700/50">
+      <!-- Left Sidebar: File Explorer (Resizable) -->
+      <div 
+        ref="leftPanelRef"
+        :style="{ width: `${leftWidth}px` }"
+        class="flex-shrink-0 border-r border-gray-700/50"
+      >
         <LeftSidebar @preview-file="handlePreviewFile" />
       </div>
 
-      <!-- Separator -->
-      <div class="workspace-separator"></div>
+      <!-- Left Resize Handle -->
+      <div 
+        class="workspace-separator"
+        @mousedown="(e) => leftResize.onMouseDown(e)"
+        :class="{ 'is-resizing': leftResize.isResizing.value }"
+      ></div>
 
-      <!-- Center: Task + Context -->
-      <div class="flex-1">
+      <!-- Center: Task + Context (Flexible) -->
+      <div class="flex-1 min-w-0">
         <CenterWorkspace />
       </div>
 
-      <!-- Separator -->
-      <div class="workspace-separator"></div>
+      <!-- Right Resize Handle -->
+      <div 
+        class="workspace-separator"
+        @mousedown="(e) => rightResize.onMouseDown(e)"
+        :class="{ 'is-resizing': rightResize.isResizing.value }"
+      ></div>
 
-      <!-- Right Sidebar: Results/Output -->
-      <div class="w-96 flex-shrink-0 border-l border-gray-700/50">
+      <!-- Right Sidebar: Results/Output (Resizable) -->
+      <div 
+        ref="rightPanelRef"
+        :style="{ width: `${rightWidth}px` }"
+        class="flex-shrink-0 border-l border-gray-700/50"
+      >
         <RightSidebar />
       </div>
     </div>
@@ -34,6 +50,27 @@ import ActionBar from './ActionBar.vue'
 import LeftSidebar from './LeftSidebar.vue'
 import CenterWorkspace from './CenterWorkspace.vue'
 import RightSidebar from './RightSidebar.vue'
+import { useResizablePanel } from '@/composables/useResizablePanel'
+
+// Left panel resizing
+const leftResize = useResizablePanel({
+  minWidth: 200,
+  maxWidth: 600,
+  defaultWidth: 320,
+  storageKey: 'workspace-left-width'
+})
+const leftPanelRef = leftResize.panelRef
+const leftWidth = leftResize.width
+
+// Right panel resizing
+const rightResize = useResizablePanel({
+  minWidth: 250,
+  maxWidth: 700,
+  defaultWidth: 384,
+  storageKey: 'workspace-right-width'
+})
+const rightPanelRef = rightResize.panelRef
+const rightWidth = rightResize.width
 
 function handlePreviewFile(filePath: string) {
   console.log('Preview file:', filePath)

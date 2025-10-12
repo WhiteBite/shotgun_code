@@ -21,7 +21,7 @@ func (m *mockFileReader) ReadContents(ctx context.Context, filePaths []string, r
 	if m.delayMs > 0 {
 		time.Sleep(time.Duration(m.delayMs) * time.Millisecond)
 	}
-	
+
 	contents := make(map[string]string)
 	for _, path := range filePaths {
 		contents[path] = "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}"
@@ -38,7 +38,7 @@ func (m *mockTokenCounter) CountTokens(text string) int {
 	if m.delayMs > 0 {
 		time.Sleep(time.Duration(m.delayMs) * time.Millisecond)
 	}
-	
+
 	// Simple token estimation (4 characters per token)
 	return len(text) / 4
 }
@@ -150,7 +150,7 @@ func BenchmarkService_BuildContext_Large(b *testing.B) {
 	for i := 0; i < 50; i++ {
 		includedPaths[i] = "src/file" + string(rune(i+'0')) + ".go"
 	}
-	
+
 	projectPath := "/test/project"
 	options := &BuildOptions{
 		MaxTokens:   10000,
@@ -220,14 +220,14 @@ func BenchmarkService_GetContextLines(b *testing.B) {
 	// Create a stream first
 	projectPath := "/test/project"
 	includedPaths := []string{"src/test.go"}
-	
+
 	// Create service with our test content
 	testContent := strings.Repeat("Line content for testing.\n", 1000) // 1000 lines
 	service.fileReader = &mockFileReaderWithContent{
-		delayMs: 5,
+		delayMs:       5,
 		returnContent: map[string]string{"src/test.go": testContent},
 	}
-	
+
 	options := &BuildOptions{
 		MaxTokens:   10000,
 		MaxMemoryMB: 100,
@@ -259,7 +259,7 @@ func (m *mockFileReaderWithContent) ReadContents(ctx context.Context, filePaths 
 	if m.delayMs > 0 {
 		time.Sleep(time.Duration(m.delayMs) * time.Millisecond)
 	}
-	
+
 	return m.returnContent, nil
 }
 

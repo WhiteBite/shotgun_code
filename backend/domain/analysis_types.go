@@ -11,26 +11,26 @@ const (
 
 // ViolationReport represents a guardrail violation report
 type ViolationReport struct {
-	ID               string                 `json:"id"`
-	TaskID           string                 `json:"taskId"`
-	PolicyName       string                 `json:"policyName"`
-	Severity         string                 `json:"severity"`
-	Message          string                 `json:"message"`
-	FilePath         string                 `json:"filePath,omitempty"`
-	LineNumber       int                    `json:"lineNumber,omitempty"`
-	Suggestion       string                 `json:"suggestion,omitempty"`
-	Violations       []GuardrailViolation   `json:"violations"`
-	BudgetViolations []BudgetViolation      `json:"budgetViolations"`
-	GeneratedAt      time.Time              `json:"generatedAt"`
-	CreatedAt        time.Time              `json:"createdAt"`
+	ID               string               `json:"id"`
+	TaskID           string               `json:"taskId"`
+	PolicyName       string               `json:"policyName"`
+	Severity         string               `json:"severity"`
+	Message          string               `json:"message"`
+	FilePath         string               `json:"filePath,omitempty"`
+	LineNumber       int                  `json:"lineNumber,omitempty"`
+	Suggestion       string               `json:"suggestion,omitempty"`
+	Violations       []GuardrailViolation `json:"violations"`
+	BudgetViolations []BudgetViolation    `json:"budgetViolations"`
+	GeneratedAt      time.Time            `json:"generatedAt"`
+	CreatedAt        time.Time            `json:"createdAt"`
 }
 
 // SBOMToolsStatus represents status of SBOM tools
 type SBOMToolsStatus struct {
-	SyftAvailable  bool   `json:"syftAvailable"`
-	GrypeAvailable bool   `json:"grypeAvailable"`
-	SyftVersion    string `json:"syftVersion,omitempty"`
-	GrypeVersion   string `json:"grypeVersion,omitempty"`
+	SyftAvailable  bool      `json:"syftAvailable"`
+	GrypeAvailable bool      `json:"grypeAvailable"`
+	SyftVersion    string    `json:"syftVersion,omitempty"`
+	GrypeVersion   string    `json:"grypeVersion,omitempty"`
 	LastChecked    time.Time `json:"lastChecked"`
 }
 
@@ -46,12 +46,12 @@ type VulnerabilityStats struct {
 
 // LicenseStats represents license statistics
 type LicenseStats struct {
-	Total         int            `json:"total"`
-	ByLicense     map[string]int `json:"byLicense"`
-	Permissive    int            `json:"permissive"`
-	Copyleft      int            `json:"copyleft"`
-	Proprietary   int            `json:"proprietary"`
-	Unknown       int            `json:"unknown"`
+	Total       int            `json:"total"`
+	ByLicense   map[string]int `json:"byLicense"`
+	Permissive  int            `json:"permissive"`
+	Copyleft    int            `json:"copyleft"`
+	Proprietary int            `json:"proprietary"`
+	Unknown     int            `json:"unknown"`
 }
 
 // StaticAnalysisMetrics represents static analysis metrics

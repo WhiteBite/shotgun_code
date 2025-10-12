@@ -77,7 +77,7 @@ func TestDiffService_GenerateDiff_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -87,7 +87,7 @@ func TestDiffService_GenerateDiff_Success(t *testing.T) {
 	beforePath := "/path/before"
 	afterPath := "/path/after"
 	format := domain.DiffFormatGit
-	
+
 	diffResult := &domain.DiffResult{
 		ID:      "test-diff-id",
 		Format:  format,
@@ -115,7 +115,7 @@ func TestDiffService_GenerateDiff_Error(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -147,7 +147,7 @@ func TestDiffService_GenerateDiffFromResults_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -165,7 +165,7 @@ func TestDiffService_GenerateDiffFromResults_Success(t *testing.T) {
 		},
 	}
 	format := domain.DiffFormatJSON
-	
+
 	diffResult := &domain.DiffResult{
 		ID:      "test-diff-id",
 		Format:  format,
@@ -194,7 +194,7 @@ func TestDiffService_GenerateDiffFromEdits_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -204,16 +204,16 @@ func TestDiffService_GenerateDiffFromEdits_Success(t *testing.T) {
 	edits := &domain.EditsJSON{
 		Edits: []domain.Edit{
 			{
-				FilePath:    "/test/file.go",
-				Type:        domain.EditTypeReplace,
-				OldContent:  "old content",
-				NewContent:  "new content",
-				Position:    10,
+				FilePath:   "/test/file.go",
+				Type:       domain.EditTypeReplace,
+				OldContent: "old content",
+				NewContent: "new content",
+				Position:   10,
 			},
 		},
 	}
 	format := domain.DiffFormatUnified
-	
+
 	diffResult := &domain.DiffResult{
 		ID:      "test-diff-id",
 		Format:  format,
@@ -242,7 +242,7 @@ func TestDiffService_PublishDiff_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -274,7 +274,7 @@ func TestDiffService_PublishDiff_Error(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -307,7 +307,7 @@ func TestDiffService_GenerateAndPublishDiff_Success(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -317,7 +317,7 @@ func TestDiffService_GenerateAndPublishDiff_Success(t *testing.T) {
 	beforePath := "/path/before"
 	afterPath := "/path/after"
 	format := domain.DiffFormatGit
-	
+
 	diffResult := &domain.DiffResult{
 		ID:      "test-diff-id",
 		Format:  format,
@@ -346,7 +346,7 @@ func TestDiffService_GenerateAndPublishDiff_GenerateError(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -378,7 +378,7 @@ func TestDiffService_GenerateAndPublishDiff_PublishError(t *testing.T) {
 	// Setup
 	mockLogger := new(MockDiffLogger)
 	mockEngine := new(MockDiffEngine)
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,
@@ -388,7 +388,7 @@ func TestDiffService_GenerateAndPublishDiff_PublishError(t *testing.T) {
 	beforePath := "/path/before"
 	afterPath := "/path/after"
 	format := domain.DiffFormatGit
-	
+
 	diffResult := &domain.DiffResult{
 		ID:      "test-diff-id",
 		Format:  format,

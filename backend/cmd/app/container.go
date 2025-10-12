@@ -123,17 +123,17 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	c.SettingsService.OnIgnoreRulesChanged(c.Watcher.RefreshAndRescan)
 
 	// AI Service needs to be created before context service
-	providerFactory := createProviderFactory(c.Log, c.SettingsService)
+	providerRegistry := createProviderRegistry(c.Log, c.SettingsService)
 
 	// Create rate limiter and metrics collector
 	rateLimiter := application.NewRateLimiter()
 	metrics := application.NewMetricsCollector()
 
 	// Create intelligent service with dependencies
-	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerFactory, rateLimiter, metrics)
+	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerRegistry, rateLimiter, metrics)
 
 	// Create AI service with intelligent service
-	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerFactory, intelligentService)
+	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 
 	// NEW: Create separate context services following SRP
 	tokenCounter := application.SimpleTokenCounter
@@ -155,6 +155,10 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create comment stripper for code preprocessing
 	commentStripper := textutils.NewCommentStripper(c.Log)
 
+	// Create context repository for persistent, memory-safe storage
+	contextRepository := application.NewContextRepository(c.Log, contextDir)
+	c.ContextRepository = contextRepository
+
 	// Create separate context services
 	c.ContextBuilder = application.NewContextBuilder(
 		c.FileReader,
@@ -166,6 +170,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		pathProvider,
 		fileSystemWriter,
 		commentStripper,
+		contextRepository,
 		contextDir,
 	)
 
@@ -182,7 +187,6 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	c.ContextAnalyzer = c.ContextService
 	c.ContextStreamer = c.ContextService
-	c.ContextRepository = c.ContextService
 
 	// Create ProjectService with the new context builder and generator
 	c.ProjectService = application.NewProjectService(c.Log, c.Bus, c.TreeBuilder, c.GitRepo, c.ContextBuilder, c.ContextGenerator, pathProvider, &OSFileStatProvider{})
@@ -383,29 +387,23 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 	return fetchers
 }
 
-func createProviderFactory(log domain.Logger, settingsService *application.SettingsService) domain.AIProviderFactory {
-	registry := ai.GetProviderRegistry(openRouterHost)
-
-	return func(providerType, apiKey string) (domain.AIProvider, error) {
-		config, exists := registry[providerType]
-		if !exists {
-			return nil, fmt.Errorf("unknown AI provider: %s", providerType)
-		}
-
-		host := ""
-		if providerType == "openrouter" {
-			host = openRouterHost
-		} else if providerType == "localai" {
+func createProviderRegistry(log domain.Logger, settingsService *application.SettingsService) map[string]domain.AIProviderFactory {
+	resolveHost := func(providerType string) (string, error) {
+		switch providerType {
+		case "openrouter":
+			return openRouterHost, nil
+		case "localai":
 			dto, err := settingsService.GetSettingsDTO()
 			if err != nil {
-				return nil, err
+				return "", err
 			}
-			// Use settings-based host for localai provider factory
-			host = dto.LocalAIHost
+			return dto.LocalAIHost, nil
+		default:
+			return "", nil
 		}
-
-		return config.FactoryFunc(apiKey, host, log)
 	}
+
+	return ai.NewAIProviderFactoryRegistry(log, openRouterHost, resolveHost)
 }
 
 // FilePathProvider implements domain.PathProvider using standard filepath functions

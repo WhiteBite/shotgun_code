@@ -2,7 +2,7 @@
  * Error handling utility specifically designed for memory issues and large context handling
  */
 
-import { useUIStore } from '@/stores/ui.store';
+import {useUIStore} from '@/stores/ui.store';
 
 export interface ErrorOptions {
   silent?: boolean;
@@ -12,14 +12,14 @@ export interface ErrorOptions {
   context?: any;
 }
 
-export type ErrorCategory = 
-  'memory' |     // Memory-related errors (OutOfMemory, heap limit, etc.)
-  'context' |    // Context building/processing errors
-  'file' |       // File-related errors (too large, can't read, etc.)
-  'network' |    // Network-related errors
-  'api' |        // API errors
-  'validation' | // Validation errors
-  'unknown';     // Uncategorized errors
+export type ErrorCategory =
+    'memory' |     // Memory-related errors (OutOfMemory, heap limit, etc.)
+    'context' |    // Context building/processing errors
+    'file' |       // File-related errors (too large, can't read, etc.)
+    'network' |    // Network-related errors
+    'api' |        // API errors
+    'validation' | // Validation errors
+    'unknown';     // Uncategorized errors
 
 export interface ErrorDetails {
   message: string;
@@ -61,19 +61,19 @@ export class MemoryErrorHandler {
    */
   public static categorizeError(error: Error): ErrorCategory {
     const errorText = `${error.message} ${error.stack || ''}`.toLowerCase();
-    
+
     // Check for memory errors
     if (this.MEMORY_ERROR_PATTERNS.some(pattern => errorText.includes(pattern))) {
       return 'memory';
     }
-    
+
     // Check for context size errors
     if (this.CONTEXT_SIZE_ERROR_PATTERNS.some(pattern => errorText.includes(pattern))) {
       return 'context';
     }
-    
+
     // Additional error categories could be checked here
-    
+
     return 'unknown';
   }
 
@@ -84,63 +84,63 @@ export class MemoryErrorHandler {
     const uiStore = useUIStore();
     const errorObj = typeof error === 'string' ? new Error(error) : error;
     const category = this.categorizeError(errorObj);
-    
+
     let details: ErrorDetails = {
       message: errorObj.message,
       category,
       recoverable: options.recoverable !== false,
       originalError: errorObj
     };
-    
+
     // Handle based on category
     switch (category) {
       case 'memory':
         details.suggestion = 'Try selecting fewer files or freeing up system memory by closing other applications. The application will attempt to recover automatically.';
         details.code = 'ERR_MEMORY';
-        
+
         if (options.showNotification !== false) {
           uiStore.addToast(
-            `Memory error: ${errorObj.message}. ${details.suggestion}`,
-            'error'
+              `Memory error: ${errorObj.message}. ${details.suggestion}`,
+              'error'
           );
         }
-        
+
         // Force garbage collection if possible and attempt recovery
         this.attemptMemoryRecovery();
         break;
-        
+
       case 'context':
         details.suggestion = 'Try reducing the number of files or selecting smaller files. The application has automatic chunked processing for large contexts.';
         details.code = 'ERR_CONTEXT_SIZE';
-        
+
         if (options.showNotification !== false) {
           uiStore.addToast(
-            `Context error: ${errorObj.message}. ${details.suggestion}`,
-            'error'
+              `Context error: ${errorObj.message}. ${details.suggestion}`,
+              'error'
           );
         }
         break;
-        
+
       default:
         details.suggestion = 'Check the console for more details.';
         details.code = 'ERR_UNKNOWN';
-        
+
         if (options.showNotification !== false && !options.silent) {
           uiStore.addToast(
-            `An error occurred: ${errorObj.message}`,
-            'error'
+              `An error occurred: ${errorObj.message}`,
+              'error'
           );
         }
     }
-    
+
     // Log to console if not silent
     if (!options.silent) {
       console.error(`[${details.code}] ${errorObj.message}`, errorObj, options.context || {});
     }
-    
+
     return details;
   }
-  
+
   /**
    * Attempt to recover from memory issues
    */
@@ -148,7 +148,7 @@ export class MemoryErrorHandler {
     // Clear any large objects that might be cached
     // This is a placeholder for real memory recovery code
     console.log('Attempting memory recovery...');
-    
+
     // Try to trigger garbage collection in different ways
     if (window.gc) {
       try {
@@ -158,7 +158,7 @@ export class MemoryErrorHandler {
         console.warn('Failed to trigger garbage collection via window.gc', e);
       }
     }
-    
+
     // Try to force garbage collection in Node.js environment (if applicable)
     if (typeof global !== 'undefined' && (global as any).gc) {
       try {
@@ -168,13 +168,13 @@ export class MemoryErrorHandler {
         console.warn('Failed to trigger garbage collection via global.gc', e);
       }
     }
-    
+
     // Add a small delay to allow garbage collection to work
     setTimeout(() => {
       console.log('Memory recovery attempt completed');
     }, 150);
   }
-  
+
   /**
    * Install a global error handler for uncaught errors
    */
@@ -182,26 +182,26 @@ export class MemoryErrorHandler {
     window.addEventListener('error', (event) => {
       const error = event.error || new Error(event.message);
       const category = this.categorizeError(error);
-      
+
       // Only handle memory and context errors globally
       if (category === 'memory' || category === 'context') {
-        this.handle(error, { silent: true });
-        
+        this.handle(error, {silent: true});
+
         // For memory errors, we can try to recover
         if (category === 'memory') {
           this.attemptMemoryRecovery();
         }
       }
     });
-    
+
     // Also handle unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
       const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
       const category = this.categorizeError(error);
-      
+
       // Only handle memory and context errors globally
       if (category === 'memory' || category === 'context') {
-        this.handle(error, { silent: true });
+        this.handle(error, {silent: true});
       }
     });
   }

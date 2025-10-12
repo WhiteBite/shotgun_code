@@ -23,20 +23,20 @@ type TaskProtocolConfiguration struct {
 
 // TaskProtocolConfig represents the main protocol configuration
 type TaskProtocolConfig struct {
-	MaxRetries      int                 `yaml:"max_retries"`
-	FailFast        bool                `yaml:"fail_fast"`
-	TimeoutSeconds  int                 `yaml:"timeout_seconds"`
-	SelfCorrection  SelfCorrectionConf  `yaml:"self_correction"`
-	Stages          StagesConfig        `yaml:"stages"`
-	LanguageSpecific map[string]LanguageConfig `yaml:"language_specific"`
-	ErrorCorrection ErrorCorrectionConfig `yaml:"error_correction"`
-	GuardrailPolicies GuardrailPolicyConfig `yaml:"guardrail_policies"`
+	MaxRetries        int                       `yaml:"max_retries"`
+	FailFast          bool                      `yaml:"fail_fast"`
+	TimeoutSeconds    int                       `yaml:"timeout_seconds"`
+	SelfCorrection    SelfCorrectionConf        `yaml:"self_correction"`
+	Stages            StagesConfig              `yaml:"stages"`
+	LanguageSpecific  map[string]LanguageConfig `yaml:"language_specific"`
+	ErrorCorrection   ErrorCorrectionConfig     `yaml:"error_correction"`
+	GuardrailPolicies GuardrailPolicyConfig     `yaml:"guardrail_policies"`
 }
 
 // SelfCorrectionConf represents self-correction configuration
 type SelfCorrectionConf struct {
-	Enabled     bool `yaml:"enabled"`
-	MaxAttempts int  `yaml:"max_attempts"`
+	Enabled      bool `yaml:"enabled"`
+	MaxAttempts  int  `yaml:"max_attempts"`
 	AIAssistance bool `yaml:"ai_assistance"`
 }
 
@@ -50,16 +50,16 @@ type StagesConfig struct {
 
 // StageConfig represents configuration for a single stage
 type StageConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	TimeoutSeconds int      `yaml:"timeout_seconds"`
-	Tools          []string `yaml:"tools,omitempty"`
-	FailOnWarning  bool     `yaml:"fail_on_warning,omitempty"`
-	StrictMode     bool     `yaml:"strict_mode,omitempty"`
-	Parallel       bool     `yaml:"parallel_builds,omitempty"`
-	Scope          string   `yaml:"scope,omitempty"`
-	CoverageThreshold int   `yaml:"coverage_threshold,omitempty"`
-	EnforcePolicies bool    `yaml:"enforce_policies,omitempty"`
-	FailOnViolation bool    `yaml:"fail_on_violation,omitempty"`
+	Enabled           bool     `yaml:"enabled"`
+	TimeoutSeconds    int      `yaml:"timeout_seconds"`
+	Tools             []string `yaml:"tools,omitempty"`
+	FailOnWarning     bool     `yaml:"fail_on_warning,omitempty"`
+	StrictMode        bool     `yaml:"strict_mode,omitempty"`
+	Parallel          bool     `yaml:"parallel_builds,omitempty"`
+	Scope             string   `yaml:"scope,omitempty"`
+	CoverageThreshold int      `yaml:"coverage_threshold,omitempty"`
+	EnforcePolicies   bool     `yaml:"enforce_policies,omitempty"`
+	FailOnViolation   bool     `yaml:"fail_on_violation,omitempty"`
 }
 
 // LanguageConfig represents language-specific configuration
@@ -119,9 +119,9 @@ type SecurityConfig struct {
 
 // ResourceLimitsConfig represents resource limit configuration
 type ResourceLimitsConfig struct {
-	MaxFilesChanged  int    `yaml:"max_files_changed"`
-	MaxLinesChanged  int    `yaml:"max_lines_changed"`
-	MaxMemoryUsage   string `yaml:"max_memory_usage"`
+	MaxFilesChanged int    `yaml:"max_files_changed"`
+	MaxLinesChanged int    `yaml:"max_lines_changed"`
+	MaxMemoryUsage  string `yaml:"max_memory_usage"`
 }
 
 // QualityConfig represents quality-related configuration
@@ -170,10 +170,10 @@ func (s *TaskProtocolConfigService) SaveConfiguration(config *domain.TaskProtoco
 func (s *TaskProtocolConfigService) GetConfigurationForProject(ctx context.Context, projectPath string, languages []string) (*domain.TaskProtocolConfig, error) {
 	// Try to load project-specific config first
 	projectConfigPath := filepath.Join(projectPath, ".ark", "protocol.yaml")
-	
+
 	var config *domain.TaskProtocolConfig
 	var err error
-	
+
 	if s.fileExists(projectConfigPath) {
 		s.log.Info("Loading project-specific task protocol configuration")
 		config, err = s.LoadConfiguration(projectConfigPath)
@@ -183,7 +183,7 @@ func (s *TaskProtocolConfigService) GetConfigurationForProject(ctx context.Conte
 		s.log.Info("Loading global task protocol configuration")
 		config, err = s.LoadConfiguration(globalConfigPath)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -235,8 +235,8 @@ func (s *TaskProtocolConfigService) createDefaultDomainConfig() *domain.TaskProt
 		MaxRetries: 3,
 		FailFast:   false,
 		SelfCorrection: domain.SelfCorrectionConfig{
-			Enabled:     true,
-			MaxAttempts: 5,
+			Enabled:      true,
+			MaxAttempts:  5,
 			AIAssistance: true,
 		},
 		Timeouts: map[string]time.Duration{
@@ -296,7 +296,7 @@ func (s *TaskProtocolConfigService) GetStageConfiguration(stage domain.ProtocolS
 	// Return stage-specific configuration
 	// In a real implementation, this would extract from the loaded config
 	config := make(map[string]interface{})
-	
+
 	switch stage {
 	case domain.StageLinting:
 		config["tools"] = s.getLintingToolsForLanguage(language)
@@ -311,7 +311,7 @@ func (s *TaskProtocolConfigService) GetStageConfiguration(stage domain.ProtocolS
 		config["enforce_policies"] = true
 		config["fail_on_violation"] = true
 	}
-	
+
 	return config, nil
 }
 

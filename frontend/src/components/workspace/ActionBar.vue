@@ -1,7 +1,26 @@
 <template>
   <div class="h-16 border-t border-gray-700 bg-gray-850 flex items-center justify-between px-4 flex-shrink-0">
-    <!-- Left: Quick Stats -->
+    <!-- Left: Project Info & Quick Stats -->
     <div class="flex items-center space-x-4 text-xs text-gray-400">
+      <!-- Project Name with Change Button -->
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded border border-gray-700/50">
+        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <span class="text-white font-medium">{{ projectStore.projectName }}</span>
+        <button
+          @click="changeProject"
+          class="ml-1 p-1 hover:bg-gray-700 rounded transition-colors"
+          title="Change Project (Ctrl+Shift+P)"
+        >
+          <svg class="w-3.5 h-3.5 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="w-px h-6 bg-gray-700"></div>
+      
       <div>
         Модель: <span class="text-white font-semibold">gpt-4o</span>
       </div>
@@ -48,9 +67,13 @@
 <script setup lang="ts">
 import { useFileStore } from '@/stores/file.store'
 import { useContextStore } from '@/stores/context.store'
+import { useProjectStore } from '@/stores/project.store'
+import { useUIStore } from '@/stores/ui.store'
 
 const fileStore = useFileStore()
 const contextStore = useContextStore()
+const projectStore = useProjectStore()
+const uiStore = useUIStore()
 
 defineEmits<{
   (e: 'build-context'): void
@@ -62,5 +85,10 @@ function formatNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
   return num.toString()
+}
+
+function changeProject() {
+  projectStore.clearProject()
+  uiStore.addToast('Select a new project', 'info')
 }
 </script>

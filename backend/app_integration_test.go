@@ -49,7 +49,7 @@ This is a test project for integration testing.`,
 	// Test data
 	projectPath := tempDir
 	includedPaths := []string{"main.go", "utils.go"}
-	
+
 	// Create build context options
 	options := &domain.ContextBuildOptions{
 		IncludeManifest: true,
@@ -58,11 +58,11 @@ This is a test project for integration testing.`,
 	}
 
 	// Verify test files exist and have expected content
-	for filename, _ := range testFiles {
+	for filename := range testFiles {
 		if filename == "README.md" {
 			continue // Skip non-included file
 		}
-		
+
 		filePath := filepath.Join(projectPath, filename)
 		actualContent, err := os.ReadFile(filePath)
 		assert.NoError(t, err)
@@ -72,7 +72,7 @@ This is a test project for integration testing.`,
 	// Validate that the context would contain expected elements
 	expectedContextElements := []string{
 		"main.go",
-		"utils.go", 
+		"utils.go",
 		"package main",
 		"func main()",
 		"func add(",
@@ -81,14 +81,14 @@ This is a test project for integration testing.`,
 	// Read and validate file contents that would be processed
 	mainContent, err := os.ReadFile(filepath.Join(projectPath, "main.go"))
 	assert.NoError(t, err)
-	
+
 	utilsContent, err := os.ReadFile(filepath.Join(projectPath, "utils.go"))
 	assert.NoError(t, err)
 
 	combinedContent := string(mainContent) + string(utilsContent)
-	
+
 	for _, expectedElement := range expectedContextElements {
-		assert.Contains(t, combinedContent, expectedElement, 
+		assert.Contains(t, combinedContent, expectedElement,
 			"Context should contain expected element: %s", expectedElement)
 	}
 
@@ -106,13 +106,13 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 	// Create test files
 	err = os.WriteFile(filepath.Join(tempDir, "main.go"), []byte("package main\nfunc main() {}"), 0644)
 	require.NoError(t, err)
-	
+
 	err = os.WriteFile(filepath.Join(tempDir, "utils.go"), []byte("package main\nfunc utils() {}"), 0644)
 	require.NoError(t, err)
 
 	// Test the metadata approach (new efficient method)
 	task := "Implement a new feature"
-	
+
 	// Create project metadata instead of full file list
 	projectMetadata := map[string]interface{}{
 		"projectPath":    tempDir,
@@ -121,7 +121,7 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 		"languages":      []string{"Go"},
 		"framework":      "standard",
 	}
-	
+
 	metadataJson, err := json.Marshal(projectMetadata)
 	require.NoError(t, err)
 
@@ -129,39 +129,39 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 	var parsedMetadata map[string]interface{}
 	err = json.Unmarshal(metadataJson, &parsedMetadata)
 	assert.NoError(t, err)
-	
+
 	assert.Equal(t, tempDir, parsedMetadata["projectPath"])
 	assert.Equal(t, float64(2), parsedMetadata["totalFileCount"]) // JSON numbers are float64
-	
+
 	// Verify this is much more efficient than serializing full file tree
 	metadataSize := len(metadataJson)
 	assert.Less(t, metadataSize, 1000, "Metadata should be compact")
-	
+
 	// Compare with theoretical full file serialization
 	mockFullFileList := []map[string]interface{}{
 		{
-			"name": "main.go",
-			"path": filepath.Join(tempDir, "main.go"),
-			"isDir": false,
+			"name":    "main.go",
+			"path":    filepath.Join(tempDir, "main.go"),
+			"isDir":   false,
 			"content": "package main\nfunc main() {}",
 		},
 		{
-			"name": "utils.go", 
-			"path": filepath.Join(tempDir, "utils.go"),
-			"isDir": false,
+			"name":    "utils.go",
+			"path":    filepath.Join(tempDir, "utils.go"),
+			"isDir":   false,
 			"content": "package main\nfunc utils() {}",
 		},
 	}
-	
+
 	fullListJson, err := json.Marshal(mockFullFileList)
 	require.NoError(t, err)
-	
+
 	fullListSize := len(fullListJson)
-	assert.Greater(t, fullListSize, metadataSize, 
+	assert.Greater(t, fullListSize, metadataSize,
 		"Full file list should be larger than metadata (efficiency improvement)")
-	
+
 	efficiencyImprovement := float64(fullListSize-metadataSize) / float64(fullListSize) * 100
-	assert.Greater(t, efficiencyImprovement, 50.0, 
+	assert.Greater(t, efficiencyImprovement, 50.0,
 		"Should achieve at least 50%% efficiency improvement")
 
 	_ = task
@@ -396,21 +396,21 @@ npm install
 		t.Run(name, func(t *testing.T) {
 			// Simple token estimation (4 characters per token approximation)
 			estimatedTokens := len(content) / 4
-			
+
 			// Validate token estimation is reasonable
 			assert.Greater(t, estimatedTokens, 0)
-			
+
 			if name == "simple" {
 				assert.Less(t, estimatedTokens, 10)
 			}
-			
+
 			if name == "large" {
 				assert.Greater(t, estimatedTokens, 1000)
 			}
-			
+
 			// Validate content is not empty
 			assert.NotEmpty(t, content)
-			
+
 			// Validate content length matches expectations
 			if name == "large" {
 				expectedLength := len("This is a test sentence. ") * 1000

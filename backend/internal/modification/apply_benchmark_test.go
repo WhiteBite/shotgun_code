@@ -42,23 +42,23 @@ func BenchmarkApplyService_ApplyEdits_Small(b *testing.B) {
 	mockEngine := &mockApplyEngine{delayMs: 1}
 	mockFormatter := &mockFormatter{delayMs: 1}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - small set of edits
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content 1",
-			NewContent:  "new content 1",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content 1",
+			NewContent: "new content 1",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content 2",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content 2",
+			Position:   20,
 		},
 	}
 
@@ -79,18 +79,18 @@ func BenchmarkApplyService_ApplyEdits_Medium(b *testing.B) {
 	mockEngine := &mockApplyEngine{delayMs: 1}
 	mockFormatter := &mockFormatter{delayMs: 1}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - medium set of edits (50 edits)
 	edits := make([]domain.Edit, 50)
 	for i := 0; i < 50; i++ {
 		edits[i] = domain.Edit{
-			FilePath:    "/test/file" + string(rune(i+'0')) + ".go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content " + string(rune(i+'0')),
-			NewContent:  "new content " + string(rune(i+'0')),
-			Position:    int64(i * 10),
+			FilePath:   "/test/file" + string(rune(i+'0')) + ".go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content " + string(rune(i+'0')),
+			NewContent: "new content " + string(rune(i+'0')),
+			Position:   int64(i * 10),
 		}
 	}
 
@@ -111,18 +111,18 @@ func BenchmarkApplyService_ApplyEdits_Large(b *testing.B) {
 	mockEngine := &mockApplyEngine{delayMs: 1}
 	mockFormatter := &mockFormatter{delayMs: 1}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - large set of edits (200 edits)
 	edits := make([]domain.Edit, 200)
 	for i := 0; i < 200; i++ {
 		edits[i] = domain.Edit{
-			FilePath:    "/test/module" + string(rune(i/20+'0')) + "/file" + string(rune(i%20+'0')) + ".go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content " + string(rune(i+'0')),
-			NewContent:  "new content " + string(rune(i+'0')),
-			Position:    int64(i * 5),
+			FilePath:   "/test/module" + string(rune(i/20+'0')) + "/file" + string(rune(i%20+'0')) + ".go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content " + string(rune(i+'0')),
+			NewContent: "new content " + string(rune(i+'0')),
+			Position:   int64(i * 5),
 		}
 	}
 
@@ -143,29 +143,29 @@ func BenchmarkApplyService_ValidateEdits(b *testing.B) {
 	mockEngine := &mockApplyEngine{}
 	mockFormatter := &mockFormatter{}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - set of edits with various validation scenarios
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content 1",
-			NewContent:  "new content 1",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content 1",
+			NewContent: "new content 1",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content 2",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content 2",
+			Position:   20,
 		},
 		{
-			FilePath:    "/test/file3.py",
-			Type:        domain.EditTypeDelete,
-			OldContent:  "old content 3",
-			Position:    30,
+			FilePath:   "/test/file3.py",
+			Type:       domain.EditTypeDelete,
+			OldContent: "old content 3",
+			Position:   30,
 		},
 	}
 
@@ -186,23 +186,23 @@ func BenchmarkApplyService_RollbackEdits(b *testing.B) {
 	mockEngine := &mockApplyEngine{delayMs: 1}
 	mockFormatter := &mockFormatter{delayMs: 1}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - set of edits to rollback
 	edits := []domain.Edit{
 		{
-			FilePath:    "/test/file1.go",
-			Type:        domain.EditTypeReplace,
-			OldContent:  "old content 1",
-			NewContent:  "new content 1",
-			Position:    10,
+			FilePath:   "/test/file1.go",
+			Type:       domain.EditTypeReplace,
+			OldContent: "old content 1",
+			NewContent: "new content 1",
+			Position:   10,
 		},
 		{
-			FilePath:    "/test/file2.js",
-			Type:        domain.EditTypeInsert,
-			NewContent:  "new content 2",
-			Position:    20,
+			FilePath:   "/test/file2.js",
+			Type:       domain.EditTypeInsert,
+			NewContent: "new content 2",
+			Position:   20,
 		},
 	}
 
@@ -223,7 +223,7 @@ func BenchmarkApplyService_ShouldFormat(b *testing.B) {
 	mockEngine := &mockApplyEngine{}
 	mockFormatter := &mockFormatter{}
 	mockLogger := &mockApplyLogger{}
-	
+
 	service := NewApplyService(mockEngine, mockFormatter, mockLogger)
 
 	// Test data - various file paths
@@ -255,7 +255,7 @@ func BenchmarkDiffService_GenerateDiff(b *testing.B) {
 	// Setup
 	mockLogger := &mockApplyLogger{}
 	mockEngine := &mockDiffEngine{delayMs: 5}
-	
+
 	service := &DiffService{
 		log:    mockLogger,
 		engine: mockEngine,

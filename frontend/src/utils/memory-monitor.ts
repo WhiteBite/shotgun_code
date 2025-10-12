@@ -1,6 +1,6 @@
 /**
  * Memory Monitor Utility
- * 
+ *
  * This utility helps prevent Out Of Memory (OOM) errors by:
  * 1. Monitoring memory usage
  * 2. Providing early warnings
@@ -8,7 +8,7 @@
  * 4. Forcing garbage collection when possible
  */
 
-import { useUIStore } from '@/stores/ui.store';
+import {useUIStore} from '@/stores/ui.store';
 
 export interface MemoryStats {
   used: number;        // Used memory in MB
@@ -41,7 +41,7 @@ export class MemoryMonitor {
   private uiStore = useUIStore();
 
   private constructor(options: MemoryWarningOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = {...DEFAULT_OPTIONS, ...options};
   }
 
   /**
@@ -60,8 +60,8 @@ export class MemoryMonitor {
    * Update monitoring options
    */
   public updateOptions(options: Partial<MemoryWarningOptions>): void {
-    this.options = { ...this.options, ...options };
-    
+    this.options = {...this.options, ...options};
+
     // If monitoring is active, restart it with new options
     if (this.monitorInterval) {
       this.stopMonitoring();
@@ -81,8 +81,8 @@ export class MemoryMonitor {
     const used = Math.round(memory.usedJSHeapSize / (1024 * 1024));
     const total = Math.round(memory.jsHeapSizeLimit / (1024 * 1024));
     const percentage = Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100);
-    
-    return { used, total, percentage };
+
+    return {used, total, percentage};
   }
 
   /**
@@ -95,10 +95,10 @@ export class MemoryMonitor {
 
     this.checkMemory();
     this.monitorInterval = window.setInterval(
-      () => this.checkMemory(), 
-      this.options.pollingInterval
+        () => this.checkMemory(),
+        this.options.pollingInterval
     );
-    
+
     console.log(`Memory monitoring started (interval: ${this.options.pollingInterval}ms)`);
   }
 
@@ -118,13 +118,13 @@ export class MemoryMonitor {
    */
   public forceCleanup(): void {
     console.log('EMERGENCY: Forcing aggressive memory cleanup...');
-    
+
     // Attempt to free up memory by clearing large objects in memory
     try {
       // Clear large arrays and objects
       (window as any).largeObjects = [];
       (window as any).cachedData = null;
-      
+
       // Clear Vue reactive caches if possible
       try {
         // Force cleanup of any global stores
@@ -138,7 +138,7 @@ export class MemoryMonitor {
       } catch (e) {
         console.warn('Could not cleanup Vue stores:', e);
       }
-      
+
       // Force garbage collection multiple times if available
       if (window.gc) {
         try {
@@ -150,7 +150,7 @@ export class MemoryMonitor {
           console.warn('Failed to trigger garbage collection', e);
         }
       }
-      
+
       // Add a small delay to allow garbage collection to work
       setTimeout(() => {
         const stats = this.getMemoryStats();
@@ -169,55 +169,55 @@ export class MemoryMonitor {
   private checkMemory(): void {
     const stats = this.getMemoryStats();
     if (!stats) return;
-    
-    const { used, total, percentage } = stats;
-    
+
+    const {used, total, percentage} = stats;
+
     // Log memory usage to console
     console.debug(`Memory usage: ${used}MB / ${total}MB (${percentage}%)`);
-    
+
     // CRITICAL: Use absolute MB values instead of percentages
     const warningThresholdMB = this.options.warningThreshold || 15;
     const criticalThresholdMB = this.options.criticalThreshold || 25;
-    
+
     // Check if we've reached critical threshold (absolute MB)
     if (used >= criticalThresholdMB) {
       if (!this.criticalIssued) {
         console.error(`CRITICAL: Memory usage at ${used}MB >= ${criticalThresholdMB}MB`);
-        
+
         if (this.options.showToasts) {
           this.uiStore.addToast(
-            `CRITICAL memory usage (${used}MB). Browser may crash! Cleaning up...`,
-            'error',
-            15000
+              `CRITICAL memory usage (${used}MB). Browser may crash! Cleaning up...`,
+              'error',
+              15000
           );
         }
-        
+
         // Force cleanup immediately
         if (this.options.autoCleanup) {
           this.forceCleanup();
           // Emergency additional cleanup
           setTimeout(() => this.forceCleanup(), 500);
         }
-        
+
         this.criticalIssued = true;
       }
-    } 
+    }
     // Check if we've reached warning threshold (absolute MB)
     else if (used >= warningThresholdMB) {
       if (!this.warningIssued) {
         console.warn(`WARNING: Memory usage at ${used}MB >= ${warningThresholdMB}MB`);
-        
+
         if (this.options.showToasts) {
           this.uiStore.addToast(
-            `High memory usage (${used}MB). Reduce file selection or context size.`,
-            'warning',
-            8000
+              `High memory usage (${used}MB). Reduce file selection or context size.`,
+              'warning',
+              8000
           );
         }
-        
+
         this.warningIssued = true;
       }
-    } 
+    }
     // Reset flags if memory usage drops below thresholds
     else {
       // Only reset if we drop significantly below thresholds

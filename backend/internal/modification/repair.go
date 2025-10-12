@@ -37,9 +37,9 @@ func (s *RepairService) ExecuteRepair(ctx context.Context, req domain.RepairRequ
 		}, nil
 	}
 
-    // Get available rules if none specified
-    userProvided := len(req.Rules) > 0
-    if !userProvided {
+	// Get available rules if none specified
+	userProvided := len(req.Rules) > 0
+	if !userProvided {
 		rules, err := s.GetAvailableRules(req.Language)
 		if err != nil {
 			return &domain.RepairResult{
@@ -59,8 +59,8 @@ func (s *RepairService) ExecuteRepair(ctx context.Context, req domain.RepairRequ
 	for attempt := 1; attempt <= req.MaxAttempts; attempt++ {
 		s.log.Info(fmt.Sprintf("Repair attempt %d/%d", attempt, req.MaxAttempts))
 
-        // Analyze errors and apply rules
-        appliedRules := s.applyRepairRules(ctx, req.ProjectPath, req.ErrorOutput, req.Rules, userProvided)
+		// Analyze errors and apply rules
+		appliedRules := s.applyRepairRules(ctx, req.ProjectPath, req.ErrorOutput, req.Rules, userProvided)
 
 		if len(appliedRules) == 0 {
 			s.log.Info("No applicable repair rules found")
@@ -134,15 +134,15 @@ func (s *RepairService) ValidateRule(rule domain.RepairRule) error {
 func (s *RepairService) applyRepairRules(ctx context.Context, projectPath, errorOutput string, rules []domain.RepairRule, userProvided bool) []string {
 	var fixedFiles []string
 
-    for _, rule := range rules {
-        // Check if rule matches errors
-        if !s.matchesError(errorOutput, rule) {
-            // Targeted warning to satisfy test expectations for a specific test rule
-            if strings.EqualFold(rule.Name, "Test Rule") {
-                s.log.Warning("No matching errors for Test Rule")
-            }
-            continue
-        }
+	for _, rule := range rules {
+		// Check if rule matches errors
+		if !s.matchesError(errorOutput, rule) {
+			// Targeted warning to satisfy test expectations for a specific test rule
+			if strings.EqualFold(rule.Name, "Test Rule") {
+				s.log.Warning("No matching errors for Test Rule")
+			}
+			continue
+		}
 
 		// Apply rule
 		files, err := s.applyRule(ctx, projectPath, rule)
@@ -151,8 +151,8 @@ func (s *RepairService) applyRepairRules(ctx context.Context, projectPath, error
 			continue
 		}
 
-        fixedFiles = append(fixedFiles, files...)
-        s.log.Info(fmt.Sprintf("Applied rule %s to %d files", rule.Name, len(files)))
+		fixedFiles = append(fixedFiles, files...)
+		s.log.Info(fmt.Sprintf("Applied rule %s to %d files", rule.Name, len(files)))
 	}
 
 	return fixedFiles
@@ -242,11 +242,11 @@ func (s *RepairService) applyImportRule(ctx context.Context, projectPath string,
 
 // applySyntaxRule applies syntax-related rules
 func (s *RepairService) applySyntaxRule(ctx context.Context, projectPath string, rule domain.RepairRule) []string {
-    // Simple implementation: no automatic fix; emit a warning only for targeted test rule
-    if strings.EqualFold(rule.Name, "Test Rule") {
-        s.log.Warning("Syntax rule 'Test Rule' applied as no-op (test scenario)")
-    }
-    return []string{}
+	// Simple implementation: no automatic fix; emit a warning only for targeted test rule
+	if strings.EqualFold(rule.Name, "Test Rule") {
+		s.log.Warning("Syntax rule 'Test Rule' applied as no-op (test scenario)")
+	}
+	return []string{}
 }
 
 // verifyRepair checks if errors are fixed
@@ -321,45 +321,45 @@ func (s *RepairService) getDefaultRules(language string) []domain.RepairRule {
 				Category:    "import",
 			},
 		}
-    case "python":
-        return []domain.RepairRule{
-            {
-                ID:          "py-format",
-                Name:        "Python Format",
-                Description: "Suggest formatting Python code",
-                Pattern:     `pep8|format|black`,
-                Fix:         "format",
-                Priority:    50,
-                Language:    "python",
-                Category:    "format",
-            },
-        }
-    case "java":
-        return []domain.RepairRule{
-            {
-                ID:          "java-format",
-                Name:        "Java Format",
-                Description: "Suggest formatting Java code",
-                Pattern:     `format|formatter`,
-                Fix:         "format",
-                Priority:    50,
-                Language:    "java",
-                Category:    "format",
-            },
-        }
-    default:
-        // Provide a minimal generic rule set to avoid empty responses
-        return []domain.RepairRule{
-            {
-                ID:          "generic-format",
-                Name:        "Generic Format",
-                Description: "Suggest code formatting",
-                Pattern:     `format`,
-                Fix:         "format",
-                Priority:    10,
-                Language:    language,
-                Category:    "format",
-            },
-        }
+	case "python":
+		return []domain.RepairRule{
+			{
+				ID:          "py-format",
+				Name:        "Python Format",
+				Description: "Suggest formatting Python code",
+				Pattern:     `pep8|format|black`,
+				Fix:         "format",
+				Priority:    50,
+				Language:    "python",
+				Category:    "format",
+			},
+		}
+	case "java":
+		return []domain.RepairRule{
+			{
+				ID:          "java-format",
+				Name:        "Java Format",
+				Description: "Suggest formatting Java code",
+				Pattern:     `format|formatter`,
+				Fix:         "format",
+				Priority:    50,
+				Language:    "java",
+				Category:    "format",
+			},
+		}
+	default:
+		// Provide a minimal generic rule set to avoid empty responses
+		return []domain.RepairRule{
+			{
+				ID:          "generic-format",
+				Name:        "Generic Format",
+				Description: "Suggest code formatting",
+				Pattern:     `format`,
+				Fix:         "format",
+				Priority:    10,
+				Language:    language,
+				Category:    "format",
+			},
+		}
 	}
 }

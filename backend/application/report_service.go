@@ -12,8 +12,8 @@ import (
 
 // ReportService handles report management operations
 type ReportService struct {
-	logger         domain.Logger
-	reportRepo     domain.ReportRepository
+	logger     domain.Logger
+	reportRepo domain.ReportRepository
 }
 
 // NewReportService creates a new report service
@@ -144,7 +144,7 @@ func (s *ReportService) generateAutonomousReport(parameters map[string]interface
 func (s *ReportService) CreateReport(ctx context.Context, taskID, reportType, title, summary, content string) (*domain.GenericReport, error) {
 	reportID := uuid.New().String()
 	now := time.Now()
-	
+
 	report := &domain.GenericReport{
 		Id:        reportID,
 		TaskId:    taskID,
@@ -155,11 +155,11 @@ func (s *ReportService) CreateReport(ctx context.Context, taskID, reportType, ti
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	
+
 	if err := s.saveReport(report); err != nil {
 		return nil, fmt.Errorf("failed to save report: %w", err)
 	}
-	
+
 	s.logger.Info(fmt.Sprintf("Created report %s of type %s", reportID, reportType))
 	return report, nil
 }
@@ -170,7 +170,7 @@ func (s *ReportService) UpdateReport(ctx context.Context, reportID, title, summa
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if title != "" {
 		report.Title = title
 	}
@@ -181,11 +181,11 @@ func (s *ReportService) UpdateReport(ctx context.Context, reportID, title, summa
 		report.Content = content
 	}
 	report.UpdatedAt = time.Now()
-	
+
 	if err := s.saveReport(report); err != nil {
 		return nil, fmt.Errorf("failed to save updated report: %w", err)
 	}
-	
+
 	s.logger.Info(fmt.Sprintf("Updated report %s", reportID))
 	return report, nil
 }

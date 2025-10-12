@@ -40,18 +40,18 @@ type CommitWithFiles struct {
 type TokenCounter func(text string) int
 
 type ContextSummaryInfo struct {
-	FileCount      int
-	TotalSize      int64
-	TokenCount     int
-	LineCount      int
-	LanguageStats  map[string]int
-	LastModified   time.Time
-	GitRepo        bool
-	BuildSystem    string
-	Frameworks     []string
-	HasTests       bool
-	HasDockerfile  bool
-	HasCICD        bool
+	FileCount     int
+	TotalSize     int64
+	TokenCount    int
+	LineCount     int
+	LanguageStats map[string]int
+	LastModified  time.Time
+	GitRepo       bool
+	BuildSystem   string
+	Frameworks    []string
+	HasTests      bool
+	HasDockerfile bool
+	HasCICD       bool
 }
 
 type ParsedDiff struct {
@@ -144,6 +144,7 @@ type ContextSummary struct {
 	FileCount   int             `json:"fileCount"`
 	TotalSize   int64           `json:"totalSize"`
 	TokenCount  int             `json:"tokenCount"`
+	LineCount   int             `json:"lineCount"`
 	CreatedAt   time.Time       `json:"createdAt"`
 	UpdatedAt   time.Time       `json:"updatedAt"`
 	Status      string          `json:"status"`
@@ -158,6 +159,7 @@ type ContextMetadata struct {
 	BuildOptions  *ContextBuildOptions `json:"buildOptions,omitempty"`
 	Warnings      []string             `json:"warnings"`
 	Errors        []string             `json:"errors"`
+	ContentPath   string               `json:"contentPath"`
 }
 
 // ContextChunk represents a paginated piece of context content

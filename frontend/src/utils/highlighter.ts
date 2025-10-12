@@ -24,7 +24,7 @@ hljs.registerLanguage('bash', bash)
 export function highlightCode(code: string, language?: string): string {
   try {
     if (language && hljs.getLanguage(language)) {
-      return hljs.highlight(code, { language }).value
+      return hljs.highlight(code, {language}).value
     } else {
       const result = hljs.highlightAuto(code)
       return result.value
@@ -58,7 +58,7 @@ export function getLanguageDisplayName(language: string): string {
     bash: 'Shell',
     text: 'Plain Text'
   }
-  
+
   return languageNames[language] || language.charAt(0).toUpperCase() + language.slice(1)
 }
 

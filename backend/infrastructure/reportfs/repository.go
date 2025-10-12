@@ -21,7 +21,7 @@ func NewReportFileSystemRepository(logger domain.Logger) *ReportFileSystemReposi
 	homeDir, _ := os.UserHomeDir()
 	reportDir := filepath.Join(homeDir, ".shotgun-code", "reports")
 	os.MkdirAll(reportDir, 0755)
-	
+
 	return &ReportFileSystemRepository{
 		logger:    logger,
 		reportDir: reportDir,
@@ -31,7 +31,7 @@ func NewReportFileSystemRepository(logger domain.Logger) *ReportFileSystemReposi
 // GetReport retrieves a report by ID
 func (r *ReportFileSystemRepository) GetReport(ctx context.Context, reportID string) (*domain.GenericReport, error) {
 	reportPath := filepath.Join(r.reportDir, reportID+".json")
-	
+
 	data, err := os.ReadFile(reportPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -39,12 +39,12 @@ func (r *ReportFileSystemRepository) GetReport(ctx context.Context, reportID str
 		}
 		return nil, fmt.Errorf("failed to read report file: %w", err)
 	}
-	
+
 	var report domain.GenericReport
 	if err := json.Unmarshal(data, &report); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal report: %w", err)
 	}
-	
+
 	return &report, nil
 }
 
@@ -54,29 +54,29 @@ func (r *ReportFileSystemRepository) ListReports(ctx context.Context, reportType
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report directory: %w", err)
 	}
-	
+
 	var reports []*domain.GenericReport
-	
+
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		
+
 		reportID := strings.TrimSuffix(entry.Name(), ".json")
 		report, err := r.GetReport(ctx, reportID)
 		if err != nil {
 			r.logger.Warning(fmt.Sprintf("Failed to load report %s: %v", reportID, err))
 			continue
 		}
-		
+
 		// Filter by type if specified
 		if reportType != "" && report.Type != reportType {
 			continue
 		}
-		
+
 		reports = append(reports, report)
 	}
-	
+
 	return reports, nil
 }
 
@@ -86,26 +86,26 @@ func (r *ReportFileSystemRepository) SaveReport(ctx context.Context, report *dom
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
 	}
-	
+
 	reportPath := filepath.Join(r.reportDir, report.Id+".json")
 	if err := os.WriteFile(reportPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
-	
+
 	return nil
 }
 
 // DeleteReport deletes a report by ID
 func (r *ReportFileSystemRepository) DeleteReport(ctx context.Context, reportID string) error {
 	reportPath := filepath.Join(r.reportDir, reportID+".json")
-	
+
 	if err := os.Remove(reportPath); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("report not found: %s", reportID)
 		}
 		return fmt.Errorf("failed to delete report file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -115,25 +115,25 @@ func (r *ReportFileSystemRepository) GetReportsByTask(ctx context.Context, taskI
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report directory: %w", err)
 	}
-	
+
 	var reports []*domain.GenericReport
-	
+
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		
+
 		reportID := strings.TrimSuffix(entry.Name(), ".json")
 		report, err := r.GetReport(ctx, reportID)
 		if err != nil {
 			r.logger.Warning(fmt.Sprintf("Failed to load report %s: %v", reportID, err))
 			continue
 		}
-		
+
 		if report.TaskId == taskID {
 			reports = append(reports, report)
 		}
 	}
-	
+
 	return reports, nil
 }

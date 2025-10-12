@@ -114,9 +114,9 @@ func (e *ErrorAnalyzerImpl) ClassifyErrorType(errorOutput string) domain.ErrorTy
 func (e *ErrorAnalyzerImpl) extractLocationInfo(errorOutput string, details *domain.ErrorDetails) {
 	// Extract file path, line, and column from common error formats
 	patterns := []string{
-		`([^:]+):(\d+):(\d+):`,        // file:line:col:
-		`([^:]+):(\d+):`,              // file:line:
-		`at ([^:]+):(\d+):(\d+)`,      // at file:line:col
+		`([^:]+):(\d+):(\d+):`,   // file:line:col:
+		`([^:]+):(\d+):`,         // file:line:
+		`at ([^:]+):(\d+):(\d+)`, // at file:line:col
 	}
 
 	for _, pattern := range patterns {

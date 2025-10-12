@@ -1,9 +1,31 @@
 <template>
-  <div class="flex items-center justify-center h-screen bg-gray-900 text-white">
+  <div 
+    class="flex items-center justify-center h-screen bg-gray-900 text-white"
+    @drop.prevent="handleDrop"
+    @dragover.prevent="isDragging = true"
+    @dragleave.prevent="isDragging = false"
+  >
+    <!-- Drag & Drop Overlay -->
+    <Transition name="fade">
+      <div
+        v-if="isDragging"
+        class="fixed inset-0 bg-blue-600/20 border-4 border-dashed border-blue-500 rounded-xl flex items-center justify-center z-50 m-8 pointer-events-none"
+      >
+        <div class="text-center">
+          <svg class="h-20 w-20 text-blue-400 mx-auto mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          <p class="text-3xl font-bold text-white drop-shadow-lg">Drop folder here</p>
+          <p class="text-lg text-blue-200 mt-2">To open as project</p>
+        </div>
+      </div>
+    </Transition>
+
     <div class="w-full max-w-2xl px-4">
       <div class="text-center">
       <h1 class="text-4xl font-bold mb-4">Shotgun Code</h1>
-      <p class="text-gray-400 mb-8">Select a project to get started</p>
+      <p class="text-gray-400 mb-2">Select a project to get started</p>
+      <p class="text-sm text-gray-500 mb-8">or drag & drop a folder here</p>
       
       <button
         @click="selectProject"
@@ -52,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useProjectStore } from '../stores/project.store'
 import { useUIStore } from '../stores/ui.store'
 
@@ -62,12 +84,52 @@ const emit = defineEmits<{
 
 const projectStore = useProjectStore()
 const uiStore = useUIStore()
+const isDragging = ref(false)
 
 const recentProjects = computed(() => projectStore.recentProjects)
+
+// Force reload recent projects when component mounts
+onMounted(() => {
+  // Recent projects should already be loaded by store initialization
+  // But if not, we can trigger a re-render by accessing the computed
+  console.log('Recent projects loaded:', recentProjects.value.length)
+})
 
 function onToggleAutoOpen(e: Event) {
   const target = e.target as HTMLInputElement
   projectStore.setAutoOpenLast(target.checked)
+}
+
+// Drag & Drop handlers
+async function handleDrop(e: DragEvent) {
+  isDragging.value = false
+  
+  const items = e.dataTransfer?.items
+  if (!items) return
+  
+  // Try to find a directory in the dragged items
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.kind === 'file') {
+      // Get file entry
+      const entry = item.webkitGetAsEntry?.()
+      if (entry?.isDirectory) {
+        // @ts-ignore - fullPath exists on FileSystemEntry
+        const path = entry.fullPath
+        console.log('Dropped folder:', path)
+        
+        // Open the project
+        const success = await projectStore.openProjectByPath(path)
+        if (success) {
+          emit('opened', path)
+        }
+        return
+      }
+    }
+  }
+  
+  // If no directory found, show error
+  uiStore.addToast('Please drop a folder, not a file', 'warning')
 }
 
 async function selectProject() {

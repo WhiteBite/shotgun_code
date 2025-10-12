@@ -119,7 +119,7 @@ Respond in JSON format:
 // simpleTaskAnalysis provides fallback analysis when AI is not available
 func (ca *ContextAnalyzerImpl) simpleTaskAnalysis(task string) *domain.TaskAnalysis {
 	taskLower := strings.ToLower(task)
-	
+
 	// Simple keyword-based classification
 	taskType := "feature"
 	if strings.Contains(taskLower, "bug") || strings.Contains(taskLower, "fix") || strings.Contains(taskLower, "error") {
@@ -131,14 +131,14 @@ func (ca *ContextAnalyzerImpl) simpleTaskAnalysis(task string) *domain.TaskAnaly
 	} else if strings.Contains(taskLower, "doc") {
 		taskType = "documentation"
 	}
-	
+
 	priority := "normal"
 	if strings.Contains(taskLower, "critical") || strings.Contains(taskLower, "urgent") {
 		priority = "critical"
 	} else if strings.Contains(taskLower, "high") {
 		priority = "high"
 	}
-	
+
 	return &domain.TaskAnalysis{
 		Type:         taskType,
 		Priority:     priority,

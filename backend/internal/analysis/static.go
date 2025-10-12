@@ -201,26 +201,26 @@ func (s *StaticService) ValidateAnalysisResults(results map[string]*domain.Stati
 		Languages:      make(map[string]*domain.LanguageAnalysisValidation),
 	}
 
-    for language, result := range results {
-        langValidation := &domain.LanguageAnalysisValidation{Language: language}
+	for language, result := range results {
+		langValidation := &domain.LanguageAnalysisValidation{Language: language}
 
-        if result != nil {
-            langValidation.Success = result.Success
-            langValidation.IssueCount = len(result.Issues)
-            validation.TotalIssues += len(result.Issues)
-            if !result.Success {
-                langValidation.Error = result.Error
-            }
-        }
+		if result != nil {
+			langValidation.Success = result.Success
+			langValidation.IssueCount = len(result.Issues)
+			validation.TotalIssues += len(result.Issues)
+			if !result.Success {
+				langValidation.Error = result.Error
+			}
+		}
 
-        if result != nil && result.Success {
-            validation.SuccessCount++
-        } else {
-            validation.FailureCount++
-        }
+		if result != nil && result.Success {
+			validation.SuccessCount++
+		} else {
+			validation.FailureCount++
+		}
 
-        validation.Languages[language] = langValidation
-    }
+		validation.Languages[language] = langValidation
+	}
 
 	return validation
 }
@@ -261,12 +261,12 @@ func (s *StaticService) FilterIssuesByLevel(results map[string]*domain.StaticAna
 		for _, issue := range result.Issues {
 			if issue.Severity == level {
 				staticIssue := &domain.StaticAnalysisIssue{
-					ID:       fmt.Sprintf("%s:%d:%d", issue.File, issue.Line, issue.Column),
-					Rule:     "static-analysis",
-					Severity: issue.Severity,
-					Category: issue.Category,
-					Message:  issue.Message,
-					FilePath: issue.File,
+					ID:         fmt.Sprintf("%s:%d:%d", issue.File, issue.Line, issue.Column),
+					Rule:       "static-analysis",
+					Severity:   issue.Severity,
+					Category:   issue.Category,
+					Message:    issue.Message,
+					FilePath:   issue.File,
 					LineNumber: issue.Line,
 				}
 				issues = append(issues, staticIssue)
@@ -293,12 +293,12 @@ func (s *StaticService) GetCriticalIssues(results map[string]*domain.StaticAnaly
 		for _, issue := range result.Issues {
 			if issue.Severity == "critical" || issue.Severity == "error" {
 				staticIssue := &domain.StaticAnalysisIssue{
-					ID:       fmt.Sprintf("%s:%d:%d", issue.File, issue.Line, issue.Column),
-					Rule:     "static-analysis",
-					Severity: issue.Severity,
-					Category: issue.Category,
-					Message:  issue.Message,
-					FilePath: issue.File,
+					ID:         fmt.Sprintf("%s:%d:%d", issue.File, issue.Line, issue.Column),
+					Rule:       "static-analysis",
+					Severity:   issue.Severity,
+					Category:   issue.Category,
+					Message:    issue.Message,
+					FilePath:   issue.File,
 					LineNumber: issue.Line,
 				}
 				critical = append(critical, staticIssue)

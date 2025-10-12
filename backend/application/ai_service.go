@@ -11,7 +11,7 @@ import (
 type AIService struct {
 	settingsService    *SettingsService
 	log                domain.Logger
-	providerFactory    domain.AIProviderFactory
+	providerRegistry   map[string]domain.AIProviderFactory
 	intelligentService *IntelligentAIService
 }
 
@@ -19,13 +19,13 @@ type AIService struct {
 func NewAIService(
 	settingsService *SettingsService,
 	log domain.Logger,
-	providerFactory domain.AIProviderFactory,
+	providerRegistry map[string]domain.AIProviderFactory,
 	intelligentService *IntelligentAIService,
 ) *AIService {
 	service := &AIService{
 		settingsService:    settingsService,
 		log:                log,
-		providerFactory:    providerFactory,
+		providerRegistry:   providerRegistry,
 		intelligentService: intelligentService,
 	}
 
@@ -163,18 +163,19 @@ func (s *AIService) getProvider(ctx context.Context) (domain.AIProvider, string,
 		return nil, "", fmt.Errorf("no AI provider selected")
 	}
 
-	// Get API key for the selected provider
-	var apiKey string
-	switch providerType {
-	case "openai":
-		apiKey = dto.OpenAIAPIKey
-	case "gemini":
-		apiKey = dto.GeminiAPIKey
-	case "openrouter":
-		apiKey = dto.OpenRouterAPIKey
-	case "localai":
-		apiKey = dto.LocalAIAPIKey
+	keyExtractors := map[string]func(domain.SettingsDTO) string{
+		"openai":     func(d domain.SettingsDTO) string { return d.OpenAIAPIKey },
+		"gemini":     func(d domain.SettingsDTO) string { return d.GeminiAPIKey },
+		"openrouter": func(d domain.SettingsDTO) string { return d.OpenRouterAPIKey },
+		"localai":    func(d domain.SettingsDTO) string { return d.LocalAIAPIKey },
 	}
+
+	extractor, ok := keyExtractors[providerType]
+	if !ok {
+		return nil, "", fmt.Errorf("unsupported AI provider: %s", providerType)
+	}
+
+	apiKey := extractor(dto)
 
 	// LocalAI might not require a key, so we don't check for empty key for it
 	if apiKey == "" && providerType != "localai" {
@@ -182,7 +183,12 @@ func (s *AIService) getProvider(ctx context.Context) (domain.AIProvider, string,
 	}
 
 	// Create provider instance
-	provider, err := s.providerFactory(providerType, apiKey)
+	factory, exists := s.providerRegistry[providerType]
+	if !exists {
+		return nil, "", fmt.Errorf("no factory registered for provider %s", providerType)
+	}
+
+	provider, err := factory(providerType, apiKey)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create provider %s: %w", providerType, err)
 	}
@@ -208,4 +214,3 @@ func (s *AIService) getProvider(ctx context.Context) (domain.AIProvider, string,
 func (s *AIService) GetIntelligentService() *IntelligentAIService {
 	return s.intelligentService
 }
-

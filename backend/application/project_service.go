@@ -6,14 +6,14 @@ import (
 )
 
 type ProjectService struct {
-	log                      domain.Logger
-	bus                      domain.EventBus
-	treeBuilder              domain.TreeBuilder
-	gitRepo                  domain.GitRepository
-	contextBuilder           domain.ContextBuilder     // NEW: Using ContextBuilder interface
-	contextGenerator         *ContextGenerator         // NEW: Using ContextGenerator for async operations
-	pathProvider             domain.PathProvider
-	fileStatProvider         domain.FileStatProvider
+	log              domain.Logger
+	bus              domain.EventBus
+	treeBuilder      domain.TreeBuilder
+	gitRepo          domain.GitRepository
+	contextBuilder   domain.ContextBuilder // NEW: Using ContextBuilder interface
+	contextGenerator *ContextGenerator     // NEW: Using ContextGenerator for async operations
+	pathProvider     domain.PathProvider
+	fileStatProvider domain.FileStatProvider
 }
 
 func NewProjectService(
@@ -21,8 +21,8 @@ func NewProjectService(
 	bus domain.EventBus,
 	treeBuilder domain.TreeBuilder,
 	gitRepo domain.GitRepository,
-	contextBuilder domain.ContextBuilder,     // NEW: Using ContextBuilder interface
-	contextGenerator *ContextGenerator,       // NEW: Using ContextGenerator for async operations
+	contextBuilder domain.ContextBuilder, // NEW: Using ContextBuilder interface
+	contextGenerator *ContextGenerator, // NEW: Using ContextGenerator for async operations
 	pathProvider domain.PathProvider,
 	fileStatProvider domain.FileStatProvider,
 ) *ProjectService {
@@ -31,8 +31,8 @@ func NewProjectService(
 		bus:              bus,
 		treeBuilder:      treeBuilder,
 		gitRepo:          gitRepo,
-		contextBuilder:   contextBuilder,     // NEW: Using ContextBuilder interface
-		contextGenerator: contextGenerator,   // NEW: Using ContextGenerator for async operations
+		contextBuilder:   contextBuilder,   // NEW: Using ContextBuilder interface
+		contextGenerator: contextGenerator, // NEW: Using ContextGenerator for async operations
 		pathProvider:     pathProvider,
 		fileStatProvider: fileStatProvider,
 	}
