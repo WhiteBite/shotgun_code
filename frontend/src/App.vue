@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
     <!-- Global Error Handler -->
     <div v-if="globalError" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
 import { useProjectStore } from '@/stores/project.store'
@@ -86,6 +86,11 @@ function onProjectOpened(path: string) {
   console.log('Project opened:', path)
   uiStore.addToast('Project loaded successfully', 'success')
 }
+
+onMounted(() => {
+  // Try to auto-open last project if setting is enabled
+  projectStore.maybeAutoOpenLastProject()
+})
 </script>
 
 <style>
@@ -132,20 +137,19 @@ function onProjectOpened(path: string) {
   outline: none;
 }
 
-/* Show focus ring ONLY on interactive controls to avoid full-height blue lines */
+/* Scope focus outline to interactive controls to avoid artifacts during resize */
 :where(
   a,
   button,
   input,
   select,
   textarea,
-  summary,
   [role="button"],
   [role="checkbox"],
   [role="menuitem"],
   [role="tab"],
   [role="switch"],
-  [contenteditable="true"],
+  [contenteditable],
   [tabindex]:not([tabindex="-1"]) 
 ):focus-visible {
   outline: 2px solid #3b82f6;

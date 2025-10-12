@@ -1,6 +1,7 @@
 <template>
   <div class="flex items-center justify-center h-screen bg-gray-900 text-white">
-    <div class="text-center max-w-md">
+    <div class="w-full max-w-2xl px-4">
+      <div class="text-center">
       <h1 class="text-4xl font-bold mb-4">Shotgun Code</h1>
       <p class="text-gray-400 mb-8">Select a project to get started</p>
       
@@ -10,21 +11,41 @@
       >
         Open Project Directory
       </button>
+      </div>
 
       <!-- Recent Projects -->
-      <div v-if="recentProjects.length > 0" class="mt-8">
+      <div class="mt-10">
         <h2 class="text-lg font-semibold mb-4 text-gray-300">Recent Projects</h2>
         <div class="space-y-2">
-          <button
-            v-for="project in recentProjects"
-            :key="project.path"
-            @click="openRecentProject(project.path)"
-            class="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-left transition-colors"
-          >
-            <div class="font-medium">{{ project.name }}</div>
-            <div class="text-sm text-gray-400 truncate">{{ project.path }}</div>
-          </button>
+          <template v-if="recentProjects.length > 0">
+            <button
+              v-for="project in recentProjects"
+              :key="project.path"
+              @click="openRecentProject(project.path)"
+              class="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-left transition-colors"
+            >
+              <div class="font-medium">{{ project.name }}</div>
+              <div class="text-sm text-gray-400 truncate">{{ project.path }}</div>
+            </button>
+          </template>
+          <template v-else>
+            <div v-for="i in 6" :key="i" class="w-full h-12 bg-gray-800/60 rounded"></div>
+          </template>
         </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="mt-10 bg-gray-800/60 border border-gray-700 rounded-lg p-4">
+        <h3 class="font-semibold text-gray-300 mb-3">Settings</h3>
+        <label class="flex items-center gap-3 text-sm text-gray-300 select-none">
+          <input
+            type="checkbox"
+            class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-0"
+            :checked="projectStore.autoOpenLast"
+            @change="onToggleAutoOpen"
+          />
+          Automatically open last project on startup
+        </label>
       </div>
     </div>
   </div>
@@ -43,6 +64,11 @@ const projectStore = useProjectStore()
 const uiStore = useUIStore()
 
 const recentProjects = computed(() => projectStore.recentProjects)
+
+function onToggleAutoOpen(e: Event) {
+  const target = e.target as HTMLInputElement
+  projectStore.setAutoOpenLast(target.checked)
+}
 
 async function selectProject() {
   try {

@@ -22,12 +22,14 @@ export const useProjectStore = defineStore('project', () => {
   const recentProjects = ref<RecentProject[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const autoOpenLast = ref<boolean>(false)
 
   // Computed
   const hasProject = computed(() => currentPath.value !== null)
   const projectName = computed(() => currentName.value || '')
   const projectPath = computed(() => currentPath.value || '')
   const hasRecentProjects = computed(() => recentProjects.value.length > 0)
+  const lastProjectPath = computed(() => recentProjects.value[0]?.path || null)
 
   // Actions
   async function openProjectByPath(path: string): Promise<boolean> {
@@ -77,6 +79,11 @@ export const useProjectStore = defineStore('project', () => {
       if (stored) {
         recentProjects.value = JSON.parse(stored)
       }
+      // Load setting for auto-open
+      const auto = localStorage.getItem('shotgun_auto_open_last')
+      if (auto !== null) {
+        autoOpenLast.value = auto === 'true'
+      }
     } catch (err) {
       console.warn('Failed to load recent projects:', err)
     }
@@ -90,8 +97,29 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  function setAutoOpenLast(value: boolean) {
+    autoOpenLast.value = value
+    try {
+      localStorage.setItem('shotgun_auto_open_last', String(value))
+    } catch (err) {
+      console.warn('Failed to save auto-open setting:', err)
+    }
+  }
+
+  async function maybeAutoOpenLastProject(): Promise<boolean> {
+    if (currentPath.value) return true
+    if (!autoOpenLast.value) return false
+    if (!lastProjectPath.value) return false
+    return await openProjectByPath(lastProjectPath.value)
+  }
+
   function removeFromRecent(path: string) {
     recentProjects.value = recentProjects.value.filter(p => p.path !== path)
+    saveRecentProjects()
+  }
+
+  function clearRecent() {
+    recentProjects.value = []
     saveRecentProjects()
   }
 
@@ -99,6 +127,10 @@ export const useProjectStore = defineStore('project', () => {
     currentPath.value = null
     currentName.value = null
     error.value = null
+  }
+
+  function closeProject() {
+    clearProject()
   }
 
   // Initialize
@@ -111,14 +143,20 @@ export const useProjectStore = defineStore('project', () => {
     recentProjects,
     isLoading,
     error,
+    autoOpenLast,
     // Computed
     hasProject,
     projectName,
     projectPath,
     hasRecentProjects,
+    lastProjectPath,
     // Actions
     openProjectByPath,
     removeFromRecent,
-    clearProject
+    clearRecent,
+    clearProject,
+    closeProject,
+    setAutoOpenLast,
+    maybeAutoOpenLastProject
   }
 })
