@@ -86,6 +86,10 @@ type SettingsRepository interface {
 	SetUseGitignore(use bool)
 	GetUseCustomIgnore() bool
 	SetUseCustomIgnore(use bool)
+	GetRecentProjects() []RecentProjectInfo
+	AddRecentProject(path, name string)
+	RemoveRecentProject(path string)
+
 	Save() error
 	GetSettingsDTO() (SettingsDTO, error) // Added as per compilation error
 }
@@ -105,8 +109,8 @@ type ContextSplitter interface {
 
 // CommentStripper определяет интерфейс для удаления комментариев из исходного кода
 type CommentStripper interface {
-    // Strip удаляет комментарии из содержимого файла, опираясь на расширение filePath
-    Strip(content string, filePath string) string
+	// Strip удаляет комментарии из содержимого файла, опираясь на расширение filePath
+	Strip(content string, filePath string) string
 }
 
 // AIProviderFactory is a function type that creates an AIProvider.

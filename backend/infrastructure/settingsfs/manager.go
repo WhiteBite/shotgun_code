@@ -4,20 +4,22 @@ import (
 	"fmt"
 	"shotgun_code/domain"
 	"sync"
+	"time"
 )
 
 // appSettings stores settings that are safe to write to a JSON file.
 // API keys are handled separately via the system's keyring.
 type appSettings struct {
-	CustomIgnoreRules string              `json:"customIgnoreRules"`
-	CustomPromptRules string              `json:"customPromptRules"`
-	UseGitignore      bool                `json:"useGitignore"`
-	UseCustomIgnore   bool                `json:"useCustomIgnore"`
-	LocalAIHost       string              `json:"localAIHost,omitempty"`
-	LocalAIModelName  string              `json:"localAIModelName,omitempty"`
-	SelectedProvider  string              `json:"selectedProvider"`
-	SelectedModels    map[string]string   `json:"selectedModels"`
-	AvailableModels   map[string][]string `json:"availableModels"`
+	CustomIgnoreRules string                     `json:"customIgnoreRules"`
+	CustomPromptRules string                     `json:"customPromptRules"`
+	UseGitignore      bool                       `json:"useGitignore"`
+	UseCustomIgnore   bool                       `json:"useCustomIgnore"`
+	LocalAIHost       string                     `json:"localAIHost,omitempty"`
+	LocalAIModelName  string                     `json:"localAIModelName,omitempty"`
+	SelectedProvider  string                     `json:"selectedProvider"`
+	SelectedModels    map[string]string          `json:"selectedModels"`
+	AvailableModels   map[string][]string        `json:"availableModels"`
+	RecentProjects    []domain.RecentProjectInfo `json:"recentProjects,omitempty"`
 }
 
 // secureSettings holds secrets that are stored in the system's keyring.
@@ -262,5 +264,61 @@ func (m *Manager) GetSettingsDTO() (domain.SettingsDTO, error) {
 		AvailableModels:   availableModelsCopy,
 		UseGitignore:      m.settings.UseGitignore,
 		UseCustomIgnore:   m.settings.UseCustomIgnore,
+		RecentProjects:    m.settings.RecentProjects,
 	}, nil
+}
+
+// GetRecentProjects returns the list of recent projects
+func (m *Manager) GetRecentProjects() []domain.RecentProjectInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Return a copy to avoid race conditions
+	result := make([]domain.RecentProjectInfo, len(m.settings.RecentProjects))
+	copy(result, m.settings.RecentProjects)
+	return result
+}
+
+// AddRecentProject adds or updates a project in the recent list
+func (m *Manager) AddRecentProject(path, name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Current timestamp
+	now := time.Now().Format(time.RFC3339)
+
+	// Remove if exists
+	filtered := []domain.RecentProjectInfo{}
+	for _, p := range m.settings.RecentProjects {
+		if p.Path != path {
+			filtered = append(filtered, p)
+		}
+	}
+
+	// Add to beginning
+	newEntry := domain.RecentProjectInfo{
+		Path:         path,
+		Name:         name,
+		LastOpenedAt: now,
+	}
+	m.settings.RecentProjects = append([]domain.RecentProjectInfo{newEntry}, filtered...)
+
+	// Keep only last 10
+	if len(m.settings.RecentProjects) > 10 {
+		m.settings.RecentProjects = m.settings.RecentProjects[:10]
+	}
+}
+
+// RemoveRecentProject removes a project from the recent list
+func (m *Manager) RemoveRecentProject(path string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	filtered := []domain.RecentProjectInfo{}
+	for _, p := range m.settings.RecentProjects {
+		if p.Path != path {
+			filtered = append(filtered, p)
+		}
+	}
+	m.settings.RecentProjects = filtered
 }

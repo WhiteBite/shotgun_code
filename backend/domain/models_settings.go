@@ -16,4 +16,12 @@ type SettingsDTO struct {
 	AvailableModels   map[string][]string `json:"availableModels"` // provider -> available models
 	UseGitignore      bool                `json:"useGitignore"`
 	UseCustomIgnore   bool                `json:"useCustomIgnore"`
+	RecentProjects    []RecentProjectInfo `json:"recentProjects,omitempty"`
+}
+
+// RecentProjectInfo stores information about a recently opened project
+type RecentProjectInfo struct {
+	Path         string `json:"path"`
+	Name         string `json:"name"`
+	LastOpenedAt string `json:"lastOpenedAt"` // RFC3339 timestamp
 }

@@ -120,3 +120,23 @@ func (s *SettingsService) notifyIgnoreRulesChanged() {
 		}
 	}
 }
+
+// GetRecentProjects returns the list of recent projects
+func (s *SettingsService) GetRecentProjects() []domain.RecentProjectInfo {
+	return s.settingsRepo.GetRecentProjects()
+}
+
+// AddRecentProject adds a project to the recent list
+func (s *SettingsService) AddRecentProject(path, name string) {
+	s.settingsRepo.AddRecentProject(path, name)
+}
+
+// RemoveRecentProject removes a project from the recent list
+func (s *SettingsService) RemoveRecentProject(path string) {
+	s.settingsRepo.RemoveRecentProject(path)
+}
+
+// Save persists settings to disk
+func (s *SettingsService) Save() error {
+	return s.settingsRepo.Save()
+}

@@ -268,12 +268,14 @@ onMounted(() => {
   height: 100%;
   position: relative;
 
-  /* Transitions */
+  /* Transitions - убираем backdrop-filter для избежания артефактов */
   transition:
     width var(--transition-normal),
     min-width var(--transition-normal),
-    background var(--transition-fast),
-    backdrop-filter var(--transition-fast);
+    background var(--transition-fast);
+  
+  /* Отключаем transitions во время ресайза */
+  will-change: width;
 
   /* Shadow */
   box-shadow:
@@ -450,8 +452,11 @@ onMounted(() => {
   width: v-bind('APP_CONFIG.ui.panels.RESIZE_HANDLE_WIDTH + "px"');
   cursor: col-resize;
   background: transparent;
-  transition: background var(--transition-fast);
+  transition: none; /* Убираем transition для плавности при ресайзе */
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .resize-handle-right {
@@ -462,28 +467,62 @@ onMounted(() => {
   left: v-bind('(-APP_CONFIG.ui.panels.RESIZE_HANDLE_WIDTH / 2) + "px"');
 }
 
-.panel-resize-handle:hover,
-.panel-resizing .panel-resize-handle {
-  background: rgba(59, 130, 246, 0.3);
+/* Улучшенный визуальный стиль при hover */
+.panel-resize-handle:hover {
+  background: linear-gradient(90deg, 
+    rgba(59, 130, 246, 0.05) 0%, 
+    rgba(59, 130, 246, 0.15) 50%,
+    rgba(59, 130, 246, 0.05) 100%);
 }
 
-.panel-resize-handle:hover .resize-indicator,
+/* Более яркий индикатор при активном ресайзе */
+.panel-resizing .panel-resize-handle {
+  background: linear-gradient(90deg, 
+    rgba(59, 130, 246, 0.15) 0%, 
+    rgba(59, 130, 246, 0.3) 50%,
+    rgba(59, 130, 246, 0.15) 100%);
+}
+
+.panel-resize-handle:hover .resize-indicator {
+  background: rgb(59, 130, 246);
+  opacity: 0.8;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
 .panel-resizing .panel-resize-handle .resize-indicator {
   background: rgb(59, 130, 246);
   opacity: 1;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.8),
+              0 0 24px rgba(59, 130, 246, 0.4);
 }
 
+/* Более крупный и заметный индикатор */
 .resize-indicator {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: v-bind('APP_CONFIG.ui.panels.RESIZE_INDICATOR_WIDTH + "px"');
-  height: v-bind('APP_CONFIG.ui.panels.RESIZE_INDICATOR_HEIGHT + "px"');
-  background: rgba(59, 130, 246, 0.5);
-  border-radius: 1px;
+  position: relative;
+  width: 4px;
+  height: 80px;
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 2px;
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: opacity 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  
+  /* Добавляем три точки внутри индикатора */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Точки внутри индикатора для better visual feedback */
+.resize-indicator::before,
+.resize-indicator::after {
+  content: '';
+  width: 2px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 50%;
+  opacity: 0.6;
 }
 
 /* Responsive design */
@@ -509,13 +548,22 @@ onMounted(() => {
   pointer-events: none;
 }
 
+/* Отключаем все transitions при ресайзе для плавности */
 .panel-resizing {
   user-select: none;
   pointer-events: none;
+  transition: none !important;
 }
 
 .panel-resizing * {
   cursor: col-resize !important;
+  transition: none !important;
+}
+
+/* Также отключаем backdrop-filter и другие эффекты при ресайзе */
+.panel-resizing .panel-header,
+.panel-resizing .base-panel {
+  backdrop-filter: none !important;
 }
 
 /* Scroll specific classes */

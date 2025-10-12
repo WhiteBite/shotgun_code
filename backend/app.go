@@ -84,6 +84,9 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
 	a.fileWatcher.Stop()
+	if a.contextService != nil {
+		a.contextService.Stop()
+	}
 }
 
 func (a *App) SelectDirectory() (string, error) {
@@ -1426,4 +1429,26 @@ func (a *App) CreateTaskProtocolForProject(projectPath string, languages []strin
 
 	a.log.Info(fmt.Sprintf("Task Protocol configuration created for project: %s", projectPath))
 	return string(configJson), nil
+}
+
+// GetRecentProjects returns the list of recently opened projects
+func (a *App) GetRecentProjects() (string, error) {
+	projects := a.settingsService.GetRecentProjects()
+	result, err := json.Marshal(projects)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal recent projects: %w", err)
+	}
+	return string(result), nil
+}
+
+// AddRecentProject adds a project to the recent list and saves settings
+func (a *App) AddRecentProject(path, name string) error {
+	a.settingsService.AddRecentProject(path, name)
+	return a.settingsService.Save()
+}
+
+// RemoveRecentProject removes a project from the recent list and saves settings
+func (a *App) RemoveRecentProject(path string) error {
+	a.settingsService.RemoveRecentProject(path)
+	return a.settingsService.Save()
 }

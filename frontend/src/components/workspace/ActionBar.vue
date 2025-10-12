@@ -6,23 +6,15 @@
         Модель: <span class="text-white font-semibold">gpt-4o</span>
       </div>
       <div>
-        Токены: <span class="text-white font-semibold">~{{ formatNumber(contextStore.tokenCount) }}</span>
+        Строки: <span class="text-white font-semibold">~{{ formatNumber(contextStore.totalLines) }}</span>
       </div>
       <div>
-        Стоимость: <span class="text-green-400 font-semibold">${{ contextStore.estimatedCost.toFixed(4) }}</span>
+        Размер: <span class="text-green-400 font-semibold">{{ formatSize(contextStore.totalSize) }}</span>
       </div>
     </div>
 
     <!-- Right: Action Buttons -->
     <div class="flex items-center space-x-3">
-      <button
-        @click="$emit('build-context')"
-        :disabled="fileStore.selectedPaths.size === 0"
-        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Собрать контекст
-      </button>
-      
       <button
         @click="$emit('open-export')"
         :disabled="!contextStore.hasContext"
@@ -46,14 +38,11 @@
 </template>
 
 <script setup lang="ts">
-import { useFileStore } from '@/stores/file.store'
 import { useContextStore } from '@/stores/context.store'
 
-const fileStore = useFileStore()
 const contextStore = useContextStore()
 
 defineEmits<{
-  (e: 'build-context'): void
   (e: 'open-export'): void
   (e: 'generate-solution'): void
 }>()
@@ -62,5 +51,13 @@ function formatNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
   return num.toString()
+}
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 </script>

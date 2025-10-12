@@ -46,10 +46,7 @@
 
     <!-- Main Content: Show ProjectSelector if no project, otherwise show workspace -->
     <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
-    <div v-else class="h-full">
-      <p class="p-4">Project: {{ projectStore.projectName }}</p>
-      <!-- TODO: Add main workspace components here -->
-    </div>
+    <MainWorkspace v-else />
 
     <!-- Toast Notifications -->
     <div class="fixed top-4 right-4 z-50 space-y-2">
@@ -73,6 +70,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import ProjectSelector from '@/components/ProjectSelector.vue'
+import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
 import { useProjectStore } from '@/stores/project.store'
 import { useUIStore } from '@/stores/ui.store'
 
@@ -134,9 +132,32 @@ function onProjectOpened(path: string) {
   outline: none;
 }
 
-*:focus-visible {
+/* Show focus ring ONLY on interactive controls to avoid full-height blue lines */
+:where(
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [role="checkbox"],
+  [role="menuitem"],
+  [role="tab"],
+  [role="switch"],
+  [contenteditable="true"],
+  [tabindex]:not([tabindex="-1"]) 
+):focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
+}
+
+/* Never show focus ring on layout/resizer elements */
+[role="separator"],
+[data-resize-handle],
+.splitpanes__splitter,
+.vue-resizable-handle {
+  outline: none !important;
 }
 
 /* Transition defaults */

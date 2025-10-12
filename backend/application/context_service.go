@@ -18,19 +18,80 @@ const (
 	MaxContextSize = 50 * 1024 * 1024 // 50 MB
 	// DefaultChunkSize is the default number of lines per chunk
 	DefaultChunkSize = 1000
+
+	// TTL configuration for contexts
+	defaultContextTTL      = 30 * time.Minute
+	defaultCleanupInterval = 5 * time.Minute
 )
 
-// ContextService manages context lifecycle with OOM safety
+// contextEntry stores context data and timestamps
+type contextEntry struct {
+	content   string
+	createdAt time.Time
+	lastUsed  time.Time
+}
+
+// ContextService manages context lifecycle with OOM safety and TTL cleanup
 type ContextService struct {
-	contexts map[string]string // contextId -> content
-	mu       sync.RWMutex
+	contexts        map[string]*contextEntry // contextId -> entry
+	mu              sync.RWMutex
+	ttl             time.Duration
+	cleanupInterval time.Duration
+	stopCh          chan struct{}
+	wg              sync.WaitGroup
 }
 
 // NewContextService creates a new ContextService instance
 func NewContextService() *ContextService {
-	return &ContextService{
-		contexts: make(map[string]string),
+	s := &ContextService{
+		contexts:        make(map[string]*contextEntry),
+		ttl:             defaultContextTTL,
+		cleanupInterval: defaultCleanupInterval,
+		stopCh:          make(chan struct{}),
 	}
+
+	// Start background cleanup goroutine
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		ticker := time.NewTicker(s.cleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				s.cleanupExpired()
+			case <-s.stopCh:
+				return
+			}
+		}
+	}()
+
+	return s
+}
+
+// Stop gracefully stops background cleanup
+func (s *ContextService) Stop() {
+	s.mu.Lock()
+	if s.stopCh == nil {
+		s.mu.Unlock()
+		return
+	}
+	close(s.stopCh)
+	s.stopCh = nil
+	s.mu.Unlock()
+	s.wg.Wait()
+}
+
+// cleanupExpired removes contexts that exceeded TTL based on last access time
+func (s *ContextService) cleanupExpired() {
+	now := time.Now()
+	s.mu.Lock()
+	for id, e := range s.contexts {
+		if now.Sub(e.lastUsed) > s.ttl {
+			delete(s.contexts, id)
+		}
+	}
+	s.mu.Unlock()
 }
 
 // BuildContext reads files, concatenates them, and stores in memory
@@ -78,13 +139,17 @@ func (s *ContextService) BuildContext(filePaths []string) (*domain.ContextSummar
 
 	// Store context
 	s.mu.Lock()
-	s.contexts[contextId] = content.String()
+	s.contexts[contextId] = &contextEntry{
+		content:   content.String(),
+		createdAt: time.Now(),
+		lastUsed:  time.Now(),
+	}
 	s.mu.Unlock()
 
 	summary := &domain.ContextSummaryInfo{
-		FileCount:      len(filePaths),
-		TotalSize:      int64(totalSize),
-		LineCount:      totalLines,
+		FileCount: len(filePaths),
+		TotalSize: int64(totalSize),
+		LineCount: totalLines,
 	}
 
 	return summary, nil
@@ -93,7 +158,7 @@ func (s *ContextService) BuildContext(filePaths []string) (*domain.ContextSummar
 // GetLines retrieves a range of lines from a context
 func (s *ContextService) GetLines(contextId string, start, count int) (string, error) {
 	s.mu.RLock()
-	content, exists := s.contexts[contextId]
+	entry, exists := s.contexts[contextId]
 	s.mu.RUnlock()
 
 	if !exists {
@@ -101,7 +166,7 @@ func (s *ContextService) GetLines(contextId string, start, count int) (string, e
 	}
 
 	// Split into lines
-	lines := strings.Split(content, "\n")
+	lines := strings.Split(entry.content, "\n")
 
 	// Validate range
 	if start < 0 || start >= len(lines) {
@@ -115,20 +180,35 @@ func (s *ContextService) GetLines(contextId string, start, count int) (string, e
 
 	// Extract lines
 	result := strings.Join(lines[start:end], "\n")
+
+	// Update lastUsed timestamp
+	s.mu.Lock()
+	if e, ok := s.contexts[contextId]; ok {
+		e.lastUsed = time.Now()
+	}
+	s.mu.Unlock()
+
 	return result, nil
 }
 
 // GetFullContext retrieves the entire context
 func (s *ContextService) GetFullContext(contextId string) (string, error) {
 	s.mu.RLock()
-	content, exists := s.contexts[contextId]
+	entry, exists := s.contexts[contextId]
 	s.mu.RUnlock()
 
 	if !exists {
 		return "", fmt.Errorf("context not found: %s", contextId)
 	}
 
-	return content, nil
+	// Update lastUsed
+	s.mu.Lock()
+	if e, ok := s.contexts[contextId]; ok {
+		e.lastUsed = time.Now()
+	}
+	s.mu.Unlock()
+
+	return entry.content, nil
 }
 
 // DeleteContext removes a context from memory
@@ -191,7 +271,11 @@ func (s *ContextService) CreateStreamingContext(ctx context.Context, projectPath
 
 	// Store in memory (context content is already on disk via buildContextContent)
 	s.mu.Lock()
-	s.contexts[contextID] = fmt.Sprintf("stream:%s", contextID)
+	s.contexts[contextID] = &contextEntry{
+		content:   fmt.Sprintf("stream:%s", contextID),
+		createdAt: time.Now(),
+		lastUsed:  time.Now(),
+	}
 	s.mu.Unlock()
 
 	return stream, nil
@@ -227,22 +311,29 @@ func (s *ContextService) GetContextContent(ctx context.Context, contextID string
 // GetContext retrieves a full context by ID (use with caution - can cause OOM)
 func (s *ContextService) GetContext(ctx context.Context, contextID string) (*domain.Context, error) {
 	s.mu.RLock()
-	content, exists := s.contexts[contextID]
+	entry, exists := s.contexts[contextID]
 	s.mu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("context not found: %s", contextID)
 	}
 
+	// Update lastUsed
+	s.mu.Lock()
+	if e, ok := s.contexts[contextID]; ok {
+		e.lastUsed = time.Now()
+	}
+	s.mu.Unlock()
+
 	// Create context object
-	context := &domain.Context{
+	ctxObj := &domain.Context{
 		ID:        contextID,
-		Content:   content,
+		Content:   entry.content,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	return context, nil
+	return ctxObj, nil
 }
 
 // GetContextLines retrieves a range of lines from a streaming context
@@ -258,7 +349,7 @@ func (s *ContextService) GetContextLines(ctx context.Context, contextID string, 
 	}
 
 	lines := strings.Split(content, "\n")
-	
+
 	return &domain.ContextLineRange{
 		StartLine: startLine,
 		EndLine:   endLine,
@@ -280,8 +371,12 @@ func (s *ContextService) SaveContext(context *domain.Context) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
-	s.contexts[context.ID] = context.Content
+
+	s.contexts[context.ID] = &contextEntry{
+		content:   context.Content,
+		createdAt: time.Now(),
+		lastUsed:  time.Now(),
+	}
 	return nil
 }
 
@@ -347,9 +442,9 @@ func (s *ContextService) buildContextContent(filePaths []string) (*domain.Contex
 	}
 
 	return &domain.ContextSummaryInfo{
-		FileCount: len(filePaths),
-		TotalSize: totalSize,
-		LineCount: totalLines,
+		FileCount:  len(filePaths),
+		TotalSize:  totalSize,
+		LineCount:  totalLines,
 		TokenCount: totalLines * 4, // Rough estimate: 4 tokens per line
 	}, nil
 }

@@ -10,6 +10,10 @@ export function AddGuardrailPolicy(arg1) {
   return window['go']['main']['App']['AddGuardrailPolicy'](arg1);
 }
 
+export function AddRecentProject(arg1, arg2) {
+  return window['go']['main']['App']['AddRecentProject'](arg1, arg2);
+}
+
 export function AddRepairRule(arg1) {
   return window['go']['main']['App']['AddRepairRule'](arg1);
 }
@@ -270,6 +274,10 @@ export function GetReadyTasks() {
   return window['go']['main']['App']['GetReadyTasks']();
 }
 
+export function GetRecentProjects() {
+  return window['go']['main']['App']['GetRecentProjects']();
+}
+
 export function GetReport(arg1) {
   return window['go']['main']['App']['GetReport'](arg1);
 }
@@ -388,6 +396,10 @@ export function RemoveBudgetPolicy(arg1) {
 
 export function RemoveGuardrailPolicy(arg1) {
   return window['go']['main']['App']['RemoveGuardrailPolicy'](arg1);
+}
+
+export function RemoveRecentProject(arg1) {
+  return window['go']['main']['App']['RemoveRecentProject'](arg1);
 }
 
 export function RemoveRepairRule(arg1) {

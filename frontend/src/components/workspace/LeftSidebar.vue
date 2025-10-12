@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import FileExplorer from '../FileExplorer.vue'
+import FileExplorer from '@/components/FileExplorer.vue'
 
 const emit = defineEmits<{
   (e: 'preview-file', filePath: string): void

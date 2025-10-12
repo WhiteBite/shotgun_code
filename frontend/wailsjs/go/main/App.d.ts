@@ -6,6 +6,8 @@ export function AddBudgetPolicy(arg1:domain.BudgetPolicy):Promise<void>;
 
 export function AddGuardrailPolicy(arg1:domain.GuardrailPolicy):Promise<void>;
 
+export function AddRecentProject(arg1:string,arg2:string):Promise<void>;
+
 export function AddRepairRule(arg1:domain.RepairRule):Promise<void>;
 
 export function AnalyzeFile(arg1:string,arg2:string):Promise<domain.StaticAnalysisResult>;
@@ -136,6 +138,8 @@ export function GetProviderInfo():Promise<string>;
 
 export function GetReadyTasks():Promise<Array<domain.Task>>;
 
+export function GetRecentProjects():Promise<string>;
+
 export function GetReport(arg1:string):Promise<string>;
 
 export function GetRichCommitHistory(arg1:string,arg2:string,arg3:number):Promise<Array<domain.CommitWithFiles>>;
@@ -195,6 +199,8 @@ export function RefreshAIModels(arg1:string,arg2:string):Promise<void>;
 export function RemoveBudgetPolicy(arg1:string):Promise<void>;
 
 export function RemoveGuardrailPolicy(arg1:string):Promise<void>;
+
+export function RemoveRecentProject(arg1:string):Promise<void>;
 
 export function RemoveRepairRule(arg1:string):Promise<void>;
 
