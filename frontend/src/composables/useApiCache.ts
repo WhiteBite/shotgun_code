@@ -71,3 +71,8 @@ export function useApiCache<T>(
     data,
     isLoading,
     error,
+    load,
+    invalidate,
+    invalidateAll
+  }
+}

@@ -72,3 +72,9 @@ export function useTheme() {
   }
 
   return {
+    theme: currentTheme,
+    setTheme,
+    cycleTheme,
+    applyTheme
+  }
+}

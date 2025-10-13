@@ -37,7 +37,12 @@ func (f *fakeSettingsRepo) GetUseGitignore() bool           { return true }
 func (f *fakeSettingsRepo) SetUseGitignore(bool)            {}
 func (f *fakeSettingsRepo) GetUseCustomIgnore() bool        { return true }
 func (f *fakeSettingsRepo) SetUseCustomIgnore(bool)         {}
-func (f *fakeSettingsRepo) Save() error                     { return nil }
+func (f *fakeSettingsRepo) GetRecentProjects() []domain.RecentProjectInfo {
+	return nil
+}
+func (f *fakeSettingsRepo) AddRecentProject(path, name string) {}
+func (f *fakeSettingsRepo) RemoveRecentProject(path string)    {}
+func (f *fakeSettingsRepo) Save() error                        { return nil }
 func (f *fakeSettingsRepo) GetSettingsDTO() (domain.SettingsDTO, error) {
 	return domain.SettingsDTO{}, nil
 }

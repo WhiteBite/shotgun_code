@@ -13,7 +13,6 @@ import (
 
 const (
 	maxInMemorySize = 50 * 1024 * 1024 // 50MB
-	maxFileSize     = 5 * 1024 * 1024  // 5 MB limit per file
 )
 
 type ExportService struct {

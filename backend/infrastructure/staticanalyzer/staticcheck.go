@@ -38,8 +38,8 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 	args := []string{"-f", "json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFile != "" {
-		args = append(args, "-conf", config.ConfigFile)
+	if config.ConfigFilePath != "" {
+		args = append(args, "-conf", config.ConfigFilePath)
 	}
 
 	// Добавляем правила если указаны
@@ -76,7 +76,7 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticIssue{},
+		Issues:      []*domain.StaticAnalysisIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -124,7 +124,7 @@ func (a *StaticcheckAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig
 	}
 
 	// Проверяем, что проект содержит Go файлы
-	if !a.hasGoFiles(config.ProjectPath) {
+	if !a.hasGoFilePaths(config.ProjectPath) {
 		return fmt.Errorf("no Go files found in project path")
 	}
 
@@ -140,8 +140,8 @@ func (a *StaticcheckAnalyzer) checkStaticcheckInstalled() error {
 	return nil
 }
 
-// hasGoFiles проверяет, есть ли Go файлы в проекте
-func (a *StaticcheckAnalyzer) hasGoFiles(projectPath string) bool {
+// hasGoFilePaths проверяет, есть ли Go файлы в проекте
+func (a *StaticcheckAnalyzer) hasGoFilePaths(projectPath string) bool {
 	pattern := filepath.Join(projectPath, "**/*.go")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -151,8 +151,8 @@ func (a *StaticcheckAnalyzer) hasGoFiles(projectPath string) bool {
 }
 
 // parseStaticcheckOutput парсит JSON вывод staticcheck
-func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
+func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
+	var issues []*domain.StaticAnalysisIssue
 
 	// staticcheck может выводить несколько JSON объектов, разделенных новой строкой
 	lines := strings.Split(string(output), "\n")
@@ -164,16 +164,16 @@ func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.S
 		}
 
 		var staticcheckIssue struct {
-			Code     string `json:"code"`
+			Rule     string `json:"code"`
 			Severity string `json:"severity"`
 			Location struct {
-				File   string `json:"file"`
-				Line   int    `json:"line"`
-				Column int    `json:"column"`
+				FilePath    string `json:"file"`
+				LineNumber  int    `json:"line"`
+				ColumnStart int    `json:"column"`
 			} `json:"location"`
 			End struct {
-				Line   int `json:"line"`
-				Column int `json:"column"`
+				LineNumber  int `json:"line"`
+				ColumnStart int `json:"column"`
 			} `json:"end"`
 			Message string `json:"message"`
 		}
@@ -186,14 +186,14 @@ func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.S
 		// Конвертируем severity
 		severity := a.convertSeverity(staticcheckIssue.Severity)
 
-		issue := &domain.StaticIssue{
-			File:     staticcheckIssue.Location.File,
-			Line:     staticcheckIssue.Location.Line,
-			Column:   staticcheckIssue.Location.Column,
-			Severity: severity,
-			Message:  staticcheckIssue.Message,
-			Code:     staticcheckIssue.Code,
-			Category: a.getCategory(staticcheckIssue.Code),
+		issue := &domain.StaticAnalysisIssue{
+			FilePath:    staticcheckIssue.Location.FilePath,
+			LineNumber:  staticcheckIssue.Location.LineNumber,
+			ColumnStart: staticcheckIssue.Location.ColumnStart,
+			Severity:    severity,
+			Message:     staticcheckIssue.Message,
+			Rule:        staticcheckIssue.Rule,
+			Category:    a.getCategory(staticcheckIssue.Rule),
 		}
 
 		issues = append(issues, issue)
@@ -231,13 +231,13 @@ func (a *StaticcheckAnalyzer) getCategory(code string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
+func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
+		TotalIssues:         len(issues),
+		SeverityBreakdown:   make(map[string]int),
+		CategoryBreakdown:   make(map[string]int),
+		FilePathsAnalyzed:   0,
+		FilePathsWithIssues: 0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -250,7 +250,7 @@ func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticIssue) *dom
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
+		filesWithIssues[issue.FilePath] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -265,7 +265,7 @@ func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticIssue) *dom
 		}
 	}
 
-	summary.FilesWithIssues = len(filesWithIssues)
+	summary.FilePathsWithIssues = len(filesWithIssues)
 
 	return summary
 }

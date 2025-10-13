@@ -143,7 +143,7 @@ func (c *Container) initializeBoundedContexts() error {
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 
 	// Context Analysis service
-	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+	c.ContextAnalysis = application.NewContextAnalyzer(c.Log, c.AIService)
 
 	// Context Service (Unified service replacing three context services)
 	tokenCounter := &SimpleTokenCounter{}

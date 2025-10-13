@@ -66,6 +66,8 @@ type StaticAnalysisMetrics struct {
 	Duration         time.Duration          `json:"duration"`
 	ToolsUsed        []string               `json:"toolsUsed"`
 	Coverage         StaticAnalysisCoverage `json:"coverage"`
+	CriticalIssues   []*StaticAnalysisIssue `json:"criticalIssues"`
+	Success          bool                   `json:"success"`
 }
 
 // StaticAnalysisCoverage represents static analysis coverage

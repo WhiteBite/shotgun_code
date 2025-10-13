@@ -40,9 +40,43 @@ type MockApplyEngine struct {
 	mock.Mock
 }
 
+func (m *MockApplyEngine) ApplyOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+	args := m.Called(ctx, op)
+	if result := args.Get(0); result != nil {
+		return result.(*domain.ApplyResult), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockApplyEngine) ApplyOperations(ctx context.Context, ops []*domain.ApplyOperation) ([]*domain.ApplyResult, error) {
+	args := m.Called(ctx, ops)
+	if results := args.Get(0); results != nil {
+		return results.([]*domain.ApplyResult), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockApplyEngine) ApplyEdit(ctx context.Context, edit domain.Edit) error {
 	args := m.Called(ctx, edit)
 	return args.Error(0)
+}
+
+func (m *MockApplyEngine) ValidateOperation(ctx context.Context, op *domain.ApplyOperation) error {
+	args := m.Called(ctx, op)
+	return args.Error(0)
+}
+
+func (m *MockApplyEngine) RollbackOperation(ctx context.Context, result *domain.ApplyResult) error {
+	args := m.Called(ctx, result)
+	return args.Error(0)
+}
+
+func (m *MockApplyEngine) RegisterFormatter(language string, formatter domain.Formatter) {
+	m.Called(language, formatter)
+}
+
+func (m *MockApplyEngine) RegisterImportFixer(language string, fixer domain.ImportFixer) {
+	m.Called(language, fixer)
 }
 
 // Mock Formatter for testing
@@ -50,9 +84,25 @@ type MockFormatter struct {
 	mock.Mock
 }
 
-func (m *MockFormatter) FormatFile(filePath string) error {
-	args := m.Called(filePath)
+func (m *MockFormatter) FormatFile(ctx context.Context, path string) error {
+	args := m.Called(ctx, path)
 	return args.Error(0)
+}
+
+func (m *MockFormatter) FormatContent(ctx context.Context, content string, language string) (string, error) {
+	args := m.Called(ctx, content, language)
+	if result := args.Get(0); result != nil {
+		return result.(string), args.Error(1)
+	}
+	return "", args.Error(1)
+}
+
+func (m *MockFormatter) GetSupportedLanguages() []string {
+	args := m.Called()
+	if langs := args.Get(0); langs != nil {
+		return langs.([]string)
+	}
+	return nil
 }
 
 func TestApplyService_NewApplyService(t *testing.T) {
@@ -174,7 +224,7 @@ func TestApplyService_ApplyEdits_FormatError(t *testing.T) {
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
 	mockLogger.On("Warning", mock.AnythingOfType("string")).Return()
 	mockEngine.On("ApplyEdit", mock.Anything, edits[0]).Return(nil)
-	mockFormatter.On("FormatFile", "/test/file.go").Return(errors.New("format failed"))
+	mockFormatter.On("FormatFile", mock.Anything, "/test/file.go").Return(errors.New("format failed"))
 
 	// Execute
 	ctx := context.Background()
@@ -653,5 +703,8 @@ func TestApplyService_ShouldFormat(t *testing.T) {
 	for _, tc := range testCases {
 		result := service.shouldFormat(tc.filePath)
 		assert.Equal(t, tc.shouldFormat, result, "FilePath: %s", tc.filePath)
+	}
+}
+ePath)
 	}
 }

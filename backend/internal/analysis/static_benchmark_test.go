@@ -28,14 +28,14 @@ func (m *mockStaticAnalyzerEngine) AnalyzeProject(ctx context.Context, projectPa
 	for _, lang := range languages {
 		results[lang] = &domain.StaticAnalysisResult{
 			Language: lang,
-			Issues: []domain.StaticAnalysisIssue{
+			Issues: []*domain.StaticIssue{
 				{
-					File:     "test.go",
-					Line:     10,
-					Column:   5,
-					Severity: domain.SeverityMedium,
-					Message:  "Test issue",
-					Code:     "test-code",
+					FilePath:    "test.go",
+					LineNumber:  10,
+					ColumnStart: 5,
+					Severity:    domain.GuardrailSeverityMedium,
+					Message:     "Test issue",
+					Rule:        "test-code",
 				},
 			},
 			Success: true,
@@ -47,14 +47,14 @@ func (m *mockStaticAnalyzerEngine) AnalyzeProject(ctx context.Context, projectPa
 func (m *mockStaticAnalyzerEngine) AnalyzeFile(ctx context.Context, filePath string, config *domain.StaticAnalyzerConfig) (*domain.StaticAnalysisResult, error) {
 	return &domain.StaticAnalysisResult{
 		Language: config.Language,
-		Issues: []domain.StaticAnalysisIssue{
+		Issues: []*domain.StaticIssue{
 			{
-				File:     filePath,
-				Line:     15,
-				Column:   10,
-				Severity: domain.SeverityLow,
-				Message:  "File issue",
-				Code:     "file-code",
+				FilePath:    filePath,
+				LineNumber:  15,
+				ColumnStart: 10,
+				Severity:    domain.GuardrailSeverityLow,
+				Message:     "File issue",
+				Rule:        "file-code",
 			},
 		},
 		Success: true,
@@ -65,12 +65,10 @@ func (m *mockStaticAnalyzerEngine) GenerateReport(results map[string]*domain.Sta
 	return &domain.StaticAnalysisReport{
 		ProjectPath: projectPath,
 		Results:     results,
-		Summary: domain.StaticAnalysisSummary{
+		Summary: &domain.StaticAnalysisReportSummary{
 			TotalIssues:   len(results),
-			CriticalCount: 0,
-			HighCount:     0,
-			MediumCount:   len(results),
-			LowCount:      0,
+			TotalErrors:   0,
+			TotalWarnings: len(results),
 		},
 	}
 }
@@ -95,7 +93,7 @@ type mockStaticAnalyzer struct {
 func (m *mockStaticAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyzerConfig) (*domain.StaticAnalysisResult, error) {
 	return &domain.StaticAnalysisResult{
 		Language: m.language,
-		Issues:   []domain.StaticAnalysisIssue{},
+		Issues:   []*domain.StaticIssue{},
 		Success:  true,
 	}, nil
 }
@@ -104,8 +102,16 @@ func (m *mockStaticAnalyzer) GetAnalyzerType() domain.StaticAnalyzerType {
 	return domain.StaticAnalyzerTypeStaticcheck
 }
 
-func (m *mockStaticAnalyzer) GetName() string {
-	return "MockAnalyzer"
+func (m *mockStaticAnalyzer) GetSupportedLanguages() []string {
+	return []string{m.language}
+}
+
+func (m *mockStaticAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) error {
+	return nil
+}
+
+func (m *mockStaticAnalyzerEngine) RegisterAnalyzer(analyzer domain.StaticAnalyzer) {
+	// No-op for mock
 }
 
 func BenchmarkStaticService_AnalyzeProject(b *testing.B) {
@@ -234,27 +240,27 @@ func BenchmarkStaticService_ValidateAnalysisResults(b *testing.B) {
 	results := map[string]*domain.StaticAnalysisResult{
 		"go": {
 			Language: "go",
-			Issues: []domain.StaticAnalysisIssue{
-				{Severity: domain.SeverityCritical},
-				{Severity: domain.SeverityHigh},
-				{Severity: domain.SeverityMedium},
+			Issues: []*domain.StaticIssue{
+				{Severity: domain.GuardrailSeverityHigh},
+				{Severity: domain.GuardrailSeverityMedium},
+				{Severity: domain.GuardrailSeverityLow},
 			},
 			Success: true,
 		},
 		"javascript": {
 			Language: "javascript",
-			Issues: []domain.StaticAnalysisIssue{
-				{Severity: domain.SeverityLow},
-				{Severity: domain.SeverityMedium},
+			Issues: []*domain.StaticIssue{
+				{Severity: domain.GuardrailSeverityLow},
+				{Severity: domain.GuardrailSeverityMedium},
 			},
 			Success: false,
 		},
 		"python": {
 			Language: "python",
-			Issues: []domain.StaticAnalysisIssue{
-				{Severity: domain.SeverityHigh},
-				{Severity: domain.SeverityMedium},
-				{Severity: domain.SeverityLow},
+			Issues: []*domain.StaticIssue{
+				{Severity: domain.GuardrailSeverityHigh},
+				{Severity: domain.GuardrailSeverityMedium},
+				{Severity: domain.GuardrailSeverityLow},
 			},
 			Success: true,
 		},

@@ -154,7 +154,7 @@ func TestGuardrailsService_ValidatePath_WarningOnly(t *testing.T) {
 		ID:       "warning-test",
 		Name:     "Warning Test Policy",
 		Type:     domain.GuardrailTypeForbiddenPath,
-		Severity: domain.GuardrailSeverityWarn,
+		Severity: domain.GuardrailSeverityMedium,
 		Enabled:  true,
 		Rules: []domain.GuardrailRule{
 			{
@@ -180,7 +180,7 @@ func TestGuardrailsService_ValidatePath_WarningOnly(t *testing.T) {
 	assert.NotEmpty(t, violations)
 	assert.Equal(t, 1, len(violations))
 	assert.Equal(t, "warning-test", violations[0].PolicyID)
-	assert.Equal(t, domain.GuardrailSeverityWarn, violations[0].Severity)
+	assert.Equal(t, domain.GuardrailSeverityMedium, violations[0].Severity)
 
 	mockLogger.AssertExpectations(t)
 }
@@ -334,7 +334,7 @@ func TestGuardrailsService_ValidateTask_PathViolation(t *testing.T) {
 		ID:       "forbidden-test",
 		Name:     "Forbidden Test Policy",
 		Type:     domain.GuardrailTypeForbiddenPath,
-		Severity: domain.GuardrailSeverityWarn,
+		Severity: domain.GuardrailSeverityMedium,
 		Enabled:  true,
 		Rules: []domain.GuardrailRule{
 			{
@@ -408,7 +408,7 @@ func TestGuardrailsService_EnableEphemeralMode(t *testing.T) {
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Execute
-	service.EnableEphemeralMode()
+	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
 
 	// Assert
 	assert.True(t, service.ephemeralMode)
@@ -422,7 +422,7 @@ func TestGuardrailsService_DisableEphemeralMode(t *testing.T) {
 	mockTaskflow := new(MockTaskflowService)
 
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
-	service.EnableEphemeralMode()
+	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
 
 	// Execute
 	service.disableEphemeralMode()
@@ -442,7 +442,7 @@ func TestGuardrailsService_IsEphemeralExpired(t *testing.T) {
 	assert.False(t, service.isEphemeralExpired())
 
 	// Enable ephemeral mode
-	service.EnableEphemeralMode()
+	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
 	assert.False(t, service.isEphemeralExpired())
 
 	// Manually set expiration time to past
@@ -501,7 +501,7 @@ func TestGuardrailsService_AddBudget(t *testing.T) {
 	}
 
 	// Execute
-	service.AddBudget(budget)
+	service.AddBudgetPolicy(budget)
 
 	// Assert
 	service.mu.RLock()
@@ -547,7 +547,7 @@ func TestGuardrailsService_SetConfig(t *testing.T) {
 	}
 
 	// Execute
-	service.SetConfig(newConfig)
+	service.UpdateConfig(newConfig)
 
 	// Assert
 	config := service.GetConfig()

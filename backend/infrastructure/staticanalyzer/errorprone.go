@@ -38,7 +38,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 			ProjectPath: config.ProjectPath,
 			Analyzer:    config.Analyzer,
 			Duration:    time.Since(startTime).Seconds(),
-			Issues:      []*domain.StaticIssue{},
+			Issues:      []*domain.StaticAnalysisIssue{},
 			Summary:     &domain.StaticAnalysisSummary{},
 			Error:       fmt.Sprintf("Java environment not available: %v", err),
 		}, nil
@@ -48,8 +48,8 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 	args := []string{"-Xplugin:ErrorProne"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFile != "" {
-		args = append(args, "-XepPatchChecks:"+config.ConfigFile)
+	if config.ConfigFilePath != "" {
+		args = append(args, "-XepPatchChecks:"+config.ConfigFilePath)
 	}
 
 	// Добавляем правила если указаны
@@ -87,7 +87,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticIssue{},
+		Issues:      []*domain.StaticAnalysisIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -135,7 +135,7 @@ func (a *ErrorProneAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig)
 	}
 
 	// Проверяем, что проект содержит Java файлы
-	if !a.hasJavaFiles(config.ProjectPath) {
+	if !a.hasJavaFilePaths(config.ProjectPath) {
 		return fmt.Errorf("no Java files found in project path")
 	}
 
@@ -159,8 +159,8 @@ func (a *ErrorProneAnalyzer) checkJavaEnvironment() error {
 	return nil
 }
 
-// hasJavaFiles проверяет, есть ли Java файлы в проекте
-func (a *ErrorProneAnalyzer) hasJavaFiles(projectPath string) bool {
+// hasJavaFilePaths проверяет, есть ли Java файлы в проекте
+func (a *ErrorProneAnalyzer) hasJavaFilePaths(projectPath string) bool {
 	patterns := []string{
 		filepath.Join(projectPath, "**/*.java"),
 		filepath.Join(projectPath, "src/**/*.java"),
@@ -177,8 +177,8 @@ func (a *ErrorProneAnalyzer) hasJavaFiles(projectPath string) bool {
 }
 
 // parseErrorProneOutput парсит вывод ErrorProne
-func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
+func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
+	var issues []*domain.StaticAnalysisIssue
 
 	// ErrorProne выводит ошибки в формате:
 	// filename:line:column: [error] message
@@ -224,14 +224,14 @@ func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.Sta
 			severity = "error"
 		}
 
-		issue := &domain.StaticIssue{
-			File:     file,
-			Line:     lineNum,
-			Column:   columnNum,
-			Severity: severity,
-			Message:  message,
-			Code:     "errorprone",
-			Category: a.getCategory(message),
+		issue := &domain.StaticAnalysisIssue{
+			FilePath:    file,
+			LineNumber:  lineNum,
+			ColumnStart: columnNum,
+			Severity:    severity,
+			Message:     message,
+			Rule:        "errorprone",
+			Category:    a.getCategory(message),
 		}
 
 		issues = append(issues, issue)
@@ -259,13 +259,13 @@ func (a *ErrorProneAnalyzer) getCategory(message string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
+func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
+		TotalIssues:         len(issues),
+		SeverityBreakdown:   make(map[string]int),
+		CategoryBreakdown:   make(map[string]int),
+		FilePathsAnalyzed:   0,
+		FilePathsWithIssues: 0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -278,7 +278,7 @@ func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticIssue) *doma
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
+		filesWithIssues[issue.FilePath] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -293,7 +293,7 @@ func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticIssue) *doma
 		}
 	}
 
-	summary.FilesWithIssues = len(filesWithIssues)
+	summary.FilePathsWithIssues = len(filesWithIssues)
 
 	return summary
 }

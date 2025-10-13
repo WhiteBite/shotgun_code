@@ -90,7 +90,7 @@ func BenchmarkApplyService_ApplyEdits_Medium(b *testing.B) {
 			Type:       domain.EditTypeReplace,
 			OldContent: "old content " + string(rune(i+'0')),
 			NewContent: "new content " + string(rune(i+'0')),
-			Position:   int64(i * 10),
+			Position:   int(i * 10),
 		}
 	}
 

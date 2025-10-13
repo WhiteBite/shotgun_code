@@ -516,25 +516,3 @@ func TestErrorAnalyzerAndCorrectionEngine_Integration(t *testing.T) {
 
 	t.Logf("Integration test completed: error analyzed, corrections suggested, and applied")
 }
-
-// Enhanced MockFileSystemProvider with configurable behavior
-type MockFileSystemProvider struct {
-	readFileContent string
-	writeError      error
-	mkdirError      error
-}
-
-func (m *MockFileSystemProvider) ReadFile(filename string) ([]byte, error) {
-	if m.readFileContent != "" {
-		return []byte(m.readFileContent), nil
-	}
-	return []byte("mock content"), nil
-}
-
-func (m *MockFileSystemProvider) WriteFile(filename string, data []byte, perm int) error {
-	return m.writeError
-}
-
-func (m *MockFileSystemProvider) MkdirAll(path string, perm int) error {
-	return m.mkdirError
-}

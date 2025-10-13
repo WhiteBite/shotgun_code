@@ -12,3 +12,5 @@ declare module 'vue' {
     CommandPalette: typeof CommandPalette
     KeyboardShortcutsModal: typeof KeyboardShortcutsModal
     ThemeToggle: typeof ThemeToggle
+  }
+}

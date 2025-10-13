@@ -9,7 +9,7 @@ import (
 
 func TestSuggestFiles_EmptyTask(t *testing.T) {
 	service := NewAnalysisService()
-	files := []domain.FileNode{
+	files := []*domain.FileNode{
 		{Name: "main.go", Path: "/project/main.go", IsDir: false},
 	}
 
@@ -21,14 +21,14 @@ func TestSuggestFiles_EmptyTask(t *testing.T) {
 func TestSuggestFiles_NoFiles(t *testing.T) {
 	service := NewAnalysisService()
 
-	result := service.SuggestFiles("fix auth bug", []domain.FileNode{})
+	result := service.SuggestFiles("fix auth bug", []*domain.FileNode{})
 
 	assert.Empty(t, result, "Should return empty when no files provided")
 }
 
 func TestSuggestFiles_MatchingFiles(t *testing.T) {
 	service := NewAnalysisService()
-	files := []domain.FileNode{
+	files := []*domain.FileNode{
 		{Name: "auth.go", Path: "/project/auth.go", IsDir: false},
 		{Name: "auth_test.go", Path: "/project/auth_test.go", IsDir: false},
 		{Name: "user.go", Path: "/project/user.go", IsDir: false},
@@ -53,7 +53,7 @@ func TestSuggestFiles_MatchingFiles(t *testing.T) {
 
 func TestSuggestFiles_IgnoresDirectories(t *testing.T) {
 	service := NewAnalysisService()
-	files := []domain.FileNode{
+	files := []*domain.FileNode{
 		{Name: "auth", Path: "/project/auth", IsDir: true},
 		{Name: "auth.go", Path: "/project/auth.go", IsDir: false},
 	}
@@ -67,12 +67,12 @@ func TestSuggestFiles_IgnoresDirectories(t *testing.T) {
 
 func TestSuggestFiles_WithNestedFiles(t *testing.T) {
 	service := NewAnalysisService()
-	files := []domain.FileNode{
+	files := []*domain.FileNode{
 		{
 			Name:  "src",
 			Path:  "/project/src",
 			IsDir: true,
-			Children: []domain.FileNode{
+			Children: []*domain.FileNode{
 				{Name: "auth.go", Path: "/project/src/auth.go", IsDir: false},
 				{Name: "user.go", Path: "/project/src/user.go", IsDir: false},
 			},

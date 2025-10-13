@@ -43,3 +43,4 @@ export function useKeyboard(shortcuts: Record<KeyboardShortcut, ShortcutHandler>
   return {
     // Could expose methods to add/remove shortcuts dynamically if needed
   }
+}

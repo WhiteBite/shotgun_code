@@ -25,9 +25,6 @@ type GuardrailType string
 
 const (
 	GuardrailTypeForbiddenPath GuardrailType = "forbidden_path"
-	GuardrailTypeBudget        GuardrailType = "budget"
-	GuardrailTypeSecurity      GuardrailType = "security"
-	GuardrailTypeQuality       GuardrailType = "quality"
 )
 
 // GuardrailSeverity уровень серьезности
@@ -36,7 +33,6 @@ type GuardrailSeverity string
 const (
 	GuardrailSeverityLow    GuardrailSeverity = "low"
 	GuardrailSeverityMedium GuardrailSeverity = "medium"
-	GuardrailSeverityHigh   GuardrailSeverity = "high"
 	GuardrailSeverityBlock  GuardrailSeverity = "block"
 )
 
@@ -53,9 +49,7 @@ type GuardrailRule struct {
 type GuardrailAction string
 
 const (
-	GuardrailActionWarn  GuardrailAction = "warn"
 	GuardrailActionBlock GuardrailAction = "block"
-	GuardrailActionLog   GuardrailAction = "log"
 )
 
 // BudgetPolicy определяет бюджетные ограничения
@@ -74,26 +68,16 @@ type BudgetPolicy struct {
 type BudgetType string
 
 const (
-	BudgetTypeFiles     BudgetType = "files"
-	BudgetTypeLines     BudgetType = "lines"
-	BudgetTypeTokens    BudgetType = "tokens"
-	BudgetTypeTime      BudgetType = "time"
-	BudgetTypeMemory    BudgetType = "memory"
-	BudgetTypeAPICalls  BudgetType = "api_calls"
-	BudgetTypeDiskSpace BudgetType = "disk_space"
+	BudgetTypeFiles  BudgetType = "files"
+	BudgetTypeLines  BudgetType = "lines"
+	BudgetTypeTokens BudgetType = "tokens"
 )
 
 // BudgetUnit единица измерения бюджета
 type BudgetUnit string
 
 const (
-	BudgetUnitCount   BudgetUnit = "count"
-	BudgetUnitBytes   BudgetUnit = "bytes"
-	BudgetUnitSeconds BudgetUnit = "seconds"
-	BudgetUnitMinutes BudgetUnit = "minutes"
-	BudgetUnitHours   BudgetUnit = "hours"
-	BudgetUnitMB      BudgetUnit = "mb"
-	BudgetUnitGB      BudgetUnit = "gb"
+	BudgetUnitCount BudgetUnit = "count"
 )
 
 // GuardrailViolation нарушение guardrail

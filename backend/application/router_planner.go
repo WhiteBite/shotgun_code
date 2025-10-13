@@ -74,7 +74,6 @@ const (
 	StepStatusRunning   TaskPipelineStepStatus = "running"
 	StepStatusCompleted TaskPipelineStepStatus = "completed"
 	StepStatusFailed    TaskPipelineStepStatus = "failed"
-	StepStatusSkipped   TaskPipelineStepStatus = "skipped"
 )
 
 // TaskPipelineStepResult содержит результат выполнения шага

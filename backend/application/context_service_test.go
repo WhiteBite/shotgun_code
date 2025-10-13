@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,7 +178,7 @@ func TestDeleteContext(t *testing.T) {
 	assert.Equal(t, 1, service.GetContextCount())
 
 	// Test
-	err = service.DeleteContext(summary.ID)
+	err = service.DeleteContext(context.Background(), summary.ID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -191,7 +192,7 @@ func TestDeleteContext(t *testing.T) {
 func TestDeleteContext_NotFound(t *testing.T) {
 	service := NewContextService()
 
-	err := service.DeleteContext("nonexistent-id")
+	err := service.DeleteContext(context.Background(), "nonexistent-id")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")

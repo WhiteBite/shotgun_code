@@ -38,8 +38,8 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 	args := []string{"--format", "json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFile != "" {
-		args = append(args, "--config", config.ConfigFile)
+	if config.ConfigFilePath != "" {
+		args = append(args, "--config", config.ConfigFilePath)
 	}
 
 	// Добавляем правила если указаны
@@ -77,7 +77,7 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticIssue{},
+		Issues:      []*domain.StaticAnalysisIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -134,7 +134,7 @@ func (a *ESLintAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) err
 	}
 
 	// Проверяем, что проект содержит TypeScript/JavaScript файлы
-	if !a.hasTypeScriptFiles(config.ProjectPath) {
+	if !a.hasTypeScriptFilePaths(config.ProjectPath) {
 		return fmt.Errorf("no TypeScript/JavaScript files found in project path")
 	}
 
@@ -150,8 +150,8 @@ func (a *ESLintAnalyzer) checkESLintInstalled() error {
 	return nil
 }
 
-// hasTypeScriptFiles проверяет, есть ли TypeScript/JavaScript файлы в проекте
-func (a *ESLintAnalyzer) hasTypeScriptFiles(projectPath string) bool {
+// hasTypeScriptFilePaths проверяет, есть ли TypeScript/JavaScript файлы в проекте
+func (a *ESLintAnalyzer) hasTypeScriptFilePaths(projectPath string) bool {
 	patterns := []string{
 		filepath.Join(projectPath, "**/*.ts"),
 		filepath.Join(projectPath, "**/*.tsx"),
@@ -169,20 +169,20 @@ func (a *ESLintAnalyzer) hasTypeScriptFiles(projectPath string) bool {
 }
 
 // parseESLintOutput парсит JSON вывод ESLint
-func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue, error) {
+func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
 	var eslintResults []struct {
-		FilePath string `json:"filePath"`
-		Messages []struct {
-			RuleId    string `json:"ruleId"`
-			Severity  int    `json:"severity"`
-			Message   string `json:"message"`
-			Line      int    `json:"line"`
-			Column    int    `json:"column"`
-			NodeType  string `json:"nodeType,omitempty"`
-			MessageId string `json:"messageId,omitempty"`
-			EndLine   int    `json:"endLine,omitempty"`
-			EndColumn int    `json:"endColumn,omitempty"`
-			Fix       struct {
+		FilePathPath string `json:"filePath"`
+		Messages     []struct {
+			RuleId         string `json:"ruleId"`
+			Severity       int    `json:"severity"`
+			Message        string `json:"message"`
+			LineNumber     int    `json:"line"`
+			ColumnStart    int    `json:"column"`
+			NodeType       string `json:"nodeType,omitempty"`
+			MessageId      string `json:"messageId,omitempty"`
+			EndLineNumber  int    `json:"endLineNumber,omitempty"`
+			EndColumnStart int    `json:"endColumnStart,omitempty"`
+			Fix            struct {
 				Range []int  `json:"range"`
 				Text  string `json:"text"`
 			} `json:"fix,omitempty"`
@@ -197,26 +197,26 @@ func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue
 		return nil, fmt.Errorf("failed to unmarshal ESLint output: %w", err)
 	}
 
-	var issues []*domain.StaticIssue
+	var issues []*domain.StaticAnalysisIssue
 
 	for _, result := range eslintResults {
 		for _, message := range result.Messages {
 			// Конвертируем severity
 			severity := a.convertSeverity(message.Severity)
 
-			issue := &domain.StaticIssue{
-				File:     result.FilePath,
-				Line:     message.Line,
-				Column:   message.Column,
-				Severity: severity,
-				Message:  message.Message,
-				Code:     message.RuleId,
-				Category: a.getCategory(message.RuleId),
+			issue := &domain.StaticAnalysisIssue{
+				FilePath:    result.FilePathPath,
+				LineNumber:  message.LineNumber,
+				ColumnStart: message.ColumnStart,
+				Severity:    severity,
+				Message:     message.Message,
+				Rule:        message.RuleId,
+				Category:    a.getCategory(message.RuleId),
 			}
 
 			// Добавляем предложения по исправлению если есть
 			if message.Fix.Text != "" {
-				issue.Suggestions = []string{message.Fix.Text}
+				issue.Suggestion = message.Fix.Text
 			}
 
 			issues = append(issues, issue)
@@ -257,13 +257,13 @@ func (a *ESLintAnalyzer) getCategory(ruleId string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
+func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
+		TotalIssues:         len(issues),
+		SeverityBreakdown:   make(map[string]int),
+		CategoryBreakdown:   make(map[string]int),
+		FilePathsAnalyzed:   0,
+		FilePathsWithIssues: 0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -276,7 +276,7 @@ func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.S
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
+		filesWithIssues[issue.FilePath] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -291,7 +291,7 @@ func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.S
 		}
 	}
 
-	summary.FilesWithIssues = len(filesWithIssues)
+	summary.FilePathsWithIssues = len(filesWithIssues)
 
 	return summary
 }

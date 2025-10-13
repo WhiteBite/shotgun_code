@@ -38,7 +38,7 @@ func (a *ClangTidyAnalyzer) Analyze(ctx context.Context, config *domain.StaticAn
 			ProjectPath: config.ProjectPath,
 			Analyzer:    config.Analyzer,
 			Duration:    time.Since(startTime).Seconds(),
-			Issues:      []*domain.StaticIssue{},
+			Issues:      []*domain.StaticAnalysisIssue{},
 			Summary:     &domain.StaticAnalysisSummary{},
 			Error:       fmt.Sprintf("ClangTidy not available: %v", err),
 		}, nil
@@ -48,8 +48,8 @@ func (a *ClangTidyAnalyzer) Analyze(ctx context.Context, config *domain.StaticAn
 	args := []string{"--format-style=json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFile != "" {
-		args = append(args, "--config-file="+config.ConfigFile)
+	if config.ConfigFilePath != "" {
+		args = append(args, "--config-file="+config.ConfigFilePath)
 	}
 
 	// Добавляем правила если указаны
@@ -86,7 +86,7 @@ func (a *ClangTidyAnalyzer) Analyze(ctx context.Context, config *domain.StaticAn
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticIssue{},
+		Issues:      []*domain.StaticAnalysisIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -143,7 +143,7 @@ func (a *ClangTidyAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) 
 	}
 
 	// Проверяем, что проект содержит C/C++ файлы
-	if !a.hasCppFiles(config.ProjectPath) {
+	if !a.hasCppFilePaths(config.ProjectPath) {
 		return fmt.Errorf("no C/C++ files found in project path")
 	}
 
@@ -159,8 +159,8 @@ func (a *ClangTidyAnalyzer) checkClangTidyInstalled() error {
 	return nil
 }
 
-// hasCppFiles проверяет, есть ли C/C++ файлы в проекте
-func (a *ClangTidyAnalyzer) hasCppFiles(projectPath string) bool {
+// hasCppFilePaths проверяет, есть ли C/C++ файлы в проекте
+func (a *ClangTidyAnalyzer) hasCppFilePaths(projectPath string) bool {
 	patterns := []string{
 		filepath.Join(projectPath, "**/*.c"),
 		filepath.Join(projectPath, "**/*.cpp"),
@@ -182,11 +182,11 @@ func (a *ClangTidyAnalyzer) hasCppFiles(projectPath string) bool {
 }
 
 // parseClangTidyOutput парсит JSON вывод ClangTidy
-func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
+func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
+	var issues []*domain.StaticAnalysisIssue
 
 	// ClangTidy выводит JSON в формате:
-	// [{"DiagnosticName": "clang-diagnostic-unused-variable", "DiagnosticMessage": {"Message": "unused variable 'x'", "FileOffset": 123, "FilePath": "test.cpp", "FileLine": 5, "FileColumn": 9}}]
+	// [{"DiagnosticName": "clang-diagnostic-unused-variable", "DiagnosticMessage": {"Message": "unused variable 'x'", "FilePathOffset": 123, "FilePathPath": "test.cpp", "FilePathLineNumber": 5, "FilePathColumnStart": 9}}]
 
 	// Простой парсинг JSON (в реальной реализации нужно использовать encoding/json)
 	outputStr := string(output)
@@ -223,7 +223,7 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 		message := line[messageStart : messageStart+messageEnd]
 
 		// Извлекаем файл
-		fileStart := strings.Index(line, "\"FilePath\": \"")
+		fileStart := strings.Index(line, "\"FilePathPath\": \"")
 		if fileStart == -1 {
 			continue
 		}
@@ -235,7 +235,7 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 		filePath := line[fileStart : fileStart+fileEnd]
 
 		// Извлекаем строку
-		lineStart := strings.Index(line, "\"FileLine\": ")
+		lineStart := strings.Index(line, "\"FilePathLineNumber\": ")
 		if lineStart == -1 {
 			continue
 		}
@@ -248,7 +248,7 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 		fmt.Sscanf(line[lineStart:lineStart+lineEnd], "%d", &lineNum)
 
 		// Извлекаем колонку
-		columnStart := strings.Index(line, "\"FileColumn\": ")
+		columnStart := strings.Index(line, "\"FilePathColumnStart\": ")
 		if columnStart == -1 {
 			continue
 		}
@@ -266,14 +266,14 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 			severity = "error"
 		}
 
-		issue := &domain.StaticIssue{
-			File:     filePath,
-			Line:     lineNum,
-			Column:   columnNum,
-			Severity: severity,
-			Message:  message,
-			Code:     diagnosticName,
-			Category: a.getCategory(diagnosticName),
+		issue := &domain.StaticAnalysisIssue{
+			FilePath:    filePath,
+			LineNumber:  lineNum,
+			ColumnStart: columnNum,
+			Severity:    severity,
+			Message:     message,
+			Rule:        diagnosticName,
+			Category:    a.getCategory(diagnosticName),
 		}
 
 		issues = append(issues, issue)
@@ -303,13 +303,13 @@ func (a *ClangTidyAnalyzer) getCategory(diagnosticName string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *ClangTidyAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
+func (a *ClangTidyAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
+		TotalIssues:         len(issues),
+		SeverityBreakdown:   make(map[string]int),
+		CategoryBreakdown:   make(map[string]int),
+		FilePathsAnalyzed:   0,
+		FilePathsWithIssues: 0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -322,7 +322,7 @@ func (a *ClangTidyAnalyzer) generateSummary(issues []*domain.StaticIssue) *domai
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
+		filesWithIssues[issue.FilePath] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -337,7 +337,7 @@ func (a *ClangTidyAnalyzer) generateSummary(issues []*domain.StaticIssue) *domai
 		}
 	}
 
-	summary.FilesWithIssues = len(filesWithIssues)
+	summary.FilePathsWithIssues = len(filesWithIssues)
 
 	return summary
 }

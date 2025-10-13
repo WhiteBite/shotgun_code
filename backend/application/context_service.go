@@ -1,10 +1,16 @@
 package application
 
 import (
+	"bufio"
 	"context"
-	"errors"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"shotgun_code/domain"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -141,9 +147,13 @@ func (s *ContextService) BuildContext(filePaths []string) (*domain.ContextSummar
 	s.mu.Unlock()
 
 	summary := &domain.ContextSummaryInfo{
-		FileCount: len(filePaths),
-		TotalSize: int64(totalSize),
-		LineCount: totalLines,
+		ID:          contextId,
+		FileCount:   len(filePaths),
+		TotalFiles:  len(filePaths),
+		TotalSize:   int64(totalSize),
+		TotalLines:  totalLines,
+		LineCount:   totalLines,
+		TotalChunks: (totalLines + DefaultChunkSize - 1) / DefaultChunkSize,
 	}
 
 	return summary, nil

@@ -232,3 +232,29 @@ func (ca *ContextAnalyzerImpl) calculateConfidence(analysis *domain.TaskAnalysis
 	}
 	return 0.5
 }
+
+// SuggestFiles implements the domain.ContextAnalyzer interface
+func (ca *ContextAnalyzerImpl) SuggestFiles(ctx context.Context, task string, allFiles []*domain.FileNode) ([]string, error) {
+	ca.logger.Info(fmt.Sprintf("Starting file suggestion for task: %s", task))
+
+	// 1. Analyze task and determine type
+	taskAnalysis, err := ca.analyzeTaskType(ctx, task)
+	if err != nil {
+		return nil, fmt.Errorf("task type analysis error: %w", err)
+	}
+
+	// 2. Determine priority files based on analysis
+	priorityFiles, err := ca.determinePriorityFiles(ctx, task, taskAnalysis, allFiles)
+	if err != nil {
+		return nil, fmt.Errorf("priority files determination error: %w", err)
+	}
+
+	// 3. Convert to a list of strings
+	var filePaths []string
+	for _, file := range priorityFiles {
+		filePaths = append(filePaths, file.RelPath)
+	}
+
+	ca.logger.Info(fmt.Sprintf("Suggested %d files for the task", len(filePaths)))
+	return filePaths, nil
+}

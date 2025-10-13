@@ -86,3 +86,7 @@ export function useResizablePanel(options: ResizablePanelOptions) {
   return {
     panelRef,
     width,
+    isResizing,
+    onMouseDown
+  }
+}

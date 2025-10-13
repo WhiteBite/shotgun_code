@@ -33,3 +33,5 @@ export function usePerformanceMonitor(componentName: string) {
 
   return {
     renderTime
+  }
+}

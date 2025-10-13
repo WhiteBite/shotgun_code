@@ -150,7 +150,7 @@ func TestService_ListReports(t *testing.T) {
 
 	// Create test reports
 	ctx := context.Background()
-	_, err := service.CreateReport(ctx, "task-1", "type-a", "Report 1", "Summary 1", "Content 1")
+	_, err = service.CreateReport(ctx, "task-1", "type-a", "Report 1", "Summary 1", "Content 1")
 	assert.NoError(t, err)
 
 	_, err = service.CreateReport(ctx, "task-2", "type-a", "Report 2", "Summary 2", "Content 2")
@@ -272,7 +272,7 @@ func TestService_DeleteReport_NotFound(t *testing.T) {
 
 	// Execute
 	ctx := context.Background()
-	err := service.DeleteReport(ctx, "non-existent-id")
+	err = service.DeleteReport(ctx, "non-existent-id")
 
 	// Assert
 	assert.Error(t, err)

@@ -40,10 +40,14 @@ type CommitWithFiles struct {
 type TokenCounter func(text string) int
 
 type ContextSummaryInfo struct {
+	ID            string
 	FileCount     int
+	TotalFiles    int
 	TotalSize     int64
+	TotalLines    int
 	TokenCount    int
 	LineCount     int
+	TotalChunks   int
 	LanguageStats map[string]int
 	LastModified  time.Time
 	GitRepo       bool
@@ -171,6 +175,29 @@ type ContextChunk struct {
 	HasMore   bool     `json:"hasMore"`
 	ChunkID   string   `json:"chunkId"`
 	ContextID string   `json:"contextId"`
+}
+
+// ContextStream represents a streaming context for large projects
+// This allows working with contexts that are too large to fit in memory
+type ContextStream struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Files       []string `json:"files"`
+	ProjectPath string   `json:"projectPath"`
+	TotalLines  int64    `json:"totalLines"`
+	TotalChars  int64    `json:"totalChars"`
+	CreatedAt   string   `json:"createdAt"`
+	UpdatedAt   string   `json:"updatedAt"`
+	TokenCount  int      `json:"tokenCount"`
+}
+
+// ContextLineRange represents a range of lines from a context
+// This allows retrieving specific line ranges without loading the entire context
+type ContextLineRange struct {
+	StartLine int64    `json:"startLine"`
+	EndLine   int64    `json:"endLine"`
+	Lines     []string `json:"lines"`
 }
 
 // SuggestedFile represents a file suggested by the AI analyzer
