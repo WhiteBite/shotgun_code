@@ -505,7 +505,16 @@ func (a *App) ListAvailableModels() ([]string, error) {
 }
 
 func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]string, error) {
-	return a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
+	if a.contextAnalysis == nil {
+		return nil, a.transformError(domain.NewConfigurationError("context analysis service not available", nil))
+	}
+
+	files, err := a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
+	if err != nil {
+		return nil, a.transformError(err)
+	}
+
+	return files, nil
 }
 
 // AnalyzeTaskAndCollectContext анализирует задачу и собирает релевантный контекст
@@ -517,7 +526,11 @@ func (a *App) AnalyzeTaskAndCollectContext(task string, allFilesJson string, roo
 		})
 	}
 
-	result, err := a.contextService.AnalyzeTaskAndCollectContext(a.ctx, task, allFiles, rootDir)
+	if a.contextAnalysis == nil {
+		return "", a.transformError(domain.NewConfigurationError("context analysis service not available", nil))
+	}
+
+	result, err := a.contextAnalysis.AnalyzeTaskAndCollectContext(a.ctx, task, allFiles, rootDir)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -825,22 +838,35 @@ func (a *App) GetReport(reportId string) (string, error) {
 // CRITICAL OOM FIX: BuildContext now returns ContextSummary instead of full context
 // This prevents OOM issues by not storing large text content in memory
 func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJson string) (string, error) {
+	if a.contextBuilder == nil {
+		return "", a.transformError(domain.NewConfigurationError("context builder not available", nil))
+	}
+
 	var options domain.ContextBuildOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
-		validationErr := domain.NewValidationError("failed to parse options JSON", map[string]interface{}{
-			"originalError": err.Error(),
-			"optionsJson":   optionsJson,
+	if strings.TrimSpace(optionsJson) != "" {
+		if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+			validationErr := domain.NewValidationError("failed to parse options JSON", map[string]interface{}{
+				"originalError": err.Error(),
+				"optionsJson":   optionsJson,
+			})
+			return "", a.transformError(validationErr)
+		}
+	}
+
+	if len(includedPaths) == 0 {
+		validationErr := domain.NewValidationError("no files provided for context build", map[string]interface{}{
+			"projectPath":   projectPath,
+			"includedPaths": includedPaths,
 		})
 		return "", a.transformError(validationErr)
 	}
 
-	// Use new memory-safe BuildContext that returns ContextSummary
-	contextSummary, err := a.contextService.BuildContext(includedPaths)
+	summary, err := a.contextBuilder.BuildContext(a.ctx, projectPath, includedPaths, &options)
 	if err != nil {
 		return "", a.transformError(err)
 	}
 
-	contextJson, err := json.Marshal(contextSummary)
+	contextJson, err := json.Marshal(summary)
 	if err != nil {
 		marshalErr := domain.NewInternalError("failed to marshal context summary", err)
 		return "", a.transformError(marshalErr)
@@ -852,7 +878,15 @@ func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJs
 // GetContextContent returns paginated context content for memory-safe viewing
 // This allows accessing context content without loading it all into memory
 func (a *App) GetContextContent(contextID string, startLine int, lineCount int) (string, error) {
-	chunk, err := a.contextService.GetContextContent(a.ctx, contextID, startLine, lineCount)
+	if a.contextRepository == nil {
+		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	}
+
+	if lineCount <= 0 {
+		lineCount = 1000
+	}
+
+	chunk, err := a.contextRepository.ReadContextChunk(a.ctx, contextID, startLine, lineCount)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -867,134 +901,130 @@ func (a *App) GetContextContent(contextID string, startLine int, lineCount int) 
 }
 
 // Legacy BuildContextLegacy for backward compatibility - DEPRECATED
-// This method should be avoided as it can cause OOM issues with large contexts
+// The disk-based context architecture replaces this functionality
 func (a *App) BuildContextLegacy(projectPath string, includedPaths []string, optionsJson string) (string, error) {
-	var options domain.ContextBuildOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
-		validationErr := domain.NewValidationError("failed to parse options JSON", map[string]interface{}{
-			"originalError": err.Error(),
-			"optionsJson":   optionsJson,
-		})
-		return "", a.transformError(validationErr)
-	}
-
-	// Use legacy method that returns full context (can cause OOM)
-	context, err := a.contextService.BuildContextLegacy(a.ctx, projectPath, includedPaths, options)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	contextJson, err := json.Marshal(context)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal context", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(contextJson), nil
+	return "", a.transformError(domain.NewConfigurationError("legacy context building is no longer supported", nil))
 }
 
-// GetContext получает контекст по ID
+// GetContext retrieves context metadata by ID without loading full content into memory
 func (a *App) GetContext(contextID string) (string, error) {
-	context, err := a.contextService.GetContext(a.ctx, contextID)
+	if a.contextRepository == nil {
+		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	}
+
+	summary, err := a.contextRepository.GetContextSummary(a.ctx, contextID)
 	if err != nil {
 		return "", a.transformError(err)
 	}
 
-	contextJson, err := json.Marshal(context)
+	contextJson, err := json.Marshal(summary)
 	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal context", err)
+		marshalErr := domain.NewInternalError("failed to marshal context summary", err)
 		return "", a.transformError(marshalErr)
 	}
 
 	return string(contextJson), nil
 }
 
-// GetProjectContexts получает все контексты для проекта
+// GetProjectContexts lists all stored context summaries for a project path
 func (a *App) GetProjectContexts(projectPath string) (string, error) {
-	contexts, err := a.contextService.GetProjectContexts(a.ctx, projectPath)
+	if a.contextRepository == nil {
+		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	}
+
+	summaries, err := a.contextRepository.GetProjectContextSummaries(a.ctx, projectPath)
 	if err != nil {
 		return "", a.transformError(err)
 	}
 
-	contextsJson, err := json.Marshal(contexts)
+	contextsJson, err := json.Marshal(summaries)
 	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal contexts", err)
+		marshalErr := domain.NewInternalError("failed to marshal context summaries", err)
 		return "", a.transformError(marshalErr)
 	}
 
 	return string(contextsJson), nil
 }
 
-// DeleteContext удаляет контекст по ID
+// DeleteContext removes context metadata and associated content from disk
 func (a *App) DeleteContext(contextID string) error {
-	return a.contextService.DeleteContext(a.ctx, contextID)
+	if a.contextRepository == nil {
+		return a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	}
+
+	if err := a.contextRepository.DeleteContext(a.ctx, contextID); err != nil {
+		return a.transformError(err)
+	}
+
+	return nil
 }
 
-// BuildContextFromRequest builds context with proper JSON handling and returns ContextSummary to prevent OOM
-func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummaryInfo, error) {
-	return a.contextService.BuildContext(includedPaths)
+// BuildContextFromRequest builds context using provided options and returns ContextSummary
+func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummary, error) {
+	if a.contextBuilder == nil {
+		return nil, a.transformError(domain.NewConfigurationError("context builder not available", nil))
+	}
+
+	if len(includedPaths) == 0 {
+		return nil, a.transformError(domain.NewValidationError("no files provided for context build", map[string]interface{}{
+			"projectPath":   projectPath,
+			"includedPaths": includedPaths,
+		}))
+	}
+
+	if options == nil {
+		options = &domain.ContextBuildOptions{}
+	}
+
+	summary, err := a.contextBuilder.BuildContext(a.ctx, projectPath, includedPaths, options)
+	if err != nil {
+		return nil, a.transformError(err)
+	}
+
+	return summary, nil
 }
 
-// GetContextLines retrieves a range of lines from a streaming context
+// GetContextLines returns a chunk of context content between startLine and endLine inclusive
 func (a *App) GetContextLines(contextID string, startLine, endLine int64) (string, error) {
-	lines, err := a.contextService.GetContextLines(a.ctx, contextID, startLine, endLine)
+	if a.contextRepository == nil {
+		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	}
+
+	if endLine < startLine {
+		return "", a.transformError(domain.NewValidationError("invalid line range", map[string]interface{}{
+			"startLine": startLine,
+			"endLine":   endLine,
+		}))
+	}
+
+	lineCount := int(endLine-startLine) + 1
+	chunk, err := a.contextRepository.ReadContextChunk(a.ctx, contextID, int(startLine), lineCount)
 	if err != nil {
 		return "", a.transformError(err)
 	}
 
-	linesJson, err := json.Marshal(lines)
+	chunkJson, err := json.Marshal(chunk)
 	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal lines", err)
+		marshalErr := domain.NewInternalError("failed to marshal context chunk", err)
 		return "", a.transformError(marshalErr)
 	}
 
-	return string(linesJson), nil
+	return string(chunkJson), nil
 }
 
-// CreateStreamingContext creates a streaming context from project files
+// CreateStreamingContext delegates to BuildContext to create a disk-backed context summary
 func (a *App) CreateStreamingContext(projectPath string, includedPaths []string, optionsJson string) (string, error) {
-	var options domain.ContextBuildOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
-		validationErr := domain.NewValidationError("failed to parse options JSON", map[string]interface{}{
-			"originalError": err.Error(),
-			"optionsJson":   optionsJson,
-		})
-		return "", a.transformError(validationErr)
-	}
-
-	stream, err := a.contextService.CreateStreamingContext(a.ctx, projectPath, includedPaths, &options)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	streamJson, err := json.Marshal(stream)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal stream", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(streamJson), nil
+	return a.BuildContext(projectPath, includedPaths, optionsJson)
 }
 
-// GetStreamingContext retrieves a streaming context by ID
+// GetStreamingContext returns context summary metadata for streaming compatibility
 func (a *App) GetStreamingContext(contextID string) (string, error) {
-	stream, err := a.contextService.GetContextStream(a.ctx, contextID)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	streamJson, err := json.Marshal(stream)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal stream", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(streamJson), nil
+	return a.GetContext(contextID)
 }
 
-// CloseStreamingContext closes a streaming context and cleans up resources
+// CloseStreamingContext removes a streaming context and associated resources
 func (a *App) CloseStreamingContext(contextID string) error {
-	return a.contextService.CloseContextStream(a.ctx, contextID)
+	return a.DeleteContext(contextID)
 }
 
 // SetSLAPolicy устанавливает SLA политику

@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiService } from '@/services/api.service'
 
 export interface RecentProject {
   path: string
@@ -89,6 +90,36 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  /**
+   * Асинхронно загружает список недавних проектов из бэкенда
+   * Используется для принудительного обновления списка при монтировании компонента
+   */
+  async function fetchRecentProjects() {
+    try {
+      isLoading.value = true
+      error.value = null
+      
+      // Вызываем метод из нашего api.service.ts
+      const projectsJson = await apiService.getRecentProjects()
+      
+      // Парсим JSON ответ от бэкенда
+      if (projectsJson) {
+        const projects = JSON.parse(projectsJson)
+        if (Array.isArray(projects)) {
+          recentProjects.value = projects
+          // Также сохраняем в localStorage для кеширования
+          saveRecentProjects()
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch recent projects from backend:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to load recent projects'
+      // В случае ошибки оставляем текущий список (из localStorage)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   function saveRecentProjects() {
     try {
       localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recentProjects.value))
@@ -152,6 +183,7 @@ export const useProjectStore = defineStore('project', () => {
     lastProjectPath,
     // Actions
     openProjectByPath,
+    fetchRecentProjects, // Новый action для загрузки из бэкенда
     removeFromRecent,
     clearRecent,
     clearProject,

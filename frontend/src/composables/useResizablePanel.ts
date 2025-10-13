@@ -4,25 +4,37 @@
  * Saves panel width to localStorage for persistence
  */
 
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
+import { useStorage } from '@vueuse/core'
 
 export interface ResizablePanelOptions {
   minWidth?: number
   maxWidth?: number
   defaultWidth?: number
-  storageKey?: string
+  storageKey: string // Сделано обязательным
 }
 
-export function useResizablePanel(options: ResizablePanelOptions = {}) {
+export function useResizablePanel(options: ResizablePanelOptions) {
   const {
     minWidth = 200,
     maxWidth = 800,
     defaultWidth = 300,
-    storageKey = 'panel-width'
+    storageKey
   } = options
 
   const panelRef = ref<HTMLElement>()
-  const width = ref(defaultWidth)
+  // Используем useStorage для автоматического сохранения и загрузки
+  const width = useStorage(storageKey, defaultWidth, localStorage, {
+    mergeDefaults: true,
+    serializer: {
+      read: (v: string) => {
+        const parsed = Number(v)
+        // Проверка, чтобы значение всегда было в допустимых границах
+        return !isNaN(parsed) ? Math.max(minWidth, Math.min(maxWidth, parsed)) : defaultWidth
+      },
+      write: (v: number) => String(v)
+    }
+  })
   const isResizing = ref(false)
 
   let startX = 0
@@ -60,31 +72,11 @@ export function useResizablePanel(options: ResizablePanelOptions = {}) {
     document.body.style.userSelect = ''
     document.body.style.cursor = ''
     
-    // Save to localStorage
-    try {
-      localStorage.setItem(storageKey, String(width.value))
-    } catch (err) {
-      console.warn('Failed to save panel width to localStorage:', err)
-    }
+    // useStorage автоматически сохраняет изменения - ручное сохранение удалено
     
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
   }
-
-  onMounted(() => {
-    // Restore saved width from localStorage
-    try {
-      const saved = localStorage.getItem(storageKey)
-      if (saved) {
-        const savedWidth = Number(saved)
-        if (!isNaN(savedWidth) && savedWidth >= minWidth && savedWidth <= maxWidth) {
-          width.value = savedWidth
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load panel width from localStorage:', err)
-    }
-  })
 
   onUnmounted(() => {
     document.removeEventListener('mousemove', onMouseMove)

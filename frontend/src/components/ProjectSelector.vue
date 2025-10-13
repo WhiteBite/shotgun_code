@@ -88,11 +88,16 @@ const isDragging = ref(false)
 
 const recentProjects = computed(() => projectStore.recentProjects)
 
-// Force reload recent projects when component mounts
-onMounted(() => {
-  // Recent projects should already be loaded by store initialization
-  // But if not, we can trigger a re-render by accessing the computed
-  console.log('Recent projects loaded:', recentProjects.value.length)
+// Принудительно загружаем список недавних проектов при монтировании компонента
+onMounted(async () => {
+  try {
+    // Вызываем новый асинхронный action из стора
+    await projectStore.fetchRecentProjects()
+    console.log('Recent projects loaded from backend:', recentProjects.value.length)
+  } catch (error) {
+    console.error('Failed to load recent projects:', error)
+    // В случае ошибки стор оставит данные из localStorage
+  }
 })
 
 function onToggleAutoOpen(e: Event) {
