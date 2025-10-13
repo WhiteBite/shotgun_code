@@ -14,12 +14,17 @@ import (
 	"time"
 )
 
+type contextAnalysisService interface {
+	domain.ContextAnalyzer
+	AnalyzeTaskAndCollectContext(ctx context.Context, task string, allFiles []*domain.FileNode, rootDir string) (*domain.ContextAnalysisResult, error)
+}
+
 type App struct {
 	ctx                   context.Context
 	projectService        *application.ProjectService
 	aiService             *application.AIService
 	settingsService       *application.SettingsService
-	contextAnalysis       domain.ContextAnalyzer
+	contextAnalysis       contextAnalysisService
 	symbolGraph           *application.SymbolGraphService
 	testService           *application.TestService
 	staticAnalyzerService *application.StaticAnalyzerService
@@ -35,7 +40,8 @@ type App struct {
 	gitRepo               domain.GitRepository
 	exportService         *application.ExportService
 	fileReader            domain.FileContentReader
-	contextService        *application.ContextService
+	contextBuilder        domain.ContextBuilder
+	contextRepository     domain.ContextRepository
 	reportService         *application.ReportService
 	bridge                *wailsbridge.Bridge
 	log                   domain.Logger
@@ -47,10 +53,18 @@ type App struct {
 
 func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.ctx = ctx
+	a.log = container.Log
 	a.projectService = container.ProjectService
 	a.aiService = container.AIService
 	a.settingsService = container.SettingsService
-	a.contextAnalysis = container.ContextAnalysis
+	if analyzer, ok := container.ContextAnalysis.(contextAnalysisService); ok {
+		a.contextAnalysis = analyzer
+	} else {
+		a.contextAnalysis = nil
+		if container.ContextAnalysis != nil {
+			a.log.Warning("context analysis service does not implement required AnalyzeTaskAndCollectContext method")
+		}
+	}
 	a.symbolGraph = container.SymbolGraph
 	a.testService = container.TestService
 	a.staticAnalyzerService = container.StaticAnalyzerService
@@ -66,10 +80,10 @@ func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.gitRepo = container.GitRepo
 	a.exportService = container.ExportService
 	a.fileReader = container.FileReader
-	a.contextService = container.ContextService
+	a.contextBuilder = container.ContextBuilder
+	a.contextRepository = container.ContextRepository
 	a.reportService = container.ReportService
 	a.bridge = container.Bridge
-	a.log = container.Log
 	// Task Protocol Services
 	a.taskProtocolService = container.TaskProtocolService
 	a.taskProtocolConfigService = container.TaskProtocolConfigService
@@ -84,9 +98,6 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
 	a.fileWatcher.Stop()
-	if a.contextService != nil {
-		a.contextService.Stop()
-	}
 }
 
 func (a *App) SelectDirectory() (string, error) {

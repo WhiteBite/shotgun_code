@@ -1,16 +1,10 @@
 package application
 
 import (
-	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"errors"
 	"fmt"
-	"os"
 	"shotgun_code/domain"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (

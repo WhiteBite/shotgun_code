@@ -16,7 +16,7 @@
       ref="textareaRef"
       v-model="taskDescription"
       placeholder="Describe what you want to accomplish...&#10;&#10;Examples:&#10;• Refactor authentication service&#10;• Add dark mode support&#10;• Implement file upload feature"
-      class="task-textarea flex-1 w-full px-4 py-3 bg-gray-900/80 border border-gray-700/50 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-gray-900 resize-none transition-all duration-200"
+      class="task-textarea flex-1 w-full px-4 py-3 bg-gray-800/90 border border-gray-700/50 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-gray-800 resize-none transition-all duration-200"
       maxlength="5000"
       @input="autoResize"
     ></textarea>
@@ -177,10 +177,19 @@ async function analyzeTask() {
 async function buildContext() {
   if (!taskDescription.value.trim()) return
   
+  const fileStore = useFileStore()
+  const contextStore = useContextStore()
+  
   try {
-    // TODO: Call backend API to build context
-    uiStore.addToast('Building context...', 'info')
+    if (fileStore.selectedCount === 0) {
+      uiStore.addToast('Please select files first', 'warning')
+      return
+    }
+    
+    await contextStore.buildContext(fileStore.selectedFilesList)
+    uiStore.addToast(`Context built with ${fileStore.selectedCount} files`, 'success')
   } catch (error) {
+    console.error('Failed to build context:', error)
     uiStore.addToast('Failed to build context', 'error')
   }
 }

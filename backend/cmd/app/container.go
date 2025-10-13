@@ -69,10 +69,8 @@ type AppContainer struct {
 	// NEW: Separate context services following SRP
 	ContextBuilder    domain.ContextBuilder
 	ContextAnalyzer   domain.ContextAnalyzer
-	ContextStreamer   domain.ContextStreamer
 	ContextRepository domain.ContextRepository
 	ContextGenerator  *application.ContextGenerator // NEW: For async context generation
-	ContextService    *application.ContextService   // Unified service implementing all context interfaces
 	ReportService     *application.ReportService
 	RouterLLMService  *application.RouterLLMService
 	Bridge            *wailsbridge.Bridge
@@ -182,17 +180,15 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		contextDir,
 	)
 
-	// Create unified ContextService that implements all context-related interfaces
-	c.ContextService = application.NewContextService()
-
-	c.ContextAnalyzer = c.ContextService
-	c.ContextStreamer = c.ContextService
+	// Create analyzer responsible for task-driven context suggestions
+	contextAnalyzer := application.NewContextAnalyzer(c.Log, c.AIService)
+	c.ContextAnalyzer = contextAnalyzer
 
 	// Create ProjectService with the new context builder and generator
 	c.ProjectService = application.NewProjectService(c.Log, c.Bus, c.TreeBuilder, c.GitRepo, c.ContextBuilder, c.ContextGenerator, pathProvider, &OSFileStatProvider{})
 
 	// Initialize remaining services
-	c.ContextAnalysis = c.ContextService
+	c.ContextAnalysis = contextAnalyzer
 
 	// Create symbol graph builders
 	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
