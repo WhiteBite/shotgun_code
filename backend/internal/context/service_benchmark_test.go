@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock implementations for benchmarking
@@ -67,7 +68,8 @@ func BenchmarkService_BuildContext_Small(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	b.ResetTimer()
@@ -100,7 +102,8 @@ func BenchmarkService_BuildContext_Medium(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	b.ResetTimer()
@@ -139,7 +142,8 @@ func BenchmarkService_BuildContext_Large(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	b.ResetTimer()
@@ -177,7 +181,8 @@ func BenchmarkService_CreateStream(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	b.ResetTimer()
@@ -214,7 +219,8 @@ func BenchmarkService_GetContextLines(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	// Create a stream first
@@ -275,7 +281,8 @@ func BenchmarkMemoryUsage_ContextBuilding(b *testing.B) {
 	mockLogger := &mockLogger{}
 	mockBus := &mockEventBus{}
 
-	service := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	service, err := NewService(mockFileReader, mockTokenCounter, mockBus, mockLogger)
+	require.NoError(b, err)
 	service.contextDir = tempDir
 
 	b.ResetTimer()

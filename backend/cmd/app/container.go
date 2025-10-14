@@ -249,7 +249,11 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// ⚠️ CRITICAL: Update GuardrailService with TaskTypeProvider to resolve circular dependency
 	// This MUST be called AFTER TaskflowService is created
 	// Order matters: TaskflowService → GuardrailService.SetTaskTypeProvider
-	c.GuardrailService.(domain.GuardrailService).SetTaskTypeProvider(c.TaskflowService.(domain.TaskTypeProvider))
+	if taskTypeProvider, ok := c.TaskflowService.(domain.TaskTypeProvider); ok {
+		c.GuardrailService.SetTaskTypeProvider(taskTypeProvider)
+	} else {
+		c.Log.Warning("TaskflowService does not implement TaskTypeProvider; guardrails may be limited")
+	}
 
 	// Create UXReportRepository
 	uxReportRepo := uxreports.NewFileSystemUXReportRepository("reports/ux")
@@ -305,7 +309,10 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	c.ExportService = application.NewExportService(c.Log, c.ContextSplitter, pdfGen, arch, tempFileProvider, exportPathProvider, exportFileSystemWriter, exportFileStatProvider)
 
 	// Initialize new services
-	reportRepo := reportfs.NewReportFileSystemRepository(c.Log)
+	reportRepo, err := reportfs.NewReportFileSystemRepository(c.Log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize report repository: %w", err)
+	}
 	c.ReportService = application.NewReportService(c.Log, reportRepo)
 
 	// Initialize RouterLLMService

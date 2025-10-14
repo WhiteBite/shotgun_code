@@ -135,7 +135,7 @@ func (s *Service) GenerateContextAsync(ctx context.Context, rootDir string, incl
 }
 
 // CreateStream creates a memory-safe streaming context
-func (s *Service) CreateStream(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (*Stream, error) {
+func (s *Service) CreateStream(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (stream *Stream, err error) {
 	if options == nil {
 		options = &BuildOptions{
 			MaxMemoryMB: s.defaultMaxMemoryMB,
@@ -192,15 +192,23 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
 	defer func() {
-		if err := file.Close(); err != nil && retErr == nil {
-			retErr = fmt.Errorf("failed to close context file: %w", err)
+		if closeErr := file.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("failed to close context file: %w", closeErr)
+			} else {
+				s.logger.Warning(fmt.Sprintf("failed to close context file: %v", closeErr))
+			}
 		}
 	}()
 
 	writer := bufio.NewWriter(file)
 	defer func() {
-		if err := writer.Flush(); err != nil && retErr == nil {
-			retErr = fmt.Errorf("failed to flush writer: %w", err)
+		if flushErr := writer.Flush(); flushErr != nil {
+			if err == nil {
+				err = fmt.Errorf("failed to flush writer: %w", flushErr)
+			} else {
+				s.logger.Warning(fmt.Sprintf("failed to flush writer: %v", flushErr))
+			}
 		}
 	}()
 
@@ -280,7 +288,7 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 	now := time.Now()
 
 	// Create context stream object
-	stream := &Stream{
+	stream = &Stream{
 		ID:          contextID,
 		Name:        s.generateContextName(projectPath, actualFiles),
 		Description: fmt.Sprintf("Streaming context with %d files from %s", len(actualFiles), filepath.Base(projectPath)),

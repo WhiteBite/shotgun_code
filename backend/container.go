@@ -147,12 +147,15 @@ func (c *Container) initializeBoundedContexts() error {
 
 	// Context Service (Unified service replacing three context services)
 	tokenCounter := &SimpleTokenCounter{}
-	c.ContextService = contextservice.NewService(
+	c.ContextService, err = contextservice.NewService(
 		c.FileReader,
 		tokenCounter,
 		c.Bus,
 		c.Log,
 	)
+	if err != nil {
+		return err
+	}
 
 	// Project Service (with interface to context service)
 	c.ProjectService = projectservice.NewService(
