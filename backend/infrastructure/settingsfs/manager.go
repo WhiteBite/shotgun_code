@@ -71,7 +71,10 @@ func (m *Manager) load() error {
 		m.mergeWithDefaults()
 	}
 
-	m.storage.loadKeysFromKeyring(&m.secure)
+	if err := m.storage.loadKeysFromKeyring(&m.secure); err != nil {
+		// Log the error but don't fail, as keys might not be critical on startup
+		m.log.Warning(fmt.Sprintf("Could not load API keys from keyring: %v", err))
+	}
 	return nil
 }
 
@@ -110,7 +113,10 @@ func (m *Manager) Save() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.storage.saveKeysToKeyring(&m.secure)
+	if err := m.storage.saveKeysToKeyring(&m.secure); err != nil {
+		// Log the error but don't fail, as keyring is not always essential
+		m.log.Warning(fmt.Sprintf("Could not save API keys to keyring: %v", err))
+	}
 	return m.storage.saveToFile(&m.settings)
 }
 

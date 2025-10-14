@@ -78,10 +78,15 @@ func NewService(
 	tokenCounter TokenCounter,
 	eventBus domain.EventBus,
 	logger domain.Logger,
-) *Service {
-	homeDir, _ := os.UserHomeDir()
+) (*Service, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	os.MkdirAll(contextDir, 0755)
+	if err := os.MkdirAll(contextDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create context directory: %w", err)
+	}
 
 	return &Service{
 		fileReader:         fileReader,
@@ -92,7 +97,7 @@ func NewService(
 		streams:            make(map[string]*Stream),
 		defaultMaxMemoryMB: 50,   // Strict 50MB default limit
 		defaultMaxTokens:   8000, // Strict 8000 token default limit
-	}
+	}, nil
 }
 
 // BuildContext builds a context from project files with memory-safe streaming by default
@@ -186,10 +191,18 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close context file: %w", err)
+		}
+	}()
 
 	writer := bufio.NewWriter(file)
-	defer writer.Flush()
+	defer func() {
+		if err := writer.Flush(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to flush writer: %w", err)
+		}
+	}()
 
 	var totalLines int64
 	var totalChars int64
@@ -225,8 +238,12 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		// Check token limit
 		if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
 			// Clean up partial file
-			file.Close()
-			os.Remove(contextPath)
+			if err := file.Close(); err != nil {
+				s.logger.Warning(fmt.Sprintf("Failed to close partial context file: %v", err))
+			}
+			if err := os.Remove(contextPath); err != nil {
+				s.logger.Warning(fmt.Sprintf("Failed to remove partial context file: %v", err))
+			}
 			return nil, fmt.Errorf("context would exceed token limit: %d > %d", tokenCount, options.MaxTokens)
 		}
 
@@ -396,24 +413,18 @@ func (s *Service) DeleteContext(ctx context.Context, contextID string) error {
 	jsonPath := filepath.Join(s.contextDir, contextID+".json")
 	streamPath := filepath.Join(s.contextDir, contextID+".ctx")
 
-	var errors []string
-
 	if err := os.Remove(jsonPath); err != nil && !os.IsNotExist(err) {
-		errors = append(errors, fmt.Sprintf("failed to delete JSON context: %v", err))
+		return fmt.Errorf("failed to delete JSON context: %w", err)
 	}
 
 	if err := os.Remove(streamPath); err != nil && !os.IsNotExist(err) {
-		errors = append(errors, fmt.Sprintf("failed to delete streaming context: %v", err))
+		return fmt.Errorf("failed to delete streaming context: %w", err)
 	}
 
 	// Remove from streams map
 	s.streamsMu.Lock()
 	delete(s.streams, contextID)
 	s.streamsMu.Unlock()
-
-	if len(errors) > 0 && !(len(errors) == 2 && strings.Contains(errors[0], "no such file") && strings.Contains(errors[1], "no such file")) {
-		return fmt.Errorf("context deletion errors: %s", strings.Join(errors, "; "))
-	}
 
 	s.logger.Info(fmt.Sprintf("Deleted context %s", contextID))
 	return nil

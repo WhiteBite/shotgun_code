@@ -64,6 +64,18 @@ func (s *TaskProtocolServiceImpl) ExecuteProtocol(ctx context.Context, config *d
 	// Execute each enabled stage
 	for _, stage := range config.EnabledStages {
 		stageResult, err := s.executeStageWithRetry(ctx, stage, config)
+		if err != nil && stageResult == nil {
+			// Handle cases where the stage execution fails so badly
+			// that it can't even return a result structure.
+			stageResult = &domain.ProtocolStageResult{
+				Stage:   stage,
+				Success: false,
+				ErrorDetails: &domain.ErrorDetails{
+					Message: fmt.Sprintf("Catastrophic error in stage %s: %v", stage, err),
+				},
+			}
+		}
+
 		result.Stages = append(result.Stages, stageResult)
 
 		if !stageResult.Success {

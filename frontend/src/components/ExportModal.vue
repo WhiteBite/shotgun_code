@@ -421,28 +421,12 @@ defineExpose({
 </script>
 
 <style scoped>
-/* Modal transitions */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
 .modal-enter-active > div,
 .modal-leave-active > div {
   transition: transform 0.2s ease;
 }
 
 .modal-enter-from > div,
-.modal-leave-to > div {
-  transform: scale(0.95);
-}
-</style>
-ter-from > div,
 .modal-leave-to > div {
   transform: scale(0.95);
 }

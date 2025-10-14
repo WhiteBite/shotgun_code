@@ -132,7 +132,9 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			fileName = "context-ai.pdf"
 			outputPath = s.pathProvider.Join(tempDir, fileName)
 			if err := s.pdf.WriteAtomic(chunks[0], domain.PDFOptions{}, outputPath); err != nil {
-				s.fileSystemWriter.RemoveAll(tempDir)
+				if err := s.fileSystemWriter.RemoveAll(tempDir); err != nil {
+					s.log.Warning(fmt.Sprintf("Failed to remove temp directory: %v", err))
+				}
 				return domain.ExportResult{}, fmt.Errorf("failed to generate AI PDF: %w", err)
 			}
 		} else {
@@ -140,7 +142,9 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			for i, chunk := range chunks {
 				b, err := s.pdf.Generate(chunk, domain.PDFOptions{})
 				if err != nil {
-					s.fileSystemWriter.RemoveAll(tempDir)
+					if err := s.fileSystemWriter.RemoveAll(tempDir); err != nil {
+						s.log.Warning(fmt.Sprintf("Failed to remove temp directory: %v", err))
+					}
 					return domain.ExportResult{}, fmt.Errorf("failed to generate PDF chunk %d: %w", i+1, err)
 				}
 				files[fmt.Sprintf("context-ai-part-%02d.pdf", i+1)] = b
@@ -148,14 +152,18 @@ func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings
 			fileName = "context-ai.zip"
 			outputPath = s.pathProvider.Join(tempDir, fileName)
 			if err := s.archiver.ZipFilesAtomic(files, outputPath); err != nil {
-				s.fileSystemWriter.RemoveAll(tempDir)
+				if err := s.fileSystemWriter.RemoveAll(tempDir); err != nil {
+					s.log.Warning(fmt.Sprintf("Failed to remove temp directory: %v", err))
+				}
 				return domain.ExportResult{}, fmt.Errorf("failed to create ZIP: %w", err)
 			}
 		}
 
 		fi, err := s.fileStatProvider.Stat(outputPath)
 		if err != nil {
-			os.RemoveAll(tempDir)
+			if err := os.RemoveAll(tempDir); err != nil {
+				s.log.Warning(fmt.Sprintf("Failed to remove temp directory: %v", err))
+			}
 			return domain.ExportResult{}, fmt.Errorf("failed to stat output file: %w", err)
 		}
 		return domain.ExportResult{

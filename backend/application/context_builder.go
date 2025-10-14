@@ -92,13 +92,10 @@ func (cb *ContextBuilderImpl) BuildContext(ctx context.Context, projectPath stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
+	defer file.Close()
 
 	writer := bufio.NewWriter(file)
-	cleanup := func() {
-		writer.Flush()
-		file.Close()
-	}
-	defer cleanup()
+	defer writer.Flush()
 
 	var (
 		totalBytes  int64

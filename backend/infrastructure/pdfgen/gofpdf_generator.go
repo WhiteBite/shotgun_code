@@ -196,15 +196,21 @@ func (g *GofpdfGenerator) WriteAtomic(text string, opts domain.PDFOptions, outpu
 		return err
 	}
 	tmpPath := tmp.Name()
-	_ = tmp.Close()
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
 
 	if err := pdf.OutputFileAndClose(tmpPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
+		if err := os.Remove(tmpPath); err != nil {
+			g.log.Warning(fmt.Sprintf("Failed to remove temporary PDF file: %v", err))
+		}
+		return fmt.Errorf("failed to generate PDF: %w", err)
 	}
 	if err := os.Rename(tmpPath, outputPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
+		if err := os.Remove(tmpPath); err != nil {
+			g.log.Warning(fmt.Sprintf("Failed to remove temporary PDF file after rename failure: %v", err))
+		}
+		return fmt.Errorf("failed to move PDF to final location: %w", err)
 	}
 	return nil
 }

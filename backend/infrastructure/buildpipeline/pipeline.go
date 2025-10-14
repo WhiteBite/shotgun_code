@@ -334,36 +334,27 @@ func (p *BuildPipelineImpl) buildJava(ctx context.Context, projectPath string) (
 
 	// Проверяем наличие Java среды
 	if !p.checkJavaEnvironment() {
+		err := fmt.Errorf("Java environment not available (java, javac, mvn, or gradle not found)")
 		result.Success = false
-		result.Error = "Java environment not available (java, javac, mvn, or gradle not found)"
+		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "Java build tools not available, skipping build")
-		return result, nil
+		return result, err
 	}
 
 	// Проверяем наличие pom.xml или build.gradle
 	if _, err := os.Stat(filepath.Join(projectPath, "pom.xml")); err == nil {
 		// Maven проект
-		result, err = p.buildMavenProject(ctx, projectPath)
-		if err != nil {
-			result.Success = false
-			result.Error = err.Error()
-			result.Warnings = append(result.Warnings, "Maven build failed, but continuing")
-		}
+		return p.buildMavenProject(ctx, projectPath)
 	} else if _, err := os.Stat(filepath.Join(projectPath, "build.gradle")); err == nil {
 		// Gradle проект
-		result, err = p.buildGradleProject(ctx, projectPath)
-		if err != nil {
-			result.Success = false
-			result.Error = err.Error()
-			result.Warnings = append(result.Warnings, "Gradle build failed, but continuing")
-		}
+		return p.buildGradleProject(ctx, projectPath)
 	} else {
+		err := fmt.Errorf("neither pom.xml nor build.gradle found")
 		result.Success = false
-		result.Error = "neither pom.xml nor build.gradle found"
+		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "No Java build configuration found")
+		return result, err
 	}
-
-	return result, nil
 }
 
 // typeCheckJava выполняет проверку типов Java проекта
@@ -377,12 +368,12 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 	if !p.checkJavaEnvironment() {
 		result.Success = false
 		result.Error = "Java environment not available"
-		return result, nil
+		return result, fmt.Errorf(result.Error)
 	}
 
 	// Проверяем наличие pom.xml или build.gradle
 	if _, err := os.Stat(filepath.Join(projectPath, "pom.xml")); err == nil {
-		// Maven проект - компиляция включает проверку типов
+		// Maven проект - компиляция вкл��чает проверку типов
 		cmd := exec.CommandContext(ctx, "mvn", "compile", "-q")
 		cmd.Dir = projectPath
 
@@ -393,14 +384,14 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 			result.Success = false
 			result.Error = err.Error()
 			result.Issues = p.parseMavenIssues(string(output))
-			return result, nil
+			return result, err
 		}
 
 		result.Success = true
 
 		// Дополнительно запускаем ErrorProne, если доступен
 		if p.hasErrorPronePlugin(projectPath) {
-			errorProneResult := p.runErrorProne(ctx, projectPath, "mvn")
+			errorProneResult, _ := p.runErrorProne(ctx, projectPath, "mvn")
 			if !errorProneResult.Success {
 				result.Issues = append(result.Issues, p.parseErrorProneIssues(errorProneResult.Output)...)
 			}
@@ -417,13 +408,14 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 			result.Success = false
 			result.Error = err.Error()
 			result.Issues = p.parseGradleIssues(string(output))
-			return result, nil
+			return result, err
 		}
 
 		result.Success = true
 	} else {
 		result.Success = false
 		result.Error = "neither pom.xml nor build.gradle found"
+		return result, fmt.Errorf(result.Error)
 	}
 
 	return result, nil
@@ -574,7 +566,7 @@ func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath s
 		result.Success = false
 		result.Error = "Maven not found in PATH"
 		result.Warnings = append(result.Warnings, "Maven build tool not available")
-		return result, nil
+		return result, err
 	}
 
 	// Выполняем Maven compile
@@ -588,7 +580,7 @@ func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath s
 		result.Success = false
 		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "Maven compilation failed")
-		return result, nil
+		return result, err
 	}
 
 	result.Success = true
@@ -596,8 +588,10 @@ func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath s
 
 	// Пытаемся запустить тесты, если они есть
 	if p.hasJUnitTests(projectPath) {
-		testResult := p.runJUnitTests(ctx, projectPath, "mvn")
-		if !testResult.Success {
+		testResult, testErr := p.runJUnitTests(ctx, projectPath, "mvn")
+		if testErr != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("JUnit test execution failed with error: %v", testErr))
+		} else if !testResult.Success {
 			result.Warnings = append(result.Warnings, "JUnit tests failed: "+testResult.Error)
 		}
 	}
@@ -617,7 +611,7 @@ func (p *BuildPipelineImpl) buildGradleProject(ctx context.Context, projectPath 
 		result.Success = false
 		result.Error = "Gradle not found in PATH"
 		result.Warnings = append(result.Warnings, "Gradle build tool not available")
-		return result, nil
+		return result, err
 	}
 
 	// Выполняем Gradle build
@@ -631,7 +625,7 @@ func (p *BuildPipelineImpl) buildGradleProject(ctx context.Context, projectPath 
 		result.Success = false
 		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "Gradle build failed")
-		return result, nil
+		return result, err
 	}
 
 	result.Success = true
@@ -639,8 +633,10 @@ func (p *BuildPipelineImpl) buildGradleProject(ctx context.Context, projectPath 
 
 	// Пытаемся запустить тесты, если они есть
 	if p.hasJUnitTests(projectPath) {
-		testResult := p.runJUnitTests(ctx, projectPath, "gradle")
-		if !testResult.Success {
+		testResult, testErr := p.runJUnitTests(ctx, projectPath, "gradle")
+		if testErr != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("JUnit test execution failed with error: %v", testErr))
+		} else if !testResult.Success {
 			result.Warnings = append(result.Warnings, "JUnit tests failed: "+testResult.Error)
 		}
 	}
@@ -667,7 +663,7 @@ func (p *BuildPipelineImpl) hasJUnitTests(projectPath string) bool {
 }
 
 // runJUnitTests запускает JUnit тесты
-func (p *BuildPipelineImpl) runJUnitTests(ctx context.Context, projectPath, buildTool string) *domain.BuildResult {
+func (p *BuildPipelineImpl) runJUnitTests(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
 		Language:    "java",
 		ProjectPath: projectPath,
@@ -688,16 +684,16 @@ func (p *BuildPipelineImpl) runJUnitTests(ctx context.Context, projectPath, buil
 		result.Success = false
 		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "JUnit test execution failed")
-		return result
+		return result, err
 	}
 
 	result.Success = true
 	result.Artifacts = append(result.Artifacts, "test-results/")
-	return result
+	return result, nil
 }
 
 // runErrorProne запускает ErrorProne анализ
-func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buildTool string) *domain.BuildResult {
+func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
 		Language:    "java",
 		ProjectPath: projectPath,
@@ -705,18 +701,20 @@ func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buil
 
 	// ErrorProne доступен только для Maven
 	if buildTool != "mvn" {
+		err := fmt.Errorf("ErrorProne only supported with Maven")
 		result.Success = false
-		result.Error = "ErrorProne only supported with Maven"
+		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "ErrorProne analysis skipped (Gradle not supported)")
-		return result
+		return result, err
 	}
 
 	// Проверяем наличие ErrorProne plugin в pom.xml
 	if !p.hasErrorPronePlugin(projectPath) {
+		err := fmt.Errorf("ErrorProne plugin not configured")
 		result.Success = false
-		result.Error = "ErrorProne plugin not configured"
+		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "ErrorProne analysis skipped (plugin not configured)")
-		return result
+		return result, err
 	}
 
 	// Запускаем ErrorProne анализ
@@ -730,12 +728,12 @@ func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buil
 		result.Success = false
 		result.Error = err.Error()
 		result.Warnings = append(result.Warnings, "ErrorProne analysis failed")
-		return result
+		return result, err
 	}
 
 	result.Success = true
 	result.Artifacts = append(result.Artifacts, "error-prone-reports/")
-	return result
+	return result, nil
 }
 
 // hasErrorPronePlugin проверяет наличие ErrorProne plugin в pom.xml
@@ -743,6 +741,7 @@ func (p *BuildPipelineImpl) hasErrorPronePlugin(projectPath string) bool {
 	pomPath := filepath.Join(projectPath, "pom.xml")
 	content, err := os.ReadFile(pomPath)
 	if err != nil {
+		p.log.Warning(fmt.Sprintf("could not read pom.xml to check for ErrorProne plugin: %v", err))
 		return false
 	}
 

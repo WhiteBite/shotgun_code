@@ -20,15 +20,20 @@ type Service struct {
 }
 
 // NewService creates a new report service
-func NewService(logger domain.Logger) *Service {
-	homeDir, _ := os.UserHomeDir()
+func NewService(logger domain.Logger) (*Service, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
 	reportDir := filepath.Join(homeDir, ".shotgun-code", "reports")
-	os.MkdirAll(reportDir, 0755)
+	if err := os.MkdirAll(reportDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create report directory: %w", err)
+	}
 
 	return &Service{
 		logger:    logger,
 		reportDir: reportDir,
-	}
+	}, nil
 }
 
 // GetReport retrieves a report by ID

@@ -58,7 +58,7 @@
 }
 
 /* High contrast mode adjustments */
-@media (prefers-contrast: high) {
+@media (prefers-contrast: more) {
     :root {
         --glass-bg-primary: rgb(15, 23, 42);
         --glass-bg-secondary: rgb(30, 41, 59);

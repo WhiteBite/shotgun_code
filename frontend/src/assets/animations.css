@@ -405,7 +405,7 @@
 }
 
 /* High Contrast Mode */
-@media (prefers-contrast: high) {
+@media (prefers-contrast: more) {
     .workspace-manual {
         border: 2px solid var(--color-manual);
     }

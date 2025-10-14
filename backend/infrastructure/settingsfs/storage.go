@@ -53,17 +53,40 @@ func (s *storage) saveToFile(settings *appSettings) error {
 }
 
 // loadKeysFromKeyring populates the API key fields from the system's keyring.
-func (s *storage) loadKeysFromKeyring(settings *secureSettings) {
-	settings.openAIAPIKey, _ = keyring.Get(keyringService, "openai")
-	settings.geminiAPIKey, _ = keyring.Get(keyringService, "gemini")
-	settings.openRouterAPIKey, _ = keyring.Get(keyringService, "openrouter")
-	settings.localAIAPIKey, _ = keyring.Get(keyringService, "localai")
+func (s *storage) loadKeysFromKeyring(settings *secureSettings) error {
+	var err error
+	settings.openAIAPIKey, err = keyring.Get(keyringService, "openai")
+	if err != nil && err != keyring.ErrNotFound {
+		return fmt.Errorf("failed to get openai key: %w", err)
+	}
+	settings.geminiAPIKey, err = keyring.Get(keyringService, "gemini")
+	if err != nil && err != keyring.ErrNotFound {
+		return fmt.Errorf("failed to get gemini key: %w", err)
+	}
+	settings.openRouterAPIKey, err = keyring.Get(keyringService, "openrouter")
+	if err != nil && err != keyring.ErrNotFound {
+		return fmt.Errorf("failed to get openrouter key: %w", err)
+	}
+	settings.localAIAPIKey, err = keyring.Get(keyringService, "localai")
+	if err != nil && err != keyring.ErrNotFound {
+		return fmt.Errorf("failed to get localai key: %w", err)
+	}
+	return nil
 }
 
 // saveKeysToKeyring persists the API keys to the system's keyring.
-func (s *storage) saveKeysToKeyring(settings *secureSettings) {
-	keyring.Set(keyringService, "openai", settings.openAIAPIKey)
-	keyring.Set(keyringService, "gemini", settings.geminiAPIKey)
-	keyring.Set(keyringService, "openrouter", settings.openRouterAPIKey)
-	keyring.Set(keyringService, "localai", settings.localAIAPIKey)
+func (s *storage) saveKeysToKeyring(settings *secureSettings) error {
+	if err := keyring.Set(keyringService, "openai", settings.openAIAPIKey); err != nil {
+		return fmt.Errorf("failed to set openai key: %w", err)
+	}
+	if err := keyring.Set(keyringService, "gemini", settings.geminiAPIKey); err != nil {
+		return fmt.Errorf("failed to set gemini key: %w", err)
+	}
+	if err := keyring.Set(keyringService, "openrouter", settings.openRouterAPIKey); err != nil {
+		return fmt.Errorf("failed to set openrouter key: %w", err)
+	}
+	if err := keyring.Set(keyringService, "localai", settings.localAIAPIKey); err != nil {
+		return fmt.Errorf("failed to set localai key: %w", err)
+	}
+	return nil
 }

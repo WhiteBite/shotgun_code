@@ -204,13 +204,6 @@ onMounted(() => {
   outline-offset: 2px;
 }
 
-/* Never show focus ring on layout/resizer elements */
-[role="separator"],
-[data-resize-handle],
-.splitpanes__splitter,
-.vue-resizable-handle {
-  outline: none !important;
-}
 
 /* Transition defaults */
 * {
@@ -251,14 +244,6 @@ onMounted(() => {
     opacity: 1;
     transform: translateX(0);
   }
-}
-
-.fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-.slide-in {
-  animation: slideIn 0.3s ease-out;
 }
 
 /* Improved button focus and hover states */

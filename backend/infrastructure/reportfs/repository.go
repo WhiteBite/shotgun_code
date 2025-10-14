@@ -17,15 +17,20 @@ type ReportFileSystemRepository struct {
 }
 
 // NewReportFileSystemRepository creates a new file system report repository
-func NewReportFileSystemRepository(logger domain.Logger) *ReportFileSystemRepository {
-	homeDir, _ := os.UserHomeDir()
+func NewReportFileSystemRepository(logger domain.Logger) (*ReportFileSystemRepository, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
 	reportDir := filepath.Join(homeDir, ".shotgun-code", "reports")
-	os.MkdirAll(reportDir, 0755)
+	if err := os.MkdirAll(reportDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create report directory: %w", err)
+	}
 
 	return &ReportFileSystemRepository{
 		logger:    logger,
 		reportDir: reportDir,
-	}
+	}, nil
 }
 
 // GetReport retrieves a report by ID

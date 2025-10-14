@@ -466,7 +466,7 @@
 }
 
 /* High contrast mode support */
-@media (prefers-contrast: high) {
+@media (prefers-contrast: more) {
     .glass {
         @apply bg-slate-900 border-slate-600;
     }

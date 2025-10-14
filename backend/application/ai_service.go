@@ -194,18 +194,15 @@ func (s *AIService) getProvider(ctx context.Context) (domain.AIProvider, string,
 		return nil, "", fmt.Errorf("failed to create provider %s: %w", providerType, err)
 	}
 
-	// Get model from settings
-	model := dto.SelectedModels[providerType]
-	if model == "" {
+	model, ok := dto.SelectedModels[providerType]
+	if !ok || model == "" {
 		// Try to use first available model as fallback
-		models := dto.AvailableModels[providerType]
-		if len(models) > 0 {
-			model = models[0]
+		models, ok := dto.AvailableModels[providerType]
+		if !ok || len(models) == 0 {
+			return nil, "", fmt.Errorf("no model selected or available for provider %s", providerType)
 		}
-	}
-
-	if model == "" {
-		return nil, "", fmt.Errorf("no model selected for provider %s", providerType)
+		model = models[0]
+		s.log.Warning(fmt.Sprintf("No model selected for %s, falling back to first available: %s", providerType, model))
 	}
 
 	return provider, model, nil
