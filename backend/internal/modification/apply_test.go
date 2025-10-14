@@ -705,6 +705,3 @@ func TestApplyService_ShouldFormat(t *testing.T) {
 		assert.Equal(t, tc.shouldFormat, result, "FilePath: %s", tc.filePath)
 	}
 }
-ePath)
-	}
-}

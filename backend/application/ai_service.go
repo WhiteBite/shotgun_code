@@ -163,19 +163,20 @@ func (s *AIService) getProvider(ctx context.Context) (domain.AIProvider, string,
 		return nil, "", fmt.Errorf("no AI provider selected")
 	}
 
-	keyExtractors := map[string]func(domain.SettingsDTO) string{
-		"openai":     func(d domain.SettingsDTO) string { return d.OpenAIAPIKey },
-		"gemini":     func(d domain.SettingsDTO) string { return d.GeminiAPIKey },
-		"openrouter": func(d domain.SettingsDTO) string { return d.OpenRouterAPIKey },
-		"localai":    func(d domain.SettingsDTO) string { return d.LocalAIAPIKey },
-	}
-
-	extractor, ok := keyExtractors[providerType]
-	if !ok {
+	// Instead of hardcoded key extractors, we'll get the key directly from the settings
+	var apiKey string
+	switch providerType {
+	case "openai":
+		apiKey = dto.OpenAIAPIKey
+	case "gemini":
+		apiKey = dto.GeminiAPIKey
+	case "openrouter":
+		apiKey = dto.OpenRouterAPIKey
+	case "localai":
+		apiKey = dto.LocalAIAPIKey
+	default:
 		return nil, "", fmt.Errorf("unsupported AI provider: %s", providerType)
 	}
-
-	apiKey := extractor(dto)
 
 	// LocalAI might not require a key, so we don't check for empty key for it
 	if apiKey == "" && providerType != "localai" {

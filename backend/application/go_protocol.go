@@ -10,17 +10,17 @@ import (
 // GoProtocolImplementation provides Go-specific protocol validation
 type GoProtocolImplementation struct {
 	log            domain.Logger
-	staticAnalyzer *StaticAnalyzerService
-	buildService   *BuildService
-	testService    *TestService
+	staticAnalyzer domain.IStaticAnalyzerService
+	buildService   domain.IBuildService
+	testService    domain.ITestService
 }
 
 // NewGoProtocolImplementation creates a new Go protocol implementation
 func NewGoProtocolImplementation(
 	log domain.Logger,
-	staticAnalyzer *StaticAnalyzerService,
-	buildService *BuildService,
-	testService *TestService,
+	staticAnalyzer domain.IStaticAnalyzerService,
+	buildService domain.IBuildService,
+	testService domain.ITestService,
 ) *GoProtocolImplementation {
 	return &GoProtocolImplementation{
 		log:            log,

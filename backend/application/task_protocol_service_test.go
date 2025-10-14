@@ -41,7 +41,7 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 			},
 			mockSetup: func(mocks *testMocks) {
 				// Setup successful execution for all stages
-				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go", "typescript"}).Return(nil, nil)
+				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go", "typescript"}).Return(&domain.StaticAnalysisReport{}, nil)
 				mocks.buildService.On("ValidateProject", mock.Anything, "/test/project", []string{"go", "typescript"}).Return(&domain.ProjectValidationResult{Success: true}, nil)
 				mocks.testService.On("RunSmokeTests", mock.Anything, "/test/project", "go").Return([]*domain.TestResult{}, nil)
 				mocks.testService.On("RunSmokeTests", mock.Anything, "/test/project", "typescript").Return([]*domain.TestResult{}, nil)
@@ -73,7 +73,7 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 			},
 			mockSetup: func(mocks *testMocks) {
 				// Linting succeeds
-				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go"}).Return(nil, nil)
+				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.StaticAnalysisReport{}, nil)
 				// Building fails
 				mocks.buildService.On("ValidateProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.ProjectValidationResult{Success: false}, nil)
 			},
@@ -137,14 +137,18 @@ func TestTaskProtocolService_ExecuteProtocol(t *testing.T) {
 			mocks := createTestMocks()
 			tt.mockSetup(mocks)
 
+			// Create concrete services where needed
+			verificationPipeline := &VerificationPipelineService{}
+			aiService := &IntelligentAIService{}
+
 			service := NewTaskProtocolService(
 				mocks.logger,
-				mocks.verificationPipeline,
+				verificationPipeline,
 				mocks.staticAnalyzer,
 				mocks.testService,
 				mocks.buildService,
 				mocks.guardrailService,
-				mocks.aiService,
+				aiService,
 				mocks.errorAnalyzer,
 				mocks.correctionEngine,
 			)
@@ -186,7 +190,7 @@ func TestTaskProtocolService_ValidateStage(t *testing.T) {
 				Languages:   []string{"go"},
 			},
 			mockSetup: func(mocks *testMocks) {
-				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go"}).Return(nil, nil)
+				mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, "/test/project", []string{"go"}).Return(&domain.StaticAnalysisReport{}, nil)
 			},
 			expectedSuccess: true,
 		},
@@ -248,14 +252,18 @@ func TestTaskProtocolService_ValidateStage(t *testing.T) {
 			mocks := createTestMocks()
 			tt.mockSetup(mocks)
 
+			// Create concrete services where needed
+			verificationPipeline := &VerificationPipelineService{}
+			aiService := &IntelligentAIService{}
+
 			service := NewTaskProtocolService(
 				mocks.logger,
-				mocks.verificationPipeline,
+				verificationPipeline,
 				mocks.staticAnalyzer,
 				mocks.testService,
 				mocks.buildService,
 				mocks.guardrailService,
-				mocks.aiService,
+				aiService,
 				mocks.errorAnalyzer,
 				mocks.correctionEngine,
 			)
@@ -327,14 +335,16 @@ func TestTaskProtocolService_RequestCorrectionGuidance(t *testing.T) {
 			mocks := createTestMocks()
 			tt.mockSetup(mocks)
 
+			// Create concrete services where needed
+			verificationPipeline := &VerificationPipelineService{}
 			var aiService *IntelligentAIService
 			if !tt.expectError {
-				aiService = mocks.aiService
+				aiService = &IntelligentAIService{}
 			}
 
 			service := NewTaskProtocolService(
 				mocks.logger,
-				mocks.verificationPipeline,
+				verificationPipeline,
 				mocks.staticAnalyzer,
 				mocks.testService,
 				mocks.buildService,
@@ -364,12 +374,12 @@ func TestTaskProtocolService_RequestCorrectionGuidance(t *testing.T) {
 
 type testMocks struct {
 	logger               *testutils.MockLogger
-	verificationPipeline *MockVerificationPipelineService
-	staticAnalyzer       *MockStaticAnalyzerService
-	testService          *MockTestService
-	buildService         *MockBuildService
-	guardrailService     *MockGuardrailService
-	aiService            *IntelligentAIService
+	verificationPipeline *testutils.MockVerificationPipelineService
+	staticAnalyzer       *testutils.MockStaticAnalyzerService
+	testService          *testutils.MockTestService
+	buildService         *testutils.MockBuildService
+	guardrailService     *testutils.MockGuardrailService
+	aiService            *testutils.MockIntelligentAIService
 	errorAnalyzer        *MockErrorAnalyzer
 	correctionEngine     *MockCorrectionEngine
 }
@@ -377,12 +387,12 @@ type testMocks struct {
 func createTestMocks() *testMocks {
 	return &testMocks{
 		logger:               testutils.NewMockLogger(),
-		verificationPipeline: &MockVerificationPipelineService{},
-		staticAnalyzer:       &MockStaticAnalyzerService{},
-		testService:          &MockTestService{},
-		buildService:         &MockBuildService{},
-		guardrailService:     &MockGuardrailService{},
-		aiService:            &IntelligentAIService{}, // Simplified for testing
+		verificationPipeline: &testutils.MockVerificationPipelineService{},
+		staticAnalyzer:       &testutils.MockStaticAnalyzerService{},
+		testService:          &testutils.MockTestService{},
+		buildService:         &testutils.MockBuildService{},
+		guardrailService:     &testutils.MockGuardrailService{},
+		aiService:            &testutils.MockIntelligentAIService{},
 		errorAnalyzer:        &MockErrorAnalyzer{},
 		correctionEngine:     &MockCorrectionEngine{},
 	}
@@ -399,61 +409,6 @@ func (m *testMocks) assertExpectations(t *testing.T) {
 }
 
 // Mock implementations
-
-type MockVerificationPipelineService struct {
-	mock.Mock
-}
-
-type MockStaticAnalyzerService struct {
-	mock.Mock
-}
-
-func (m *MockStaticAnalyzerService) AnalyzeProject(ctx context.Context, projectPath string, languages []string) (interface{}, error) {
-	args := m.Called(ctx, projectPath, languages)
-	return args.Get(0), args.Error(1)
-}
-
-type MockTestService struct {
-	mock.Mock
-}
-
-func (m *MockTestService) RunSmokeTests(ctx context.Context, projectPath, language string) ([]*domain.TestResult, error) {
-	args := m.Called(ctx, projectPath, language)
-	return args.Get(0).([]*domain.TestResult), args.Error(1)
-}
-
-func (m *MockTestService) ValidateTestResults(results []*domain.TestResult) *domain.TestValidationResult {
-	args := m.Called(results)
-	return args.Get(0).(*domain.TestValidationResult)
-}
-
-type MockBuildService struct {
-	mock.Mock
-}
-
-func (m *MockBuildService) ValidateProject(ctx context.Context, projectPath string, languages []string) (*domain.ProjectValidationResult, error) {
-	args := m.Called(ctx, projectPath, languages)
-	return args.Get(0).(*domain.ProjectValidationResult), args.Error(1)
-}
-
-func (m *MockBuildService) DetectLanguages(ctx context.Context, projectPath string) ([]string, error) {
-	args := m.Called(ctx, projectPath)
-	return args.Get(0).([]string), args.Error(1)
-}
-
-func (m *MockBuildService) GetSupportedLanguages() []string {
-	args := m.Called()
-	return args.Get(0).([]string)
-}
-
-type MockGuardrailService struct {
-	mock.Mock
-}
-
-func (m *MockGuardrailService) ValidateTask(taskID string, files []string, linesChanged int64) (*domain.TaskValidationResult, error) {
-	args := m.Called(taskID, files, linesChanged)
-	return args.Get(0).(*domain.TaskValidationResult), args.Error(1)
-}
 
 type MockErrorAnalyzer struct {
 	mock.Mock
@@ -495,23 +450,28 @@ func (m *MockCorrectionEngine) CanHandle(error *domain.ErrorDetails) bool {
 
 // Performance and edge case tests
 
+// TestTaskProtocolService_Performance tests protocol execution performance
 func TestTaskProtocolService_Performance(t *testing.T) {
-	// Setup
+	// Test that protocol execution completes within reasonable time
 	mocks := createTestMocks()
-	mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
 	mocks.buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
 	mocks.testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
 	mocks.testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
 	mocks.guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
 
+	// Create concrete services where needed
+	verificationPipeline := &VerificationPipelineService{}
+	aiService := &IntelligentAIService{}
+
 	service := NewTaskProtocolService(
 		mocks.logger,
-		mocks.verificationPipeline,
+		verificationPipeline,
 		mocks.staticAnalyzer,
 		mocks.testService,
 		mocks.buildService,
 		mocks.guardrailService,
-		mocks.aiService,
+		aiService,
 		mocks.errorAnalyzer,
 		mocks.correctionEngine,
 	)
@@ -543,23 +503,28 @@ func TestTaskProtocolService_Performance(t *testing.T) {
 	t.Logf("Protocol execution completed in %v", duration)
 }
 
+// TestTaskProtocolService_ConcurrentExecution tests concurrent protocol execution
 func TestTaskProtocolService_ConcurrentExecution(t *testing.T) {
 	// Test that multiple protocol executions can run concurrently
 	mocks := createTestMocks()
-	mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	mocks.staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
 	mocks.buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
 	mocks.testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
 	mocks.testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
 	mocks.guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
 
+	// Create concrete services where needed
+	verificationPipeline := &VerificationPipelineService{}
+	aiService := &IntelligentAIService{}
+
 	service := NewTaskProtocolService(
 		mocks.logger,
-		mocks.verificationPipeline,
+		verificationPipeline,
 		mocks.staticAnalyzer,
 		mocks.testService,
 		mocks.buildService,
 		mocks.guardrailService,
-		mocks.aiService,
+		aiService,
 		mocks.errorAnalyzer,
 		mocks.correctionEngine,
 	)

@@ -12,9 +12,9 @@ import (
 // RouterPlannerService предоставляет эвристический планировщик TPL (DAG) без LLM
 type RouterPlannerService struct {
 	log            domain.Logger
-	buildService   *BuildService
-	testService    *TestService
-	staticAnalyzer *StaticAnalyzerService
+	buildService   domain.IBuildService
+	testService    domain.ITestService
+	staticAnalyzer domain.IStaticAnalyzerService
 	repairService  domain.RepairService
 	// Добавьте другие необходимые сервисы
 }
@@ -22,9 +22,9 @@ type RouterPlannerService struct {
 // NewRouterPlannerService создает новый сервис планировщика
 func NewRouterPlannerService(
 	log domain.Logger,
-	buildService *BuildService,
-	testService *TestService,
-	staticAnalyzer *StaticAnalyzerService,
+	buildService domain.IBuildService,
+	testService domain.ITestService,
+	staticAnalyzer domain.IStaticAnalyzerService,
 	repairService domain.RepairService,
 ) *RouterPlannerService {
 	return &RouterPlannerService{

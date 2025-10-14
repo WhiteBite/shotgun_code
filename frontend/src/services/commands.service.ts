@@ -3,7 +3,6 @@
  * Provides context-aware commands with real actions
  */
 
-import type { App } from 'vue'
 import { useProjectStore } from '@/stores/project.store'
 import { useFileStore } from '@/stores/file.store'
 import { useUIStore } from '@/stores/ui.store'
@@ -31,15 +30,6 @@ export interface Command {
 }
 
 export class CommandService {
-  private app: App | null = null
-
-  /**
-   * Initialize the command service with Vue app instance
-   */
-  init(app: App) {
-    this.app = app
-  }
-
   /**
    * Get all available commands based on current context
    */

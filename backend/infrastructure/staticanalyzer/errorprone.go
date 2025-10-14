@@ -38,7 +38,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 			ProjectPath: config.ProjectPath,
 			Analyzer:    config.Analyzer,
 			Duration:    time.Since(startTime).Seconds(),
-			Issues:      []*domain.StaticAnalysisIssue{},
+			Issues:      []*domain.StaticIssue{},
 			Summary:     &domain.StaticAnalysisSummary{},
 			Error:       fmt.Sprintf("Java environment not available: %v", err),
 		}, nil
@@ -48,8 +48,8 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 	args := []string{"-Xplugin:ErrorProne"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFilePath != "" {
-		args = append(args, "-XepPatchChecks:"+config.ConfigFilePath)
+	if config.ConfigFile != "" {
+		args = append(args, "-XepPatchChecks:"+config.ConfigFile)
 	}
 
 	// Добавляем правила если указаны
@@ -87,7 +87,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticAnalysisIssue{},
+		Issues:      []*domain.StaticIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -177,8 +177,8 @@ func (a *ErrorProneAnalyzer) hasJavaFilePaths(projectPath string) bool {
 }
 
 // parseErrorProneOutput парсит вывод ErrorProne
-func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
-	var issues []*domain.StaticAnalysisIssue
+func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.StaticIssue, error) {
+	var issues []*domain.StaticIssue
 
 	// ErrorProne выводит ошибки в формате:
 	// filename:line:column: [error] message
@@ -224,14 +224,14 @@ func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.Sta
 			severity = "error"
 		}
 
-		issue := &domain.StaticAnalysisIssue{
-			FilePath:    file,
-			LineNumber:  lineNum,
-			ColumnStart: columnNum,
-			Severity:    severity,
-			Message:     message,
-			Rule:        "errorprone",
-			Category:    a.getCategory(message),
+		issue := &domain.StaticIssue{
+			File:     file,
+			Line:     lineNum,
+			Column:   columnNum,
+			Severity: severity,
+			Message:  message,
+			Code:     "errorprone",
+			Category: a.getCategory(message),
 		}
 
 		issues = append(issues, issue)
@@ -259,13 +259,13 @@ func (a *ErrorProneAnalyzer) getCategory(message string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
+func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:         len(issues),
-		SeverityBreakdown:   make(map[string]int),
-		CategoryBreakdown:   make(map[string]int),
-		FilePathsAnalyzed:   0,
-		FilePathsWithIssues: 0,
+		TotalIssues:       len(issues),
+		SeverityBreakdown: make(map[string]int),
+		CategoryBreakdown: make(map[string]int),
+		FilesAnalyzed:     0,
+		FilesWithIssues:   0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -278,7 +278,7 @@ func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssu
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.FilePath] = true
+		filesWithIssues[issue.File] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -293,7 +293,7 @@ func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssu
 		}
 	}
 
-	summary.FilePathsWithIssues = len(filesWithIssues)
+	summary.FilesWithIssues = len(filesWithIssues)
 
 	return summary
 }

@@ -33,7 +33,7 @@
             <div class="flex items-center gap-2">
               <button
                 v-if="!isLoading && !error"
-                @click="$emit('copy')"
+                @click="copyToClipboard"
                 class="p-2 hover:bg-gray-800 rounded transition-colors"
                 title="Копировать"
               >
@@ -126,11 +126,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ReadFileContent } from '../wailsjs/go/main/App'
-import { useFileStore } from '@/stores/file.store'
+import { useProjectStore } from '@/stores/project.store'
 
 interface Props {
   filePath?: string
-  projectPath?: string
 }
 
 interface FileStats {
@@ -143,10 +142,10 @@ interface FileStats {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  close: []
+  (e: 'close'): void
 }>()
 
-const fileStore = useFileStore()
+const projectStore = useProjectStore()
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -185,15 +184,15 @@ onUnmounted(() => {
 /**
  * Open QuickLook and load file
  */
-async function open(filePath?: string, projectPath?: string) {
+async function open(filePath?: string) {
   isOpen.value = true
   
   // Use provided paths or props
   const targetPath = filePath || props.filePath
-  const targetProject = projectPath || props.projectPath || fileStore.projectPath
+  const targetProject = projectStore.projectPath
   
   if (targetPath && targetProject) {
-    await loadFile(targetPath, targetProject)
+    await loadFile(targetPath)
   }
 }
 
@@ -208,9 +207,9 @@ function close() {
 /**
  * Load file content from backend
  */
-async function loadFile(filePath?: string, projectPath?: string) {
+async function loadFile(filePath?: string) {
   const targetPath = filePath || props.filePath
-  const targetProject = projectPath || props.projectPath || fileStore.projectPath
+  const targetProject = projectStore.projectPath
   
   if (!targetPath || !targetProject) {
     error.value = 'Путь к файлу не указан'
@@ -366,3 +365,4 @@ defineExpose({
   background: #6b7280;
 }
 </style>
+/style>

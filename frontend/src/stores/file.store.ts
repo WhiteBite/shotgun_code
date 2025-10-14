@@ -86,6 +86,10 @@ export const useFileStore = defineStore('file', () => {
     })
   }
 
+  async function refreshFileTree(): Promise<void> {
+    // TODO: implement
+  }
+
   // Recursive selection
   function selectRecursive(path: string) {
     const node = findNode(nodes.value, path)
@@ -149,6 +153,7 @@ export const useFileStore = defineStore('file', () => {
     expandAll,
     collapseAll,
     selectRecursive,
-    deselectRecursive
+    deselectRecursive,
+    refreshFileTree
   }
 })

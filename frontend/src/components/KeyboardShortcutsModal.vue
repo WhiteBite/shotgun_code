@@ -140,3 +140,6 @@ const categories = [
       { key: 'Ctrl+R', description: 'Reload window' },
       { key: 'Ctrl+,', description: 'Open settings' },
     ]
+  }
+]
+</script>

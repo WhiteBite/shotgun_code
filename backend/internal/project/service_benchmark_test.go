@@ -20,8 +20,7 @@ func (m *mockProjectLogger) Fatal(msg string)   {}
 // Mock EventBus for benchmarking
 type mockEventBus struct{}
 
-func (m *mockEventBus) Publish(event string, data interface{})            {}
-func (m *mockEventBus) Subscribe(event string, handler func(interface{})) {}
+func (m *mockEventBus) Emit(eventName string, data ...interface{}) {}
 
 // Mock TreeBuilder for benchmarking
 type mockTreeBuilder struct {
@@ -90,8 +89,32 @@ func (m *mockGitRepository) GetRichCommitHistory(projectRoot, branchName string,
 	}, nil
 }
 
+func (m *mockGitRepository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	return "file content", nil
+}
+
+func (m *mockGitRepository) GetGitignoreContent(projectRoot string) (string, error) {
+	return "node_modules/\n*.log\n", nil
+}
+
 func (m *mockGitRepository) IsGitAvailable() bool {
 	return true
+}
+
+func (m *mockGitRepository) GetBranches(projectRoot string) ([]string, error) {
+	return []string{"main", "develop", "feature/test"}, nil
+}
+
+func (m *mockGitRepository) GetCurrentBranch(projectRoot string) (string, error) {
+	return "main", nil
+}
+
+func (m *mockGitRepository) GetAllFiles(projectPath string) ([]string, error) {
+	return []string{"file1.go", "file2.js", "README.md"}, nil
+}
+
+func (m *mockGitRepository) GenerateDiff(projectPath string) (string, error) {
+	return "diff --git a/file1.go b/file1.go...", nil
 }
 
 // Mock ContextService for benchmarking

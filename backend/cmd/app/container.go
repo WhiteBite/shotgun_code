@@ -55,8 +55,8 @@ type AppContainer struct {
 	AIService             *application.AIService
 	ContextAnalysis       domain.ContextAnalyzer
 	SymbolGraph           *application.SymbolGraphService
-	TestService           *application.TestService
-	StaticAnalyzerService *application.StaticAnalyzerService
+	TestService           domain.ITestService
+	StaticAnalyzerService domain.IStaticAnalyzerService
 	SBOMService           *application.SBOMService
 	RepairService         domain.RepairService
 	GuardrailService      domain.GuardrailService
@@ -64,7 +64,7 @@ type AppContainer struct {
 	UXMetricsService      domain.UXMetricsService
 	ApplyService          *application.ApplyService
 	DiffService           *application.DiffService
-	BuildService          *application.BuildService
+	BuildService          domain.IBuildService
 	ExportService         *application.ExportService
 	// NEW: Separate context services following SRP
 	ContextBuilder    domain.ContextBuilder
@@ -230,7 +230,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	sbomFileStatProvider := &OSFileStatProvider{}
 	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, sbomFileStatProvider)
 
-	c.RepairService = application.NewRepairService(c.Log)
+	c.RepairService = application.NewRepairService(c.Log, c.CommandRunner)
 
 	// Create TaskflowRepository
 	taskflowRepo := taskflowrepo.NewFileSystemTaskflowRepository("tasks/status.json")

@@ -38,8 +38,8 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 	args := []string{"-f", "json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFilePath != "" {
-		args = append(args, "-conf", config.ConfigFilePath)
+	if config.ConfigFile != "" {
+		args = append(args, "-conf", config.ConfigFile)
 	}
 
 	// Добавляем правила если указаны
@@ -76,7 +76,7 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticAnalysisIssue{},
+		Issues:      []*domain.StaticIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -151,8 +151,8 @@ func (a *StaticcheckAnalyzer) hasGoFilePaths(projectPath string) bool {
 }
 
 // parseStaticcheckOutput парсит JSON вывод staticcheck
-func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
-	var issues []*domain.StaticAnalysisIssue
+func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.StaticIssue, error) {
+	var issues []*domain.StaticIssue
 
 	// staticcheck может выводить несколько JSON объектов, разделенных новой строкой
 	lines := strings.Split(string(output), "\n")
@@ -186,14 +186,14 @@ func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.S
 		// Конвертируем severity
 		severity := a.convertSeverity(staticcheckIssue.Severity)
 
-		issue := &domain.StaticAnalysisIssue{
-			FilePath:    staticcheckIssue.Location.FilePath,
-			LineNumber:  staticcheckIssue.Location.LineNumber,
-			ColumnStart: staticcheckIssue.Location.ColumnStart,
-			Severity:    severity,
-			Message:     staticcheckIssue.Message,
-			Rule:        staticcheckIssue.Rule,
-			Category:    a.getCategory(staticcheckIssue.Rule),
+		issue := &domain.StaticIssue{
+			File:     staticcheckIssue.Location.FilePath,
+			Line:     staticcheckIssue.Location.LineNumber,
+			Column:   staticcheckIssue.Location.ColumnStart,
+			Severity: severity,
+			Message:  staticcheckIssue.Message,
+			Code:     staticcheckIssue.Rule,
+			Category: a.getCategory(staticcheckIssue.Rule),
 		}
 
 		issues = append(issues, issue)
@@ -231,13 +231,13 @@ func (a *StaticcheckAnalyzer) getCategory(code string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
+func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:         len(issues),
-		SeverityBreakdown:   make(map[string]int),
-		CategoryBreakdown:   make(map[string]int),
-		FilePathsAnalyzed:   0,
-		FilePathsWithIssues: 0,
+		TotalIssues:       len(issues),
+		SeverityBreakdown: make(map[string]int),
+		CategoryBreakdown: make(map[string]int),
+		FilesAnalyzed:     0,
+		FilesWithIssues:   0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -250,7 +250,7 @@ func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticAnalysisIss
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.FilePath] = true
+		filesWithIssues[issue.File] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -265,7 +265,7 @@ func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticAnalysisIss
 		}
 	}
 
-	summary.FilePathsWithIssues = len(filesWithIssues)
+	summary.FilesWithIssues = len(filesWithIssues)
 
 	return summary
 }

@@ -22,9 +22,44 @@ type mockApplyEngine struct {
 	delayMs int
 }
 
+func (m *mockApplyEngine) ApplyOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+	return &domain.ApplyResult{
+		OperationID:  op.ID,
+		Success:      true,
+		Path:         op.Path,
+		AppliedLines: 1,
+	}, nil
+}
+
+func (m *mockApplyEngine) ApplyOperations(ctx context.Context, ops []*domain.ApplyOperation) ([]*domain.ApplyResult, error) {
+	results := make([]*domain.ApplyResult, len(ops))
+	for i, op := range ops {
+		results[i] = &domain.ApplyResult{
+			OperationID:  op.ID,
+			Success:      true,
+			Path:         op.Path,
+			AppliedLines: 1,
+		}
+	}
+	return results, nil
+}
+
 func (m *mockApplyEngine) ApplyEdit(ctx context.Context, edit domain.Edit) error {
-	// Simulate apply delay
 	return nil
+}
+
+func (m *mockApplyEngine) ValidateOperation(ctx context.Context, op *domain.ApplyOperation) error {
+	return nil
+}
+
+func (m *mockApplyEngine) RollbackOperation(ctx context.Context, result *domain.ApplyResult) error {
+	return nil
+}
+
+func (m *mockApplyEngine) RegisterFormatter(language string, formatter domain.Formatter) {
+}
+
+func (m *mockApplyEngine) RegisterImportFixer(language string, fixer domain.ImportFixer) {
 }
 
 // Mock Formatter for benchmarking
@@ -32,9 +67,16 @@ type mockFormatter struct {
 	delayMs int
 }
 
-func (m *mockFormatter) FormatFile(filePath string) error {
-	// Simulate format delay
+func (m *mockFormatter) FormatFile(ctx context.Context, path string) error {
 	return nil
+}
+
+func (m *mockFormatter) FormatContent(ctx context.Context, content string, language string) (string, error) {
+	return content, nil
+}
+
+func (m *mockFormatter) GetSupportedLanguages() []string {
+	return []string{"go", "typescript", "javascript"}
 }
 
 func BenchmarkApplyService_ApplyEdits_Small(b *testing.B) {
@@ -90,7 +132,7 @@ func BenchmarkApplyService_ApplyEdits_Medium(b *testing.B) {
 			Type:       domain.EditTypeReplace,
 			OldContent: "old content " + string(rune(i+'0')),
 			NewContent: "new content " + string(rune(i+'0')),
-			Position:   int(i * 10),
+			Position:   i * 10,
 		}
 	}
 
@@ -122,7 +164,7 @@ func BenchmarkApplyService_ApplyEdits_Large(b *testing.B) {
 			Type:       domain.EditTypeReplace,
 			OldContent: "old content " + string(rune(i+'0')),
 			NewContent: "new content " + string(rune(i+'0')),
-			Position:   int64(i * 5),
+			Position:   i * 5,
 		}
 	}
 

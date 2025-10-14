@@ -38,7 +38,7 @@ func (a *RuffAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyze
 			ProjectPath: config.ProjectPath,
 			Analyzer:    config.Analyzer,
 			Duration:    time.Since(startTime).Seconds(),
-			Issues:      []*domain.StaticAnalysisIssue{},
+			Issues:      []*domain.StaticIssue{},
 			Summary:     &domain.StaticAnalysisSummary{},
 			Error:       fmt.Sprintf("Ruff not available: %v", err),
 		}, nil
@@ -48,8 +48,8 @@ func (a *RuffAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyze
 	args := []string{"check", "--output-format", "json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFilePath != "" {
-		args = append(args, "--config", config.ConfigFilePath)
+	if config.ConfigFile != "" {
+		args = append(args, "--config", config.ConfigFile)
 	}
 
 	// Добавляем правила если указаны
@@ -86,7 +86,7 @@ func (a *RuffAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyze
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticAnalysisIssue{},
+		Issues:      []*domain.StaticIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -177,8 +177,8 @@ func (a *RuffAnalyzer) hasPythonFilePaths(projectPath string) bool {
 }
 
 // parseRuffOutput парсит JSON вывод Ruff
-func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
-	var issues []*domain.StaticAnalysisIssue
+func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticIssue, error) {
+	var issues []*domain.StaticIssue
 
 	// Ruff выводит JSON в формате:
 	// [{"code": "E501", "message": "line too long", "location": {"row": 1, "column": 80}, "end_location": {"row": 1, "column": 120}, "filename": "test.py"}]
@@ -261,14 +261,14 @@ func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticAnalysisI
 			severity = "error"
 		}
 
-		issue := &domain.StaticAnalysisIssue{
-			FilePath:    filename,
-			LineNumber:  row,
-			ColumnStart: column,
-			Severity:    severity,
-			Message:     message,
-			Rule:        code,
-			Category:    a.getCategory(code),
+		issue := &domain.StaticIssue{
+			File:     filename,
+			Line:     row,
+			Column:   column,
+			Severity: severity,
+			Message:  message,
+			Code:     code,
+			Category: a.getCategory(code),
 		}
 
 		issues = append(issues, issue)
@@ -296,13 +296,13 @@ func (a *RuffAnalyzer) getCategory(code string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *RuffAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
+func (a *RuffAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:         len(issues),
-		SeverityBreakdown:   make(map[string]int),
-		CategoryBreakdown:   make(map[string]int),
-		FilePathsAnalyzed:   0,
-		FilePathsWithIssues: 0,
+		TotalIssues:       len(issues),
+		SeverityBreakdown: make(map[string]int),
+		CategoryBreakdown: make(map[string]int),
+		FilesAnalyzed:     0,
+		FilesWithIssues:   0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -315,7 +315,7 @@ func (a *RuffAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *do
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.FilePath] = true
+		filesWithIssues[issue.File] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -330,7 +330,7 @@ func (a *RuffAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *do
 		}
 	}
 
-	summary.FilePathsWithIssues = len(filesWithIssues)
+	summary.FilesWithIssues = len(filesWithIssues)
 
 	return summary
 }

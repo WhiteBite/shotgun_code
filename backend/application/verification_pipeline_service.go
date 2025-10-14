@@ -11,9 +11,9 @@ import (
 // VerificationPipelineService предоставляет высокоуровневый API для verification pipeline
 type VerificationPipelineService struct {
 	log              domain.Logger
-	buildService     *BuildService
-	testService      *TestService
-	staticAnalyzer   *StaticAnalyzerService
+	buildService     domain.IBuildService
+	testService      domain.ITestService
+	staticAnalyzer   domain.IStaticAnalyzerService
 	formatterService *FormatterService
 	reportWriter     domain.FileSystemWriter
 	taskProtocol     domain.TaskProtocolService // NEW: Task Protocol integration
@@ -22,9 +22,9 @@ type VerificationPipelineService struct {
 // NewVerificationPipelineService создает новый сервис verification pipeline
 func NewVerificationPipelineService(
 	log domain.Logger,
-	buildService *BuildService,
-	testService *TestService,
-	staticAnalyzer *StaticAnalyzerService,
+	buildService domain.IBuildService,
+	testService domain.ITestService,
+	staticAnalyzer domain.IStaticAnalyzerService,
 	formatterService *FormatterService,
 	reportWriter domain.FileSystemWriter,
 	taskProtocol domain.TaskProtocolService, // NEW: Task Protocol parameter

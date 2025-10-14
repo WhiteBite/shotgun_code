@@ -155,13 +155,13 @@ func (e *StaticAnalyzerEngineImpl) GenerateReport(results map[string]*domain.Sta
 		Timestamp:     time.Now().UTC().Format(time.RFC3339),
 		TotalDuration: 0.0,
 		Results:       results,
-		Summary:       &domain.StaticAnalysisMetrics{},
+		Summary:       &domain.StaticAnalysisReportSummary{},
 	}
 
 	var totalIssues, totalErrors, totalWarnings int
 	var languagesAnalyzed []string
 	var analyzersUsed []string
-	var criticalIssues []*domain.StaticAnalysisIssue
+	var criticalIssues []*domain.StaticIssue
 
 	for language, result := range results {
 		if result.Success {
@@ -185,12 +185,10 @@ func (e *StaticAnalyzerEngineImpl) GenerateReport(results map[string]*domain.Sta
 	}
 
 	report.Summary.TotalIssues = totalIssues
-	report.Summary.IssuesBySeverity = map[string]int{
-		"error":   totalErrors,
-		"warning": totalWarnings,
-	}
-	report.Summary.ToolsUsed = analyzersUsed
-	report.Summary.Duration = time.Duration(report.TotalDuration) * time.Second
+	report.Summary.TotalErrors = totalErrors
+	report.Summary.TotalWarnings = totalWarnings
+	report.Summary.LanguagesAnalyzed = languagesAnalyzed
+	report.Summary.AnalyzersUsed = analyzersUsed
 	report.Summary.CriticalIssues = criticalIssues
 	report.Summary.Success = totalErrors == 0
 
@@ -215,7 +213,7 @@ func (e *StaticAnalyzerEngineImpl) generateRecommendations(report *domain.Static
 	if len(report.Summary.CriticalIssues) > 0 {
 		recommendations = append(recommendations, "Review and fix critical issues in the following files:")
 		for _, issue := range report.Summary.CriticalIssues {
-			recommendations = append(recommendations, fmt.Sprintf("  - %s:%d: %s", issue.FilePath, issue.LineNumber, issue.Message))
+			recommendations = append(recommendations, fmt.Sprintf("  - %s:%d: %s", issue.File, issue.Line, issue.Message))
 		}
 	}
 

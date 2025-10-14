@@ -3,10 +3,12 @@ package application
 import (
 	"context"
 	"shotgun_code/domain"
+	"shotgun_code/testutils"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // TestTaskProtocolIntegration_EndToEnd tests the complete integration workflow
@@ -14,18 +16,27 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 	// Setup - create all required services
 	logger := &TestLogger{}
 
-	// Create mock services
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	// Create mock services using testutils for interfaces
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	fileSystemProvider := &MockFileSystemProvider{}
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
+	guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
+
+	// Create concrete services for types that expect concrete implementations
+	verificationPipeline := &VerificationPipelineService{}
+	taskflowService := &testutils.MockTaskflowService{}
 
 	// Create protocol services
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
-	verificationPipeline := &MockVerificationPipelineService{}
 
 	taskProtocolService := NewTaskProtocolService(
 		logger,
@@ -34,7 +45,7 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)
@@ -42,8 +53,7 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 	// Create configuration service
 	configService := NewTaskProtocolConfigService(logger, fileSystemProvider)
 
-	// Create taskflow mock
-	taskflowService := &MockTaskflowService{}
+	taskflowService.On("ExecuteTaskflow").Return(nil)
 
 	// Create integration service
 	integration := NewTaskflowProtocolIntegration(
@@ -51,7 +61,7 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 		taskflowService,
 		taskProtocolService,
 		configService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 	)
 
 	// Test AI code validation workflow
@@ -110,9 +120,15 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 // TestGoProtocolImplementation_Integration tests Go-specific protocol integration
 func TestGoProtocolImplementation_Integration(t *testing.T) {
 	logger := &TestLogger{}
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	buildService := &MockBuildService{}
-	testService := &MockTestService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	buildService := &testutils.MockBuildService{}
+	testService := &testutils.MockTestService{}
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
 
 	goProtocol := NewGoProtocolImplementation(logger, staticAnalyzer, buildService, testService)
 
@@ -166,9 +182,15 @@ func TestGoProtocolImplementation_Integration(t *testing.T) {
 // TestTypeScriptProtocolImplementation_Integration tests TypeScript-specific protocol integration
 func TestTypeScriptProtocolImplementation_Integration(t *testing.T) {
 	logger := &TestLogger{}
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	buildService := &MockBuildService{}
-	testService := &MockTestService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	buildService := &testutils.MockBuildService{}
+	testService := &testutils.MockTestService{}
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
 
 	tsProtocol := NewTypeScriptProtocolImplementation(logger, staticAnalyzer, buildService, testService)
 
@@ -284,14 +306,22 @@ func TestProtocolReportingAndMetrics(t *testing.T) {
 	fileSystemWriter := &MockFileSystemWriter{}
 
 	// Create services
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	formatterService := &MockFormatterService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
+	guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
+
+	// Create real services that require concrete implementations
+	formatterService := NewFormatterService(logger, &MockCommandRunner{})
 
 	taskProtocolService := NewTaskProtocolService(
 		logger,
@@ -300,7 +330,7 @@ func TestProtocolReportingAndMetrics(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)
@@ -375,11 +405,10 @@ func TestProtocolPerformance(t *testing.T) {
 	fileSystemProvider := &MockFileSystemProvider{}
 
 	// Create services
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
 
@@ -390,7 +419,7 @@ func TestProtocolPerformance(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)
@@ -485,6 +514,54 @@ func (m *MockTaskflowService) GetTaskDependencies(taskID string) ([]domain.Task,
 	return []domain.Task{}, nil
 }
 
+func (m *MockTaskflowService) ExecuteTaskflow() error {
+	return nil
+}
+
+func (m *MockTaskflowService) GetReadyTasks() ([]domain.Task, error) {
+	return []domain.Task{}, nil
+}
+
+func (m *MockTaskflowService) ValidateTaskflow() error {
+	return nil
+}
+
+func (m *MockTaskflowService) GetTaskflowProgress() (float64, error) {
+	return 0.0, nil
+}
+
+func (m *MockTaskflowService) ResetTaskflow() error {
+	return nil
+}
+
+func (m *MockTaskflowService) StartAutonomousTask(ctx context.Context, request domain.AutonomousTaskRequest) (*domain.AutonomousTaskResponse, error) {
+	return &domain.AutonomousTaskResponse{}, nil
+}
+
+func (m *MockTaskflowService) CancelAutonomousTask(ctx context.Context, taskId string) error {
+	return nil
+}
+
+func (m *MockTaskflowService) GetAutonomousTaskStatus(ctx context.Context, taskId string) (*domain.AutonomousTaskStatus, error) {
+	return &domain.AutonomousTaskStatus{}, nil
+}
+
+func (m *MockTaskflowService) ListAutonomousTasks(ctx context.Context, projectPath string) ([]domain.AutonomousTask, error) {
+	return []domain.AutonomousTask{}, nil
+}
+
+func (m *MockTaskflowService) GetTaskLogs(ctx context.Context, taskId string) ([]domain.LogEntry, error) {
+	return []domain.LogEntry{}, nil
+}
+
+func (m *MockTaskflowService) PauseTask(ctx context.Context, taskId string) error {
+	return nil
+}
+
+func (m *MockTaskflowService) ResumeTask(ctx context.Context, taskId string) error {
+	return nil
+}
+
 type MockFormatterService struct{}
 
 func (m *MockFormatterService) FormatProject(ctx context.Context, projectPath, language string) (*domain.FormatResult, error) {
@@ -511,4 +588,14 @@ func (m *MockFileSystemWriter) Remove(name string) error {
 
 func (m *MockFileSystemWriter) RemoveAll(path string) error {
 	return nil
+}
+
+type MockCommandRunner struct{}
+
+func (m *MockCommandRunner) RunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return []byte("mock output"), nil
+}
+
+func (m *MockCommandRunner) RunCommandInDir(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	return []byte("mock output"), nil
 }

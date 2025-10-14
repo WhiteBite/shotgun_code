@@ -12,9 +12,9 @@ import (
 type TaskProtocolServiceImpl struct {
 	log                  domain.Logger
 	verificationPipeline *VerificationPipelineService
-	staticAnalyzer       *StaticAnalyzerService
-	testService          *TestService
-	buildService         *BuildService
+	staticAnalyzer       domain.IStaticAnalyzerService
+	testService          domain.ITestService
+	buildService         domain.IBuildService
 	guardrailService     domain.GuardrailService
 	aiService            *IntelligentAIService
 	errorAnalyzer        domain.ErrorAnalyzer
@@ -26,9 +26,9 @@ type TaskProtocolServiceImpl struct {
 func NewTaskProtocolService(
 	log domain.Logger,
 	verificationPipeline *VerificationPipelineService,
-	staticAnalyzer *StaticAnalyzerService,
-	testService *TestService,
-	buildService *BuildService,
+	staticAnalyzer domain.IStaticAnalyzerService,
+	testService domain.ITestService,
+	buildService domain.IBuildService,
 	guardrailService domain.GuardrailService,
 	aiService *IntelligentAIService,
 	errorAnalyzer domain.ErrorAnalyzer,

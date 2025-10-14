@@ -156,11 +156,11 @@ func TestDiffService_GenerateDiffFromResults_Success(t *testing.T) {
 	// Test data
 	results := []*domain.ApplyResult{
 		{
-			FilePath: "/test/file1.go",
+			Path: "/test/file1.go",
 			Success:  true,
 		},
 		{
-			FilePath: "/test/file2.js",
+			Path: "/test/file2.js",
 			Success:  true,
 		},
 	}
@@ -202,7 +202,7 @@ func TestDiffService_GenerateDiffFromEdits_Success(t *testing.T) {
 
 	// Test data
 	edits := &domain.EditsJSON{
-		Edits: []domain.Edit{
+		Edits: []*domain.Edit{
 			{
 				FilePath:   "/test/file.go",
 				Type:       domain.EditTypeReplace,

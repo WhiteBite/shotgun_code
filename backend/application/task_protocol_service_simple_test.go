@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"shotgun_code/domain"
+	"shotgun_code/testutils"
 	"testing"
 	"time"
 
@@ -13,12 +14,11 @@ import (
 func TestTaskProtocolService_ExecuteProtocol_Basic(t *testing.T) {
 	// Create a minimal test setup
 	logger := &TestLogger{}
-	verificationPipeline := &MockVerificationPipelineService{}
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	verificationPipeline := &VerificationPipelineService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
@@ -30,7 +30,7 @@ func TestTaskProtocolService_ExecuteProtocol_Basic(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)
@@ -61,12 +61,11 @@ func TestTaskProtocolService_ExecuteProtocol_Basic(t *testing.T) {
 func TestTaskProtocolService_ValidateStage_Linting(t *testing.T) {
 	// Create a minimal test setup
 	logger := &TestLogger{}
-	verificationPipeline := &MockVerificationPipelineService{}
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	verificationPipeline := &VerificationPipelineService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
@@ -78,7 +77,7 @@ func TestTaskProtocolService_ValidateStage_Linting(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)
@@ -107,49 +106,14 @@ func (l *TestLogger) Error(message string)   {}
 func (l *TestLogger) Debug(message string)   {}
 func (l *TestLogger) Fatal(message string)   {}
 
-type MockVerificationPipelineService struct{}
-
-type MockStaticAnalyzerService struct{}
-
-func (m *MockStaticAnalyzerService) AnalyzeProject(ctx context.Context, projectPath string, languages []string) (interface{}, error) {
-	return nil, nil
+type MockFileSystemProvider struct {
+	ReadFileContent string
 }
-
-type MockTestService struct{}
-
-func (m *MockTestService) RunSmokeTests(ctx context.Context, projectPath, language string) ([]*domain.TestResult, error) {
-	return []*domain.TestResult{}, nil
-}
-
-func (m *MockTestService) ValidateTestResults(results []*domain.TestResult) *domain.TestValidationResult {
-	return &domain.TestValidationResult{Success: true}
-}
-
-type MockBuildService struct{}
-
-func (m *MockBuildService) ValidateProject(ctx context.Context, projectPath string, languages []string) (*domain.ProjectValidationResult, error) {
-	return &domain.ProjectValidationResult{Success: true}, nil
-}
-
-func (m *MockBuildService) DetectLanguages(ctx context.Context, projectPath string) ([]string, error) {
-	return []string{"go"}, nil
-}
-
-func (m *MockBuildService) GetSupportedLanguages() []string {
-	return []string{"go", "typescript", "javascript"}
-}
-
-type MockGuardrailService struct{}
-
-func (m *MockGuardrailService) ValidateTask(taskID string, files []string, linesChanged int64) (*domain.TaskValidationResult, error) {
-	return &domain.TaskValidationResult{Valid: true}, nil
-}
-
-type MockIntelligentAIService struct{}
-
-type MockFileSystemProvider struct{}
 
 func (m *MockFileSystemProvider) ReadFile(filename string) ([]byte, error) {
+	if m.ReadFileContent != "" {
+		return []byte(m.ReadFileContent), nil
+	}
 	return []byte("mock content"), nil
 }
 
@@ -165,12 +129,11 @@ func (m *MockFileSystemProvider) MkdirAll(path string, perm int) error {
 func TestTaskProtocolService_Integration(t *testing.T) {
 	// This test demonstrates the integration between components
 	logger := &TestLogger{}
-	verificationPipeline := &MockVerificationPipelineService{}
-	staticAnalyzer := &MockStaticAnalyzerService{}
-	testService := &MockTestService{}
-	buildService := &MockBuildService{}
-	guardrailService := &MockGuardrailService{}
-	aiService := &MockIntelligentAIService{}
+	verificationPipeline := &VerificationPipelineService{}
+	staticAnalyzer := &testutils.MockStaticAnalyzerService{}
+	testService := &testutils.MockTestService{}
+	buildService := &testutils.MockBuildService{}
+	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
@@ -182,7 +145,7 @@ func TestTaskProtocolService_Integration(t *testing.T) {
 		testService,
 		buildService,
 		guardrailService,
-		aiService,
+		&IntelligentAIService{}, // Use concrete type
 		errorAnalyzer,
 		correctionEngine,
 	)

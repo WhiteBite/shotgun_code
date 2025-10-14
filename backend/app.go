@@ -26,8 +26,8 @@ type App struct {
 	settingsService       *application.SettingsService
 	contextAnalysis       contextAnalysisService
 	symbolGraph           *application.SymbolGraphService
-	testService           *application.TestService
-	staticAnalyzerService *application.StaticAnalyzerService
+	testService           domain.ITestService
+	staticAnalyzerService domain.IStaticAnalyzerService
 	sbomService           *application.SBOMService
 	repairService         domain.RepairService
 	guardrailService      domain.GuardrailService
@@ -35,7 +35,7 @@ type App struct {
 	uxMetricsService      domain.UXMetricsService
 	applyService          *application.ApplyService
 	diffService           *application.DiffService
-	buildService          *application.BuildService
+	buildService          domain.IBuildService
 	fileWatcher           domain.FileSystemWatcher
 	gitRepo               domain.GitRepository
 	exportService         *application.ExportService

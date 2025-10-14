@@ -1,4 +1,4 @@
-﻿﻿<template>
+﻿<template>
   <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
     <!-- Global Error Handler -->
     <div v-if="globalError" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -66,8 +66,16 @@
     </div>
 
     <!-- Global components (lazy loaded) -->
-    <CommandPalette v-if="projectStore.hasProject" />
-    <KeyboardShortcutsModal v-if="projectStore.hasProject" />
+    <CommandPalette 
+      v-if="projectStore.hasProject" 
+      :is-open="isCommandPaletteOpen" 
+      @close="isCommandPaletteOpen = false" 
+    />
+    <KeyboardShortcutsModal 
+      v-if="projectStore.hasProject" 
+      :is-open="isShortcutsModalOpen" 
+      @close="isShortcutsModalOpen = false" 
+    />
     
     <!-- Theme toggle (always available) -->
     <div class="fixed bottom-4 right-4 z-40">
@@ -77,7 +85,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent } from 'vue'
+import { ref, onMounted, defineAsyncComponent, watch } from 'vue'
+import { useMagicKeys } from '@vueuse/core'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
 import { useProjectStore } from '@/stores/project.store'
@@ -92,6 +101,27 @@ const ThemeToggle = defineAsyncComponent(() => import('@/components/ThemeToggle.
 const projectStore = useProjectStore()
 const uiStore = useUIStore()
 const globalError = ref<string | null>(null)
+const isCommandPaletteOpen = ref(false)
+const isShortcutsModalOpen = ref(false)
+
+// Keyboard shortcuts
+const keys = useMagicKeys()
+const ctrlK = keys['Ctrl+K']
+const ctrlP = keys['Ctrl+P']
+const ctrlSlash = keys['Ctrl+/']
+
+watch(ctrlK, (v) => {
+  if (v) isCommandPaletteOpen.value = !isCommandPaletteOpen.value
+})
+watch(ctrlP, (v) => {
+  if (v) {
+    isCommandPaletteOpen.value = true
+    // Here you might want to pre-fill the command palette with a file search prefix
+  }
+})
+watch(ctrlSlash, (v) => {
+  if (v) isShortcutsModalOpen.value = !isShortcutsModalOpen.value
+})
 
 // Initialize theme early to prevent white flash on load
 useTheme()

@@ -122,6 +122,12 @@ type ModelFetcher func(apiKey string) ([]string, error)
 // ModelFetcherRegistry is a map of provider types to their model fetchers.
 type ModelFetcherRegistry map[string]ModelFetcher
 
+// KeyResolver defines the interface for resolving API keys for different providers
+type KeyResolver interface {
+	// GetKey retrieves the API key for a given provider type from settings
+	GetKey(providerType string, settings SettingsDTO) (string, error)
+}
+
 // PathProvider определяет интерфейс для работы с путями файловой системы
 type PathProvider interface {
 	// Join соединяет элементы пути
@@ -312,6 +318,102 @@ type ContextRepository interface {
 
 	// ReadContextContent returns the full context content as a string
 	ReadContextContent(ctx context.Context, contextID string) (string, error)
+}
+
+// IBuildService defines the interface for build service operations
+type IBuildService interface {
+	// Build executes project build
+	Build(ctx context.Context, projectPath, language string) (*BuildResult, error)
+
+	// TypeCheck performs type checking
+	TypeCheck(ctx context.Context, projectPath, language string) (*TypeCheckResult, error)
+
+	// BuildAndTypeCheck executes build and type checking
+	BuildAndTypeCheck(ctx context.Context, projectPath, language string) (*BuildResult, *TypeCheckResult, error)
+
+	// BuildMultiLanguage executes build for multiple languages
+	BuildMultiLanguage(ctx context.Context, projectPath string, languages []string) (map[string]*BuildResult, error)
+
+	// TypeCheckMultiLanguage executes type checking for multiple languages
+	TypeCheckMultiLanguage(ctx context.Context, projectPath string, languages []string) (map[string]*TypeCheckResult, error)
+
+	// ValidateProject performs full project validation
+	ValidateProject(ctx context.Context, projectPath string, languages []string) (*ProjectValidationResult, error)
+
+	// GetSupportedLanguages returns supported languages
+	GetSupportedLanguages() []string
+
+	// DetectLanguages detects languages in project
+	DetectLanguages(ctx context.Context, projectPath string) ([]string, error)
+}
+
+// ITestService defines the interface for test service operations
+type ITestService interface {
+	// RunTests executes tests according to configuration
+	RunTests(ctx context.Context, config *TestConfig) ([]*TestResult, error)
+
+	// RunTargetedTests executes targeted tests for affected files
+	RunTargetedTests(ctx context.Context, config *TestConfig, changedFiles []string) ([]*TestResult, error)
+
+	// DiscoverTests discovers tests in project
+	DiscoverTests(ctx context.Context, projectPath, language string) (*TestSuite, error)
+
+	// BuildAffectedGraph builds affected files graph
+	BuildAffectedGraph(ctx context.Context, changedFiles []string, projectPath string) (*AffectedGraph, error)
+
+	// GetTestCoverage gets test coverage
+	GetTestCoverage(ctx context.Context, testPath string) (*TestCoverage, error)
+
+	// GetSupportedLanguages returns supported languages
+	GetSupportedLanguages() []string
+
+	// RunSmokeTests executes only smoke tests
+	RunSmokeTests(ctx context.Context, projectPath, language string) ([]*TestResult, error)
+
+	// RunUnitTests executes only unit tests
+	RunUnitTests(ctx context.Context, projectPath, language string) ([]*TestResult, error)
+
+	// RunIntegrationTests executes only integration tests
+	RunIntegrationTests(ctx context.Context, projectPath, language string) ([]*TestResult, error)
+
+	// ValidateTestResults validates test results
+	ValidateTestResults(results []*TestResult) *TestValidationResult
+}
+
+// IStaticAnalyzerService defines the interface for static analyzer service operations
+type IStaticAnalyzerService interface {
+	// AnalyzeProject analyzes project
+	AnalyzeProject(ctx context.Context, projectPath string, languages []string) (*StaticAnalysisReport, error)
+
+	// AnalyzeFile analyzes single file
+	AnalyzeFile(ctx context.Context, filePath, language string) (*StaticAnalysisResult, error)
+
+	// GetSupportedAnalyzers returns supported analyzers
+	GetSupportedAnalyzers() []StaticAnalyzerType
+
+	// GetAnalyzerForLanguage returns analyzer for language
+	GetAnalyzerForLanguage(language string) (StaticAnalyzer, error)
+
+	// ValidateAnalysisResults validates analysis results
+	ValidateAnalysisResults(results map[string]*StaticAnalysisResult) *StaticAnalysisValidationResult
+
+	// AnalyzeGoProject analyzes Go project
+	AnalyzeGoProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
+
+	// AnalyzeTypeScriptProject analyzes TypeScript project
+	AnalyzeTypeScriptProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
+
+	// AnalyzeJavaScriptProject analyzes JavaScript project
+	AnalyzeJavaScriptProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
+
+	// AnalyzeJavaProject analyzes Java project
+	AnalyzeJavaProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
+
+	// AnalyzePythonProject analyzes Python project
+	AnalyzePythonProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
+
+	// AnalyzeCppProject analyzes C/C++ project
+	AnalyzeCppProject(ctx context.Context, projectPath string) (*StaticAnalysisResult, error)
 }
 
 // TaskAnalysis contains analysis results for a task

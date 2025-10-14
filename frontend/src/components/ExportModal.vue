@@ -265,7 +265,8 @@ const contextStore = useContextStore()
 const isOpen = ref(false)
 const isExporting = ref(false)
 const exportResult = ref<any>(null)
-const selectedMode = ref<'clipboard' | 'ai' | 'human'>('clipboard')
+type ExportMode = 'clipboard' | 'ai' | 'human'
+const selectedMode = ref<ExportMode>('clipboard')
 
 const settings = reactive({
   // Clipboard
@@ -287,7 +288,7 @@ const settings = reactive({
   includePageNumbers: true
 })
 
-const exportModes = [
+const exportModes: { value: ExportMode; label: string; description: string; icon: any }[] = [
   {
     value: 'clipboard',
     label: 'Буфер обмена',
@@ -437,6 +438,11 @@ defineExpose({
 }
 
 .modal-enter-from > div,
+.modal-leave-to > div {
+  transform: scale(0.95);
+}
+</style>
+ter-from > div,
 .modal-leave-to > div {
   transform: scale(0.95);
 }

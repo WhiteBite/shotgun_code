@@ -48,8 +48,8 @@ type Container struct {
 	AIService             *application.AIService
 	ContextAnalysis       domain.ContextAnalyzer
 	SymbolGraph           *application.SymbolGraphService
-	TestService           *application.TestService
-	StaticAnalyzerService *application.StaticAnalyzerService
+	TestService           domain.ITestService
+	StaticAnalyzerService domain.IStaticAnalyzerService
 	SBOMService           *application.SBOMService
 	RepairService         domain.RepairService
 	GuardrailService      domain.GuardrailService
@@ -57,7 +57,7 @@ type Container struct {
 	UXMetricsService      domain.UXMetricsService
 	ApplyService          *application.ApplyService
 	DiffService           *application.DiffService
-	BuildService          *application.BuildService
+	BuildService          domain.IBuildService
 	ExportService         *application.ExportService
 	ReportService         *application.ReportService
 

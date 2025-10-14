@@ -48,8 +48,8 @@ type CLIContainer struct {
 	AIService             *application.AIService
 	ContextAnalysis       domain.ContextAnalyzer
 	SymbolGraph           *application.SymbolGraphService
-	TestService           *application.TestService
-	StaticAnalyzerService *application.StaticAnalyzerService
+	TestService           domain.ITestService
+	StaticAnalyzerService domain.IStaticAnalyzerService
 	SBOMService           *application.SBOMService
 	RepairService         domain.RepairService
 	GuardrailService      domain.GuardrailService
@@ -57,7 +57,7 @@ type CLIContainer struct {
 	UXMetricsService      domain.UXMetricsService
 	ApplyService          *application.ApplyService
 	DiffService           *application.DiffService
-	BuildService          *application.BuildService
+	BuildService          domain.IBuildService
 	ExportService         *application.ExportService
 	VerificationService   *application.VerificationPipelineService
 	opaService            domain.OPAService
@@ -168,7 +168,7 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// Create SBOM service with all required dependencies
 	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, fileStatProvider)
 
-	c.RepairService = application.NewRepairService(c.Log)
+	c.RepairService = application.NewRepairService(c.Log, c.CommandRunner)
 
 	// Taskflow components not used in CLI currently
 

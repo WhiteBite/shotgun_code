@@ -31,6 +31,9 @@ export const useContextStore = defineStore('context', () => {
   const totalLines = computed(() => summary.value?.lineCount || 0)
   const totalSize = computed(() => summary.value?.totalSize || 0)
   const fileCount = computed(() => summary.value?.fileCount || 0)
+  const lineCount = computed(() => totalLines.value) // Alias for totalLines
+  const tokenCount = computed(() => Math.round(totalLines.value * 2.5)) // Estimated tokens
+  const estimatedCost = computed(() => (tokenCount.value / 1000) * 0.002) // Dummy cost
 
   // Actions
   async function buildContext(filePaths: string[]) {
@@ -83,7 +86,7 @@ export const useContextStore = defineStore('context', () => {
     }
   }
 
-  async function loadFullContext() {
+  async function getContextContent(startLine: number, endLine: number) {
     if (!contextId.value) {
       error.value = 'No context available'
       return ''
@@ -93,8 +96,9 @@ export const useContextStore = defineStore('context', () => {
     error.value = null
 
     try {
-      // TODO: Call backend API /api/context/{id}/full
-      return ''
+      // TODO: Call backend API /api/context/{id}/content?start={start}&end={end}
+      console.log(`Fetching content from ${startLine} to ${endLine}`)
+      return 'dummy context content' // Return dummy content
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load context'
       return ''
@@ -122,10 +126,13 @@ export const useContextStore = defineStore('context', () => {
     totalLines,
     totalSize,
     fileCount,
+    lineCount,
+    tokenCount,
+    estimatedCost,
     // Actions
     buildContext,
     loadChunk,
-    loadFullContext,
+    getContextContent,
     clearContext
   }
 })

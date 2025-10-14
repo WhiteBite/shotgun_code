@@ -40,12 +40,8 @@ type MockEventBus struct {
 	mock.Mock
 }
 
-func (m *MockEventBus) Publish(event string, data interface{}) {
-	m.Called(event, data)
-}
-
-func (m *MockEventBus) Subscribe(event string, handler func(interface{})) {
-	m.Called(event, handler)
+func (m *MockEventBus) Emit(eventName string, data ...interface{}) {
+	m.Called(eventName, data)
 }
 
 // Mock TreeBuilder for testing
@@ -73,9 +69,45 @@ func (m *MockGitRepository) GetRichCommitHistory(projectRoot, branchName string,
 	return args.Get(0).([]domain.CommitWithFiles), args.Error(1)
 }
 
+func (m *MockGitRepository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
+	args := m.Called(projectRoot, filePath, commitHash)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockGitRepository) GetGitignoreContent(projectRoot string) (string, error) {
+	args := m.Called(projectRoot)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockGitRepository) IsGitAvailable() bool {
 	args := m.Called()
 	return args.Bool(0)
+}
+
+func (m *MockGitRepository) GetBranches(projectRoot string) ([]string, error) {
+	args := m.Called(projectRoot)
+	if branches := args.Get(0); branches != nil {
+		return branches.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGitRepository) GetCurrentBranch(projectRoot string) (string, error) {
+	args := m.Called(projectRoot)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockGitRepository) GetAllFiles(projectPath string) ([]string, error) {
+	args := m.Called(projectPath)
+	if files := args.Get(0); files != nil {
+		return files.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGitRepository) GenerateDiff(projectPath string) (string, error) {
+	args := m.Called(projectPath)
+	return args.String(0), args.Error(1)
 }
 
 // Mock ContextService for testing
@@ -273,12 +305,12 @@ func TestProjectService_GetRichCommitHistory_Success(t *testing.T) {
 	commits := []domain.CommitWithFiles{
 		{
 			Hash:    "abc123",
-			Message: "Initial commit",
+			Subject: "Initial commit",
 			Files:   []string{"README.md"},
 		},
 		{
 			Hash:    "def456",
-			Message: "Add feature",
+			Subject: "Add feature",
 			Files:   []string{"feature.go", "test.go"},
 		},
 	}

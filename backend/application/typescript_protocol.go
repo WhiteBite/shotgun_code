@@ -10,17 +10,17 @@ import (
 // TypeScriptProtocolImplementation provides TypeScript-specific protocol validation
 type TypeScriptProtocolImplementation struct {
 	log            domain.Logger
-	staticAnalyzer *StaticAnalyzerService
-	buildService   *BuildService
-	testService    *TestService
+	staticAnalyzer domain.IStaticAnalyzerService
+	buildService   domain.IBuildService
+	testService    domain.ITestService
 }
 
 // NewTypeScriptProtocolImplementation creates a new TypeScript protocol implementation
 func NewTypeScriptProtocolImplementation(
 	log domain.Logger,
-	staticAnalyzer *StaticAnalyzerService,
-	buildService *BuildService,
-	testService *TestService,
+	staticAnalyzer domain.IStaticAnalyzerService,
+	buildService domain.IBuildService,
+	testService domain.ITestService,
 ) *TypeScriptProtocolImplementation {
 	return &TypeScriptProtocolImplementation{
 		log:            log,

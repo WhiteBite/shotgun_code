@@ -231,7 +231,7 @@ func TestCorrectionEngine_ApplyCorrection(t *testing.T) {
 				Description: "Fix import statement",
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.readFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = "package main\n\nfunc main() {}"
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return result.Success
@@ -282,7 +282,7 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 				},
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.readFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = "package main\n\nfunc main() {}"
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return result.Success &&
@@ -305,7 +305,7 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 				},
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.readFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = "package main\n\nfunc main() {}"
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return !result.Success // Should fail due to unsupported action
@@ -488,7 +488,7 @@ func TestErrorAnalyzerAndCorrectionEngine_Integration(t *testing.T) {
 	logger := &TestLogger{}
 	analyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
-	fileSystemProvider.readFileContent = "package main\n\nfunc main() {\n\tfmt.Println(\"Hello\")\n}"
+	fileSystemProvider.ReadFileContent = "package main\n\nfunc main() {\n\tfmt.Println(\"Hello\")\n}"
 	engine := NewCorrectionEngine(logger, fileSystemProvider)
 
 	// Simulate a compilation error

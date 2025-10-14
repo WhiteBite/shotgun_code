@@ -474,6 +474,7 @@ class ApiService {
 
   async getBudgetPolicies(): Promise<domain.BudgetPolicy[]> {
     try {
+      // @ts-ignore
       return await wails.GetBudgetPolicies()
     } catch (error) {
       console.error('[ApiService] Error getting budget policies:', error)

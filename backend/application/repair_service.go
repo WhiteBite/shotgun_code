@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"shotgun_code/domain"
 	"sort"
@@ -14,13 +13,15 @@ import (
 
 // RepairServiceImpl реализует RepairService
 type RepairServiceImpl struct {
-	log domain.Logger
+	log          domain.Logger
+	commandRunner domain.CommandRunner
 }
 
 // NewRepairService создает новый сервис repair
-func NewRepairService(log domain.Logger) domain.RepairService {
+func NewRepairService(log domain.Logger, commandRunner domain.CommandRunner) domain.RepairService {
 	return &RepairServiceImpl{
-		log: log,
+		log:          log,
+		commandRunner: commandRunner,
 	}
 }
 
@@ -189,23 +190,20 @@ func (s *RepairServiceImpl) applyFormatRule(ctx context.Context, projectPath str
 	// Определяем язык и применяем соответствующий форматтер
 	if strings.Contains(rule.Language, "go") {
 		// gofmt
-		cmd := exec.CommandContext(ctx, "gofmt", "-w", ".")
-		cmd.Dir = projectPath
-		if err := cmd.Run(); err == nil {
+		_, err := s.commandRunner.RunCommandInDir(ctx, projectPath, "gofmt", "-w", ".")
+		if err == nil {
 			fixedFiles = append(fixedFiles, "*.go")
 		}
 
 		// goimports
-		cmd = exec.CommandContext(ctx, "goimports", "-w", ".")
-		cmd.Dir = projectPath
-		if err := cmd.Run(); err == nil {
+		_, err = s.commandRunner.RunCommandInDir(ctx, projectPath, "goimports", "-w", ".")
+		if err == nil {
 			fixedFiles = append(fixedFiles, "*.go")
 		}
 	} else if strings.Contains(rule.Language, "typescript") || strings.Contains(rule.Language, "javascript") {
 		// prettier
-		cmd := exec.CommandContext(ctx, "npx", "prettier", "--write", ".")
-		cmd.Dir = projectPath
-		if err := cmd.Run(); err == nil {
+		_, err := s.commandRunner.RunCommandInDir(ctx, projectPath, "npx", "prettier", "--write", ".")
+		if err == nil {
 			fixedFiles = append(fixedFiles, "*.ts", "*.js", "*.vue")
 		}
 	}
@@ -219,16 +217,14 @@ func (s *RepairServiceImpl) applyImportRule(ctx context.Context, projectPath str
 
 	if strings.Contains(rule.Language, "go") {
 		// go mod tidy
-		cmd := exec.CommandContext(ctx, "go", "mod", "tidy")
-		cmd.Dir = projectPath
-		if err := cmd.Run(); err == nil {
+		_, err := s.commandRunner.RunCommandInDir(ctx, projectPath, "go", "mod", "tidy")
+		if err == nil {
 			fixedFiles = append(fixedFiles, "go.mod", "go.sum")
 		}
 	} else if strings.Contains(rule.Language, "typescript") || strings.Contains(rule.Language, "javascript") {
 		// npm install
-		cmd := exec.CommandContext(ctx, "npm", "install")
-		cmd.Dir = projectPath
-		if err := cmd.Run(); err == nil {
+		_, err := s.commandRunner.RunCommandInDir(ctx, projectPath, "npm", "install")
+		if err == nil {
 			fixedFiles = append(fixedFiles, "package.json", "package-lock.json")
 		}
 	}
@@ -245,19 +241,17 @@ func (s *RepairServiceImpl) applySyntaxRule(ctx context.Context, projectPath str
 
 // verifyRepair проверяет, исправились ли ошибки
 func (s *RepairServiceImpl) verifyRepair(ctx context.Context, projectPath, language string) (bool, string) {
-	var cmd *exec.Cmd
+	var output []byte
+	var err error
 
 	switch language {
 	case "go":
-		cmd = exec.CommandContext(ctx, "go", "build", "./...")
+		output, err = s.commandRunner.RunCommandInDir(ctx, projectPath, "go", "build", "./...")
 	case "typescript", "javascript":
-		cmd = exec.CommandContext(ctx, "npx", "tsc", "--noEmit")
+		output, err = s.commandRunner.RunCommandInDir(ctx, projectPath, "npx", "tsc", "--noEmit")
 	default:
 		return false, "unsupported language for verification"
 	}
-
-	cmd.Dir = projectPath
-	output, err := cmd.CombinedOutput()
 
 	if err == nil {
 		return true, ""

@@ -408,9 +408,10 @@ func TestGuardrailsService_EnableEphemeralMode(t *testing.T) {
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
 
 	// Execute
-	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
+	err := service.EnableEphemeralMode(5 * time.Minute)
 
 	// Assert
+	assert.NoError(t, err)
 	assert.True(t, service.ephemeralMode)
 	assert.False(t, service.ephemeralEnd.IsZero())
 	assert.True(t, service.ephemeralEnd.After(time.Now()))
@@ -422,7 +423,8 @@ func TestGuardrailsService_DisableEphemeralMode(t *testing.T) {
 	mockTaskflow := new(MockTaskflowService)
 
 	service := NewGuardrailsService(mockLogger, mockTaskflow)
-	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
+	err := service.EnableEphemeralMode(5 * time.Minute)
+	assert.NoError(t, err)
 
 	// Execute
 	service.disableEphemeralMode()
@@ -442,7 +444,8 @@ func TestGuardrailsService_IsEphemeralExpired(t *testing.T) {
 	assert.False(t, service.isEphemeralExpired())
 
 	// Enable ephemeral mode
-	service.EnableEphemeralMode("test-task", "test-type", 5*time.Minute)
+	err := service.EnableEphemeralMode(5 * time.Minute)
+	assert.NoError(t, err)
 	assert.False(t, service.isEphemeralExpired())
 
 	// Manually set expiration time to past

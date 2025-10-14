@@ -38,8 +38,8 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 	args := []string{"--format", "json"}
 
 	// Добавляем конфигурационный файл если указан
-	if config.ConfigFilePath != "" {
-		args = append(args, "--config", config.ConfigFilePath)
+	if config.ConfigFile != "" {
+		args = append(args, "--config", config.ConfigFile)
 	}
 
 	// Добавляем правила если указаны
@@ -77,7 +77,7 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 		ProjectPath: config.ProjectPath,
 		Analyzer:    config.Analyzer,
 		Duration:    duration,
-		Issues:      []*domain.StaticAnalysisIssue{},
+		Issues:      []*domain.StaticIssue{},
 		Summary:     &domain.StaticAnalysisSummary{},
 	}
 
@@ -169,7 +169,7 @@ func (a *ESLintAnalyzer) hasTypeScriptFilePaths(projectPath string) bool {
 }
 
 // parseESLintOutput парсит JSON вывод ESLint
-func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticAnalysisIssue, error) {
+func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue, error) {
 	var eslintResults []struct {
 		FilePathPath string `json:"filePath"`
 		Messages     []struct {
@@ -197,26 +197,26 @@ func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticAnaly
 		return nil, fmt.Errorf("failed to unmarshal ESLint output: %w", err)
 	}
 
-	var issues []*domain.StaticAnalysisIssue
+	var issues []*domain.StaticIssue
 
 	for _, result := range eslintResults {
 		for _, message := range result.Messages {
 			// Конвертируем severity
 			severity := a.convertSeverity(message.Severity)
 
-			issue := &domain.StaticAnalysisIssue{
-				FilePath:    result.FilePathPath,
-				LineNumber:  message.LineNumber,
-				ColumnStart: message.ColumnStart,
-				Severity:    severity,
-				Message:     message.Message,
-				Rule:        message.RuleId,
-				Category:    a.getCategory(message.RuleId),
+			issue := &domain.StaticIssue{
+				File:     result.FilePathPath,
+				Line:     message.LineNumber,
+				Column:   message.ColumnStart,
+				Severity: severity,
+				Message:  message.Message,
+				Code:     message.RuleId,
+				Category: a.getCategory(message.RuleId),
 			}
 
 			// Добавляем предложения по исправлению если есть
 			if message.Fix.Text != "" {
-				issue.Suggestion = message.Fix.Text
+				issue.Suggestions = []string{message.Fix.Text}
 			}
 
 			issues = append(issues, issue)
@@ -257,13 +257,13 @@ func (a *ESLintAnalyzer) getCategory(ruleId string) string {
 }
 
 // generateSummary генерирует сводку анализа
-func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *domain.StaticAnalysisSummary {
+func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
 	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:         len(issues),
-		SeverityBreakdown:   make(map[string]int),
-		CategoryBreakdown:   make(map[string]int),
-		FilePathsAnalyzed:   0,
-		FilePathsWithIssues: 0,
+		TotalIssues:       len(issues),
+		SeverityBreakdown: make(map[string]int),
+		CategoryBreakdown: make(map[string]int),
+		FilesAnalyzed:     0,
+		FilesWithIssues:   0,
 	}
 
 	filesWithIssues := make(map[string]bool)
@@ -276,7 +276,7 @@ func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *
 		summary.CategoryBreakdown[issue.Category]++
 
 		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.FilePath] = true
+		filesWithIssues[issue.File] = true
 
 		// Подсчитываем по типам
 		switch issue.Severity {
@@ -291,7 +291,7 @@ func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticAnalysisIssue) *
 		}
 	}
 
-	summary.FilePathsWithIssues = len(filesWithIssues)
+	summary.FilesWithIssues = len(filesWithIssues)
 
 	return summary
 }
