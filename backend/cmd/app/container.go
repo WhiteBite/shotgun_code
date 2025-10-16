@@ -146,9 +146,14 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	fileSystemWriter := &OSFileSystemWriter{}
 
 	// Get context directory
-	homeDir, _ := os.UserHomeDir()
+	homeDir, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		return nil, fmt.Errorf("failed to determine user home directory: %w", homeErr)
+	}
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	os.MkdirAll(contextDir, 0755)
+	if mkErr := os.MkdirAll(contextDir, 0755); mkErr != nil {
+		return nil, fmt.Errorf("failed to create context directory: %w", mkErr)
+	}
 
 	// Create comment stripper for code preprocessing
 	commentStripper := textutils.NewCommentStripper(c.Log)
@@ -439,12 +444,12 @@ func (p *FilePathProvider) Getwd() (string, error) {
 // OSFileSystemWriter implements domain.FileSystemWriter using standard os functions
 type OSFileSystemWriter struct{}
 
-func (w *OSFileSystemWriter) WriteFile(filename string, data []byte, perm int) error {
-	return os.WriteFile(filename, data, os.FileMode(perm))
+func (w *OSFileSystemWriter) WriteFile(filename string, data []byte, _ os.FileMode) error {
+	return os.WriteFile(filename, data, 0644)
 }
 
-func (w *OSFileSystemWriter) MkdirAll(path string, perm int) error {
-	return os.MkdirAll(path, os.FileMode(perm))
+func (w *OSFileSystemWriter) MkdirAll(path string, _ os.FileMode) error {
+	return os.MkdirAll(path, 0755)
 }
 
 func (w *OSFileSystemWriter) Remove(name string) error {
@@ -529,24 +534,24 @@ func (o *OSFileSystemProvider) ReadFile(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
 
-func (o *OSFileSystemProvider) WriteFile(filename string, data []byte, perm int) error {
-	return os.WriteFile(filename, data, os.FileMode(perm))
+func (o *OSFileSystemProvider) WriteFile(filename string, data []byte, _ os.FileMode) error {
+	return os.WriteFile(filename, data, 0644)
 }
 
-func (o *OSFileSystemProvider) MkdirAll(path string, perm int) error {
-	return os.MkdirAll(path, os.FileMode(perm))
+func (o *OSFileSystemProvider) MkdirAll(path string, _ os.FileMode) error {
+	return os.MkdirAll(path, 0755)
 }
 
 // CommandRunnerImpl implements domain.CommandRunner
 type CommandRunnerImpl struct{}
 
-func (c *CommandRunnerImpl) RunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+func (c *CommandRunnerImpl) RunCommand(_ context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
 	return cmd.Output()
 }
 
-func (c *CommandRunnerImpl) RunCommandInDir(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+func (c *CommandRunnerImpl) RunCommandInDir(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	return cmd.Output()
 }

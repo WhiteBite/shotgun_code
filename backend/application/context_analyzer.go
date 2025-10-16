@@ -150,7 +150,7 @@ func (ca *ContextAnalyzerImpl) simpleTaskAnalysis(task string) *domain.TaskAnaly
 }
 
 // Helper methods for extracting information from AI response
-func (ca *ContextAnalyzerImpl) extractTaskType(task, response string) string {
+func (ca *ContextAnalyzerImpl) extractTaskType(_, response string) string {
 	// Simple extraction - in real implementation would parse JSON
 	if strings.Contains(strings.ToLower(response), "bug_fix") {
 		return "bug_fix"
@@ -158,22 +158,22 @@ func (ca *ContextAnalyzerImpl) extractTaskType(task, response string) string {
 	return "feature"
 }
 
-func (ca *ContextAnalyzerImpl) extractPriority(task, response string) string {
+func (ca *ContextAnalyzerImpl) extractPriority(_, response string) string {
 	if strings.Contains(strings.ToLower(response), "critical") {
 		return "critical"
 	}
 	return "normal"
 }
 
-func (ca *ContextAnalyzerImpl) extractTechnologies(task, response string) []string {
+func (ca *ContextAnalyzerImpl) extractTechnologies(_, _ string) []string {
 	return []string{"go", "typescript", "vue"}
 }
 
-func (ca *ContextAnalyzerImpl) extractFileTypes(task, response string) []string {
+func (ca *ContextAnalyzerImpl) extractFileTypes(_, _ string) []string {
 	return []string{".go", ".ts", ".vue", ".js"}
 }
 
-func (ca *ContextAnalyzerImpl) extractKeywords(task, response string) []string {
+func (ca *ContextAnalyzerImpl) extractKeywords(task, _ string) []string {
 	return strings.Fields(strings.ToLower(task))
 }
 

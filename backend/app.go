@@ -902,7 +902,7 @@ func (a *App) GetContextContent(contextID string, startLine int, lineCount int) 
 
 // Legacy BuildContextLegacy for backward compatibility - DEPRECATED
 // The disk-based context architecture replaces this functionality
-func (a *App) BuildContextLegacy(projectPath string, includedPaths []string, optionsJson string) (string, error) {
+func (a *App) BuildContextLegacy() (string, error) {
 	return "", a.transformError(domain.NewConfigurationError("legacy context building is no longer supported", nil))
 }
 

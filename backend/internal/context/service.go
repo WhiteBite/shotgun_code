@@ -212,6 +212,13 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		}
 	}()
 
+	writeString := func(value string) error {
+		if _, writeErr := writer.WriteString(value); writeErr != nil {
+			return fmt.Errorf("failed to write streaming context: %w", writeErr)
+		}
+		return nil
+	}
+
 	var totalLines int64
 	var totalChars int64
 	var actualFiles []string
@@ -220,7 +227,9 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 	// Write header if manifest requested
 	if options.IncludeManifest {
 		header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
-		writer.WriteString(header)
+		if err := writeString(header); err != nil {
+			return nil, err
+		}
 		totalLines += int64(strings.Count(header, "\n"))
 		totalChars += int64(len(header))
 	}
@@ -257,23 +266,35 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 
 		// Write file content to context file
 		fileHeader := fmt.Sprintf("## File: %s\n\n", filePath)
-		writer.WriteString(fileHeader)
+		if err := writeString(fileHeader); err != nil {
+			return nil, err
+		}
 		totalLines += int64(strings.Count(fileHeader, "\n"))
 		totalChars += int64(len(fileHeader))
 
-		writer.WriteString("```")
-		if ext := filepath.Ext(filePath); len(ext) > 1 {
-			writer.WriteString(ext[1:])
+		if err := writeString("```"); err != nil {
+			return nil, err
 		}
-		writer.WriteString("\n")
+		if ext := filepath.Ext(filePath); len(ext) > 1 {
+			if err := writeString(ext[1:]); err != nil {
+				return nil, err
+			}
+		}
+		if err := writeString("\n"); err != nil {
+			return nil, err
+		}
 		totalLines += 1
 		totalChars += 4
 
-		writer.WriteString(content)
+		if err := writeString(content); err != nil {
+			return nil, err
+		}
 		totalLines += int64(strings.Count(content, "\n")) + 1
 		totalChars += int64(len(content))
 
-		writer.WriteString("\n```\n\n")
+		if err := writeString("\n```\n\n"); err != nil {
+			return nil, err
+		}
 		totalLines += 3
 		totalChars += 6
 

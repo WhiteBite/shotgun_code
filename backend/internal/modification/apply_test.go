@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock implementations for testing
@@ -193,7 +194,7 @@ func TestApplyService_ApplyEdits_ApplyError(t *testing.T) {
 	err := service.ApplyEdits(ctx, edits)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to apply edit")
 	assert.Contains(t, err.Error(), "apply failed")
 

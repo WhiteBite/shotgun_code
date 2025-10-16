@@ -124,13 +124,17 @@ func TestGetRichCommitHistory_Integration(t *testing.T) {
 	runGit("config", "user.name", "Test User")
 
 	// First commit on master
-	os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("hello"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("hello"), 0644); err != nil {
+		t.Fatalf("Failed to write initial file: %v", err)
+	}
 	runGit("add", "file1.txt")
 	runGit("commit", "-m", "Initial commit")
 
 	// Create and switch to a new branch
 	runGit("checkout", "-b", "feature")
-	os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("feature"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("feature"), 0644); err != nil {
+		t.Fatalf("Failed to write feature file: %v", err)
+	}
 	runGit("add", "file2.txt")
 	runGit("commit", "-m", "feat: add file2")
 

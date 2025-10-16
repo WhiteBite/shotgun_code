@@ -415,7 +415,7 @@ func (s *UXMetricsServiceImpl) GetMetricsSummary() (map[string]interface{}, erro
 }
 
 // ListReports получает список отчетов
-func (s *UXMetricsServiceImpl) ListReports(ctx context.Context, reportType string) ([]*domain.GenericReport, error) {
+func (s *UXMetricsServiceImpl) ListReports(_ context.Context, reportType string) ([]*domain.GenericReport, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -446,7 +446,7 @@ func (s *UXMetricsServiceImpl) ListReports(ctx context.Context, reportType strin
 }
 
 // GetReport получает конкретный отчет
-func (s *UXMetricsServiceImpl) GetReport(ctx context.Context, reportId string) (*domain.GenericReport, error) {
+func (s *UXMetricsServiceImpl) GetReport(_ context.Context, reportId string) (*domain.GenericReport, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -493,7 +493,7 @@ func (s *UXMetricsServiceImpl) serializeContent(content interface{}) string {
 }
 
 // analyzeFileReason анализирует причину изменения файла
-func (s *UXMetricsServiceImpl) analyzeFileReason(filePath, taskID string, taskContext map[string]interface{}) domain.FileReason {
+func (s *UXMetricsServiceImpl) analyzeFileReason(filePath, _ string, taskContext map[string]interface{}) domain.FileReason {
 	reason := domain.FileReason{
 		FilePath:     filePath,
 		Reason:       "File was modified as part of task execution",

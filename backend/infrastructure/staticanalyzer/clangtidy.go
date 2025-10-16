@@ -245,7 +245,10 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 			continue
 		}
 		lineNum := 0
-		fmt.Sscanf(line[lineStart:lineStart+lineEnd], "%d", &lineNum)
+		if _, scanErr := fmt.Sscanf(line[lineStart:lineStart+lineEnd], "%d", &lineNum); scanErr != nil {
+			a.log.Warning(fmt.Sprintf("Failed to parse diagnostic line number: %v", scanErr))
+			continue
+		}
 
 		// Извлекаем колонку
 		columnStart := strings.Index(line, "\"FilePathColumnStart\": ")
@@ -258,7 +261,10 @@ func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.Stati
 			continue
 		}
 		columnNum := 0
-		fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &columnNum)
+		if _, scanErr := fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &columnNum); scanErr != nil {
+			a.log.Warning(fmt.Sprintf("Failed to parse diagnostic column: %v", scanErr))
+			continue
+		}
 
 		// Определяем severity
 		severity := "warning"

@@ -240,7 +240,10 @@ func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticIssue, er
 			continue
 		}
 		row := 0
-		fmt.Sscanf(line[rowStart:rowStart+rowEnd], "%d", &row)
+		if _, scanErr := fmt.Sscanf(line[rowStart:rowStart+rowEnd], "%d", &row); scanErr != nil {
+			a.log.Warning(fmt.Sprintf("Failed to parse Ruff diagnostic row: %v", scanErr))
+			continue
+		}
 
 		// Извлекаем колонку
 		columnStart := strings.Index(line, "\"column\": ")
@@ -253,7 +256,10 @@ func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticIssue, er
 			continue
 		}
 		column := 0
-		fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &column)
+		if _, scanErr := fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &column); scanErr != nil {
+			a.log.Warning(fmt.Sprintf("Failed to parse Ruff diagnostic column: %v", scanErr))
+			continue
+		}
 
 		// Определяем severity
 		severity := "warning"
