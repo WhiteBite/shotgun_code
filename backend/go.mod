@@ -7,7 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.4
-	github.com/google/generative-ai-go v0.19.0
+	github.com/google/generative-ai-go v0.20.1
 	github.com/google/uuid v1.6.0
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
