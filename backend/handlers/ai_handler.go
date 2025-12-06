@@ -224,3 +224,54 @@ func (h *AIHandler) GenerateCodeStream(ctx context.Context, systemPrompt, userPr
 	atomic.AddInt64(&h.requestCount, 1)
 	return h.aiService.GenerateCodeStream(ctx, systemPrompt, userPrompt, onChunk)
 }
+
+// AgenticChat performs agentic chat with tool use
+func (h *AIHandler) AgenticChat(ctx context.Context, requestJson string) (string, error) {
+	if err := h.checkRateLimit(); err != nil {
+		return "", err
+	}
+
+	var req application.AgenticChatRequest
+	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+		return "", fmt.Errorf("invalid request JSON: %w", err)
+	}
+
+	// Create tool executor and agentic service
+	toolExecutor := application.NewToolExecutor(h.log, nil)
+	agenticService := application.NewAgenticChatService(h.log, h.aiService, toolExecutor)
+
+	atomic.AddInt64(&h.requestCount, 1)
+
+	result, err := agenticService.Chat(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return string(resultJson), nil
+}
+
+// AgenticChatStream performs agentic chat with streaming events
+func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJson string, onEvent func(event application.AgenticStreamEvent)) error {
+	if err := h.checkRateLimit(); err != nil {
+		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
+		return err
+	}
+
+	var req application.AgenticChatRequest
+	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
+		return fmt.Errorf("invalid request JSON: %w", err)
+	}
+
+	toolExecutor := application.NewToolExecutor(h.log, nil)
+	agenticService := application.NewAgenticChatService(h.log, h.aiService, toolExecutor)
+
+	atomic.AddInt64(&h.requestCount, 1)
+
+	return agenticService.ChatStream(ctx, req, onEvent)
+}

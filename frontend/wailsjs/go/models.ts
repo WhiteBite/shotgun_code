@@ -40,6 +40,66 @@ export namespace domain {
 	        this.metadata = source["metadata"];
 	    }
 	}
+	export class LayerInfo {
+	    name: string;
+	    path: string;
+	    description: string;
+	    dependencies: string[];
+	    files: string[];
+	    patterns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LayerInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.description = source["description"];
+	        this.dependencies = source["dependencies"];
+	        this.files = source["files"];
+	        this.patterns = source["patterns"];
+	    }
+	}
+	export class ArchitectureInfo {
+	    type: string;
+	    confidence: number;
+	    description: string;
+	    indicators: string[];
+	    layers: LayerInfo[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ArchitectureInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.confidence = source["confidence"];
+	        this.description = source["description"];
+	        this.indicators = source["indicators"];
+	        this.layers = this.convertValues(source["layers"], LayerInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Bottleneck {
 	    Type: string;
 	    Description: string;
@@ -157,6 +217,48 @@ export namespace domain {
 	        this.artifacts = source["artifacts"];
 	        this.warnings = source["warnings"];
 	        this.metadata = source["metadata"];
+	    }
+	}
+	export class BuildSystemInfo {
+	    name: string;
+	    configFile: string;
+	    scripts: string[];
+	    commands: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BuildSystemInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.configFile = source["configFile"];
+	        this.scripts = source["scripts"];
+	        this.commands = source["commands"];
+	    }
+	}
+	export class CodeStyleInfo {
+	    indentStyle: string;
+	    indentSize: number;
+	    maxLineLength: number;
+	    trailingComma: boolean;
+	    semicolons: boolean;
+	    quoteStyle: string;
+	    configFile: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CodeStyleInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.indentStyle = source["indentStyle"];
+	        this.indentSize = source["indentSize"];
+	        this.maxLineLength = source["maxLineLength"];
+	        this.trailingComma = source["trailingComma"];
+	        this.semicolons = source["semicolons"];
+	        this.quoteStyle = source["quoteStyle"];
+	        this.configFile = source["configFile"];
 	    }
 	}
 	export class CommitWithFiles {
@@ -706,6 +808,100 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class ImportStyle {
+	    absoluteImports: boolean;
+	    aliasedImports: boolean;
+	    groupedImports: boolean;
+	    importOrder: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportStyle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.absoluteImports = source["absoluteImports"];
+	        this.aliasedImports = source["aliasedImports"];
+	        this.groupedImports = source["groupedImports"];
+	        this.importOrder = source["importOrder"];
+	    }
+	}
+	export class TestConventions {
+	    location: string;
+	    fileSuffix: string;
+	    framework: string;
+	    patterns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TestConventions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.location = source["location"];
+	        this.fileSuffix = source["fileSuffix"];
+	        this.framework = source["framework"];
+	        this.patterns = source["patterns"];
+	    }
+	}
+	export class FileNamingStyle {
+	    style: string;
+	    suffixes: string[];
+	    prefixes: string[];
+	    examples: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FileNamingStyle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.style = source["style"];
+	        this.suffixes = source["suffixes"];
+	        this.prefixes = source["prefixes"];
+	        this.examples = source["examples"];
+	    }
+	}
+	export class ConventionInfo {
+	    namingStyle: string;
+	    fileNaming: FileNamingStyle;
+	    folderStructure: string;
+	    testConventions: TestConventions;
+	    importStyle: ImportStyle;
+	    codeStyle: CodeStyleInfo;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConventionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.namingStyle = source["namingStyle"];
+	        this.fileNaming = this.convertValues(source["fileNaming"], FileNamingStyle);
+	        this.folderStructure = source["folderStructure"];
+	        this.testConventions = this.convertValues(source["testConventions"], TestConventions);
+	        this.importStyle = this.convertValues(source["importStyle"], ImportStyle);
+	        this.codeStyle = this.convertValues(source["codeStyle"], CodeStyleInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DiffImpact {
 	    RiskLevel: string;
 	    AffectedTests: string[];
@@ -1119,6 +1315,7 @@ export namespace domain {
 	        this.sizeBytes = source["sizeBytes"];
 	    }
 	}
+	
 	export class FileNode {
 	    name: string;
 	    path: string;
@@ -1205,6 +1402,30 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.status = source["status"];
+	    }
+	}
+	export class FrameworkInfo {
+	    name: string;
+	    version: string;
+	    category: string;
+	    language: string;
+	    configFiles: string[];
+	    indicators: string[];
+	    bestPractices: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FrameworkInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.category = source["category"];
+	        this.language = source["language"];
+	        this.configFiles = source["configFiles"];
+	        this.indicators = source["indicators"];
+	        this.bestPractices = source["bestPractices"];
 	    }
 	}
 	export class GuardrailRule {
@@ -1316,6 +1537,7 @@ export namespace domain {
 		}
 	}
 	
+	
 	export class LanguageAnalysisValidation {
 	    language: string;
 	    success: boolean;
@@ -1332,6 +1554,26 @@ export namespace domain {
 	        this.success = source["success"];
 	        this.issueCount = source["issueCount"];
 	        this.error = source["error"];
+	    }
+	}
+	export class LanguageInfo {
+	    name: string;
+	    version: string;
+	    fileCount: number;
+	    percentage: number;
+	    primary: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LanguageInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.fileCount = source["fileCount"];
+	        this.percentage = source["percentage"];
+	        this.primary = source["primary"];
 	    }
 	}
 	export class TypeIssue {
@@ -1444,6 +1686,7 @@ export namespace domain {
 	
 	
 	
+	
 	export class PerformanceMetrics {
 	    TaskID: string;
 	    MemoryUsage: number;
@@ -1474,6 +1717,50 @@ export namespace domain {
 	        this.CacheMisses = source["CacheMisses"];
 	        this.Timestamps = this.convertValues(source["Timestamps"], time.Time);
 	        this.Values = source["Values"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProjectStructure {
+	    architecture?: ArchitectureInfo;
+	    conventions?: ConventionInfo;
+	    frameworks: FrameworkInfo[];
+	    buildSystems: BuildSystemInfo[];
+	    languages: LanguageInfo[];
+	    layers: LayerInfo[];
+	    projectType: string;
+	    confidence: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProjectStructure(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.architecture = this.convertValues(source["architecture"], ArchitectureInfo);
+	        this.conventions = this.convertValues(source["conventions"], ConventionInfo);
+	        this.frameworks = this.convertValues(source["frameworks"], FrameworkInfo);
+	        this.buildSystems = this.convertValues(source["buildSystems"], BuildSystemInfo);
+	        this.languages = this.convertValues(source["languages"], LanguageInfo);
+	        this.layers = this.convertValues(source["layers"], LayerInfo);
+	        this.projectType = source["projectType"];
+	        this.confidence = source["confidence"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2130,6 +2417,7 @@ export namespace domain {
 	        this.excludePatterns = source["excludePatterns"];
 	    }
 	}
+	
 	export class TestCoverage {
 	    percentage: number;
 	    lines: number;
@@ -2403,6 +2691,111 @@ export namespace domain {
 	        this.Explanation = source["Explanation"];
 	        this.Confidence = source["Confidence"];
 	        this.Suggestions = source["Suggestions"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace version {
+	
+	export class Info {
+	    version: string;
+	    gitCommit: string;
+	    buildDate: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.gitCommit = source["gitCommit"];
+	        this.buildDate = source["buildDate"];
+	    }
+	}
+	export class Release {
+	    tag_name: string;
+	    name: string;
+	    body: string;
+	    // Go type: time
+	    published_at: any;
+	    html_url: string;
+	    prerelease: boolean;
+	    draft: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Release(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tag_name = source["tag_name"];
+	        this.name = source["name"];
+	        this.body = source["body"];
+	        this.published_at = this.convertValues(source["published_at"], null);
+	        this.html_url = source["html_url"];
+	        this.prerelease = source["prerelease"];
+	        this.draft = source["draft"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReleasesResponse {
+	    currentVersion: string;
+	    latestVersion: string;
+	    hasUpdate: boolean;
+	    releases: Release[];
+	    // Go type: time
+	    lastChecked: any;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReleasesResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.hasUpdate = source["hasUpdate"];
+	        this.releases = this.convertValues(source["releases"], Release);
+	        this.lastChecked = this.convertValues(source["lastChecked"], null);
+	        this.error = source["error"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -2,11 +2,11 @@
   <div class="select-none">
     <div
       :class="[
-        'flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors',
-        isSelected ? 'bg-indigo-900/30 text-indigo-400' : 'text-gray-300 hover:bg-gray-800',
+        'tree-item-unified',
+        isSelected ? 'tree-item-unified-selected' : '',
         { 'ignored-file': node.isIgnored }
       ]"
-      :style="{ paddingLeft: `${depth * 16 + 8}px` }"
+      :style="{ paddingLeft: `${depth * 12 + 8}px` }"
       @click="handleClick"
       @contextmenu.prevent="handleContextMenu"
       :title="node.isIgnored ? `${node.path} (ignored)` : node.path"
@@ -25,14 +25,16 @@
 
       <!-- Checkbox -->
       <div
-        class="flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors"
-        :class="checkboxClass"
+        :class="[
+          'tree-checkbox-unified',
+          (isSelected && !node.isDir) || (node.isDir && selectionState !== 'none') ? 'tree-checkbox-unified-checked' : ''
+        ]"
         @click.stop="handleToggleSelect"
       >
-        <svg v-if="isSelected && !node.isDir" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <svg v-if="isSelected && !node.isDir" class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
-        <svg v-else-if="node.isDir && selectionState === 'full'" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <svg v-else-if="node.isDir && selectionState === 'full'" class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
         <div v-else-if="node.isDir && selectionState === 'partial'" class="w-2 h-0.5 bg-white"></div>
@@ -57,7 +59,7 @@
       </div>
 
       <!-- Name -->
-      <span class="flex-1 truncate text-sm ignored-file" :class="{ 'opacity-50': node.isIgnored }">
+      <span class="flex-1 truncate text-sm" :class="{ 'opacity-50': node.isIgnored }">
         {{ displayName }}
       </span>
 
@@ -171,21 +173,6 @@ const selectionState = computed(() => {
     return 'full'
   } else {
     return 'partial'
-  }
-})
-
-const checkboxClass = computed(() => {
-  if (props.node.isDir) {
-    switch (selectionState.value) {
-      case 'full':
-        return 'bg-indigo-600 border-indigo-600'
-      case 'partial':
-        return 'bg-indigo-600 border-indigo-600'
-      case 'none':
-        return 'border-gray-600 hover:border-gray-500'
-    }
-  } else {
-    return isSelected.value ? 'bg-indigo-600 border-indigo-600' : 'border-gray-600 hover:border-gray-500'
   }
 })
 

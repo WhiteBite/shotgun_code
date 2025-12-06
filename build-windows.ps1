@@ -6,6 +6,31 @@ $ErrorActionPreference = "Stop"
 Write-Host "=== Building Shotgun Code for Windows ===" -ForegroundColor Cyan
 Write-Host ""
 
+# Get version from git tag or use dev
+$version = "dev"
+$gitCommit = "unknown"
+$buildDate = Get-Date -Format "yyyy-MM-dd"
+
+try {
+    $gitTag = git describe --tags --abbrev=0 2>$null
+    if ($gitTag) {
+        $version = $gitTag
+    }
+    $gitCommit = git rev-parse --short HEAD 2>$null
+    if (-not $gitCommit) {
+        $gitCommit = "unknown"
+    }
+} catch {
+    Write-Host "Warning: Could not get git info, using defaults" -ForegroundColor Yellow
+}
+
+Write-Host "Version: $version" -ForegroundColor White
+Write-Host "Commit: $gitCommit" -ForegroundColor White
+Write-Host ""
+
+# Build ldflags for version injection
+$ldflags = "-X shotgun_code/infrastructure/version.Version=$version -X shotgun_code/infrastructure/version.GitCommit=$gitCommit -X shotgun_code/infrastructure/version.BuildDate=$buildDate"
+
 # Find wails (same logic as dev.ps1)
 $wailsPath = $null
 if (Test-Path "$env:USERPROFILE\go\bin\wails.exe") {
@@ -31,7 +56,7 @@ try {
     Copy-Item "../frontend/dist" "frontend/dist" -Recurse -Force
     
     Write-Host "Building Windows executable..." -ForegroundColor Green
-    & $wailsPath build -clean -skipbindings
+    & $wailsPath build -clean -skipbindings -ldflags "$ldflags"
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""

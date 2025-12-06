@@ -60,6 +60,15 @@ class ApiService {
     }
   }
 
+  async pathExists(path: string): Promise<boolean> {
+    try {
+      return await wails.PathExists(path)
+    } catch (error) {
+      console.error(`[ApiService] Error checking path "${path}":`, error)
+      return false
+    }
+  }
+
   // ============================================
   // Работа с файлами
   // ============================================
@@ -174,7 +183,7 @@ class ApiService {
     }
   }
 
-  async exportContext(exportSettings: any): Promise<domain.ExportResult> {
+  async exportContext(exportSettings: unknown): Promise<domain.ExportResult> {
     try {
       return await wails.ExportContext(JSON.stringify(exportSettings))
     } catch (error) {
@@ -198,6 +207,33 @@ class ApiService {
     } catch (error) {
       console.error('[ApiService] Error suggesting context files:', error)
       throw new Error('Failed to suggest context files.')
+    }
+  }
+
+  /**
+   * Analyze task and collect relevant context using AI
+   * Returns suggested files with relevance scores
+   */
+  async analyzeTaskAndCollectContext(task: string, allFilesJson: string, rootDir: string): Promise<string> {
+    try {
+      return await wails.AnalyzeTaskAndCollectContext(task, allFilesJson, rootDir)
+    } catch (error) {
+      console.error('[ApiService] Error analyzing task:', error)
+      throw new Error('Failed to analyze task and collect context.')
+    }
+  }
+
+  /**
+   * Agentic chat with tool use - AI can explore codebase autonomously
+   */
+  async agenticChat(task: string, projectRoot: string): Promise<AgenticChatResponse> {
+    try {
+      const request = { task, projectRoot }
+      const result = await wails.AgenticChat(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error in agentic chat:', error)
+      throw new Error('Failed to execute agentic chat.')
     }
   }
 
@@ -857,6 +893,222 @@ class ApiService {
       throw new Error('Failed to get Qwen models.')
     }
   }
+
+  // ============================================
+  // Agentic Chat
+  // ============================================
+
+  /**
+   * Execute agentic chat with tool use
+   */
+  async agenticChat(request: AgenticChatRequest): Promise<AgenticChatResponse> {
+    try {
+      const result = await wails.AgenticChat(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error in agentic chat:', error)
+      throw new Error('Failed to execute agentic chat.')
+    }
+  }
+
+  // ============================================
+  // Semantic Search
+  // ============================================
+
+  /**
+   * Check if semantic search is available
+   */
+  async isSemanticSearchAvailable(): Promise<boolean> {
+    try {
+      // @ts-ignore - method may not exist in wails bindings yet
+      return await wails.IsSemanticSearchAvailable()
+    } catch (error) {
+      console.warn('[ApiService] Semantic search not available:', error)
+      return false
+    }
+  }
+
+  /**
+   * Perform semantic search on the project
+   */
+  async semanticSearch(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
+    try {
+      // @ts-ignore
+      const result = await wails.SemanticSearch(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error in semantic search:', error)
+      throw new Error('Failed to perform semantic search.')
+    }
+  }
+
+  /**
+   * Find similar code
+   */
+  async semanticFindSimilar(request: FindSimilarRequest): Promise<SemanticSearchResponse> {
+    try {
+      // @ts-ignore
+      const result = await wails.SemanticFindSimilar(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error finding similar code:', error)
+      throw new Error('Failed to find similar code.')
+    }
+  }
+
+  /**
+   * Index a project for semantic search
+   */
+  async semanticIndexProject(projectRoot: string): Promise<void> {
+    try {
+      // @ts-ignore
+      await wails.SemanticIndexProject(projectRoot)
+    } catch (error) {
+      console.error('[ApiService] Error indexing project:', error)
+      throw new Error('Failed to index project.')
+    }
+  }
+
+  /**
+   * Index a single file
+   */
+  async semanticIndexFile(projectRoot: string, filePath: string): Promise<void> {
+    try {
+      // @ts-ignore
+      await wails.SemanticIndexFile(projectRoot, filePath)
+    } catch (error) {
+      console.error('[ApiService] Error indexing file:', error)
+      throw new Error('Failed to index file.')
+    }
+  }
+
+  /**
+   * Get semantic search index statistics
+   */
+  async semanticGetStats(projectRoot: string): Promise<SemanticIndexStats> {
+    try {
+      // @ts-ignore
+      const result = await wails.SemanticGetStats(projectRoot)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting semantic stats:', error)
+      throw new Error('Failed to get semantic search statistics.')
+    }
+  }
+
+  /**
+   * Check if a project is indexed
+   */
+  async semanticIsIndexed(projectRoot: string): Promise<boolean> {
+    try {
+      // @ts-ignore
+      return await wails.SemanticIsIndexed(projectRoot)
+    } catch (error) {
+      console.warn('[ApiService] Error checking index status:', error)
+      return false
+    }
+  }
+
+  /**
+   * Retrieve relevant context using RAG
+   */
+  async semanticRetrieveContext(request: RetrieveContextRequest): Promise<CodeChunk[]> {
+    try {
+      // @ts-ignore
+      const result = await wails.SemanticRetrieveContext(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error retrieving context:', error)
+      throw new Error('Failed to retrieve context.')
+    }
+  }
+
+  /**
+   * Perform hybrid keyword + semantic search
+   */
+  async semanticHybridSearch(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
+    try {
+      // @ts-ignore
+      const result = await wails.SemanticHybridSearch(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error in hybrid search:', error)
+      throw new Error('Failed to perform hybrid search.')
+    }
+  }
+}
+
+// Agentic Chat types
+export interface AgenticChatRequest {
+  task: string
+  projectRoot: string
+  maxTokens?: number
+}
+
+// ============================================
+// Semantic Search Types
+// ============================================
+
+export interface SemanticSearchRequest {
+  query: string
+  projectRoot: string
+  topK?: number
+  minScore?: number
+  searchType?: 'semantic' | 'keyword' | 'hybrid'
+  languages?: string[]
+  chunkTypes?: string[]
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[]
+  totalResults: number
+  queryTime: number
+  searchType: string
+}
+
+export interface SemanticSearchResult {
+  chunk: CodeChunk
+  score: number
+  highlights?: string[]
+  reason?: string
+}
+
+export interface CodeChunk {
+  id: string
+  filePath: string
+  content: string
+  startLine: number
+  endLine: number
+  chunkType: 'file' | 'function' | 'class' | 'method' | 'block'
+  symbolName?: string
+  symbolKind?: string
+  language: string
+  tokenCount: number
+  hash: string
+}
+
+export interface FindSimilarRequest {
+  filePath: string
+  startLine: number
+  endLine: number
+  topK?: number
+  minScore?: number
+  excludeSelf?: boolean
+}
+
+export interface RetrieveContextRequest {
+  query: string
+  projectRoot: string
+  maxTokens?: number
+}
+
+export interface SemanticIndexStats {
+  totalChunks: number
+  totalFiles: number
+  totalTokens: number
+  lastUpdated: string
+  indexSize: number
+  dimensions: number
 }
 
 // ============================================
@@ -967,6 +1219,20 @@ export interface GitLabCommit {
   message: string
   author_name: string
   committed_date: string
+}
+
+// Agentic Chat types
+export interface AgenticChatResponse {
+  response: string
+  toolCalls: ToolCallLog[]
+  iterations: number
+  context: string[]
+}
+
+export interface ToolCallLog {
+  tool: string
+  arguments: string
+  result: string
 }
 
 // Экспортируем синглтон экземпляр сервиса

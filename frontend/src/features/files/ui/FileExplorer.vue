@@ -15,7 +15,7 @@
         <div class="flex items-center gap-2">
           <div class="flex items-center gap-2 text-xs">
             <div class="relative group">
-              <span class="bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg cursor-help font-medium border border-indigo-500/30">
+              <span class="chip-unified chip-unified-accent cursor-help">
                 {{ fileStore.selectedCount }}
               </span>
               <!-- Tooltip with stats -->
@@ -30,7 +30,7 @@
                 </div>
               </div>
             </div>
-            <span class="text-gray-500">{{ t('files.selected') }}</span>
+            <span class="text-gray-400">{{ t('files.selected') }}</span>
           </div>
           <button
             @click="showSettings = !showSettings"
@@ -221,21 +221,36 @@
     <SelectionPresetsModal ref="presetsModalRef" />
 
     <!-- Bottom Panel - Compact Actions -->
-    <div class="border-t border-gray-700/30 p-2 bg-gray-900/30">
+    <div class="border-t border-gray-700/30 p-2 bg-gray-900/30 space-y-2">
+      <!-- Build Context Button -->
+      <button
+        @click="$emit('build-context')"
+        :disabled="fileStore.selectedPaths.size === 0 || contextStore.isBuilding"
+        class="w-full btn-unified btn-unified-primary py-2.5"
+      >
+        <svg v-if="!contextStore.isBuilding" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <svg v-else class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        {{ contextStore.isBuilding ? t('context.building') : t('context.build') }}
+        <span v-if="fileStore.selectedPaths.size > 0" class="opacity-75">({{ fileStore.selectedPaths.size }})</span>
+      </button>
+      
+      <!-- Clear & Expand/Collapse -->
       <div class="flex gap-2">
         <button
           @click="fileStore.clearSelection"
           :disabled="!fileStore.hasSelectedFiles"
-          class="flex-1 py-2 rounded-xl text-xs font-medium transition-all duration-200"
-          :class="!fileStore.hasSelectedFiles
-            ? 'bg-gray-800/30 text-gray-600 border border-gray-700/30 cursor-not-allowed'
-            : 'bg-gray-800/50 text-gray-300 border border-gray-700/50 hover:bg-gray-700/50 hover:text-white'"
+          class="flex-1 btn-unified btn-unified-secondary py-2"
         >
           {{ t('files.clear') }}
         </button>
         <button
           @click="fileStore.expandAll"
-          class="p-2 rounded-xl bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50 hover:text-white transition-colors"
+          class="btn-unified btn-unified-ghost btn-unified-icon"
           :title="t('files.expandAll')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,7 +259,7 @@
         </button>
         <button
           @click="fileStore.collapseAll"
-          class="p-2 rounded-xl bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50 hover:text-white transition-colors"
+          class="btn-unified btn-unified-ghost btn-unified-icon"
           :title="t('files.collapseAll')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,6 +339,7 @@ const selectionProgress = computed(() => {
 
 defineEmits<{
   (e: 'preview-file', filePath: string): void
+  (e: 'build-context'): void
 }>()
 
 function handleToggleSelect(path: string) {
@@ -417,11 +433,11 @@ function restorePreviousSelection() {
   }
 }
 
-function handleContextMenu(node: any, event: MouseEvent) {
+function handleContextMenu(node: unknown, event: MouseEvent) {
   contextMenu.show(node, event)
 }
 
-async function handleContextMenuAction(payload: { type: string; node: any }) {
+async function handleContextMenuAction(payload: { type: string; node: unknown }) {
   const { type, node } = payload
 
   try {

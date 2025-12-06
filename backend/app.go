@@ -11,6 +11,7 @@ import (
 	"shotgun_code/domain"
 	"shotgun_code/handlers"
 	"shotgun_code/infrastructure/git"
+	"shotgun_code/infrastructure/version"
 	"shotgun_code/infrastructure/wailsbridge"
 	contextservice "shotgun_code/internal/context"
 	projectservice "shotgun_code/internal/project"
@@ -148,6 +149,18 @@ func (a *App) SelectDirectory() (string, error) {
 // GetCurrentDirectory возвращает текущую рабочую директорию
 func (a *App) GetCurrentDirectory() (string, error) {
 	return os.Getwd()
+}
+
+// PathExists проверяет существование пути (файла или директории)
+func (a *App) PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
@@ -366,6 +379,50 @@ func (a *App) ValidateSBOM(sbomPath string, format domain.SBOMFormat) error {
 	return a.analysisHandler.ValidateSBOM(a.ctx, sbomPath, format)
 }
 
+// === Project Structure Detection (Phase 6) ===
+
+// GetProjectStructure возвращает полный анализ структуры проекта
+func (a *App) GetProjectStructure(projectPath string) (*domain.ProjectStructure, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.DetectStructure(projectPath)
+}
+
+// GetProjectStructureSummary возвращает текстовое описание структуры проекта
+func (a *App) GetProjectStructureSummary(projectPath string) (string, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.GetArchitectureSummary(projectPath)
+}
+
+// DetectProjectArchitecture определяет архитектуру проекта
+func (a *App) DetectProjectArchitecture(projectPath string) (*domain.ArchitectureInfo, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.DetectArchitecture(projectPath)
+}
+
+// DetectProjectFrameworks определяет фреймворки проекта
+func (a *App) DetectProjectFrameworks(projectPath string) ([]domain.FrameworkInfo, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.DetectFrameworks(projectPath)
+}
+
+// DetectProjectConventions определяет конвенции проекта
+func (a *App) DetectProjectConventions(projectPath string) (*domain.ConventionInfo, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.DetectConventions(projectPath)
+}
+
+// GetRelatedLayers возвращает связанные архитектурные слои для файла
+func (a *App) GetRelatedLayers(projectPath, filePath string) ([]domain.LayerInfo, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.GetRelatedLayers(projectPath, filePath)
+}
+
+// SuggestRelatedFiles предлагает связанные файлы на основе архитектуры
+func (a *App) SuggestRelatedFiles(projectPath, filePath string) ([]string, error) {
+	service := application.NewProjectStructureService(a.log)
+	return service.SuggestRelatedFiles(projectPath, filePath)
+}
+
 // ExecuteRepair выполняет repair цикл
 func (a *App) ExecuteRepair(projectPath, errorOutput, language string, maxAttempts int) (*domain.RepairResult, error) {
 	req := domain.RepairRequest{
@@ -526,6 +583,11 @@ func (a *App) AnalyzeTaskAndCollectContext(task string, allFilesJson string, roo
 	return a.aiHandler.AnalyzeTaskAndCollectContext(a.ctx, task, allFilesJson, rootDir)
 }
 
+// AgenticChat выполняет agentic chat с tool use
+func (a *App) AgenticChat(requestJson string) (string, error) {
+	return a.aiHandler.AgenticChat(a.ctx, requestJson)
+}
+
 // TestBackend простой тест для проверки работы backend
 func (a *App) TestBackend(allFilesJson string, rootDir string) (string, error) {
 	var allFiles []*domain.FileNode
@@ -556,6 +618,19 @@ func (a *App) TestBackend(allFilesJson string, rootDir string) (string, error) {
 
 func (a *App) GetSettings() (domain.SettingsDTO, error) {
 	return a.settingsHandler.GetSettings()
+}
+
+// === Version & Releases ===
+
+// GetVersionInfo returns current app version info
+func (a *App) GetVersionInfo() version.Info {
+	return version.GetInfo()
+}
+
+// GetReleases returns GitHub releases with update check
+func (a *App) GetReleases() (*version.ReleasesResponse, error) {
+	service := version.NewReleasesService()
+	return service.GetReleases(a.ctx)
 }
 
 func (a *App) SaveSettings(settingsJson string) error {
@@ -1976,4 +2051,75 @@ func (a *App) QwenGetAvailableModels() (string, error) {
 	}
 
 	return string(resultJson), nil
+}
+
+// ==================== Semantic Search Methods ====================
+
+// SemanticSearch performs semantic search on the project
+func (a *App) SemanticSearch(requestJson string) (string, error) {
+	if a.container.SemanticHandler == nil {
+		return "", fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.Search(a.ctx, requestJson)
+}
+
+// SemanticFindSimilar finds similar code
+func (a *App) SemanticFindSimilar(requestJson string) (string, error) {
+	if a.container.SemanticHandler == nil {
+		return "", fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.FindSimilar(a.ctx, requestJson)
+}
+
+// SemanticIndexProject indexes a project for semantic search
+func (a *App) SemanticIndexProject(projectRoot string) error {
+	if a.container.SemanticHandler == nil {
+		return fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.IndexProject(a.ctx, projectRoot)
+}
+
+// SemanticIndexFile indexes a single file
+func (a *App) SemanticIndexFile(projectRoot, filePath string) error {
+	if a.container.SemanticHandler == nil {
+		return fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.IndexFile(a.ctx, projectRoot, filePath)
+}
+
+// SemanticGetStats returns semantic search index statistics
+func (a *App) SemanticGetStats(projectRoot string) (string, error) {
+	if a.container.SemanticHandler == nil {
+		return "", fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.GetStats(a.ctx, projectRoot)
+}
+
+// SemanticIsIndexed checks if a project is indexed
+func (a *App) SemanticIsIndexed(projectRoot string) bool {
+	if a.container.SemanticHandler == nil {
+		return false
+	}
+	return a.container.SemanticHandler.IsIndexed(a.ctx, projectRoot)
+}
+
+// SemanticRetrieveContext retrieves relevant context using RAG
+func (a *App) SemanticRetrieveContext(requestJson string) (string, error) {
+	if a.container.SemanticHandler == nil {
+		return "", fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.RetrieveContext(a.ctx, requestJson)
+}
+
+// SemanticHybridSearch performs hybrid keyword + semantic search
+func (a *App) SemanticHybridSearch(requestJson string) (string, error) {
+	if a.container.SemanticHandler == nil {
+		return "", fmt.Errorf("semantic search not available: embedding provider not configured")
+	}
+	return a.container.SemanticHandler.HybridSearch(a.ctx, requestJson)
+}
+
+// IsSemanticSearchAvailable checks if semantic search is configured
+func (a *App) IsSemanticSearchAvailable() bool {
+	return a.container.SemanticHandler != nil
 }

@@ -290,15 +290,16 @@ func (p *LocalAIProviderImpl) GenerateStream(ctx context.Context, req domain.AIR
 	}
 
 	// Send content in chunks to simulate streaming
-	content := resp.Content
+	// Use runes to properly handle UTF-8 characters (like Cyrillic)
+	runes := []rune(resp.Content)
 	chunkSize := 50
-	for i := 0; i < len(content); i += chunkSize {
+	for i := 0; i < len(runes); i += chunkSize {
 		end := i + chunkSize
-		if end > len(content) {
-			end = len(content)
+		if end > len(runes) {
+			end = len(runes)
 		}
 		onChunk(domain.StreamChunk{
-			Content: content[i:end],
+			Content: string(runes[i:end]),
 			Done:    false,
 		})
 	}

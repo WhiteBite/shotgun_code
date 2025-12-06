@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"shotgun_code/application"
 	"shotgun_code/domain"
+	"shotgun_code/domain/analysis"
 	"shotgun_code/handlers"
 	"shotgun_code/infrastructure/ai"
+	"shotgun_code/infrastructure/analyzers"
 	"shotgun_code/infrastructure/applyengine"
+	"shotgun_code/infrastructure/embeddings"
 	execinfra "shotgun_code/infrastructure/exec"
 	"shotgun_code/infrastructure/filereader"
 	"shotgun_code/infrastructure/filesystem"
@@ -98,6 +101,14 @@ type AppContainer struct {
 	// Qwen Task Services
 	SmartContextService *application.SmartContextService
 	QwenTaskService     *application.QwenTaskService
+
+	// Semantic Search Services
+	SymbolIndex        analysis.SymbolIndex
+	EmbeddingProvider  domain.EmbeddingProvider
+	VectorStore        domain.VectorStore
+	SemanticSearch     domain.SemanticSearchService
+	RAGService         domain.RAGService
+	SemanticHandler    *handlers.SemanticHandler
 
 	// Handlers (new architecture)
 	ProjectHandler  *handlers.ProjectHandler
@@ -440,12 +451,103 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		}
 	}()
 
+	// Initialize Semantic Search Services
+	if err := c.initializeSemanticSearch(); err != nil {
+		c.Log.Warning(fmt.Sprintf("Semantic search initialization failed (non-critical): %v", err))
+		// Non-critical - continue without semantic search
+	}
+
 	// Initialize handlers (new architecture)
 	if err := c.initializeHandlers(); err != nil {
 		return nil, fmt.Errorf("failed to initialize handlers: %w", err)
 	}
 
 	return c, nil
+}
+
+// initializeSemanticSearch initializes semantic search services
+func (c *AppContainer) initializeSemanticSearch() error {
+	// Get data directory for embeddings storage
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+	dataDir := filepath.Join(homeDir, ".shotgun-code", "embeddings")
+
+	// Create analyzer registry for symbol extraction
+	analyzerRegistry := analyzers.NewAnalyzerRegistry()
+	
+	// Create symbol index with SQLite caching for incremental indexing
+	symbolCacheDir := filepath.Join(dataDir, "symbol_cache")
+	cachedSymbolIndex, err := analyzers.NewCachedSymbolIndex(analyzerRegistry, symbolCacheDir)
+	if err != nil {
+		c.Log.Warning(fmt.Sprintf("Failed to create cached symbol index, falling back to in-memory: %v", err))
+		c.SymbolIndex = analyzers.NewSymbolIndex(analyzerRegistry)
+	} else {
+		c.SymbolIndex = cachedSymbolIndex
+	}
+
+	// Create vector store (SQLite-based)
+	vectorStore, err := embeddings.NewSQLiteVectorStore(dataDir, c.Log)
+	if err != nil {
+		return fmt.Errorf("failed to create vector store: %w", err)
+	}
+	c.VectorStore = vectorStore
+
+	// Create embedding provider (OpenAI by default)
+	// Get API key from settings
+	settings, err := c.SettingsService.GetSettingsDTO()
+	if err != nil {
+		c.Log.Warning("Failed to get settings for embedding provider: " + err.Error())
+	}
+
+	apiKey := ""
+	if settings.OpenAIAPIKey != "" {
+		apiKey = settings.OpenAIAPIKey
+	}
+
+	if apiKey != "" {
+		embeddingProvider, err := embeddings.NewOpenAIEmbeddingProvider(
+			apiKey,
+			domain.EmbeddingModelOpenAI3S, // Use small model by default
+			c.Log,
+		)
+		if err != nil {
+			c.Log.Warning("Failed to create embedding provider: " + err.Error())
+		} else {
+			c.EmbeddingProvider = embeddingProvider
+		}
+	}
+
+	// Create semantic search service (only if embedding provider is available)
+	if c.EmbeddingProvider != nil {
+		c.SemanticSearch = application.NewSemanticSearchService(
+			c.EmbeddingProvider,
+			c.VectorStore,
+			c.SymbolIndex,
+			c.Log,
+		)
+
+		// Create RAG service
+		c.RAGService = application.NewRAGService(
+			c.SemanticSearch,
+			c.EmbeddingProvider,
+			c.Log,
+		)
+
+		// Create semantic handler
+		c.SemanticHandler = handlers.NewSemanticHandler(
+			c.SemanticSearch,
+			c.RAGService,
+			c.Log,
+		)
+
+		c.Log.Info("Semantic search services initialized successfully")
+	} else {
+		c.Log.Warning("Semantic search disabled: no embedding provider configured (set OpenAI API key)")
+	}
+
+	return nil
 }
 
 // initializeHandlers creates all handlers with proper dependencies
@@ -815,6 +917,15 @@ func (c *AppContainer) Shutdown(ctx context.Context) error {
 	// Stop file watcher
 	if c.Watcher != nil {
 		c.Watcher.Stop()
+	}
+
+	// Close cached symbol index if it supports closing
+	if c.SymbolIndex != nil {
+		if closer, ok := c.SymbolIndex.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				shutdownErrors = append(shutdownErrors, fmt.Errorf("SymbolIndex close: %w", err))
+			}
+		}
 	}
 
 	// Shutdown lazy service manager

@@ -144,15 +144,18 @@ func (s *ContextSplitterImpl) splitByTokenCount(text string, tokenLimit, overlap
 		chunk := string(runes[currentPos:endPos])
 		chunks = append(chunks, chunk)
 
-		// Move start position for next chunk, considering overlap
-		nextStartPos := endPos - overlapChars
-		if nextStartPos < currentPos { // Ensure next start pos doesn't go backwards or too far
-			nextStartPos = currentPos + 1 // Minimum step if overlap is negative or too small
-		}
-		if nextStartPos >= textLength { // Avoid infinite loop if next start goes beyond text
+		// If we've reached the end, break
+		if endPos >= textLength {
 			break
 		}
-		currentPos = nextStartPos
+
+		// Move start position for next chunk, considering overlap
+		// Ensure we always make forward progress
+		step := charLimit - overlapChars
+		if step <= 0 {
+			step = 1 // Minimum step to avoid infinite loop
+		}
+		currentPos += step
 	}
 
 	s.log.Info(fmt.Sprintf("Token-based splitting resulted in %d chunks.", len(chunks)))

@@ -40,6 +40,16 @@ export const useProjectStore = defineStore('project', () => {
     error.value = null
 
     try {
+      // Verify path exists before opening
+      const exists = await apiService.pathExists(path)
+      if (!exists) {
+        error.value = `Path does not exist: ${path}`
+        // Remove from recent projects if it doesn't exist
+        recentProjects.value = recentProjects.value.filter(p => p.path !== path)
+        saveRecentProjects()
+        return false
+      }
+
       // Simple: just set the path and name
       currentPath.value = path
       currentName.value = path.split(/[\\/]/).pop() || path

@@ -1,47 +1,49 @@
 <template>
-  <div class="h-full flex flex-col bg-transparent">
-    <!-- Tab Switcher - Icons only with tooltips -->
-    <div class="flex gap-1 p-2 border-b border-gray-700/30">
+  <div class="sidebar-container">
+    <!-- Tab Switcher with Sliding Indicator -->
+    <div class="tabs-container">
+      <!-- Sliding Indicator -->
+      <div 
+        class="tabs-indicator-icon"
+        :class="tabIndicatorClass"
+        :style="{ transform: `translateX(${tabIndex * 100}%)` }"
+      ></div>
+      
       <button
         v-for="tab in tabs"
         :key="tab.id"
         @click="currentTab = tab.id"
         :title="t(tab.label)"
-        :class="[
-          'flex-1 p-2 rounded-lg transition-all flex items-center justify-center',
-          currentTab === tab.id 
-            ? `${tab.activeClass}` 
-            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
-        ]"
+        :class="['sidebar-tab-icon', currentTab === tab.id ? `sidebar-tab-icon-active ${tab.textClass}` : '']"
       >
         <component :is="tab.icon" class="w-4 h-4" />
       </button>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto scrollable-y">
+    <div class="sidebar-content scrollable-y">
       <!-- Stats Tab -->
-      <div v-if="currentTab === 'stats'" class="p-3 space-y-4">
+      <div v-if="currentTab === 'stats'" class="tab-content">
         <FileTypeStats />
       </div>
 
       <!-- Export Settings Tab -->
-      <div v-else-if="currentTab === 'export'" class="p-3 space-y-4">
+      <div v-else-if="currentTab === 'export'" class="tab-content">
         <ExportSettings />
       </div>
 
       <!-- Prompts Tab -->
-      <div v-else-if="currentTab === 'prompts'" class="p-3 space-y-3">
+      <div v-else-if="currentTab === 'prompts'" class="tab-content">
         <PromptTemplates />
       </div>
 
       <!-- AI Chat Tab -->
-      <div v-else-if="currentTab === 'chat'" class="h-full flex flex-col">
+      <div v-else-if="currentTab === 'chat'" class="tab-content-full">
         <AIChat />
       </div>
 
       <!-- Settings Tab -->
-      <div v-else-if="currentTab === 'settings'" class="p-3 space-y-4">
+      <div v-else-if="currentTab === 'settings'" class="tab-content">
         <AISettings />
       </div>
     </div>
@@ -62,7 +64,7 @@ const { t } = useI18n()
 type TabId = 'stats' | 'export' | 'prompts' | 'chat' | 'settings'
 const currentTab = ref<TabId>('stats')
 
-// Icons as render functions
+// Icons
 const ChartIcon = () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
   h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' })
 ])
@@ -85,12 +87,24 @@ const SettingsIcon = () => h('svg', { fill: 'none', stroke: 'currentColor', view
 ])
 
 const tabs = [
-  { id: 'stats' as TabId, label: 'sidebar.stats', icon: ChartIcon, activeClass: 'tab-btn-active-indigo' },
-  { id: 'export' as TabId, label: 'sidebar.exportSettings', icon: ExportIcon, activeClass: 'tab-btn-active-emerald' },
-  { id: 'prompts' as TabId, label: 'sidebar.prompts', icon: TemplateIcon, activeClass: 'tab-btn-active-orange' },
-  { id: 'chat' as TabId, label: 'sidebar.chat', icon: ChatIcon, activeClass: 'tab-btn-active-purple' },
-  { id: 'settings' as TabId, label: 'sidebar.settings', icon: SettingsIcon, activeClass: 'tab-btn-active-indigo' },
+  { id: 'stats' as TabId, label: 'sidebar.stats', icon: ChartIcon, textClass: 'text-indigo-300', indicatorClass: 'tabs-indicator-indigo' },
+  { id: 'export' as TabId, label: 'sidebar.exportSettings', icon: ExportIcon, textClass: 'text-emerald-300', indicatorClass: 'tabs-indicator-emerald' },
+  { id: 'prompts' as TabId, label: 'sidebar.prompts', icon: TemplateIcon, textClass: 'text-orange-300', indicatorClass: 'tabs-indicator-orange' },
+  { id: 'chat' as TabId, label: 'sidebar.chat', icon: ChatIcon, textClass: 'text-purple-300', indicatorClass: 'tabs-indicator-purple' },
+  { id: 'settings' as TabId, label: 'sidebar.settings', icon: SettingsIcon, textClass: 'text-indigo-300', indicatorClass: 'tabs-indicator-indigo' },
 ]
+
+// Tab indicator computed
+import { computed } from 'vue'
+
+const tabIndex = computed(() => {
+  return tabs.findIndex(t => t.id === currentTab.value)
+})
+
+const tabIndicatorClass = computed(() => {
+  const tab = tabs.find(t => t.id === currentTab.value)
+  return tab?.indicatorClass || 'tabs-indicator-indigo'
+})
 
 // Persist tab selection
 watch(currentTab, (tab) => {
@@ -111,3 +125,84 @@ try {
   console.warn('Failed to load sidebar tab:', err)
 }
 </script>
+
+<style scoped>
+.sidebar-container {
+  @apply h-full flex flex-col;
+  background: transparent;
+}
+
+.tabs-container {
+  @apply relative flex gap-1 p-2;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-1);
+}
+
+/* Sliding Indicator for Icon Tabs */
+.tabs-indicator-icon {
+  @apply absolute top-2 bottom-2 rounded-lg;
+  width: calc(20% - 8px);
+  left: 8px;
+  transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              background 200ms ease-out,
+              box-shadow 200ms ease-out;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tabs-indicator-indigo {
+  background: rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.tabs-indicator-emerald {
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+.tabs-indicator-orange {
+  background: rgba(249, 115, 22, 0.25);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.3);
+}
+
+.tabs-indicator-purple {
+  background: rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}
+
+.sidebar-tab-icon {
+  @apply flex-1 flex items-center justify-center;
+  @apply p-2.5 rounded-lg;
+  @apply relative z-10;
+  color: var(--text-muted);
+  transition: color 150ms ease-out, transform 100ms ease-out;
+}
+
+.sidebar-tab-icon:hover:not(.sidebar-tab-icon-active) {
+  color: var(--text-secondary);
+}
+
+.sidebar-tab-icon:active {
+  transform: scale(0.93);
+}
+
+.sidebar-tab-icon-active {
+  @apply font-semibold;
+}
+
+.sidebar-content {
+  @apply flex-1 overflow-y-auto;
+}
+
+.tab-content {
+  @apply p-3 space-y-4;
+}
+
+.tab-content-full {
+  @apply h-full flex flex-col;
+}
+</style>

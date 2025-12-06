@@ -440,16 +440,26 @@ type TaskAnalysis struct {
 	Reasoning    string
 }
 
+// ScoredFile represents a file with its relevance score
+type ScoredFile struct {
+	RelPath   string  `json:"relPath"`
+	Name      string  `json:"name"`
+	Size      int64   `json:"size"`
+	Relevance float64 `json:"relevance"`
+	Reason    string  `json:"reason,omitempty"`
+}
+
 // ContextAnalysisResult contains the results of context analysis
 type ContextAnalysisResult struct {
-	Task            string
-	TaskType        string
-	Priority        string
-	SelectedFiles   []*FileNode
-	DependencyFiles []*FileNode
-	Context         string
-	AnalysisTime    time.Duration
-	Recommendations []string
-	EstimatedTokens int
-	Confidence      float64
+	Task            string        `json:"task"`
+	TaskType        string        `json:"taskType"`
+	Priority        string        `json:"priority"`
+	SelectedFiles   []ScoredFile  `json:"selectedFiles"`
+	DependencyFiles []*FileNode   `json:"dependencyFiles"`
+	Context         string        `json:"context"`
+	AnalysisTime    time.Duration `json:"analysisTime"`
+	Recommendations []string      `json:"recommendations"`
+	EstimatedTokens int           `json:"estimatedTokens"`
+	Confidence      float64       `json:"confidence"`
+	Reasoning       string        `json:"reasoning,omitempty"`
 }

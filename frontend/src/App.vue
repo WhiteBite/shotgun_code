@@ -1,5 +1,5 @@
 ﻿<template>
-  <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
+  <div id="app" class="app-container">
     <!-- Global Error Handler -->
     <div v-if="globalError" class="modal-container">
       <div class="modal-overlay" @click="clearGlobalError"></div>
@@ -268,7 +268,9 @@ onMounted(() => {
 </script>
 
 <style>
-#app {
+.app-container {
+  @apply h-screen text-white overflow-hidden;
+  background: var(--bg-app);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   text-rendering: optimizeLegibility;

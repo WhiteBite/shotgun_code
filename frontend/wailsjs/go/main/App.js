@@ -22,6 +22,10 @@ export function AddToGitignore(arg1, arg2) {
   return window['go']['main']['App']['AddToGitignore'](arg1, arg2);
 }
 
+export function AgenticChat(arg1) {
+  return window['go']['main']['App']['AgenticChat'](arg1);
+}
+
 export function AnalyzeFile(arg1, arg2) {
   return window['go']['main']['App']['AnalyzeFile'](arg1, arg2);
 }
@@ -136,6 +140,18 @@ export function DeleteUXReport(arg1) {
 
 export function DetectLanguages(arg1) {
   return window['go']['main']['App']['DetectLanguages'](arg1);
+}
+
+export function DetectProjectArchitecture(arg1) {
+  return window['go']['main']['App']['DetectProjectArchitecture'](arg1);
+}
+
+export function DetectProjectConventions(arg1) {
+  return window['go']['main']['App']['DetectProjectConventions'](arg1);
+}
+
+export function DetectProjectFrameworks(arg1) {
+  return window['go']['main']['App']['DetectProjectFrameworks'](arg1);
 }
 
 export function DiscoverTests(arg1, arg2) {
@@ -314,6 +330,14 @@ export function GetProjectContexts(arg1) {
   return window['go']['main']['App']['GetProjectContexts'](arg1);
 }
 
+export function GetProjectStructure(arg1) {
+  return window['go']['main']['App']['GetProjectStructure'](arg1);
+}
+
+export function GetProjectStructureSummary(arg1) {
+  return window['go']['main']['App']['GetProjectStructureSummary'](arg1);
+}
+
 export function GetProviderInfo() {
   return window['go']['main']['App']['GetProviderInfo']();
 }
@@ -324,6 +348,14 @@ export function GetReadyTasks() {
 
 export function GetRecentProjects() {
   return window['go']['main']['App']['GetRecentProjects']();
+}
+
+export function GetRelatedLayers(arg1, arg2) {
+  return window['go']['main']['App']['GetRelatedLayers'](arg1, arg2);
+}
+
+export function GetReleases() {
+  return window['go']['main']['App']['GetReleases']();
 }
 
 export function GetRemoteBranches(arg1) {
@@ -402,6 +434,10 @@ export function GetUncommittedFiles(arg1) {
   return window['go']['main']['App']['GetUncommittedFiles'](arg1);
 }
 
+export function GetVersionInfo() {
+  return window['go']['main']['App']['GetVersionInfo']();
+}
+
 export function GitHubBuildContext(arg1, arg2, arg3) {
   return window['go']['main']['App']['GitHubBuildContext'](arg1, arg2, arg3);
 }
@@ -466,6 +502,10 @@ export function IsGitRepository(arg1) {
   return window['go']['main']['App']['IsGitRepository'](arg1);
 }
 
+export function IsSemanticSearchAvailable() {
+  return window['go']['main']['App']['IsSemanticSearchAvailable']();
+}
+
 export function ListAutonomousTasks(arg1) {
   return window['go']['main']['App']['ListAutonomousTasks'](arg1);
 }
@@ -488,6 +528,10 @@ export function ListReports(arg1) {
 
 export function LoadTasks() {
   return window['go']['main']['App']['LoadTasks']();
+}
+
+export function PathExists(arg1) {
+  return window['go']['main']['App']['PathExists'](arg1);
 }
 
 export function PauseTask(arg1) {
@@ -594,6 +638,38 @@ export function SelectDirectory() {
   return window['go']['main']['App']['SelectDirectory']();
 }
 
+export function SemanticFindSimilar(arg1) {
+  return window['go']['main']['App']['SemanticFindSimilar'](arg1);
+}
+
+export function SemanticGetStats(arg1) {
+  return window['go']['main']['App']['SemanticGetStats'](arg1);
+}
+
+export function SemanticHybridSearch(arg1) {
+  return window['go']['main']['App']['SemanticHybridSearch'](arg1);
+}
+
+export function SemanticIndexFile(arg1, arg2) {
+  return window['go']['main']['App']['SemanticIndexFile'](arg1, arg2);
+}
+
+export function SemanticIndexProject(arg1) {
+  return window['go']['main']['App']['SemanticIndexProject'](arg1);
+}
+
+export function SemanticIsIndexed(arg1) {
+  return window['go']['main']['App']['SemanticIsIndexed'](arg1);
+}
+
+export function SemanticRetrieveContext(arg1) {
+  return window['go']['main']['App']['SemanticRetrieveContext'](arg1);
+}
+
+export function SemanticSearch(arg1) {
+  return window['go']['main']['App']['SemanticSearch'](arg1);
+}
+
 export function SetSLAPolicy(arg1) {
   return window['go']['main']['App']['SetSLAPolicy'](arg1);
 }
@@ -612,6 +688,10 @@ export function StopFileWatcher() {
 
 export function SuggestContextFiles(arg1, arg2) {
   return window['go']['main']['App']['SuggestContextFiles'](arg1, arg2);
+}
+
+export function SuggestRelatedFiles(arg1, arg2) {
+  return window['go']['main']['App']['SuggestRelatedFiles'](arg1, arg2);
 }
 
 export function TestBackend(arg1, arg2) {

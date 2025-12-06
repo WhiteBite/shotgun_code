@@ -1,14 +1,14 @@
 <template>
   <div class="h-full flex flex-col bg-transparent">
     <!-- Header -->
-    <div class="flex items-center justify-between p-3 border-b border-gray-700/30 min-h-[52px]">
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <div class="panel-icon panel-icon-indigo">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="panel-header-unified">
+      <div class="panel-header-unified-title">
+        <div class="panel-header-unified-icon panel-header-unified-icon-primary">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
-        <h2 class="text-sm font-semibold text-white whitespace-nowrap">{{ t('context.preview') }}</h2>
+        <span>{{ t('context.preview') }}</span>
       </div>
       
       <div v-if="contextStore.hasContext" class="flex items-center gap-1.5 ml-2 overflow-x-auto">
@@ -26,9 +26,9 @@
         
         <!-- Stats (compact badges) -->
         <div class="hidden xl:flex items-center gap-1.5 flex-shrink-0">
-          <span class="badge badge-primary text-[10px] px-1.5">{{ contextStore.fileCount }} {{ t('context.files') }}</span>
-          <span class="badge badge-primary text-[10px] px-1.5">{{ contextStore.lineCount }} {{ t('context.lines') }}</span>
-          <span class="badge badge-primary text-[10px] px-1.5">{{ contextStore.tokenCount }} {{ t('context.tokens') }}</span>
+          <span class="chip-unified chip-unified-accent">{{ contextStore.fileCount }} {{ t('context.files') }}</span>
+          <span class="chip-unified chip-unified-accent">{{ contextStore.lineCount }} {{ t('context.lines') }}</span>
+          <span class="chip-unified chip-unified-accent">{{ contextStore.tokenCount }} {{ t('context.tokens') }}</span>
         </div>
         
         <!-- Actions (icon only) -->
@@ -53,9 +53,9 @@
     </div>
 
     <!-- Search Bar -->
-    <div v-if="showSearch" class="p-2 border-b border-gray-700/30 bg-gray-800/30">
+    <div v-if="showSearch" class="search-bar">
       <div class="relative">
-        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
@@ -67,21 +67,21 @@
           @keyup.escape="showSearch = false"
           ref="searchInput"
         />
-        <div v-if="searchQuery && searchResults.length > 0" class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          <span class="text-xs text-gray-400">{{ currentSearchIndex + 1 }}/{{ searchResults.length }}</span>
-          <button @click="searchPrev" class="p-1 hover:bg-gray-700 rounded">
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="searchQuery && searchResults.length > 0" class="search-nav">
+          <span class="search-count">{{ currentSearchIndex + 1 }}/{{ searchResults.length }}</span>
+          <button @click="searchPrev" class="search-nav-btn">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
             </svg>
           </button>
-          <button @click="searchNext" class="p-1 hover:bg-gray-700 rounded">
-            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button @click="searchNext" class="search-nav-btn">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
         </div>
-        <div v-else-if="searchQuery && searchResults.length === 0" class="absolute right-2 top-1/2 -translate-y-1/2">
-          <span class="text-xs text-gray-500">{{ t('context.noResults') }}</span>
+        <div v-else-if="searchQuery && searchResults.length === 0" class="search-no-results">
+          <span>{{ t('context.noResults') }}</span>
         </div>
       </div>
     </div>
@@ -157,29 +157,44 @@
         </div>
       </div>
 
-      <div v-else-if="!contextStore.hasContext" class="empty-state h-full">
-        <div class="empty-state-icon !w-20 !h-20 mb-6">
-          <svg class="!w-10 !h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div v-else-if="!contextStore.hasContext" class="empty-state-enhanced h-full">
+        <div class="empty-state-icon-glow mb-6">
+          <svg class="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
         </div>
-        <p class="text-lg font-medium text-gray-400 mb-2">{{ t('context.notBuilt') }}</p>
-        <p class="empty-state-text">{{ t('context.selectFiles') }}</p>
+        <p class="text-lg font-semibold text-white mb-2">{{ t('context.notBuilt') }}</p>
+        <p class="text-sm text-gray-400 max-w-xs">{{ t('context.selectFiles') }}</p>
+        
+        <!-- Hint arrows -->
+        <div class="mt-8 flex items-center gap-8 text-gray-500">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span class="text-xs">{{ t('context.selectHint') }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs">{{ t('context.chatHint') }}</span>
+            <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="bg-gray-800 rounded-lg p-4 font-mono text-sm text-gray-300 context-content">
+      <div v-else class="code-editor context-content">
         <div v-if="contextStore.currentChunk && contextStore.currentChunk.lines">
           <div 
             v-for="(line, index) in contextStore.currentChunk.lines" 
             :key="index" 
             :ref="el => setLineRef(el, contextStore.currentChunk?.startLine != null ? contextStore.currentChunk.startLine + index : null)"
-            class="px-2 py-0.5 rounded context-line"
+            class="code-line"
             :class="{
-              'bg-yellow-500/20 border-l-2 border-yellow-400': contextStore.currentChunk?.startLine != null && isLineHighlighted(contextStore.currentChunk.startLine + index),
-              'hover:bg-gray-700': contextStore.currentChunk?.startLine == null || !isLineHighlighted(contextStore.currentChunk.startLine + index)
+              'code-line-highlight': contextStore.currentChunk?.startLine != null && isLineHighlighted(contextStore.currentChunk.startLine + index)
             }"
           >
-            <span class="text-gray-500 mr-4 select-none">{{ (contextStore.currentChunk?.startLine ?? 0) + index + 1 }}</span>
+            <span class="line-number">{{ (contextStore.currentChunk?.startLine ?? 0) + index + 1 }}</span>
             <span v-html="highlightLine(line)"></span>
           </div>
           <div v-if="contextStore.currentChunk.hasMore" class="text-center text-gray-500 py-4">
@@ -383,3 +398,69 @@ async function handleCopyText() {
   }
 }
 </script>
+
+
+<style scoped>
+/* Search Bar */
+.search-bar {
+  @apply p-2;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.search-icon {
+  @apply absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4;
+  color: var(--text-muted);
+}
+
+.search-nav {
+  @apply absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1;
+}
+
+.search-count {
+  @apply text-xs;
+  color: var(--text-muted);
+}
+
+.search-nav-btn {
+  @apply p-1 rounded;
+  color: var(--text-muted);
+  transition: all 150ms ease-out;
+}
+
+.search-nav-btn:hover {
+  background: var(--bg-2);
+  color: var(--text-primary);
+}
+
+.search-no-results {
+  @apply absolute right-2 top-1/2 -translate-y-1/2 text-xs;
+  color: var(--text-subtle);
+}
+
+/* Code Editor */
+.code-editor {
+  @apply rounded-lg p-4 font-mono text-sm;
+  background: var(--bg-1);
+  color: var(--text-secondary);
+}
+
+.code-line {
+  @apply px-2 py-0.5 rounded;
+  transition: background-color 150ms ease-out;
+}
+
+.code-line:hover:not(.code-line-highlight) {
+  background: var(--bg-2);
+}
+
+.code-line-highlight {
+  background: rgba(250, 204, 21, 0.15);
+  border-left: 2px solid var(--color-warning);
+}
+
+.line-number {
+  @apply mr-4 select-none;
+  color: var(--text-subtle);
+}
+</style>

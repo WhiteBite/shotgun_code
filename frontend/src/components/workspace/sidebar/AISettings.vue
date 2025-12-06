@@ -117,7 +117,7 @@
     <button
       @click="saveSettings"
       :disabled="isSaving"
-      class="action-btn action-btn-primary w-full"
+      class="btn-unified btn-unified-primary w-full"
     >
       <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

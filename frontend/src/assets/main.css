@@ -40,11 +40,18 @@
     }
 
     body {
-        @apply font-sans text-slate-100 bg-slate-900 antialiased;
+        @apply font-sans antialiased;
+        background: var(--bg-0);
+        color: var(--text-primary);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
 
     #app {
         @apply h-screen overflow-hidden;
+        background: var(--bg-0);
     }
 
     /* Focus styles using Tailwind */
@@ -56,59 +63,44 @@
         @apply outline-2 outline-blue-500 outline-offset-2;
     }
 
-    /* Selection styles using Tailwind */
+    /* Selection styles - Using accent color */
     ::selection {
-        @apply bg-blue-500/30 text-white;
+        background: rgba(99, 102, 241, 0.35);
+        color: white;
     }
 
     ::-moz-selection {
-        @apply bg-blue-500/30 text-white;
+        background: rgba(99, 102, 241, 0.35);
+        color: white;
     }
 
-    /* Scrollbar styling using Tailwind colors */
+    /* Scrollbar styling - Enhanced contrast */
     ::-webkit-scrollbar {
-        @apply w-2 h-2;
+        width: 8px;
+        height: 8px;
     }
 
     ::-webkit-scrollbar-track {
-        @apply bg-slate-700/30 rounded;
+        background: var(--bg-1);
+        border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb {
-        @apply bg-slate-600/50 rounded transition-colors hover:bg-slate-600/70;
+        background: rgba(148, 163, 184, 0.35);
+        border-radius: 4px;
+        transition: background 150ms ease-out;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.55);
     }
 }
 
 @layer components {
-
-    /* Essential component patterns that are reused across the app */
-    .btn-primary {
-        @apply px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 relative overflow-hidden;
-    }
-
-    .btn-primary:hover {
-        @apply -translate-y-0.5 shadow-lg;
-    }
-
-    .btn-primary:active {
-        @apply translate-y-0 transition-[transform] duration-75;
-    }
-
-    .btn-secondary {
-        @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500;
-    }
-
-    .input-field {
-        @apply w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:scale-[1.01] transition-all;
-    }
-
-    .card {
-        @apply bg-slate-800/50 rounded-xl border border-slate-700/50;
-    }
-
-    .panel {
-        @apply bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-lg shadow-xl;
-    }
+    /* 
+     * Component styles are now primarily defined in design-tokens.css
+     * This layer contains only Tailwind-specific utilities and glass effects
+     */
 
     /* Glass morphism components */
     .glass {
@@ -246,109 +238,10 @@
         @apply opacity-0 -translate-y-2 scale-105;
     }
 
-    /* Workspace mode transitions */
-    .workspace-transition-enter-active,
-    .workspace-transition-leave-active {
-        @apply transition-all duration-300 ease-out;
-    }
-
-    .workspace-transition-enter-from {
-        @apply opacity-0 translate-x-5;
-    }
-
-    .workspace-transition-leave-to {
-        @apply opacity-0 -translate-x-5;
-    }
-
-    /* Panel slide transitions */
-    .panel-slide-left-enter-active,
-    .panel-slide-left-leave-active {
-        @apply transition-all duration-300 ease-out;
-    }
-
-    .panel-slide-left-enter-from,
-    .panel-slide-left-leave-to {
-        @apply -translate-x-full opacity-0;
-    }
-
-    .panel-slide-right-enter-active,
-    .panel-slide-right-leave-active {
-        @apply transition-all duration-300 ease-out;
-    }
-
-    .panel-slide-right-enter-from,
-    .panel-slide-right-leave-to {
-        @apply translate-x-full opacity-0;
-    }
-
-    /* Toast notification transitions */
-    .toast-enter-active {
-        @apply transition-all duration-300;
-        transition-timing-function: var(--ease-bounce);
-    }
-
-    .toast-enter-from {
-        @apply opacity-0 -translate-y-5 scale-90;
-    }
-
-    .toast-leave-active {
-        @apply transition-all duration-300 ease-out;
-    }
-
-    .toast-leave-to {
-        @apply opacity-0 translate-x-24 scale-95;
-    }
-
-    /* Modal transitions */
-    .modal-backdrop-enter-active,
-    .modal-backdrop-leave-active {
-        @apply transition-opacity duration-300 ease-out;
-    }
-
-    .modal-backdrop-enter-from,
-    .modal-backdrop-leave-to {
-        @apply opacity-0;
-    }
-
-    .modal-enter-active {
-        @apply transition-all duration-300 ease-out;
-    }
-
-    .modal-enter-from {
-        @apply opacity-0 -translate-y-5 scale-95;
-    }
-
-    .modal-leave-active {
-        @apply transition-all duration-150 ease-out;
-    }
-
-    .modal-leave-to {
-        @apply opacity-0 translate-y-2 scale-105;
-    }
-
-    /* Context item transitions */
-    .context-item-enter-active {
-        @apply transition-all duration-300;
-        transition-timing-function: var(--ease-bounce);
-    }
-
-    .context-item-enter-from {
-        @apply opacity-0 -translate-y-2 scale-90;
-    }
-
-    .context-item-leave-active {
-        @apply transition-all duration-150 ease-out;
-    }
-
-    .context-item-leave-to {
-        @apply opacity-0 translate-x-5 scale-95;
-    }
-
-    /* Interactive state utilities */
-    .hover-lift {
-        @apply transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98];
-    }
-
+    /* 
+     * Vue transitions and animations are defined in animations.css
+     * Only keeping Tailwind-specific hover utilities here
+     */
     .hover-glow {
         @apply transition-shadow duration-300 hover:shadow-lg hover:shadow-blue-500/25;
     }
@@ -412,96 +305,10 @@
     }
 }
 
-/* Additional context-specific animations */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Essential app-specific animations that extend Tailwind */
-
-/* Animation variables matching Tailwind's duration scale */
-:root {
-    --duration-fast: 150ms;
-    --duration-normal: 250ms;
-    --duration-slow: 350ms;
-
-    /* Animation easings */
-    --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
-    --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* Essential custom keyframes for app-specific animations */
-@keyframes pulse-glow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
-    }
-
-    50% {
-        box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
-    }
-}
-
-@keyframes pulse-green {
-
-    0%,
-    100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-    }
-
-    50% {
-        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
-    }
-}
-
-@keyframes pulse-blue {
-    from {
-        border-color: theme('colors.blue.500');
-        background-color: theme('colors.blue.500/5');
-    }
-
-    to {
-        border-color: theme('colors.blue.400');
-        background-color: theme('colors.blue.500/10');
-    }
-}
-
-@keyframes shimmer {
-    0% {
-        transform: translateX(-100%);
-    }
-
-    100% {
-        transform: translateX(100%);
-    }
-}
-
-/* App-specific animation utilities */
-.animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.animate-pulse-green {
-    animation: pulse-green 2s ease-in-out infinite;
-}
-
-.animate-pulse-blue {
-    animation: pulse-blue var(--duration-slow) ease-in-out infinite alternate;
-}
-
-.animate-shimmer {
-    animation: shimmer 2s infinite;
-}
+/* 
+ * Animation keyframes and utilities are defined in animations.css
+ * Import order: design-tokens.css -> main.css (Tailwind) -> animations.css
+ */
 
 /* High contrast mode support */
 @media (prefers-contrast: more) {
@@ -515,69 +322,7 @@
     }
 }
 
-/* File Explorer Animations */
-.settings-panel-enter-active {
-    transition: all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1);
-}
-
-.settings-panel-enter-from {
-    opacity: 0;
-    transform: translateY(-10px);
-    max-height: 0;
-}
-
-.settings-panel-leave-active {
-    transition: all 0.2s ease-out;
-}
-
-.settings-panel-leave-to {
-    opacity: 0;
-    transform: translateY(-10px);
-    max-height: 0;
-}
-
-.context-menu-enter-active {
-    transition: all 0.15s cubic-bezier(0.215, 0.61, 0.355, 1);
-}
-
-.context-menu-enter-from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-5px);
-}
-
-.context-menu-leave-active {
-    transition: all 0.1s ease-out;
-}
-
-.context-menu-leave-to {
-    opacity: 0;
-    transform: scale(0.95);
-}
-
-@keyframes pulse-selection {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.6;
-    }
-}
-
-.selection-indicator {
-    animation: pulse-selection 2s ease-in-out infinite;
-}
-
-.ignored-file {
-    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ignored-file:hover {
-    opacity: 0.8;
-    background-color: rgba(239, 68, 68, 0.1);
-}
+/* File Explorer specific transitions are in animations.css */
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
@@ -605,59 +350,4 @@
     }
 }
 
-/*
- Tooltip Animations */
-@keyframes tooltip-fade-in {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(4px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
-}
-
-@keyframes tooltip-fade-out {
-    from {
-        opacity: 1;
-    }
-
-    to {
-        opacity: 0;
-    }
-}
-
-.animate-tooltip-in {
-    animation: tooltip-fade-in 0.2s ease-out forwards;
-}
-
-.animate-tooltip-out {
-    animation: tooltip-fade-out 0.15s ease-in forwards;
-}
-
-/* Hover Effects */
-.hover-scale-sm {
-    transition: transform 0.15s ease-out;
-}
-
-.hover-scale-sm:hover {
-    transform: scale(1.02);
-}
-
-.hover-brightness {
-    transition: filter 0.15s ease-out;
-}
-
-.hover-brightness:hover {
-    filter: brightness(1.1);
-}
-
-.hover-shadow-glow {
-    transition: box-shadow 0.15s ease-out;
-}
-
-.hover-shadow-glow:hover {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-}
+/* Tooltip and hover animations are in animations.css */

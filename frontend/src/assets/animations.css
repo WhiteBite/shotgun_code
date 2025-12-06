@@ -321,25 +321,11 @@
    INTERACTIVE ELEMENT ANIMATIONS
    ============================================================================= */
 
-/* Button Animations */
-.btn-primary {
-    transition: all var(--duration-fast) var(--ease-out-quad);
-    position: relative;
-    overflow: hidden;
-}
+/* Button and input styles are defined in design-tokens.css */
+/* This section contains only animation-specific enhancements */
 
-.btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-    transition-duration: 50ms;
-}
-
-/* Ripple Effect */
-.btn-primary::after {
+/* Ripple Effect for buttons */
+.btn-ripple::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -352,33 +338,28 @@
     transition: width var(--duration-normal), height var(--duration-normal);
 }
 
-.btn-primary:active::after {
+.btn-ripple:active::after {
     width: 200px;
     height: 200px;
-}
-
-/* Input Focus Animations */
-.input-field {
-    transition: all var(--duration-fast) var(--ease-out-quad);
-}
-
-.input-field:focus {
-    transform: scale(1.01);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* =============================================================================
    MICRO-INTERACTIONS
    ============================================================================= */
 
-/* Hover Lift Effect */
+/* Hover Lift Effect - Enhanced */
 .hover-lift {
-    transition: all var(--duration-fast) var(--ease-out-quad);
+    transition: all 150ms ease-out;
 }
 
 .hover-lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-md);
+}
+
+.hover-lift:active {
+    transform: translateY(0);
+    transition-duration: 50ms;
 }
 
 /* Scale on Hover */
@@ -1011,4 +992,107 @@
 
 .limits-glow-critical {
     box-shadow: 0 0 20px -3px rgba(239, 68, 68, 0.4);
+}
+
+
+/* =============================================================================
+   ENHANCED MICRO-INTERACTIONS v2.1
+   ============================================================================= */
+
+/* Toggle Animation with Bounce */
+.toggle-bounce {
+    animation: toggleBounce 300ms ease-out;
+}
+
+@keyframes toggleBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* Pulse Glow for Active Elements */
+.pulse-glow-indigo {
+    animation: pulseGlowIndigo 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlowIndigo {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+    }
+}
+
+/* Stagger Animation for Lists */
+.stagger-item {
+    animation: staggerFadeIn 400ms ease-out backwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 50ms; }
+.stagger-item:nth-child(3) { animation-delay: 100ms; }
+.stagger-item:nth-child(4) { animation-delay: 150ms; }
+.stagger-item:nth-child(5) { animation-delay: 200ms; }
+.stagger-item:nth-child(6) { animation-delay: 250ms; }
+.stagger-item:nth-child(7) { animation-delay: 300ms; }
+.stagger-item:nth-child(8) { animation-delay: 350ms; }
+
+@keyframes staggerFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Smooth Focus Ring */
+.focus-ring-animate {
+    transition: box-shadow 150ms ease-out;
+}
+
+.focus-ring-animate:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+/* Button Press Effect */
+.press-effect {
+    transition: transform 150ms ease-out;
+}
+
+.press-effect:active {
+    transform: scale(0.97);
+    transition-duration: 50ms;
+}
+
+/* Subtle Shake for Errors */
+.shake-error {
+    animation: shakeError 400ms ease-out;
+}
+
+@keyframes shakeError {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+/* Smooth Expand/Collapse */
+.expand-collapse {
+    transition: max-height 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 200ms ease-out;
+    overflow: hidden;
+}
+
+.expand-collapse.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.expand-collapse.expanded {
+    max-height: 500px;
+    opacity: 1;
 }

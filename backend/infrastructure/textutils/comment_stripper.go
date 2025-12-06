@@ -67,6 +67,9 @@ func stripCStyleComments(content string) string {
 			end := strings.Index(line, "*/")
 			if end > start {
 				line = line[:start] + line[end+2:]
+			} else {
+				// end <= start means malformed comment or */ before /*, break to avoid infinite loop
+				break
 			}
 		}
 
@@ -102,6 +105,9 @@ func stripXMLComments(content string) string {
 		end := strings.Index(content, "-->")
 		if end > start {
 			content = content[:start] + content[end+3:]
+		} else {
+			// Malformed comment, break to avoid infinite loop
+			break
 		}
 	}
 	return content

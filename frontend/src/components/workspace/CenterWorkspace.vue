@@ -1,27 +1,25 @@
 <template>
-  <div class="h-full flex flex-col">
-    <!-- Context Building Mode Only - AI Chat removed from here (now in RightSidebar) -->
-    <div class="h-full flex flex-col">
-      <!-- Task Panel (Top) - conditionally rendered -->
-      <div v-if="showTaskPanel" class="h-64 border-b border-gray-700 flex-shrink-0">
-        <TaskPanel />
-      </div>
-      <!-- Context Panel (Bottom) - takes full height when TaskPanel is hidden -->
-      <div :class="showTaskPanel ? 'flex-1' : 'h-full'">
-        <ContextPanel />
-      </div>
+  <div class="center-container">
+    <!-- Task Panel (conditionally rendered) -->
+    <div v-if="showTaskPanel" class="task-panel">
+      <TaskPanel />
+    </div>
+    
+    <!-- Context Panel -->
+    <div :class="showTaskPanel ? 'context-panel-with-task' : 'context-panel-full'">
+      <ContextPanel />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { TaskPanel } from '@/features/task'
 import { ContextPanel } from '@/features/context'
+import { TaskPanel } from '@/features/task'
+import { ref, watch } from 'vue'
 
 const showTaskPanel = ref(false)
 
-// Save task panel visibility to localStorage
+// Persist task panel visibility
 watch(showTaskPanel, (visible) => {
   try {
     localStorage.setItem('task-panel-visible', visible.toString())
@@ -30,16 +28,34 @@ watch(showTaskPanel, (visible) => {
   }
 })
 
-// Restore task panel visibility from localStorage
+// Restore task panel visibility
 try {
   const savedVisibility = localStorage.getItem('task-panel-visible')
   if (savedVisibility) {
     showTaskPanel.value = savedVisibility === 'true'
   } else {
-    // Set default to false as per the plan
     showTaskPanel.value = false
   }
 } catch (err) {
   console.warn('Failed to load task panel visibility:', err)
 }
 </script>
+
+<style scoped>
+.center-container {
+  @apply h-full flex flex-col;
+}
+
+.task-panel {
+  @apply h-64 flex-shrink-0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.context-panel-with-task {
+  @apply flex-1;
+}
+
+.context-panel-full {
+  @apply h-full;
+}
+</style>

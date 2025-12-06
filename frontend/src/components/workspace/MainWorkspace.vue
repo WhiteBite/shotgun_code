@@ -1,39 +1,41 @@
 <template>
-  <div class="h-full flex flex-col relative bg-gradient-to-br from-gray-900 via-gray-850 to-gray-900">
+  <div class="workspace-container">
     <!-- Background decoration -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl"></div>
-      <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl"></div>
+    <div class="workspace-bg">
+      <div class="workspace-glow workspace-glow-1"></div>
+      <div class="workspace-glow workspace-glow-2"></div>
     </div>
 
-    <!-- Main Workspace: 3-column layout with resizable panels -->
-    <div class="flex-1 flex overflow-hidden relative z-10">
-      <!-- Left Sidebar: File Explorer (Resizable) -->
+    <!-- Main 3-column layout -->
+    <div class="workspace-layout">
+      <!-- Left Sidebar -->
       <div 
         ref="leftPanelRef"
         :style="{ width: `${leftWidth}px` }"
-        class="flex-shrink-0 border-r border-gray-700/30 bg-gray-900/50 backdrop-blur-sm"
+        class="workspace-panel workspace-panel-left"
       >
-        <LeftSidebar @preview-file="handlePreviewFile" />
+        <LeftSidebar @preview-file="handlePreviewFile" @build-context="handleBuildContext" />
       </div>
 
       <!-- Left Resize Handle -->
       <div 
-        class="workspace-separator"
+        class="resize-handle"
         @mousedown="(e) => leftResize.onMouseDown(e)"
         :class="{ 'is-resizing': leftResize.isResizing.value }"
-      ></div>
+      >
+        <div class="resize-handle-line"></div>
+      </div>
 
-      <!-- Center: Task + Context (Flexible) -->
-      <div class="flex-1 min-w-0 bg-gray-900/30">
+      <!-- Center Panel -->
+      <div class="workspace-center">
         <CenterWorkspace />
       </div>
 
-      <!-- Right Sidebar Toggle Button -->
+      <!-- Right Sidebar Toggle -->
       <button
         @click="toggleRightSidebar"
-        class="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-gray-800/80 border border-gray-700/50 rounded-l-lg text-gray-400 hover:text-white hover:bg-gray-700/80 transition-all"
-        :class="{ 'right-sidebar-open': showRightSidebar }"
+        class="sidebar-toggle"
+        :class="{ 'sidebar-toggle-open': showRightSidebar }"
         :style="showRightSidebar ? { right: `${rightWidth}px` } : {}"
         :title="t('sidebar.toggle')"
       >
@@ -45,36 +47,34 @@
       <!-- Right Resize Handle -->
       <div 
         v-if="showRightSidebar"
-        class="workspace-separator"
+        class="resize-handle"
         @mousedown="(e) => rightResize.onMouseDown(e)"
         :class="{ 'is-resizing': rightResize.isResizing.value }"
-      ></div>
+      >
+        <div class="resize-handle-line"></div>
+      </div>
 
-      <!-- Right Sidebar: Results/Output (Resizable) -->
+      <!-- Right Sidebar -->
       <Transition name="slide-right">
         <div 
           v-if="showRightSidebar"
           ref="rightPanelRef"
           :style="{ width: `${rightWidth}px` }"
-          class="flex-shrink-0 border-l border-gray-700/30 bg-gray-900/50 backdrop-blur-sm"
+          class="workspace-panel workspace-panel-right"
         >
           <RightSidebar @open-export="handleOpenExport" />
         </div>
       </Transition>
     </div>
 
-    <!-- Action Bar (Footer) -->
-    <ActionBar
-      class="relative z-10 bg-gray-900/80 backdrop-blur-md border-t border-gray-700/30" 
-      @build-context="handleBuildContext"
-      @open-export="handleOpenExport"
-      @generate-solution="handleGenerateSolution"
-    />
+    <!-- Action Bar -->
+    <ActionBar class="workspace-actionbar" @open-export="handleOpenExport" />
 
     <!-- Export Modal -->
     <ExportModal ref="exportModalRef" />
   </div>
 </template>
+
 
 <script setup lang="ts">
 import ExportModal from '@/components/ExportModal.vue'
@@ -103,7 +103,7 @@ const showRightSidebar = ref(loadSidebarState())
 function loadSidebarState(): boolean {
   try {
     const saved = localStorage.getItem('right-sidebar-visible')
-    return saved !== 'false' // Default to true
+    return saved !== 'false'
   } catch {
     return true
   }
@@ -118,7 +118,7 @@ function toggleRightSidebar() {
   }
 }
 
-// Left panel resizing
+// Panel resizing
 const leftResize = useResizablePanel({
   minWidth: 280,
   maxWidth: 700,
@@ -128,7 +128,6 @@ const leftResize = useResizablePanel({
 const leftPanelRef = leftResize.panelRef
 const leftWidth = leftResize.width
 
-// Right panel resizing
 const rightResize = useResizablePanel({
   minWidth: 320,
   maxWidth: 800,
@@ -140,7 +139,6 @@ const rightWidth = rightResize.width
 
 function handlePreviewFile(filePath: string) {
   console.log('Preview file:', filePath)
-  // TODO: Implement file preview in right sidebar or modal
 }
 
 // Global keyboard shortcut handlers
@@ -159,7 +157,6 @@ const handleGlobalCopyContext = async () => {
   }
 }
 
-// Register and cleanup global keyboard shortcuts
 onMounted(() => {
   window.addEventListener('global-build-context', handleGlobalBuildContext)
   window.addEventListener('global-open-export', handleGlobalOpenExport)
@@ -178,14 +175,10 @@ async function handleBuildContext() {
     return
   }
 
-  if (contextStore.isBuilding) {
-    return
-  }
+  if (contextStore.isBuilding) return
 
   try {
     const filePaths = Array.from(fileStore.selectedPaths)
-    
-    // Use settings from settings store
     const options = {
       maxTokens: settingsStore.settings.context.maxTokens,
       stripComments: settingsStore.settings.context.stripComments,
@@ -207,69 +200,114 @@ function handleOpenExport() {
     uiStore.addToast('Сначала постройте контекст', 'warning')
     return
   }
-  
   exportModalRef.value?.open()
-}
-
-function handleGenerateSolution() {
-  uiStore.addToast('Генерация решения - скоро будет доступна', 'info')
-  // TODO: Implement AI solution generation
 }
 </script>
 
+
 <style scoped>
-.workspace-separator {
-  width: 4px;
-  background: transparent;
-  cursor: col-resize;
-  position: relative;
-  transition: background 0.2s ease;
+.workspace-container {
+  @apply h-full flex flex-col relative;
+  background: var(--bg-app);
 }
 
-/* Серая полоска по умолчанию - едва заметная */
-.workspace-separator::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 2px;
-  height: 60px;
-  background: rgba(107, 114, 128, 0.2);
-  border-radius: 1px;
-  transition: all 0.2s ease;
+/* Background */
+.workspace-bg {
+  @apply absolute inset-0 overflow-hidden pointer-events-none;
 }
 
-/* При hover - становится голубой и более заметной */
-.workspace-separator:hover {
-  background: linear-gradient(90deg, 
-    rgba(59, 130, 246, 0.05) 0%, 
-    rgba(59, 130, 246, 0.1) 50%,
-    rgba(59, 130, 246, 0.05) 100%);
+.workspace-glow {
+  @apply absolute rounded-full blur-3xl opacity-30;
 }
 
-.workspace-separator:hover::before {
-  background: rgba(59, 130, 246, 0.6);
-  height: 80px;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+.workspace-glow-1 {
+  @apply w-[600px] h-[600px] -top-64 -right-64;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
 }
 
-/* При активном ресайзе - более яркая */
-.workspace-separator:active {
-  background: linear-gradient(90deg, 
-    rgba(59, 130, 246, 0.1) 0%, 
-    rgba(59, 130, 246, 0.2) 50%,
-    rgba(59, 130, 246, 0.1) 100%);
+.workspace-glow-2 {
+  @apply w-[500px] h-[500px] -bottom-48 -left-48;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.06) 0%, transparent 70%);
 }
 
-.workspace-separator:active::before {
-  background: rgb(59, 130, 246);
-  height: 100px;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5),
-              0 0 24px rgba(59, 130, 246, 0.3);
+/* Layout */
+.workspace-layout {
+  @apply flex-1 flex overflow-hidden relative z-10;
 }
 
-/* Right sidebar slide animation */
+.workspace-panel {
+  @apply flex-shrink-0 backdrop-blur-sm;
+  background: rgba(11, 16, 32, 0.6);
+}
+
+.workspace-panel-left {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.workspace-panel-right {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.workspace-center {
+  @apply flex-1 min-w-0;
+  background: rgba(5, 8, 22, 0.4);
+}
+
+/* Resize Handle */
+.resize-handle {
+  @apply w-1 cursor-col-resize relative;
+  @apply flex items-center justify-center;
+  transition: all 150ms ease-out;
+}
+
+.resize-handle:hover,
+.resize-handle.is-resizing {
+  background: var(--accent-purple-bg);
+}
+
+.resize-handle-line {
+  @apply w-0.5 h-16 rounded-full;
+  background: var(--border-strong);
+  transition: all 150ms ease-out;
+}
+
+.resize-handle:hover .resize-handle-line,
+.resize-handle.is-resizing .resize-handle-line {
+  @apply h-24;
+  background: var(--accent-purple-border);
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+}
+
+/* Sidebar Toggle */
+.sidebar-toggle {
+  @apply absolute top-1/2 -translate-y-1/2 z-20;
+  @apply p-1.5 rounded-l-lg;
+  background: var(--bg-1);
+  border: 1px solid var(--border-default);
+  border-right: 0;
+  color: var(--text-muted);
+  transition: all 200ms ease-out;
+  right: 0;
+}
+
+.sidebar-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-2);
+}
+
+.sidebar-toggle-open {
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+/* Action Bar */
+.workspace-actionbar {
+  @apply relative z-10;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-1);
+  backdrop-filter: blur(12px);
+}
+
+/* Slide Animation */
 .slide-right-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -282,10 +320,5 @@ function handleGenerateSolution() {
 .slide-right-leave-to {
   opacity: 0;
   transform: translateX(100%);
-}
-
-/* Toggle button positioning */
-.right-sidebar-open {
-  border-radius: 0.5rem 0 0 0.5rem;
 }
 </style>

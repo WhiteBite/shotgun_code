@@ -1,27 +1,21 @@
 <template>
-  <div
-    class="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-850 to-gray-900 text-white overflow-hidden"
-    :class="{ 'drag-over': isDragging }"
-    @drop.prevent="handleDrop"
-    @dragover.prevent="isDragging = true"
-    @dragleave.prevent="isDragging = false"
-  >
-    <!-- Background decoration -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute -top-40 -right-40 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
-      <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl"></div>
+  <div class="project-selector" :class="{ 'drag-over': isDragging }" @drop.prevent="handleDrop"
+    @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false">
+    <!-- Animated Background -->
+    <div class="bg-decoration">
+      <div class="bg-glow bg-glow-1"></div>
+      <div class="bg-glow bg-glow-2"></div>
+      <div class="bg-glow bg-glow-3"></div>
+      <div class="bg-grid"></div>
     </div>
 
-    <!-- Language Switcher (Top Right) -->
+    <!-- Language Switcher -->
     <div class="absolute top-4 right-4 z-10">
-      <button
-        @click="toggleLanguage"
-        class="px-3 py-2 bg-gray-800/80 hover:bg-gray-700 text-white text-sm rounded-lg transition-all duration-200 border border-gray-700/50 flex items-center gap-2 backdrop-blur-sm hover:scale-105"
-        :title="locale === 'ru' ? 'Switch to English' : 'Переключить на русский'"
-      >
+      <button @click="toggleLanguage" class="lang-switcher"
+        :title="locale === 'ru' ? 'Switch to English' : 'Переключить на русский'">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
         </svg>
         <span class="font-medium">{{ locale === 'ru' ? 'RU' : 'EN' }}</span>
       </button>
@@ -29,119 +23,168 @@
 
     <!-- Drag & Drop Overlay -->
     <Transition name="fade">
-      <div
-        v-if="isDragging"
-        class="fixed inset-0 bg-indigo-600/20 border-4 border-dashed border-indigo-500 rounded-xl flex items-center justify-center z-50 m-8 pointer-events-none backdrop-blur-sm"
-      >
-        <div class="text-center">
-          <svg class="h-20 w-20 text-indigo-400 mx-auto mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <p class="text-3xl font-bold text-white drop-shadow-lg">{{ t('welcome.dropHere') }}</p>
-          <p class="text-lg text-indigo-200 mt-2">{{ t('welcome.toOpenProject') }}</p>
+      <div v-if="isDragging" class="drop-overlay">
+        <div class="drop-content">
+          <div class="drop-icon">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </div>
+          <p class="text-2xl font-bold text-white mt-4">{{ t('welcome.dropHere') }}</p>
+          <p class="text-purple-200 mt-2">{{ t('welcome.toOpenProject') }}</p>
         </div>
       </div>
     </Transition>
 
-    <div class="relative w-full max-w-2xl px-4 py-8">
+    <!-- Main Content -->
+    <div class="content-wrapper">
       <!-- Logo & Title -->
-      <div class="text-center mb-10">
-        <div class="inline-flex items-center justify-center w-20 h-20 mb-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/25 logo-spin">
-          <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
+      <div class="header-section">
+        <div class="logo-container">
+          <div class="logo-glow"></div>
+          <div class="logo">
+            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+          </div>
         </div>
-        <h1 class="text-5xl font-bold mb-3 bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent blur-in">
-          {{ t('welcome.title') }}
-        </h1>
-        <p class="text-gray-400 text-lg mb-2 fade-in" style="animation-delay: 0.2s">{{ t('welcome.subtitle') }}</p>
-        <p class="text-sm text-gray-500 fade-in" style="animation-delay: 0.3s">{{ t('welcome.dragDrop') }}</p>
+
+        <h1 class="app-title">{{ t('welcome.title') }}</h1>
+        <p class="app-subtitle">{{ t('welcome.subtitle') }}</p>
+        <p class="app-hint">{{ t('welcome.dragDrop') }}</p>
       </div>
-      
-      <!-- Open Project Button -->
-      <div class="flex justify-center mb-10 fade-in" style="animation-delay: 0.4s">
-        <button @click="selectProject" class="action-btn-hero !px-8 !py-4 !text-base icon-bounce">
+
+      <!-- CTA Button -->
+      <div class="cta-section">
+        <button @click="selectProject" class="cta-button">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
           {{ t('welcome.openProject') }}
         </button>
       </div>
 
       <!-- Recent Projects -->
-      <div class="mb-8">
-        <h2 class="text-lg font-semibold mb-4 text-gray-300 flex items-center gap-2">
-          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {{ t('welcome.recentProjects') }}
-        </h2>
-        <div class="space-y-2">
+      <div class="recent-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {{ t('welcome.recentProjects') }}
+          </h2>
+          <button v-if="recentProjects.length > 0" @click="clearAllHistory" class="clear-btn"
+            :title="t('welcome.clearHistory')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            {{ t('welcome.clearHistory') }}
+          </button>
+        </div>
+
+        <div class="projects-list">
           <template v-if="recentProjects.length > 0">
-            <button
-              v-for="(project, index) in recentProjects"
-              :key="project.path"
-              @click="openRecentProject(project.path)"
-              class="list-item list-item-animate group w-full text-left card-float"
-              :style="{ animationDelay: `${index * 50}ms` }"
-            >
-              <div class="flex items-center gap-3">
-                <div class="section-icon section-icon-indigo group-hover:bg-indigo-500/30 transition-colors">
-                  <svg class="!w-5 !h-5 group-hover:text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-white group-hover:text-indigo-100 transition-colors">{{ project.name }}</div>
-                  <div class="text-sm text-gray-500 truncate">{{ project.path }}</div>
-                </div>
-                <svg class="w-5 h-5 text-gray-600 group-hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <div v-for="(project, index) in recentProjects" :key="project.path" class="project-card"
+              :style="{ animationDelay: `${index * 60}ms` }" @click="openRecentProject(project.path)"
+              @contextmenu.prevent="showContextMenu($event, project)">
+              <div class="project-icon">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
-            </button>
+              <div class="project-info">
+                <div class="project-name">{{ project.name }}</div>
+                <div class="project-path">{{ project.path }}</div>
+              </div>
+              <button @click.stop="removeProject(project.path)" class="project-remove"
+                :title="t('welcome.removeProject')">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <svg class="project-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
           </template>
           <template v-else>
-            <div class="empty-state py-10 bg-gray-800/30 rounded-xl border border-gray-700/30">
-              <div class="empty-state-icon !w-12 !h-12 mb-3">
-                <svg class="!w-6 !h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <div class="empty-projects">
+              <div class="empty-icon">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
-              <p class="empty-state-text">{{ t('welcome.noRecentProjects') }}</p>
+              <p>{{ t('welcome.noRecentProjects') }}</p>
             </div>
           </template>
         </div>
       </div>
 
+      <!-- Context Menu -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="contextMenu.visible" class="context-menu"
+            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }" @click.stop>
+            <button @click="copyProjectPath" class="context-menu-item">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              {{ t('welcome.copyPath') }}
+            </button>
+            <button @click="removeProjectFromMenu" class="context-menu-item context-menu-item-danger">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {{ t('welcome.removeProject') }}
+            </button>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- Settings -->
-      <div class="bg-gray-800/40 border border-gray-700/50 rounded-xl p-5 backdrop-blur-sm">
-        <h3 class="font-semibold text-gray-300 mb-4 flex items-center gap-2">
+      <div class="settings-section">
+        <h3 class="settings-title">
           <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           {{ t('welcome.settings') }}
         </h3>
-        <label class="flex items-center gap-3 text-sm text-gray-300 select-none cursor-pointer group">
-          <div class="relative">
-            <input
-              type="checkbox"
-              class="sr-only peer"
-              :checked="projectStore.autoOpenLast"
-              @change="onToggleAutoOpen"
-            />
-            <div class="w-10 h-6 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
-            <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+        <label class="toggle-label">
+          <div class="toggle-wrapper">
+            <input type="checkbox" class="sr-only peer" :checked="projectStore.autoOpenLast"
+              @change="onToggleAutoOpen" />
+            <div
+              class="toggle-track peer-checked:bg-gradient-to-r peer-checked:from-purple-600 peer-checked:to-pink-600">
+            </div>
+            <div class="toggle-thumb peer-checked:translate-x-4"></div>
           </div>
-          <span class="group-hover:text-white transition-colors">{{ t('welcome.autoOpen') }}</span>
+          <span>{{ t('welcome.autoOpen') }}</span>
         </label>
       </div>
+    </div>
+
+    <!-- Version Badge (bottom left) -->
+    <div class="absolute bottom-4 left-4 z-10">
+      <VersionBadge />
     </div>
   </div>
 </template>
 
+
 <script setup lang="ts">
+import VersionBadge from '@/components/VersionBadge.vue';
 import { useI18n } from '@/composables/useI18n';
 import { apiService } from '@/services/api.service';
 import { computed, onMounted, ref } from 'vue';
@@ -157,13 +200,18 @@ const uiStore = useUIStore()
 const { t, locale, setLocale } = useI18n()
 const isDragging = ref(false)
 
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  project: null as { path: string; name: string } | null
+})
+
 const recentProjects = computed(() => projectStore.recentProjects)
 
-// Принудительно загружаем список недавних проектов при монтировании компонента
 onMounted(async () => {
   try {
     await projectStore.fetchRecentProjects()
-    console.log('Recent projects loaded from backend:', recentProjects.value.length)
   } catch (error) {
     console.error('Failed to load recent projects:', error)
   }
@@ -183,13 +231,11 @@ function onToggleAutoOpen(e: Event) {
   projectStore.setAutoOpenLast(target.checked)
 }
 
-// Drag & Drop handlers
 async function handleDrop(e: DragEvent) {
   isDragging.value = false
-  
   const items = e.dataTransfer?.items
   if (!items) return
-  
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
     if (item.kind === 'file') {
@@ -197,8 +243,6 @@ async function handleDrop(e: DragEvent) {
       if (entry?.isDirectory) {
         // @ts-ignore
         const path = entry.fullPath
-        console.log('Dropped folder:', path)
-        
         const success = await projectStore.openProjectByPath(path)
         if (success) {
           emit('opened', path)
@@ -207,18 +251,14 @@ async function handleDrop(e: DragEvent) {
       }
     }
   }
-  
   uiStore.addToast('Please drop a folder, not a file', 'warning')
 }
 
 async function selectProject() {
   try {
     const dirPath = await apiService.selectDirectory()
-    
-    if (!dirPath || dirPath === '') {
-      return
-    }
-    
+    if (!dirPath || dirPath === '') return
+
     const success = await projectStore.openProjectByPath(dirPath)
     if (success && projectStore.currentPath) {
       emit('opened', projectStore.currentPath)
@@ -239,12 +279,449 @@ async function openRecentProject(path: string) {
     uiStore.addToast('Failed to open project', 'error')
   }
 }
+
+async function removeProject(path: string) {
+  try {
+    await projectStore.removeFromRecent(path)
+    uiStore.addToast(t('welcome.projectRemoved'), 'success')
+  } catch (error) {
+    console.error('Failed to remove project:', error)
+  }
+}
+
+async function clearAllHistory() {
+  if (confirm(t('welcome.confirmClearHistory'))) {
+    projectStore.clearRecent()
+    uiStore.addToast(t('welcome.historyCleared'), 'success')
+  }
+}
+
+function showContextMenu(event: MouseEvent, project: { path: string; name: string }) {
+  contextMenu.value = { visible: true, x: event.clientX, y: event.clientY, project }
+}
+
+function hideContextMenu() {
+  contextMenu.value.visible = false
+  contextMenu.value.project = null
+}
+
+async function copyProjectPath() {
+  if (contextMenu.value.project) {
+    try {
+      await navigator.clipboard.writeText(contextMenu.value.project.path)
+      uiStore.addToast(t('welcome.pathCopied'), 'success')
+    } catch (error) {
+      console.error('Failed to copy path:', error)
+    }
+  }
+  hideContextMenu()
+}
+
+async function removeProjectFromMenu() {
+  if (contextMenu.value.project) {
+    await removeProject(contextMenu.value.project.path)
+  }
+  hideContextMenu()
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', hideContextMenu)
+}
 </script>
 
+
 <style scoped>
+.project-selector {
+  @apply relative flex items-center justify-center min-h-screen text-white overflow-hidden;
+  background: var(--bg-app);
+}
+
+/* Background Decorations */
+.bg-decoration {
+  @apply absolute inset-0 overflow-hidden pointer-events-none;
+}
+
+.bg-glow {
+  @apply absolute rounded-full blur-3xl;
+  animation: float 8s ease-in-out infinite;
+}
+
+.bg-glow-1 {
+  @apply w-96 h-96 -top-48 -right-48;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  animation-delay: 0s;
+}
+
+.bg-glow-2 {
+  @apply w-80 h-80 -bottom-40 -left-40;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.12) 0%, transparent 70%);
+  animation-delay: -3s;
+}
+
+.bg-glow-3 {
+  @apply w-[500px] h-[500px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 70%);
+  animation-delay: -5s;
+}
+
+.bg-grid {
+  @apply absolute inset-0 opacity-[0.02];
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(20px, -20px) scale(1.05);
+  }
+}
+
+/* Language Switcher */
+.lang-switcher {
+  @apply px-3 py-2 text-sm rounded-xl;
+  @apply bg-gray-800/60 border border-gray-700/50;
+  @apply text-gray-300 hover:text-white;
+  @apply flex items-center gap-2;
+  @apply backdrop-blur-sm transition-all duration-200;
+}
+
+.lang-switcher:hover {
+  @apply bg-gray-700/60 border-gray-600/50;
+  transform: scale(1.02);
+}
+
+/* Drop Overlay */
+.drop-overlay {
+  @apply fixed inset-8 z-50 rounded-2xl;
+  @apply flex items-center justify-center;
+  @apply border-2 border-dashed border-purple-500;
+  background: rgba(139, 92, 246, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.drop-content {
+  @apply text-center;
+}
+
+.drop-icon {
+  @apply w-24 h-24 mx-auto rounded-2xl;
+  @apply flex items-center justify-center;
+  @apply text-purple-400;
+  background: var(--gradient-primary-soft);
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Content Wrapper */
+.content-wrapper {
+  @apply relative w-full max-w-2xl px-6 py-8;
+}
+
+/* Header Section */
+.header-section {
+  @apply text-center mb-10;
+}
+
+.logo-container {
+  @apply relative inline-flex items-center justify-center mb-6;
+}
+
+.logo {
+  @apply w-20 h-20 rounded-2xl;
+  @apply flex items-center justify-center;
+  @apply relative z-10;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-glow-accent);
+  animation: logo-appear 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.logo-glow {
+  @apply absolute inset-0 rounded-2xl;
+  background: var(--gradient-primary);
+  filter: blur(20px);
+  opacity: 0.5;
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes logo-appear {
+  from {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.app-title {
+  @apply text-5xl font-bold mb-3;
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 40%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
+  animation: fade-up 0.5s ease-out 0.2s both;
+}
+
+.app-subtitle {
+  @apply text-lg text-gray-300 mb-2;
+  animation: fade-up 0.5s ease-out 0.3s both;
+}
+
+.app-hint {
+  @apply text-sm text-gray-400;
+  animation: fade-up 0.5s ease-out 0.4s both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* CTA Section */
+.cta-section {
+  @apply flex justify-center mb-10;
+  animation: fade-up 0.5s ease-out 0.5s both;
+}
+
+.cta-button {
+  @apply px-8 py-4 text-base font-semibold rounded-xl;
+  @apply text-white;
+  @apply flex items-center gap-3;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-glow-accent);
+  transition: all 0.2s ease-out;
+}
+
+.cta-button:hover {
+  background: var(--gradient-primary-hover);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.5), 0 0 48px rgba(236, 72, 153, 0.2);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.cta-button:active {
+  transform: translateY(-1px) scale(1.01);
+}
+
+/* Recent Section */
+.recent-section {
+  @apply mb-8;
+  animation: fade-up 0.5s ease-out 0.6s both;
+}
+
+.section-header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.section-title {
+  @apply text-base font-semibold text-gray-200;
+  @apply flex items-center gap-2;
+}
+
+.clear-btn {
+  @apply text-xs text-gray-500 hover:text-red-400;
+  @apply flex items-center gap-1;
+  @apply transition-colors duration-200;
+}
+
+/* Projects List */
+.projects-list {
+  @apply space-y-2;
+}
+
+.project-card {
+  @apply relative p-4 rounded-xl cursor-pointer;
+  @apply flex items-center gap-4;
+  @apply bg-gray-800/40 border border-gray-700/40;
+  @apply transition-all duration-200;
+  animation: slide-in 0.4s ease-out both;
+}
+
+.project-card:hover {
+  @apply bg-gray-700/50 border-gray-600/50;
+  transform: translateX(4px);
+  box-shadow: var(--shadow-md);
+}
+
+.project-card:hover .project-icon {
+  @apply bg-purple-500/30 border-purple-400/40;
+}
+
+.project-card:hover .project-icon svg {
+  @apply text-purple-300;
+}
+
+.project-card:hover .project-arrow {
+  @apply opacity-100 text-purple-400;
+}
+
+.project-card:hover .project-remove {
+  @apply opacity-100;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.project-icon {
+  @apply w-12 h-12 rounded-xl flex-shrink-0;
+  @apply flex items-center justify-center;
+  @apply bg-gray-700/50 border border-gray-600/30;
+  @apply transition-all duration-200;
+}
+
+.project-icon svg {
+  @apply text-gray-400 transition-colors duration-200;
+}
+
+.project-info {
+  @apply flex-1 min-w-0;
+}
+
+.project-name {
+  @apply font-medium text-white mb-0.5;
+}
+
+.project-path {
+  @apply text-sm text-gray-400 truncate;
+}
+
+.project-remove {
+  @apply p-2 rounded-lg;
+  @apply text-gray-600 hover:text-red-400 hover:bg-red-500/10;
+  @apply opacity-0 transition-all duration-200;
+}
+
+.project-arrow {
+  @apply w-5 h-5 text-gray-600;
+  @apply opacity-0 transition-all duration-200;
+}
+
+/* Empty Projects */
+.empty-projects {
+  @apply py-12 text-center rounded-xl;
+  @apply bg-gray-800/30 border border-gray-700/30;
+}
+
+.empty-icon {
+  @apply w-14 h-14 mx-auto mb-3 rounded-xl;
+  @apply flex items-center justify-center;
+  @apply bg-gray-700/50 text-gray-500;
+}
+
+.empty-projects p {
+  @apply text-sm text-gray-400;
+}
+
+/* Context Menu */
+.context-menu {
+  @apply fixed z-50 py-1 min-w-[180px] rounded-xl;
+  @apply bg-gray-800 border border-gray-700/50;
+  @apply shadow-2xl backdrop-blur-md;
+}
+
+.context-menu-item {
+  @apply w-full px-3 py-2 text-left text-sm;
+  @apply flex items-center gap-2;
+  @apply text-gray-300 hover:bg-gray-700/60 hover:text-white;
+  @apply transition-colors duration-150;
+}
+
+.context-menu-item-danger {
+  @apply text-red-400 hover:text-red-300;
+}
+
+/* Settings Section */
+.settings-section {
+  @apply p-5 rounded-xl;
+  @apply bg-gray-800/40 border border-gray-700/40;
+  @apply backdrop-blur-sm;
+  animation: fade-up 0.5s ease-out 0.7s both;
+}
+
+.settings-title {
+  @apply font-semibold text-gray-200 mb-4;
+  @apply flex items-center gap-2;
+}
+
+.toggle-label {
+  @apply flex items-center gap-3 text-sm text-gray-200;
+  @apply select-none cursor-pointer;
+}
+
+.toggle-label:hover span {
+  @apply text-white;
+}
+
+.toggle-wrapper {
+  @apply relative inline-flex;
+}
+
+.toggle-track {
+  @apply w-10 h-6 rounded-full;
+  @apply bg-gray-700 transition-all duration-200;
+}
+
+.toggle-thumb {
+  @apply absolute left-1 top-1 w-4 h-4 rounded-full;
+  @apply bg-white shadow-md;
+  @apply transition-transform duration-200;
+}
+
+/* Transitions */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
 .fade-enter-from,

@@ -11,10 +11,10 @@
           :key="format.id"
           @click="updateFormat(format.id)"
           :class="[
-            'px-3 py-2 text-xs rounded-lg border transition-all',
+            'btn-unified text-xs',
             exportSettings.exportFormat === format.id
-              ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
-              : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-gray-600/50'
+              ? 'btn-unified-primary'
+              : 'btn-unified-secondary'
           ]"
         >
           {{ format.label }}
@@ -24,63 +24,63 @@
 
     <!-- Options -->
     <div class="context-stats space-y-3">
-      <label class="flex items-center gap-3 text-sm text-gray-300 cursor-pointer group">
-        <div class="relative">
+      <label class="toggle-label">
+        <div class="toggle-container">
           <input
             type="checkbox"
             class="sr-only peer"
             :checked="exportSettings.includeManifest"
             @change="updateSetting('includeManifest', !exportSettings.includeManifest)"
           />
-          <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
-          <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
         </div>
-        <span class="text-xs group-hover:text-white transition-colors">{{ t('export.includeMetadata') }}</span>
+        <span class="toggle-text">{{ t('export.includeMetadata') }}</span>
       </label>
 
-      <label class="flex items-center gap-3 text-sm text-gray-300 cursor-pointer group">
-        <div class="relative">
+      <label class="toggle-label">
+        <div class="toggle-container">
           <input
             type="checkbox"
             class="sr-only peer"
             :checked="exportSettings.includeLineNumbers"
             @change="updateSetting('includeLineNumbers', !exportSettings.includeLineNumbers)"
           />
-          <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
-          <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
         </div>
-        <span class="text-xs group-hover:text-white transition-colors">{{ t('export.includeLineNumbers') }}</span>
+        <span class="toggle-text">{{ t('export.includeLineNumbers') }}</span>
       </label>
 
-      <label class="flex items-center gap-3 text-sm text-gray-300 cursor-pointer group">
-        <div class="relative">
+      <label class="toggle-label">
+        <div class="toggle-container">
           <input
             type="checkbox"
             class="sr-only peer"
             :checked="exportSettings.stripComments"
             @change="updateSetting('stripComments', !exportSettings.stripComments)"
           />
-          <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
-          <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
         </div>
-        <span class="text-xs group-hover:text-white transition-colors">{{ t('context.stripComments') }}</span>
+        <span class="toggle-text">{{ t('context.stripComments') }}</span>
       </label>
     </div>
 
     <!-- AI Chunking Options -->
     <div class="context-stats space-y-3">
-      <label class="flex items-center gap-3 text-sm text-gray-300 cursor-pointer group">
-        <div class="relative">
+      <label class="toggle-label">
+        <div class="toggle-container">
           <input
             type="checkbox"
             class="sr-only peer"
             :checked="exportSettings.enableAutoSplit"
             @change="updateSetting('enableAutoSplit', !exportSettings.enableAutoSplit)"
           />
-          <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
-          <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
         </div>
-        <span class="text-xs group-hover:text-white transition-colors">Авто-разбиение на чанки</span>
+        <span class="toggle-text">Авто-разбиение на чанки</span>
       </label>
 
       <div v-if="exportSettings.enableAutoSplit" class="space-y-2 pl-2 border-l-2 border-indigo-500/30">
@@ -154,7 +154,7 @@ function updateFormat(format: FormatType) {
 }
 
 function updateSetting<K extends keyof ExportSettings>(key: K, value: ExportSettings[K]) {
-  (exportSettings as any)[key] = value
+  (exportSettings as unknown)[key] = value
   saveToLocalStorage()
 }
 
@@ -195,3 +195,48 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 </script>
+
+<style scoped>
+.toggle-label {
+  @apply flex items-center gap-3 cursor-pointer;
+  color: var(--text-secondary);
+}
+
+.toggle-label:hover .toggle-text {
+  color: var(--text-primary);
+}
+
+.toggle-container {
+  @apply relative w-9 h-5;
+}
+
+.toggle-track {
+  @apply absolute inset-0 rounded-full;
+  background: var(--bg-3);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-container:hover .toggle-track {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.peer:checked ~ .toggle-track {
+  background: var(--accent-indigo);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+}
+
+.toggle-thumb {
+  @apply absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.peer:checked ~ .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-text {
+  @apply text-xs;
+  transition: color 150ms ease-out;
+}
+</style>

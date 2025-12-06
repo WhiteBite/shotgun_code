@@ -1,4 +1,4 @@
-﻿import type {ContextOrigin, GitStatus} from "./enums";
+﻿import type { ContextOrigin, GitStatus } from "./enums";
 
 export interface DomainFileNode {
   name: string;
@@ -229,11 +229,11 @@ export interface DerivedDiffReport {
 export interface GenericReport {
   id: string;
   type:
-      | "why_view"
-      | "time_to_green"
-      | "derived_diff"
-      | "guardrails"
-      | "sbom_licensing";
+  | "why_view"
+  | "time_to_green"
+  | "derived_diff"
+  | "guardrails"
+  | "sbom_licensing";
   taskId: string;
   title: string;
   summary: string;
@@ -254,4 +254,115 @@ export interface SLAPolicy {
     guardrails: boolean;
   };
   riskTolerance: "low" | "medium" | "high";
+}
+
+// Project Structure Types (Phase 6)
+export type ArchitectureType =
+  | 'clean'
+  | 'hexagonal'
+  | 'mvc'
+  | 'mvvm'
+  | 'layered'
+  | 'microservices'
+  | 'monolith'
+  | 'serverless'
+  | 'event-driven'
+  | 'ddd'
+  | 'unknown';
+
+export type NamingStyle = 'camelCase' | 'snake_case' | 'PascalCase' | 'kebab-case' | 'mixed';
+
+export type FolderStructure = 'flat' | 'by-feature' | 'by-type' | 'by-layer' | 'hybrid';
+
+export interface LayerInfo {
+  name: string;
+  path: string;
+  description: string;
+  dependencies: string[];
+  files: string[];
+  patterns: string[];
+}
+
+export interface ArchitectureInfo {
+  type: ArchitectureType;
+  confidence: number;
+  description: string;
+  indicators: string[];
+  layers: LayerInfo[];
+}
+
+export interface FrameworkInfo {
+  name: string;
+  version: string;
+  category: string;
+  language: string;
+  configFiles: string[];
+  indicators: string[];
+  bestPractices: string[];
+}
+
+export interface BuildSystemInfo {
+  name: string;
+  configFile: string;
+  scripts: string[];
+  commands: string[];
+}
+
+export interface LanguageInfo {
+  name: string;
+  version: string;
+  fileCount: number;
+  percentage: number;
+  primary: boolean;
+}
+
+export interface FileNamingStyle {
+  style: NamingStyle;
+  suffixes: string[];
+  prefixes: string[];
+  examples: string[];
+}
+
+export interface TestConventions {
+  location: string;
+  fileSuffix: string;
+  framework: string;
+  patterns: string[];
+}
+
+export interface ImportStyle {
+  absoluteImports: boolean;
+  aliasedImports: boolean;
+  groupedImports: boolean;
+  importOrder: string[];
+}
+
+export interface CodeStyleInfo {
+  indentStyle: string;
+  indentSize: number;
+  maxLineLength: number;
+  trailingComma: boolean;
+  semicolons: boolean;
+  quoteStyle: string;
+  configFile: string;
+}
+
+export interface ConventionInfo {
+  namingStyle: NamingStyle;
+  fileNaming: FileNamingStyle;
+  folderStructure: FolderStructure;
+  testConventions: TestConventions;
+  importStyle: ImportStyle;
+  codeStyle: CodeStyleInfo;
+}
+
+export interface ProjectStructure {
+  architecture: ArchitectureInfo | null;
+  conventions: ConventionInfo | null;
+  frameworks: FrameworkInfo[];
+  buildSystems: BuildSystemInfo[];
+  languages: LanguageInfo[];
+  layers: LayerInfo[];
+  projectType: string;
+  confidence: number;
 }

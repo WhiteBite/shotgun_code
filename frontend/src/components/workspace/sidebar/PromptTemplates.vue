@@ -31,14 +31,14 @@
         <div class="flex gap-2">
           <button
             @click="showAddForm = false"
-            class="btn-ghost text-xs flex-1 !py-1.5"
+            class="btn-unified btn-unified-ghost text-xs flex-1"
           >
             {{ t('context.cancel') }}
           </button>
           <button
             @click="saveTemplate"
             :disabled="!newTemplate.name || !newTemplate.content"
-            class="btn btn-primary text-xs flex-1 !py-1.5"
+            class="btn-unified btn-unified-primary text-xs flex-1"
           >
             {{ t('ignoreModal.save') }}
           </button>

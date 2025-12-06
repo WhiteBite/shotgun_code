@@ -1,42 +1,431 @@
-# Оставшиеся задачи по исправлению тестов
+# Shotgun Code - План развития Smart Context
 
-## Задача 1: Исправить интеграционные тесты, которые ожидают другие имена проектов
-**Файл:** frontend/tests/integration/project-selection.spec.ts
-**Проблема:** Тесты ожидают, что имена проектов будут созданы с использованием 'basename' или других форматов, но на самом деле store использует `path.split(/[\\/]/).pop()` для извлечения имени.
-**Причина:** В функциях store используется логика `path.split(/[\\/]/).pop()` для получения имени проекта, но в тестах ожидаются другие имена.
-**Как исправить:** 
-- Обновить ожидания в тестах, чтобы они соответствовали реальному поведению store
-- Например, для пути '/last/project' имя будет 'project', а не 'last-project'
-- Исправить проверки на строки типа expect.any(Number) для lastOpened вместо expect.any(String)
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 1: Tool Use / Function Calling (Приоритет: ВЫСОКИЙ)
+## ═══════════════════════════════════════════════════════════════
 
-## Задача 2: Исправить E2E тесты, которые ожидают другие имена проектов  
-**Файл:** frontend/tests/e2e/project-selection.e2e.spec.ts
-**Проблема:** Тесты ожидают, что имена проектов будут иметь определенные значения, но store генерирует их по-другому.
-**Причина:** Логика извлечения имени из пути отличается между ожидаемым и реальным поведением.
-**Как исправить:**
-- Обновить ожидания в тестах, чтобы они соответствовали реальному поведению store
-- Убедиться, что имена проектов соответствуют результату `path.split(/[\\/]/).pop()`
+### 1.1 Базовая инфраструктура Tool Use
+- [x] Определить JSON Schema для tools (domain/tools.go)
+- [x] Добавить поддержку tool_calls через system prompt (agentic_chat.go)
+- [x] Реализовать Tool Executor на backend (tool_executor.go)
+- [x] Добавить loop: AI → tool_call → execute → result → AI → ...
+- [x] Ограничение на количество итераций (max 10)
+- [x] System prompt передаётся отдельно в AI провайдеры (qwen.go и др.)
 
-## Задача 3: Исправить тесты, которые ожидают эмиссию событий
-**Файл:** frontend/tests/integration/project-selection.spec.ts и frontend/tests/e2e/project-selection.e2e.spec.ts
-**Проблема:** Тесты ожидают, что компоненты будут эмитить события 'opened', но это может не происходить в текущей реализации.
-**Причина:** Компоненты могут не эмитить ожидаемые события или эмиттеры могут быть неправильно настроены.
-**Как исправить:**
-- Проверить, что ProjectSelector.vue правильно эмитит события при открытии проекта
-- Убедиться, что компонент эмитит 'opened' с правильным аргументом (путем проекта)
+### 1.2 Базовые Tools [DONE]
+```
+Tool                 | Описание                                  | Статус
+---------------------|-------------------------------------------|--------
+search_files         | Поиск файлов по имени/паттерну (glob)     | ✅ DONE
+search_content       | Grep по содержимому файлов (regex)        | ✅ DONE
+read_file            | Чтение содержимого файла                  | ✅ DONE
+read_file_range      | Чтение части файла (строки from-to)       | ✅ DONE (в read_file)
+list_directory       | Список файлов в директории                | ✅ DONE
+get_file_info        | Метаданные файла (размер, дата, тип)      | ✅ DONE
+list_functions       | Список функций в файле (Go/TS/Vue)        | ✅ DONE
+```
 
-## Задача 4: Исправить проверку длины списка проектов в тестах
-**Файл:** frontend/tests/e2e/project-selection.e2e.spec.ts и frontend/tests/integration/project-selection.spec.ts
-**Проблема:** Тесты ожидают, что список проектов будет определенной длины, но из-за логики добавления/обновления длина отличается.
-**Причина:** Функция addToRecent перемещает существующие проекты в начало списка, а не создает дубликаты, что влияет на общее количество.
-**Как исправить:**
-- Обновить ожидания длины списка, чтобы они соответствовали реальному поведению store
-- Учесть, что при открытии уже существующего проекта он просто перемещается в начало списка
+### 1.3 Tools для анализа кода [DONE]
+```
+Tool                 | Описание                                  | Статус
+---------------------|-------------------------------------------|--------
+list_symbols         | Функции/типы/переменные в файле           | ✅ DONE
+search_symbols       | Поиск символов по проекту                 | ✅ DONE
+get_imports          | Импорты/зависимости файла                 | ✅ DONE
+find_references      | Где используется символ                   | ✅ DONE
+find_definition      | Где определён символ                      | ✅ DONE
+get_function         | Получить код конкретной функции           | ✅ DONE
+get_exports          | Экспорты модуля                           | ✅ DONE
+```
 
-## Задача 5: Исправить проверку содержимого localStorage в интеграционных тестах
-**Файл:** frontend/tests/integration/project-selection.spec.ts
-**Проблема:** Тесты ожидают, что localStorage будет содержать определенные значения, но реальное поведение store может отличаться.
-**Причина:** Store может сохранять проекты с другим форматом данных или в другом порядке.
-**Как исправить:**
-- Обновить проверки содержимого localStorage, чтобы они соответствовали реальному формату данных
-- Убедиться, что данные в localStorage совпадают с тем, что реально сохраняет store
+### 1.4 Git Tools [DONE]
+```
+Tool                 | Описание                                  | Статус
+---------------------|-------------------------------------------|--------
+git_status           | Изменённые файлы                          | ✅ DONE
+git_diff             | Diff файла/коммита                        | ✅ DONE
+git_log              | История коммитов                          | ✅ DONE
+git_blame            | Кто менял строки                          | ✅ DONE
+git_show             | Содержимое файла в коммите                | ✅ DONE
+```
+
+### 1.5 Тесты Фазы 1 [DONE]
+- [x] file_tools_test.go - тесты search_files, read_file, list_directory, search_content
+- [x] git_tools_test.go - тесты git_status, git_diff, git_log, git_blame, git_show + Phase 5 git tools
+- [x] executor_test.go - тесты регистрации tools, схемы, required params
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 2: Универсальный AST-анализ (tree-sitter) (Приоритет: ВЫСОКИЙ)
+## ═══════════════════════════════════════════════════════════════
+
+### 2.0 Архитектура анализаторов
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LanguageAnalyzer Interface                    │
+├─────────────────────────────────────────────────────────────────┤
+│  - ParseFile(path) → AST                                        │
+│  - ExtractSymbols(ast) → []Symbol                               │
+│  - FindReferences(symbol) → []Location                          │
+│  - FindDefinition(symbol) → Location                            │
+│  - GetImports(ast) → []Import                                   │
+│  - GetExports(ast) → []Export                                   │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ├── GoAnalyzer (go/ast - stdlib)
+         ├── JavaAnalyzer (tree-sitter-java)
+         ├── KotlinAnalyzer (tree-sitter-kotlin)
+         ├── DartAnalyzer (tree-sitter-dart) [Flutter]
+         ├── TypeScriptAnalyzer (tree-sitter-typescript)
+         ├── JavaScriptAnalyzer (tree-sitter-javascript)
+         └── VueAnalyzer (tree-sitter-vue + typescript)
+```
+
+### 2.1 Архитектура анализаторов [DONE]
+- [x] Универсальный интерфейс LanguageAnalyzer (domain/analysis/)
+- [x] AnalyzerRegistry для автовыбора по расширению
+- [x] SymbolIndex для быстрого поиска
+- [x] ReferenceFinder для поиска использований
+- [ ] Добавить go-tree-sitter для более точного парсинга (опционально)
+- [ ] Автоопределение языка по расширению файла
+
+### 2.5 Тесты Фазы 2 [DONE]
+- [x] registry_test.go - тесты AnalyzerRegistry, GetAnalyzer, GetAnalyzerByLanguage
+- [x] go_analyzer_test.go - тесты ExtractSymbols, GetImports, GetExports, GetFunctionBody
+- [x] js_analyzers_test.go - тесты TypeScript/JavaScript analyzers, stripCommentsAndStrings
+
+### 2.2 Поддерживаемые языки
+```
+Язык        | Библиотека              | Расширения        | Статус
+------------|-------------------------|-------------------|--------
+Go          | go/ast (stdlib)         | .go               | ✅ DONE
+Java        | regex (basic)           | .java             | ✅ DONE
+Kotlin      | regex (basic)           | .kt, .kts         | ✅ DONE
+Dart        | regex (basic)           | .dart             | ✅ DONE
+TypeScript  | regex (basic)           | .ts, .tsx         | ✅ DONE
+JavaScript  | regex (basic)           | .js, .jsx, .mjs   | ✅ DONE
+Vue         | regex (basic)           | .vue              | ✅ DONE
+Python      | tree-sitter-python      | .py               | ⬜ TODO (бонус)
+Rust        | tree-sitter-rust        | .rs               | ⬜ TODO (бонус)
+C#          | tree-sitter-c-sharp     | .cs               | ⬜ TODO (бонус)
+```
+
+### 2.3 Извлекаемые символы по языкам
+```
+Go:         functions, methods, types, interfaces, structs, consts
+Java:       classes, interfaces, methods, fields, enums, annotations
+Kotlin:     classes, objects, functions, properties, data classes
+Dart:       classes, mixins, functions, extensions, widgets
+TypeScript: classes, interfaces, functions, types, enums
+JavaScript: classes, functions, arrow functions, exports
+Vue:        components, props, emits, composables, computed
+```
+
+### 2.4 Symbol Index (универсальный)
+- [x] Индексация всех символов проекта (все языки)
+- [x] Быстрый поиск по имени символа
+- [x] Фильтрация по типу (class, function, interface...)
+- [x] Фильтрация по языку
+- [x] Кэширование индекса (SQLite)
+- [x] Инкрементальное обновление при изменении файлов
+- [ ] File watcher для автообновления
+
+### 2.5 Tools для анализа (универсальные)
+```
+Tool                 | Описание                                  | Статус
+---------------------|-------------------------------------------|--------
+list_symbols         | Все символы в файле (любой язык)          | ✅ DONE
+get_imports          | Импорты файла                             | ✅ DONE
+find_definition      | Где определён символ                      | ✅ DONE
+find_references      | Где используется символ                   | ✅ DONE
+search_symbols       | Поиск символов по проекту                 | ✅ DONE
+get_symbol_info      | Детали символа (тип, параметры, doc)      | ⬜ TODO
+get_class_hierarchy  | Наследование классов (Java/Kotlin/Dart)   | ⬜ TODO
+get_widget_tree      | Дерево виджетов (Flutter/Dart)            | ⬜ TODO
+```
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 3: Call Graph & Dependency Analysis (Приоритет: СРЕДНИЙ)
+## ═══════════════════════════════════════════════════════════════
+
+### 3.1 Call Graph Builder
+- [x] Построение графа вызовов функций
+- [x] Поиск callers (кто вызывает)
+- [x] Поиск callees (что вызывает)
+- [x] Транзитивные зависимости (глубина N)
+
+### 3.2 Dependency Graph
+- [x] Граф зависимостей между файлами
+- [x] Граф зависимостей между пакетами
+- [x] Визуализация графа (D3.js / Mermaid)
+- [x] Поиск циклических зависимостей
+
+### 3.3 Тесты Фазы 3 [DONE]
+- [x] callgraph_builder_test.go - тесты Build, GetCallers, GetCallees, GetImpact, ExportMermaid
+
+### 3.3 Impact Analysis
+- [x] "Что сломается если изменить X?"
+- [ ] Автоматическое включение зависимых файлов
+- [ ] Оценка риска изменений
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 4: Semantic Search (Приоритет: СРЕДНИЙ) [IN PROGRESS]
+## ═══════════════════════════════════════════════════════════════
+
+### 4.1 Embeddings Infrastructure [DONE]
+- [x] Выбор модели (OpenAI ada-002, local sentence-transformers)
+- [x] Векторизация файлов/функций
+- [x] Хранение embeddings (SQLite + vector extension / Qdrant)
+- [x] Инкрементальное обновление
+
+### 4.2 Semantic Search Features [DONE]
+- [x] Поиск по смыслу: "код для работы с пользователями"
+- [x] Поиск похожего кода
+- [ ] Кластеризация файлов по функциональности (TODO)
+- [x] "Найди все места где обрабатываются ошибки"
+
+### 4.3 RAG (Retrieval Augmented Generation) [DONE]
+- [x] Автоматический retrieval релевантного кода
+- [x] Chunking больших файлов
+- [x] Re-ranking результатов
+- [x] Hybrid search (keyword + semantic)
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 5: Git-Aware Context (Приоритет: СРЕДНИЙ) [DONE]
+## ═══════════════════════════════════════════════════════════════
+
+### 5.1 Change-Based Context
+- [x] "Что менялось в auth за последнюю неделю?" (git_changed_files)
+- [x] Автоматическое включение недавних изменений (git_suggest_context)
+- [x] Co-changed files analysis (git_co_changed)
+- [x] Blame-based relevance (git_blame)
+
+### 5.2 Branch Context
+- [x] Diff между ветками (git_diff_branches)
+- [x] "Что нового в feature-branch?" (git_diff_branches)
+- [x] Контекст для code review (git_diff_branches + git_co_changed)
+
+### 5.3 Commit Message Analysis
+- [x] Поиск по commit messages (git_search_commits)
+- [x] "Покажи все коммиты про баг #123" (git_search_commits)
+- [ ] Связь коммитов с задачами (Jira, GitHub Issues) - требует интеграции
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 6: Project Structure Understanding (Приоритет: НИЗКИЙ) [DONE]
+## ═══════════════════════════════════════════════════════════════
+
+### 6.1 Architecture Detection [DONE]
+- [x] Определение архитектуры (Clean, Hexagonal, MVC, MVVM, Layered, DDD)
+- [x] Определение слоёв (handlers → services → domain)
+- [x] Автоматическое включение связанных слоёв (get_related_layers tool)
+- [x] suggest_related_files - предложение связанных файлов
+
+### 6.2 Convention Detection [DONE]
+- [x] Определение naming conventions (camelCase, snake_case, PascalCase)
+- [x] Определение структуры папок (flat, by-feature, by-type)
+- [x] Определение test conventions (location, suffix, framework)
+- [x] Определение import style и code style
+
+### 6.3 Framework Detection [DONE]
+- [x] Определение фреймворков (Vue, React, Gin, Echo, Spring, Express...)
+- [x] Framework-specific best practices
+- [x] Определение версий фреймворков
+- [x] Tools: detect_architecture, detect_frameworks, detect_conventions, get_project_structure
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 7: Advanced Features (Приоритет: НИЗКИЙ)
+## ═══════════════════════════════════════════════════════════════
+
+### 7.1 Multi-Turn Context Memory
+- [ ] Запоминание контекста между сообщениями
+- [ ] "Продолжи работу над auth"
+- [ ] Автоматическое восстановление контекста
+
+### 7.2 Task Decomposition
+- [ ] Разбиение большой задачи на подзадачи
+- [ ] Пошаговое выполнение с промежуточными результатами
+- [ ] Checkpoint/Resume
+
+### 7.3 Code Generation with Validation
+- [ ] Генерация кода → компиляция → тесты → исправление
+- [ ] Автоматический repair loop
+- [ ] Интеграция с LSP для проверки ошибок
+
+### 7.4 Learning from Feedback
+- [ ] Запоминание предпочтений пользователя
+- [ ] "Не включай тесты в контекст"
+- [ ] Персонализация scoring
+
+## ═══════════════════════════════════════════════════════════════
+## ФАЗА 8: UI/UX Improvements (Приоритет: СРЕДНИЙ)
+## ═══════════════════════════════════════════════════════════════
+
+### 8.1 Context Visualization
+- [ ] Граф зависимостей в UI
+- [ ] Подсветка релевантных частей кода
+- [ ] "Почему этот файл включён?" - объяснение
+
+### 8.2 Interactive Context Building
+- [ ] Drag & drop файлов в контекст
+- [ ] "Добавь ещё связанные файлы"
+- [ ] Undo/Redo для контекста
+
+### 8.3 Context Templates
+- [ ] Сохранение паттернов контекста
+- [ ] "Для задач про auth всегда включай..."
+- [ ] Шаблоны для разных типов задач
+
+### 8.4 Progress & Transparency
+- [ ] Показ процесса анализа в реальном времени
+- [ ] "Сейчас анализирую imports..."
+- [ ] Логи tool calls для отладки
+
+## ═══════════════════════════════════════════════════════════════
+## ПРИОРИТЕТЫ РЕАЛИЗАЦИИ
+## ═══════════════════════════════════════════════════════════════
+
+### Этап 1 (1-2 недели): Tool Use MVP
+1. Базовые tools: search_files, read_file, search_content
+2. Tool executor loop
+3. UI для показа tool calls
+
+### Этап 2 (2-3 недели): AST + Symbol Index
+1. Go AST parser
+2. TypeScript parser (tree-sitter)
+3. Symbol index + search
+
+### Этап 3 (2-3 недели): Call Graph
+1. Call graph для Go
+2. Call graph для TS
+3. UI визуализация
+
+### Этап 4 (3-4 недели): Semantic Search
+1. Embeddings pipeline
+2. Vector storage
+3. Hybrid search
+
+### Этап 5+: По мере необходимости
+
+## ═══════════════════════════════════════════════════════════════
+## ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ (2024-12)
+## ═══════════════════════════════════════════════════════════════
+
+### Безопасность
+- [x] Path Traversal vulnerability в read_file (tool_executor.go) - исправлено
+      Добавлена нормализация путей через filepath.Abs + filepath.Clean
+
+### Race Conditions
+- [x] Race condition в SymbolIndex.IndexProject (symbol_index.go) - исправлено
+      Clear() теперь вызывается внутри блокировки mutex
+
+### Качество анализа
+- [x] Неточный call graph для JS/TS (callgraph_builder.go) - улучшено
+      Добавлено отслеживание scope функций для корректного определения caller
+- [x] Отсутствие EndLine для символов в JS/TS/Java/Kotlin/Dart - исправлено
+      Добавлен findBlockEndLine для всех анализаторов
+
+### Новые инструменты
+- [x] find_references tool - добавлен (использует ReferenceFinder)
+
+### Устойчивость API
+- [x] Retry logic для OpenAI API (semantic_search_service.go) - добавлено
+      Exponential backoff с jitter для rate limits и временных ошибок
+- [x] Rate limiter для OpenAI API (infrastructure/ratelimit/) - добавлено
+      Token bucket алгоритм с concurrency limiting
+
+### Архитектурные улучшения
+- [x] Фильтрация комментариев в regex-парсинге (js_analyzers.go)
+- [x] Транзитивные зависимости в call graph (callgraph_builder.go)
+      GetTransitiveDependencies, GetTransitiveCallees, GetTransitiveCallers, GetDependencyPath
+- [x] Конфигурация вынесена в domain/config.go
+- [x] Task Decomposition (infrastructure/tasks/) - Phase 7.2
+- [x] Context Memory (infrastructure/memory/) - Phase 7.1
+- [x] Domain интерфейсы для memory и tasks
+
+## ═══════════════════════════════════════════════════════════════
+## ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ (2024-12-06) - Code Review Session
+## ═══════════════════════════════════════════════════════════════
+
+### Исправленные баги
+- [x] decomposer.go - плохая генерация ID через time.Sleep заменена на crypto/rand
+- [x] js_analyzers.go - исправлена логика isValidMatch для проверки комментариев
+- [x] symbol_cache.go - removeSymbolsForFile теперь удаляет из всех индексов (byName, byKind, byFile)
+- [x] context_builder.go - parseUnixTime сбрасывает значение перед парсингом
+- [x] file_tools.go - добавлена защита от path traversal атак в readFile
+- [x] git_tools.go - bubble sort заменён на sort.Slice для производительности
+- [x] user_preferences.go - ShouldExcludeFile корректно обрабатывает пути и glob-паттерны
+- [x] executor_test.go - исправлен nil pointer в TestExecute_WithoutHandler
+
+### Новые тесты (2024-12-06)
+- [x] rate_limiter_test.go - RateLimiter, ConcurrencyLimiter, CompositeRateLimiter
+- [x] user_preferences_test.go - UserPreferences, фильтрация файлов, парсинг сообщений
+- [x] decomposer_test.go - TaskManager, CreatePlan, AddTask, GetNextTask, dependencies
+- [x] symbol_cache_test.go - SymbolIndex, SearchByName, GetSymbolsByKind, FindDefinition
+- [x] context_builder_test.go (git) - GetRecentChanges, GetCoChangedFiles, SuggestContextFiles
+- [x] chunker_test.go - CodeChunker, ChunkFile, estimateTokens, detectLanguage
+- [x] vector_store_test.go - cosineSimilarity, encodeDecodeEmbedding
+- [x] builder_test.go (contextbuilder) - parseContext, stripComments, buildTree, BuildFromContext
+
+## ═══════════════════════════════════════════════════════════════
+## ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ (2024-12-06) - Session 2
+## ═══════════════════════════════════════════════════════════════
+
+### Критические баги (бесконечные циклы)
+- [x] comment_stripper.go - бесконечный цикл в stripCStyleComments когда */ перед /*
+      Добавлен break при end <= start
+- [x] comment_stripper.go - бесконечный цикл в stripXMLComments при malformed comments
+      Добавлен break при end <= start  
+- [x] context_splitter.go - бесконечный цикл в splitByTokenCount
+      Исправлена логика продвижения currentPos, добавлен break при достижении конца
+
+### Улучшения анализаторов
+- [x] js_analyzers.go - JavaScriptAnalyzer теперь использует stripCommentsAndStrings
+      для фильтрации ложных срабатываний (как TypeScriptAnalyzer)
+
+### Исправления в chunker
+- [x] chunker.go - исправлен расчёт EndLine в chunkBySize
+      EndLine теперь корректно вычисляется как currentStart + len(currentLines) - 1
+
+### Исправления тестов
+- [x] diff_splitter_test.go - исправлен TestDiffSplitter_Split_LargeFile
+      Тест теперь создаёт diff с несколькими hunks для корректной проверки сплиттинга
+
+## ═══════════════════════════════════════════════════════════════
+## ТЕХНИЧЕСКИЕ ЗАМЕТКИ
+## ═══════════════════════════════════════════════════════════════
+
+### Tool Use JSON Schema Example:
+```json
+{
+  "name": "search_files",
+  "description": "Search for files by name pattern",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Glob pattern or filename"
+      },
+      "directory": {
+        "type": "string",
+        "description": "Directory to search in"
+      }
+    },
+    "required": ["pattern"]
+  }
+}
+```
+
+### AST Libraries:
+- Go: go/ast, go/parser (stdlib)
+- TypeScript: tree-sitter-typescript, @typescript/compiler-api
+- Vue: @vue/compiler-sfc
+
+### Embedding Models:
+- OpenAI: text-embedding-ada-002 (1536 dims)
+- Local: sentence-transformers/all-MiniLM-L6-v2 (384 dims)
+- Code-specific: microsoft/codebert-base
+
+### Vector Storage:
+- SQLite + sqlite-vss extension
+- Qdrant (self-hosted)
+- Chroma (embedded)

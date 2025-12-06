@@ -8,6 +8,7 @@ require (
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/uuid v1.6.0
 	github.com/jung-kurt/gofpdf v1.16.2
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sashabaranov/go-openai v1.41.0
 	github.com/stretchr/testify v1.10.0
