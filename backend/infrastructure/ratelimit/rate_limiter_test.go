@@ -88,16 +88,16 @@ func TestRateLimiter_Available(t *testing.T) {
 	rl := NewRateLimiter(5, 1.0)
 
 	available := rl.Available()
-	if available != 5 {
-		t.Errorf("expected 5 available, got %f", available)
+	if int(available) != 5 {
+		t.Errorf("expected 5 available, got %d", int(available))
 	}
 
 	rl.TryAcquire()
 	rl.TryAcquire()
 
 	available = rl.Available()
-	if available != 3 {
-		t.Errorf("expected 3 available, got %f", available)
+	if int(available) != 3 {
+		t.Errorf("expected 3 available, got %d", int(available))
 	}
 }
 

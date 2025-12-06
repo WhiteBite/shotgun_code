@@ -17,7 +17,9 @@ build/appicon.png
 build/windows/
 build/darwin/
 build/linux/
-# frontend/wailsjs/  # Usually committed, but regenerated often. Uncomment if you prefer not to commit.
+frontend/wailsjs/
+backend/build/appicon_old.png
+backend/build/windows/icon_.ico
 
 # Frontend dependencies and build artifacts (Node.js / npm / yarn / pnpm)
 frontend/node_modules/
@@ -320,4 +322,17 @@ backend/*.exe
 check-memory-optimizations.md
 backend/wails.json.md
 frontend/README_ARCHITECTURE.md
+
+# Generated/temporary files
+backend/golangci-lint-report.json
+frontend/package.json.md5
+frontend/vite.config.ts.timestamp-*
+TODO.txt
+
+# Local config (use ark_settings.yaml.example as template)
+config/ark_settings.yaml
+
+# Test garbage in examples
+examples/go-app/test.txt
+examples/go-app/Текстовый документ.txt
 
