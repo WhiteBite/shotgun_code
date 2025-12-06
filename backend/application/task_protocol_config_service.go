@@ -13,7 +13,6 @@ import (
 type TaskProtocolConfigService struct {
 	log        domain.Logger
 	fileSystem domain.FileSystemProvider
-	config     *TaskProtocolConfiguration
 }
 
 // TaskProtocolConfiguration represents the full configuration structure

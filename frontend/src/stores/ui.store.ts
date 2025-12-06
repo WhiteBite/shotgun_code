@@ -1,5 +1,5 @@
-import {defineStore} from 'pinia'
-import {ref} from 'vue'
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
 
 export interface Toast {
   id: string
@@ -20,6 +20,23 @@ export const useUIStore = defineStore('ui', () => {
       message,
       type,
       duration
+    }
+
+    // Log toast to console
+    const logMessage = `[Toast ${type.toUpperCase()}] ${message}`
+    switch (type) {
+      case 'error':
+        console.error(logMessage)
+        break
+      case 'warning':
+        console.warn(logMessage)
+        break
+      case 'info':
+        console.info(logMessage)
+        break
+      case 'success':
+        console.log(logMessage)
+        break
     }
 
     toasts.value.push(toast)

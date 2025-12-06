@@ -42,6 +42,7 @@ func TestService_CreateStream(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(50)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Execute
@@ -121,6 +122,7 @@ func TestService_CreateStream_TokenLimitExceeded(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(2000)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Execute
@@ -172,6 +174,7 @@ func TestService_GetContextLines(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(25)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Create stream
@@ -259,6 +262,7 @@ func TestService_BuildContext_StreamingForced(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(25)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Execute - even with ForceStream=false, it should still use streaming

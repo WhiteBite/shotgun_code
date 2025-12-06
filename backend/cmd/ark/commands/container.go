@@ -20,6 +20,10 @@ import (
 	"shotgun_code/infrastructure/textutils"
 	"shotgun_code/infrastructure/uxreports"
 
+	// Internal services (unified architecture)
+	contextservice "shotgun_code/internal/context"
+	projectservice "shotgun_code/internal/project"
+
 	// new wiring
 	"shotgun_code/infrastructure/applyengine"
 	archiverinfra "shotgun_code/infrastructure/archiver"
@@ -36,7 +40,7 @@ const openRouterHost = "https://openrouter.ai/api/v1"
 // CLIContainer holds all the services and repositories for the application.
 type CLIContainer struct {
 	Log                   domain.Logger
-	EventBus              domain.EventBus // Add EventBus field
+	EventBus              domain.EventBus
 	SettingsRepo          domain.SettingsRepository
 	FileReader            domain.FileContentReader
 	GitRepo               domain.GitRepository
@@ -44,7 +48,8 @@ type CLIContainer struct {
 	ContextSplitter       domain.ContextSplitter
 	CommandRunner         domain.CommandRunner
 	SettingsService       *application.SettingsService
-	ProjectService        *application.ProjectService
+	ContextService        *contextservice.Service
+	ProjectService        *projectservice.Service
 	AIService             *application.AIService
 	ContextAnalysis       domain.ContextAnalyzer
 	SymbolGraph           *application.SymbolGraphService
@@ -103,48 +108,32 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// Create AI service with intelligent service
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 
-	// Token counter function
-	tokenCounter := application.SimpleTokenCounter
-
 	// Create OPA service
 	c.opaService = policy.NewOPAService(c.Log)
-
-	// Create path provider (using standard filepath implementation)
-	pathProvider := filesystem.NewFilePathProvider()
-
-	// Create file system writer (using standard os implementation)
-	fileSystemWriter := &OSFileSystemWriter{}
 
 	// Create file stat provider (using standard os implementation)
 	fileStatProvider := filesystem.NewOSFileStatProvider()
 
-	// Create context directory
-	homeDir, _ := os.UserHomeDir()
-	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	os.MkdirAll(contextDir, 0755)
-
-	// Create comment stripper and ContextBuilder for CLI
-	commentStripper := textutils.NewCommentStripper(c.Log)
-	contextRepository := application.NewContextRepository(c.Log, contextDir)
-	contextBuilder := application.NewContextBuilder(
+	// Create unified ContextService
+	c.ContextService, err = contextservice.NewService(
 		c.FileReader,
-		tokenCounter,
-		c.Log,
-		c.SettingsService,
+		&SimpleTokenCounter{},
 		nil, // No event bus for CLI
-		c.opaService,
-		pathProvider,
-		fileSystemWriter,
-		commentStripper,
-		contextRepository,
-		contextDir,
+		c.Log,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context service: %w", err)
+	}
 
-	// Create ContextGenerator for async operations
-	contextGenerator := application.NewContextGenerator(c.FileReader, c.Log, nil, contextDir)
-
-	// Create ProjectService with ContextBuilder and ContextGenerator
-	c.ProjectService = application.NewProjectService(c.Log, nil, c.TreeBuilder, c.GitRepo, contextBuilder, contextGenerator, pathProvider, fileStatProvider)
+	// Create unified ProjectService
+	c.ProjectService = projectservice.NewService(
+		c.Log,
+		nil, // No event bus for CLI
+		c.TreeBuilder,
+		c.GitRepo,
+		c.ContextService,
+	)
+	_ = fileStatProvider // Used by other services
 	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
 	// Create symbol graph builders
 	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
@@ -256,10 +245,10 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		c.ContextSplitter,
 		pdfGen,
 		arch,
-		&OSTempFileProvider{}, // Temp file provider
-		pathProvider,          // Path provider
-		&OSFileSystemWriter{}, // File system writer
-		fileStatProvider,      // File stat provider
+		&OSTempFileProvider{},  // Temp file provider
+		&FilePathProvider{},    // Path provider
+		&OSFileSystemWriter{},  // File system writer
+		fileStatProvider,       // File stat provider
 	)
 
 	return c, nil
@@ -424,4 +413,12 @@ type OSTempFileProvider struct{}
 
 func (t *OSTempFileProvider) MkdirTemp(dir, pattern string) (string, error) {
 	return os.MkdirTemp(dir, pattern)
+}
+
+// SimpleTokenCounter provides basic token estimation
+type SimpleTokenCounter struct{}
+
+func (s *SimpleTokenCounter) CountTokens(text string) int {
+	// Simple approximation: 1 token ≈ 4 characters
+	return len(text) / 4
 }

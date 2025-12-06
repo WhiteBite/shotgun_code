@@ -1,4 +1,4 @@
-/* Design Tokens - Essential custom properties that extend Tailwind */
+/* Design Tokens - Shotgun Code Theme */
 
 :root {
     /* App-specific semantic tokens */
@@ -7,7 +7,60 @@
     --app-sidebar-collapsed-width: 60px;
     --app-panel-max-width: 480px;
 
-    /* Glass morphism effects - not natively supported in Tailwind */
+    /* === SHOTGUN CODE COLOR PALETTE === */
+    
+    /* Primary - Deep Indigo */
+    --color-primary-50: #EEF2FF;
+    --color-primary-100: #E0E7FF;
+    --color-primary-200: #C7D2FE;
+    --color-primary-300: #A5B4FC;
+    --color-primary-400: #818CF8;
+    --color-primary-500: #6366F1;
+    --color-primary-600: #4F46E5;
+    --color-primary-700: #4338CA;
+    --color-primary-800: #3730A3;
+    --color-primary-900: #312E81;
+    
+    /* Accent - Violet */
+    --color-accent-400: #A78BFA;
+    --color-accent-500: #8B5CF6;
+    --color-accent-600: #7C3AED;
+    
+    /* Success - Emerald (darker, easier on eyes) */
+    --color-success-400: #34D399;
+    --color-success-500: #10B981;
+    --color-success-600: #059669;
+    --color-success-700: #047857;
+    
+    /* Warning - Amber */
+    --color-warning-400: #FBBF24;
+    --color-warning-500: #F59E0B;
+    --color-warning-600: #D97706;
+    --color-warning-700: #B45309;
+    
+    /* Danger - Rose (softer than pure red) */
+    --color-danger-400: #FB7185;
+    --color-danger-500: #F43F5E;
+    --color-danger-600: #E11D48;
+    --color-danger-700: #BE123C;
+
+    /* === BUTTON STYLES === */
+    --btn-primary-bg: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-500) 100%);
+    --btn-primary-hover: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-400) 100%);
+    --btn-primary-glow: 0 4px 14px 0 rgba(99, 102, 241, 0.4);
+    
+    --btn-success-bg: linear-gradient(135deg, var(--color-success-600) 0%, var(--color-success-500) 100%);
+    --btn-success-hover: linear-gradient(135deg, var(--color-success-500) 0%, var(--color-success-400) 100%);
+    --btn-success-glow: 0 4px 14px 0 rgba(16, 185, 129, 0.4);
+    
+    --btn-danger-bg: linear-gradient(135deg, var(--color-danger-600) 0%, var(--color-danger-500) 100%);
+    --btn-danger-hover: linear-gradient(135deg, var(--color-danger-500) 0%, var(--color-danger-400) 100%);
+    --btn-danger-glow: 0 4px 14px 0 rgba(244, 63, 94, 0.4);
+    
+    --btn-secondary-bg: linear-gradient(135deg, #374151 0%, #4B5563 100%);
+    --btn-secondary-hover: linear-gradient(135deg, #4B5563 0%, #6B7280 100%);
+
+    /* Glass morphism effects */
     --glass-bg-primary: rgba(15, 23, 42, 0.85);
     --glass-bg-secondary: rgba(30, 41, 59, 0.8);
     --glass-border: rgba(148, 163, 184, 0.1);
@@ -15,19 +68,19 @@
     --glass-backdrop-strong: blur(16px);
 
     /* Context-specific colors for memory management */
-    --memory-safe-bg: rgba(34, 197, 94, 0.1);
-    --memory-warning-bg: rgba(251, 191, 36, 0.1);
-    --memory-critical-bg: rgba(239, 68, 68, 0.1);
+    --memory-safe-bg: rgba(16, 185, 129, 0.1);
+    --memory-warning-bg: rgba(217, 119, 6, 0.1);
+    --memory-critical-bg: rgba(225, 29, 72, 0.1);
 
     /* Focus states with proper contrast */
-    --focus-ring-primary: 0 0 0 2px theme('colors.blue.500');
-    --focus-ring-error: 0 0 0 2px theme('colors.red.500');
-    --focus-ring-success: 0 0 0 2px theme('colors.green.500');
+    --focus-ring-primary: 0 0 0 2px var(--color-primary-500);
+    --focus-ring-error: 0 0 0 2px var(--color-danger-500);
+    --focus-ring-success: 0 0 0 2px var(--color-success-500);
 
     /* Context builder specific gradients */
-    --gradient-context-healthy: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2));
-    --gradient-context-warning: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
-    --gradient-context-critical: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+    --gradient-context-healthy: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15));
+    --gradient-context-warning: linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(180, 83, 9, 0.15));
+    --gradient-context-critical: linear-gradient(135deg, rgba(225, 29, 72, 0.15), rgba(190, 18, 60, 0.15));
 
     /* Animation durations for consistent UX */
     --duration-fast: 150ms;
@@ -64,4 +117,967 @@
         --glass-bg-secondary: rgb(30, 41, 59);
         --glass-border: rgba(148, 163, 184, 0.3);
     }
+}
+
+/* === BUTTON COMPONENT STYLES === */
+
+.btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 ease-out;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900;
+}
+
+.btn-primary {
+    background: var(--btn-primary-bg);
+    @apply text-white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--btn-primary-hover);
+    box-shadow: var(--btn-primary-glow);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-success {
+    background: var(--btn-success-bg);
+    @apply text-white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background: var(--btn-success-hover);
+    box-shadow: var(--btn-success-glow);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background: var(--btn-danger-bg);
+    @apply text-white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: var(--btn-danger-hover);
+    box-shadow: var(--btn-danger-glow);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--btn-secondary-bg);
+    @apply text-gray-200;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--btn-secondary-hover);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    @apply bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white border border-gray-700/50;
+}
+
+.btn-ghost:hover {
+    @apply border-gray-600/50;
+}
+
+.btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Small button variant */
+.btn-sm {
+    @apply px-3 py-1.5 text-sm;
+}
+
+/* Extra small button variant */
+.btn-xs {
+    @apply px-2 py-1 text-xs;
+}
+
+/* === BADGE STYLES === */
+
+.badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+    @apply bg-indigo-500/20 text-indigo-300 border border-indigo-500/30;
+}
+
+.badge-success {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+}
+
+.badge-warning {
+    @apply bg-amber-500/20 text-amber-300 border border-amber-500/30;
+}
+
+.badge-danger {
+    @apply bg-rose-500/20 text-rose-300 border border-rose-500/30;
+}
+
+/* === CARD STYLES === */
+
+.card {
+    @apply bg-gray-800/50 border border-gray-700/50 rounded-xl;
+    backdrop-filter: var(--glass-backdrop);
+}
+
+.card-hover {
+    @apply transition-all duration-200;
+}
+
+.card-hover:hover {
+    @apply bg-gray-800/70 border-gray-600/50;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* === INPUT STYLES === */
+
+.input {
+    @apply w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-xl;
+    @apply text-white placeholder-gray-500 text-sm;
+    @apply focus:outline-none focus:border-indigo-500/50 focus:bg-gray-800/70;
+    @apply transition-all duration-200;
+}
+
+.input:hover:not(:focus) {
+    @apply border-gray-600/50;
+}
+
+.input-with-icon {
+    @apply pl-10;
+}
+
+.input-icon {
+    @apply absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500;
+}
+
+/* Search input specific */
+.search-input {
+    @apply w-full px-3 py-2.5 pl-10 bg-gray-800/50 border border-gray-700/50 rounded-xl;
+    @apply text-white placeholder-gray-500 text-sm;
+    @apply focus:outline-none focus:border-indigo-500/50 focus:bg-gray-800/70;
+    @apply transition-all duration-200;
+}
+
+/* === PANEL HEADER === */
+
+.panel-header {
+    @apply flex items-center justify-between p-3 border-b border-gray-700/30;
+    background: transparent;
+}
+
+.panel-title {
+    @apply text-sm font-semibold text-white flex items-center gap-2;
+}
+
+.panel-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center;
+}
+
+.panel-icon-indigo {
+    @apply bg-indigo-500/20;
+}
+
+.panel-icon-indigo svg {
+    @apply text-indigo-400;
+}
+
+/* === STAT DISPLAY === */
+
+.stat-value {
+    @apply text-white font-semibold;
+}
+
+.stat-label {
+    @apply text-gray-500 text-xs;
+}
+
+.stat-highlight {
+    @apply text-indigo-400;
+}
+
+/* Stats Grid */
+.stats-grid {
+    @apply grid grid-cols-2 gap-3;
+}
+
+.stat-card {
+    @apply text-center p-2 bg-gray-900/50 rounded-lg;
+}
+
+.stat-card-value {
+    @apply text-lg font-bold text-white;
+}
+
+.stat-card-value-indigo {
+    @apply text-indigo-400;
+}
+
+.stat-card-value-emerald {
+    @apply text-emerald-400;
+}
+
+/* Context Stats Panel */
+.context-stats {
+    @apply p-4 bg-gray-800/40 rounded-xl border border-gray-700/30;
+}
+
+.context-stats-title {
+    @apply text-xs font-semibold text-gray-400 mb-3;
+}
+
+/* === ACTION BAR BUTTONS === */
+
+.action-btn {
+    @apply px-4 py-2 text-white text-sm font-medium rounded-xl;
+    @apply transition-all duration-200 ease-out;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply flex items-center gap-2 justify-center;
+}
+
+.action-btn:disabled {
+    @apply bg-gray-800/40 text-gray-500 border border-gray-700/30;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.action-btn-primary {
+    background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-500) 100%);
+    @apply shadow-lg;
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.25);
+}
+
+.action-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-400) 100%);
+    box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px) scale(1.02);
+}
+
+.action-btn-success {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+}
+
+.action-btn-success:hover:not(:disabled) {
+    @apply bg-emerald-500/30 border-emerald-500/50;
+    transform: translateY(-1px);
+}
+
+.action-btn-danger {
+    @apply bg-red-500/20 text-red-300 border border-red-500/30;
+}
+
+.action-btn-danger:hover:not(:disabled) {
+    @apply bg-red-500/30 border-red-500/50;
+    transform: translateY(-1px);
+}
+
+.action-btn-accent {
+    @apply bg-orange-500/20 text-orange-300 border border-orange-500/30;
+}
+
+.action-btn-accent:hover:not(:disabled) {
+    @apply bg-orange-500/30 border-orange-500/50;
+    transform: translateY(-1px);
+}
+
+.action-btn-hero {
+    @apply px-5 py-2 text-white text-sm font-semibold rounded-xl;
+    @apply transition-all duration-200 ease-out;
+    @apply flex items-center gap-2 justify-center;
+    background: linear-gradient(135deg, var(--color-accent-600) 0%, #ec4899 100%);
+    box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.4);
+}
+
+.action-btn-hero:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--color-accent-500) 0%, #f472b6 100%);
+    box-shadow: 0 6px 20px -3px rgba(139, 92, 246, 0.5);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.action-btn-hero:disabled {
+    @apply opacity-50 cursor-not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* === TAB SWITCHER === */
+
+.tab-btn {
+    @apply flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200;
+    @apply flex items-center justify-center gap-2;
+}
+
+.tab-btn-inactive {
+    @apply text-gray-400 hover:text-white hover:bg-gray-800/50;
+}
+
+.tab-btn-active {
+    @apply text-white;
+}
+
+.tab-btn-active-indigo {
+    @apply bg-indigo-500/20 text-indigo-300 border border-indigo-500/30;
+}
+
+.tab-btn-active-orange {
+    @apply bg-orange-500/20 text-orange-300 border border-orange-500/30;
+}
+
+.tab-btn-active-purple {
+    @apply bg-purple-500/20 text-purple-300 border border-purple-500/30;
+}
+
+.tab-btn-active-emerald {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+}
+
+/* === TOOL/SIDEBAR BUTTONS === */
+
+.tool-btn {
+    @apply w-full px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200;
+    @apply flex items-center gap-3 text-left;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply border;
+}
+
+.tool-btn:disabled {
+    @apply bg-gray-800/30 border-gray-700/30 text-gray-500 cursor-not-allowed;
+}
+
+.tool-btn-default {
+    @apply bg-gray-800/50 border-gray-700/50 text-white;
+    @apply hover:bg-gray-700/50 hover:border-gray-600/50;
+}
+
+.tool-btn-icon {
+    @apply w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0;
+}
+
+.tool-btn-icon-indigo {
+    @apply bg-indigo-500/20;
+}
+
+.tool-btn-icon-indigo svg {
+    @apply w-4 h-4 text-indigo-400;
+}
+
+.tool-btn-icon-emerald {
+    @apply bg-emerald-500/20;
+}
+
+.tool-btn-icon-emerald svg {
+    @apply w-4 h-4 text-emerald-400;
+}
+
+.tool-btn-icon-red {
+    @apply bg-red-500/20;
+}
+
+.tool-btn-icon-red svg {
+    @apply w-4 h-4 text-red-400;
+}
+
+/* === SUGGESTION CHIPS / FILTER BUTTONS === */
+
+.chip {
+    @apply px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200;
+    @apply flex items-center gap-1.5;
+}
+
+.chip-default {
+    @apply bg-gray-800/50 text-gray-400 border border-gray-700/50;
+    @apply hover:bg-gray-700/50 hover:text-white hover:border-gray-600/50;
+}
+
+.chip-active {
+    @apply bg-indigo-500/30 text-indigo-300 border border-indigo-500/50;
+    @apply shadow-lg shadow-indigo-500/10;
+}
+
+.chip-primary {
+    @apply bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30;
+}
+
+.chip-count {
+    @apply px-1.5 py-0.5 rounded-full text-[10px] font-semibold;
+}
+
+.chip-count-default {
+    @apply bg-gray-700/50 text-gray-500;
+}
+
+.chip-count-active {
+    @apply bg-indigo-500/50 text-indigo-200;
+}
+
+/* === SETTINGS PANEL BUTTONS === */
+
+.settings-btn {
+    @apply flex-1 px-3 py-1.5 text-white text-xs rounded-lg transition-all duration-200;
+    @apply flex items-center justify-center gap-2;
+    @apply bg-gray-700/80 hover:bg-gray-600 border border-gray-600/50;
+}
+
+.settings-btn:hover {
+    @apply border-gray-500/50;
+}
+
+/* === SELECTION INDICATOR === */
+
+.selection-indicator {
+    @apply w-full px-3 py-1.5 text-xs rounded-lg transition-all duration-200;
+    @apply flex items-center justify-center gap-2;
+    @apply bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30;
+}
+
+/* === COMPACT ACTION BUTTONS (for ActionBar) === */
+
+.action-btn-compact {
+    @apply px-2.5 py-2 text-white text-sm font-medium rounded-xl;
+    @apply transition-all duration-200 ease-out;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply flex items-center gap-1.5 justify-center;
+}
+
+.action-btn-compact:disabled {
+    @apply bg-gray-800/40 text-gray-500 border border-gray-700/30;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.action-btn-compact-primary {
+    background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-500) 100%);
+    box-shadow: 0 2px 8px 0 rgba(99, 102, 241, 0.25);
+}
+
+.action-btn-compact-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-400) 100%);
+    box-shadow: 0 4px 12px 0 rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px);
+}
+
+.action-btn-compact-success {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+}
+
+.action-btn-compact-success:hover:not(:disabled) {
+    @apply bg-emerald-500/30 border-emerald-500/50;
+    transform: translateY(-1px);
+}
+
+.action-btn-compact-accent {
+    @apply bg-orange-500/20 text-orange-300 border border-orange-500/30;
+}
+
+.action-btn-compact-accent:hover:not(:disabled) {
+    @apply bg-orange-500/30 border-orange-500/50;
+    transform: translateY(-1px);
+}
+
+.action-btn-compact-hero {
+    @apply px-3;
+    background: linear-gradient(135deg, var(--color-accent-600) 0%, #ec4899 100%);
+    box-shadow: 0 2px 10px -2px rgba(139, 92, 246, 0.4);
+}
+
+.action-btn-compact-hero:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--color-accent-500) 0%, #f472b6 100%);
+    box-shadow: 0 4px 14px -2px rgba(139, 92, 246, 0.5);
+    transform: translateY(-1px);
+}
+
+
+/* === MODAL & OVERLAY STYLES === */
+
+.modal-overlay {
+    @apply fixed inset-0 z-40 bg-black/50 backdrop-blur-sm;
+}
+
+.modal-container {
+    @apply fixed inset-0 z-50 flex items-center justify-center;
+}
+
+.modal-content {
+    @apply bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl;
+}
+
+.modal-title {
+    @apply text-lg font-semibold text-white mb-2;
+}
+
+.modal-text {
+    @apply text-gray-300 text-sm mb-4;
+}
+
+/* Error modal variant */
+.modal-error {
+    @apply bg-red-900/90 border-red-700;
+}
+
+.modal-error .modal-title {
+    @apply text-red-200;
+}
+
+.modal-error .modal-text {
+    @apply text-red-300;
+}
+
+/* === TOAST STYLES === */
+
+.toast {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border;
+}
+
+.toast-success {
+    @apply bg-emerald-900/90 border-emerald-700/50 text-emerald-100;
+}
+
+.toast-error {
+    @apply bg-red-900/90 border-red-700/50 text-red-100;
+}
+
+.toast-warning {
+    @apply bg-amber-900/90 border-amber-700/50 text-amber-100;
+}
+
+.toast-info {
+    @apply bg-gray-800/90 border-gray-700/50 text-gray-100;
+}
+
+.toast-icon {
+    @apply w-5 h-5 flex-shrink-0;
+}
+
+.toast-icon-success {
+    @apply text-emerald-400;
+}
+
+.toast-icon-error {
+    @apply text-red-400;
+}
+
+.toast-icon-warning {
+    @apply text-amber-400;
+}
+
+.toast-icon-info {
+    @apply text-blue-400;
+}
+
+.toast-message {
+    @apply text-sm font-medium;
+}
+
+.toast-close {
+    @apply ml-2 p-1 hover:bg-white/10 rounded-lg transition-colors;
+}
+
+/* === LOADING OVERLAY === */
+
+.loading-overlay {
+    @apply fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm;
+}
+
+.loading-card {
+    @apply bg-gray-800 border border-gray-700 rounded-xl p-8 max-w-sm mx-4 text-center;
+}
+
+.loading-spinner {
+    @apply animate-spin h-8 w-8 text-indigo-500;
+}
+
+.loading-title {
+    @apply text-lg font-semibold text-white mb-2;
+}
+
+.loading-text {
+    @apply text-gray-400 text-sm;
+}
+
+/* === EMPTY STATE === */
+
+.empty-state {
+    @apply flex flex-col items-center justify-center p-8 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 mx-auto mb-4 bg-gray-800/50 rounded-2xl flex items-center justify-center border border-gray-700/30;
+}
+
+.empty-state-icon svg {
+    @apply w-8 h-8 text-gray-600;
+}
+
+.empty-state-title {
+    @apply text-sm font-medium text-gray-400 mb-1;
+}
+
+.empty-state-text {
+    @apply text-xs text-gray-500;
+}
+
+/* === SECTION HEADER === */
+
+.section-header {
+    @apply flex items-center justify-between p-3 border-b border-gray-700/30;
+}
+
+.section-title {
+    @apply flex items-center gap-2;
+}
+
+.section-title-text {
+    @apply text-sm font-semibold text-white;
+}
+
+.section-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center;
+}
+
+.section-icon-indigo {
+    @apply bg-indigo-500/20;
+}
+
+.section-icon-indigo svg {
+    @apply w-4 h-4 text-indigo-400;
+}
+
+.section-icon-purple {
+    @apply bg-purple-500/20;
+}
+
+.section-icon-purple svg {
+    @apply w-4 h-4 text-purple-400;
+}
+
+.section-icon-emerald {
+    @apply bg-emerald-500/20;
+}
+
+.section-icon-emerald svg {
+    @apply w-4 h-4 text-emerald-400;
+}
+
+.section-icon-orange {
+    @apply bg-orange-500/20;
+}
+
+.section-icon-orange svg {
+    @apply w-4 h-4 text-orange-400;
+}
+
+/* === LIST ITEM === */
+
+.list-item {
+    @apply bg-gray-800/50 rounded-xl p-3 border border-gray-700/30;
+    @apply hover:bg-gray-800/70 hover:border-gray-600/50 transition-all cursor-pointer;
+}
+
+.list-item-active {
+    @apply bg-indigo-500/10 border-indigo-500/30;
+}
+
+/* === ICON BUTTON === */
+
+.icon-btn {
+    @apply p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors;
+}
+
+.icon-btn-sm {
+    @apply p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors;
+}
+
+.icon-btn-danger {
+    @apply hover:text-red-400 hover:bg-red-500/10;
+}
+
+.icon-btn-success {
+    @apply hover:text-emerald-400 hover:bg-emerald-500/10;
+}
+
+.icon-btn-primary {
+    @apply hover:text-indigo-400 hover:bg-indigo-500/10;
+}
+
+/* === DIVIDER === */
+
+.divider {
+    @apply w-px h-4 bg-gray-700;
+}
+
+.divider-horizontal {
+    @apply h-px w-full bg-gray-700/50;
+}
+
+/* === SCROLLABLE CONTAINER === */
+
+.scrollable {
+    @apply overflow-auto;
+}
+
+.scrollable-y {
+    @apply overflow-y-auto overflow-x-hidden;
+}
+
+.scrollable-x {
+    @apply overflow-x-auto overflow-y-hidden;
+}
+
+
+/* === TREE ITEM === */
+
+.tree-item {
+    @apply flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors text-gray-300;
+}
+
+.tree-item:hover {
+    @apply bg-gray-700;
+}
+
+.tree-item-selected {
+    @apply bg-indigo-900/30 text-indigo-300;
+}
+
+.tree-item-selected:hover {
+    @apply bg-indigo-900/40;
+}
+
+/* Tree Checkbox */
+.tree-checkbox {
+    @apply flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors border-gray-600;
+}
+
+.tree-checkbox:hover {
+    @apply border-gray-500;
+}
+
+.tree-checkbox-checked {
+    @apply bg-indigo-600 border-indigo-600;
+}
+
+/* Tree Expand Icon */
+.tree-expand-icon {
+    @apply flex-shrink-0 w-4 h-4 flex items-center justify-center;
+}
+
+.tree-expand-arrow {
+    @apply w-3 h-3 transition-transform;
+}
+
+.tree-expand-arrow-open {
+    @apply rotate-90;
+}
+
+/* Tree File/Folder Icon */
+.tree-icon {
+    @apply flex-shrink-0;
+}
+
+.tree-folder-icon {
+    @apply w-4 h-4 text-blue-400;
+}
+
+.tree-file-icon {
+    @apply text-sm;
+}
+
+/* Tree Name */
+.tree-name {
+    @apply flex-1 truncate text-sm;
+}
+
+/* Tree Count Badge */
+.tree-count {
+    @apply text-xs text-gray-500;
+}
+
+
+/* === INFO BOX / HINT BOX === */
+
+.info-box {
+    @apply p-4 bg-gray-800/50 rounded-xl border border-gray-700/30;
+}
+
+.info-box-indigo {
+    @apply p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl;
+}
+
+.info-box-purple {
+    @apply p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl;
+}
+
+/* === TEXTAREA === */
+
+.textarea {
+    @apply w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl;
+    @apply text-white placeholder-gray-500 text-sm font-mono;
+    @apply focus:outline-none focus:border-indigo-500/50 focus:bg-gray-800/70;
+    @apply resize-none transition-all duration-200;
+}
+
+/* === CONFIRM MODAL === */
+
+.confirm-modal {
+    @apply bg-gray-800 rounded-2xl border border-gray-700/50 shadow-2xl max-w-md w-full p-6;
+}
+
+.confirm-modal-title {
+    @apply text-lg font-semibold text-white mb-2;
+}
+
+.confirm-modal-text {
+    @apply text-sm text-gray-400 mb-4;
+}
+
+/* === FILE LIST CONTAINER === */
+
+.file-list-container {
+    @apply max-h-64 overflow-y-auto bg-gray-800/50 rounded-lg border border-gray-700;
+}
+
+/* === BRANCH INFO === */
+
+.branch-info {
+    @apply flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700;
+}
+
+/* === GIT COMPONENTS === */
+
+.git-branch-item {
+    @apply w-full px-3 py-2 text-left text-sm rounded transition-colors flex items-center gap-2;
+    @apply text-gray-300 hover:bg-gray-700;
+}
+
+.git-branch-item-selected {
+    @apply bg-indigo-600/20 text-indigo-300 border border-indigo-500/30;
+}
+
+.git-branch-item-current {
+    @apply bg-emerald-900/20 text-emerald-300 border border-emerald-500/20;
+}
+
+.git-commit-item {
+    @apply w-full px-3 py-2 text-left text-sm rounded transition-colors;
+    @apply text-gray-300 hover:bg-gray-700;
+}
+
+.git-commit-hash {
+    @apply text-xs text-amber-400 font-mono flex-shrink-0;
+}
+
+.git-file-search {
+    @apply relative;
+}
+
+.git-file-search-input {
+    @apply w-full pl-10 py-1.5 text-sm;
+}
+
+.git-file-search-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500;
+}
+
+.git-file-search-clear {
+    @apply absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white;
+}
+
+.git-filter-chip {
+    @apply px-2 py-0.5 text-xs rounded-full transition-colors cursor-pointer;
+    @apply bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50;
+}
+
+.git-filter-chip-active {
+    @apply bg-indigo-500/30 text-indigo-300 border border-indigo-500/50;
+}
+
+.git-provider-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full;
+}
+
+.git-provider-github {
+    @apply bg-gray-700/50 text-gray-300;
+}
+
+.git-provider-gitlab {
+    @apply bg-orange-500/20 text-orange-300;
+}
+
+.git-diff-added {
+    @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.git-diff-deleted {
+    @apply bg-red-500/20 text-red-400;
+}
+
+.git-diff-modified {
+    @apply bg-amber-500/20 text-amber-400;
+}
+
+/* === SECTION TITLE === */
+
+.section-title {
+    @apply flex items-center gap-3;
+}
+
+.section-title-text {
+    @apply text-sm font-semibold text-white;
+}
+
+.section-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center;
+}
+
+.section-icon svg {
+    @apply w-4 h-4;
+}
+
+.section-icon-orange {
+    @apply bg-orange-500/20;
+}
+
+.section-icon-orange svg {
+    @apply text-orange-400;
+}
+
+.section-icon-purple {
+    @apply bg-purple-500/20;
+}
+
+.section-icon-purple svg {
+    @apply text-purple-400;
+}
+
+/* === LOADING STATES === */
+
+.loading-overlay {
+    @apply inset-0 bg-gray-900/80 flex items-center justify-center;
+}
+
+.loading-spinner {
+    @apply animate-spin w-8 h-8 text-indigo-400;
+}
+
+/* === EMPTY STATES === */
+
+.empty-state {
+    @apply flex flex-col items-center justify-center p-8 text-center;
+}
+
+.empty-state-icon {
+    @apply w-12 h-12 text-gray-600 mb-3;
+}
+
+.empty-state-title {
+    @apply text-gray-400 mb-1;
+}
+
+.empty-state-description {
+    @apply text-sm text-gray-500;
 }

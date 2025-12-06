@@ -2,28 +2,32 @@
   <Teleport to="body">
     <Transition name="modal">
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75"
-        @click.self="$emit('close')"
-        @keydown.esc="$emit('close')"
+        v-if="isOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        @click.self="close"
+        @keydown.esc="close"
       >
         <div
-          class="bg-gray-900 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-gray-700"
+          class="bg-gray-800/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-gray-700/50"
           @click.stop
         >
           <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/50">
             <div class="flex items-center gap-3">
-              <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-              </svg>
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+              </div>
               <div>
                 <h3 class="text-lg font-semibold text-white">Экспорт контекста</h3>
                 <p class="text-xs text-gray-400">Выберите формат и параметры экспорта</p>
               </div>
             </div>
             <button
-              @click="$emit('close')"
-              class="p-2 hover:bg-gray-800 rounded transition-colors"
+              @click="close"
+              class="p-2 hover:bg-gray-700/50 rounded-xl transition-colors"
+              aria-label="Закрыть"
             >
               <svg class="w-5 h-5 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -42,14 +46,14 @@
                   :key="mode.value"
                   @click="selectedMode = mode.value"
                   :class="[
-                    'p-4 rounded-lg border-2 transition-all text-left',
+                    'p-4 rounded-xl border transition-all text-left',
                     selectedMode === mode.value
-                      ? 'border-blue-500 bg-blue-500 bg-opacity-10'
-                      : 'border-gray-700 hover:border-gray-600 bg-gray-800'
+                      ? 'border-indigo-500/50 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
+                      : 'border-gray-700/50 hover:border-gray-600/50 bg-gray-800/50 hover:bg-gray-700/50'
                   ]"
                 >
                   <div class="flex items-start gap-3">
-                    <component :is="mode.icon" class="w-5 h-5 flex-shrink-0" :class="selectedMode === mode.value ? 'text-blue-400' : 'text-gray-400'" />
+                    <component :is="mode.icon" class="w-5 h-5 flex-shrink-0" :class="selectedMode === mode.value ? 'text-indigo-400' : 'text-gray-400'" />
                     <div class="flex-1 min-w-0">
                       <div class="text-sm font-medium text-white mb-1">{{ mode.label }}</div>
                       <div class="text-xs text-gray-400">{{ mode.description }}</div>
@@ -65,7 +69,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-2">Формат</label>
                 <select
                   v-model="settings.exportFormat"
-                  class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                  class="input"
                 >
                   <option value="plain">Plain Text</option>
                   <option value="manifest">With Manifest</option>
@@ -98,7 +102,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-2">AI Профиль</label>
                 <select
                   v-model="settings.aiProfile"
-                  class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                  class="input"
                 >
                   <option value="gpt-4">GPT-4</option>
                   <option value="gpt-3.5">GPT-3.5 Turbo</option>
@@ -130,7 +134,7 @@
                 Автоматически разбивать на чанки
               </label>
 
-              <div v-if="settings.enableAutoSplit" class="ml-6 space-y-3 p-3 bg-gray-800 rounded">
+              <div v-if="settings.enableAutoSplit" class="ml-6 space-y-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/30">
                 <div>
                   <label class="block text-xs text-gray-400 mb-1">Токенов на чанк</label>
                   <input
@@ -138,7 +142,7 @@
                     type="number"
                     min="500"
                     max="32000"
-                    class="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                    class="input text-sm py-1.5"
                   />
                 </div>
                 <div>
@@ -148,14 +152,14 @@
                     type="number"
                     min="0"
                     max="1000"
-                    class="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                    class="input text-sm py-1.5"
                   />
                 </div>
                 <div>
                   <label class="block text-xs text-gray-400 mb-1">Стратегия разбиения</label>
                   <select
                     v-model="settings.splitStrategy"
-                    class="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                    class="input text-sm py-1.5"
                   >
                     <option value="smart">Smart (рекомендуется)</option>
                     <option value="file">По файлам</option>
@@ -171,7 +175,7 @@
                 <label class="block text-sm font-medium text-gray-300 mb-2">Тема оформления</label>
                 <select
                   v-model="settings.theme"
-                  class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                  class="input"
                 >
                   <option value="default">По умолчанию</option>
                   <option value="dark">Тёмная</option>
@@ -200,27 +204,27 @@
             </div>
 
             <!-- Context Preview -->
-            <div v-if="contextStore.hasContext" class="mt-6 p-4 bg-gray-800 rounded-lg">
-              <div class="text-sm font-medium text-gray-300 mb-2">Предпросмотр контекста</div>
-              <div class="grid grid-cols-3 gap-3 text-xs">
-                <div class="flex flex-col">
-                  <span class="text-gray-500">Файлов</span>
-                  <span class="text-white font-semibold">{{ contextStore.fileCount }}</span>
+            <div v-if="contextStore.hasContext" class="mt-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/30">
+              <div class="text-sm font-medium text-gray-300 mb-3">Предпросмотр контекста</div>
+              <div class="grid grid-cols-3 gap-3">
+                <div class="stat-card">
+                  <div class="stat-card-value">{{ contextStore.fileCount }}</div>
+                  <div class="stat-label">Файлов</div>
                 </div>
-                <div class="flex flex-col">
-                  <span class="text-gray-500">Строк</span>
-                  <span class="text-white font-semibold">{{ formatNumber(contextStore.lineCount) }}</span>
+                <div class="stat-card">
+                  <div class="stat-card-value">{{ formatNumber(contextStore.lineCount) }}</div>
+                  <div class="stat-label">Строк</div>
                 </div>
-                <div class="flex flex-col">
-                  <span class="text-gray-500">Токены</span>
-                  <span class="text-white font-semibold">{{ formatNumber(contextStore.tokenCount) }}</span>
+                <div class="stat-card">
+                  <div class="stat-card-value stat-card-value-indigo">{{ formatNumber(contextStore.tokenCount) }}</div>
+                  <div class="stat-label">Токенов</div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+          <div class="flex items-center justify-between px-6 py-4 border-t border-gray-700/50">
             <div class="text-xs text-gray-500">
               <span v-if="exportResult">
                 Экспорт завершен успешно
@@ -230,16 +234,13 @@
               </span>
             </div>
             <div class="flex items-center gap-3">
-              <button
-                @click="close"
-                class="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors"
-              >
+              <button @click="close" class="btn btn-secondary">
                 Отмена
               </button>
               <button
                 @click="handleExport"
                 :disabled="isExporting || !contextStore.hasContext"
-                class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                class="btn btn-primary flex items-center gap-2"
               >
                 <svg v-if="isExporting" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -256,37 +257,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, h } from 'vue'
-import { useContextStore } from '@/stores/context.store'
-import { ExportContext } from '../wailsjs/go/main/App'
+import { useExport } from '@/composables/useExport'
+import { h } from 'vue'
 
-const contextStore = useContextStore()
+import { useContextStore } from '@/features/context/model/context.store'
 
-const isOpen = ref(false)
-const isExporting = ref(false)
-const exportResult = ref<any>(null)
+const exportComposable = useExport()
+const contextStore = useContextStore() // Get contextStore directly from the store
+
+// Create local refs that sync with the composable
+const isOpen = exportComposable.isOpen
+const isExporting = exportComposable.isExporting
+const exportResult = exportComposable.exportResult
 type ExportMode = 'clipboard' | 'ai' | 'human'
-const selectedMode = ref<ExportMode>('clipboard')
+const selectedMode = exportComposable.selectedMode
 
-const settings = reactive({
-  // Clipboard
-  exportFormat: 'manifest' as 'plain' | 'manifest' | 'json',
-  stripComments: false,
-  includeManifest: true,
-  
-  // AI
-  aiProfile: 'gpt-4',
-  tokenLimit: 8000,
-  enableAutoSplit: false,
-  maxTokensPerChunk: 4000,
-  overlapTokens: 200,
-  splitStrategy: 'smart' as 'smart' | 'file' | 'token',
-  
-  // Human
-  theme: 'default',
-  includeLineNumbers: true,
-  includePageNumbers: true
-})
+// Sync settings with the composable
+const settings = exportComposable.settings
 
 const exportModes: { value: ExportMode; label: string; description: string; icon: any }[] = [
   {
@@ -316,75 +303,18 @@ const exportModes: { value: ExportMode; label: string; description: string; icon
 ]
 
 function open() {
-  isOpen.value = true
-  exportResult.value = null
+  exportComposable.open()
 }
 
 function close() {
-  isOpen.value = false
+  exportComposable.close()
 }
 
 async function handleExport() {
   if (!contextStore.hasContext) return
-
-  isExporting.value = true
-  exportResult.value = null
-
-  try {
-    // Get full context content (warning: can be large)
-    const contextContent = await contextStore.getContextContent(0, contextStore.lineCount)
-    
-    // Build export settings JSON
-    const exportSettings = {
-      mode: selectedMode.value,
-      context: contextContent,
-      
-      // Clipboard settings
-      stripComments: settings.stripComments,
-      includeManifest: settings.includeManifest,
-      exportFormat: settings.exportFormat,
-      
-      // AI settings
-      aiProfile: settings.aiProfile,
-      tokenLimit: settings.tokenLimit,
-      fileSizeLimitKB: 5120, // 5 MB
-      enableAutoSplit: settings.enableAutoSplit,
-      maxTokensPerChunk: settings.maxTokensPerChunk,
-      overlapTokens: settings.overlapTokens,
-      splitStrategy: settings.splitStrategy,
-      
-      // Human settings
-      theme: settings.theme,
-      includeLineNumbers: settings.includeLineNumbers,
-      includePageNumbers: settings.includePageNumbers
-    }
-
-    const resultJson = await ExportContext(JSON.stringify(exportSettings))
-    const result = JSON.parse(resultJson)
-    exportResult.value = result
-
-    // Handle result based on mode
-    if (result.mode === 'clipboard' && result.text) {
-      await navigator.clipboard.writeText(result.text)
-      console.log('Content copied to clipboard')
-    } else if (result.filePath) {
-      console.log('File exported to:', result.filePath)
-    } else if (result.dataBase64) {
-      // Download file
-      const blob = base64ToBlob(result.dataBase64)
-      downloadBlob(blob, result.fileName || 'export.zip')
-    }
-
-    // Auto close after success
-    setTimeout(() => {
-      close()
-    }, 1500)
-  } catch (err) {
-    console.error('Export failed:', err)
-    alert('Ошибка экспорта: ' + (err instanceof Error ? err.message : 'Unknown error'))
-  } finally {
-    isExporting.value = false
-  }
+  
+  // Execute export using the composable
+  await exportComposable.executeExport()
 }
 
 function base64ToBlob(base64: string): Blob {
@@ -415,8 +345,8 @@ function formatNumber(num: number): string {
 }
 
 defineExpose({
-  open,
-  close
+  open: exportComposable.open,
+  close: exportComposable.close
 })
 </script>
 

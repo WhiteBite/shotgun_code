@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { ReadFileContent, GetFileStats } from '@/wailsjs/go/main/App'
+import { ReadFileContent, GetFileStats } from '#wailsjs/go/main/App'
 
 /**
  * QuickLook modal composable for file preview

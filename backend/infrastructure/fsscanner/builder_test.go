@@ -27,6 +27,10 @@ func (f *fakeSettingsRepo) GetLocalAIHost() string          { return "" }
 func (f *fakeSettingsRepo) SetLocalAIHost(string)           {}
 func (f *fakeSettingsRepo) GetLocalAIModelName() string     { return "" }
 func (f *fakeSettingsRepo) SetLocalAIModelName(string)      {}
+func (f *fakeSettingsRepo) GetQwenKey() string              { return "" }
+func (f *fakeSettingsRepo) SetQwenKey(string)               {}
+func (f *fakeSettingsRepo) GetQwenHost() string             { return "" }
+func (f *fakeSettingsRepo) SetQwenHost(string)              {}
 func (f *fakeSettingsRepo) GetSelectedAIProvider() string   { return "" }
 func (f *fakeSettingsRepo) SetSelectedAIProvider(string)    {}
 func (f *fakeSettingsRepo) GetSelectedModel(string) string  { return "" }

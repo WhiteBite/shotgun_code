@@ -2,11 +2,23 @@ package domain
 
 import "context"
 
+// StreamChunk represents a chunk of streamed response
+type StreamChunk struct {
+	Content      string `json:"content"`
+	Done         bool   `json:"done"`
+	Error        string `json:"error,omitempty"`
+	TokensUsed   int    `json:"tokensUsed,omitempty"`
+	FinishReason string `json:"finishReason,omitempty"`
+}
+
 // AIProvider определяет контракт для любого провайдера LLM.
 // Это позволяет легко заменять OpenAI на Gemini, Claude или локальные модели.
 type AIProvider interface {
 	// Generate выполняет основной запрос к LLM для генерации контента.
 	Generate(ctx context.Context, req AIRequest) (AIResponse, error)
+
+	// GenerateStream выполняет запрос с потоковой передачей ответа
+	GenerateStream(ctx context.Context, req AIRequest, onChunk func(chunk StreamChunk)) error
 
 	// ListModels возвращает список доступных моделей
 	ListModels(ctx context.Context) ([]string, error)

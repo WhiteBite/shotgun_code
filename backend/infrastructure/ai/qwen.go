@@ -1,0 +1,333 @@
+package ai
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"shotgun_code/domain"
+	"sort"
+	"time"
+
+	"github.com/sashabaranov/go-openai"
+)
+
+const (
+	// DefaultQwenHost is the default Qwen API endpoint (DashScope compatible mode)
+	DefaultQwenHost = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	// QwenMaxContextTokens is the maximum context window for qwen-coder-plus (1M tokens)
+	QwenMaxContextTokens = 1000000
+)
+
+// QwenProviderImpl implements domain.AIProvider for Alibaba Qwen models
+type QwenProviderImpl struct {
+	client *openai.Client
+	log    domain.Logger
+	host   string
+}
+
+// NewQwen creates a new Qwen provider instance
+func NewQwen(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
+	if host == "" {
+		host = DefaultQwenHost
+	}
+
+	config := openai.DefaultConfig(apiKey)
+	config.BaseURL = host
+
+	client := openai.NewClientWithConfig(config)
+	return &QwenProviderImpl{
+		client: client,
+		log:    log,
+		host:   host,
+	}, nil
+}
+
+// ListModels returns available Qwen models
+func (p *QwenProviderImpl) ListModels(ctx context.Context) ([]string, error) {
+	p.log.Info("Requesting model list from Qwen API...")
+
+	// Qwen API may not support model listing, return known models
+	// These are the main Qwen Coder models optimized for code generation
+	models := []string{
+		"qwen-coder-plus-latest",  // 1M context, best for large codebases
+		"qwen-coder-plus",         // 1M context
+		"qwen-coder-turbo-latest", // Faster, smaller context
+		"qwen-coder-turbo",
+		"qwen-plus-latest",  // General purpose with good coding
+		"qwen-plus",
+		"qwen-turbo-latest", // Fast general purpose
+		"qwen-turbo",
+		"qwen-max",          // Most capable general model
+		"qwen-max-latest",
+	}
+
+	// Try to fetch from API if supported
+	resp, err := p.client.ListModels(ctx)
+	if err == nil && len(resp.Models) > 0 {
+		apiModels := make([]string, 0, len(resp.Models))
+		for _, model := range resp.Models {
+			apiModels = append(apiModels, model.ID)
+		}
+		sort.Strings(apiModels)
+		p.log.Info(fmt.Sprintf("Received %d models from Qwen API", len(apiModels)))
+		return apiModels, nil
+	}
+
+	// Fallback to known models
+	p.log.Info(fmt.Sprintf("Using %d known Qwen models", len(models)))
+	return models, nil
+}
+
+// Generate sends a request to Qwen API and returns the response
+func (p *QwenProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (domain.AIResponse, error) {
+	startTime := time.Now()
+	p.log.Info(fmt.Sprintf("Sending request to Qwen API with model: %s", req.Model))
+
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: req.SystemPrompt,
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: req.UserPrompt,
+		},
+	}
+
+	// Build completion request
+	completionReq := openai.ChatCompletionRequest{
+		Model:       req.Model,
+		Messages:    messages,
+		Temperature: float32(req.Temperature),
+		MaxTokens:   req.MaxTokens,
+		TopP:        float32(req.TopP),
+	}
+
+	// Add penalties if set
+	if req.FrequencyPenalty != 0 {
+		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
+	}
+	if req.PresencePenalty != 0 {
+		completionReq.PresencePenalty = float32(req.PresencePenalty)
+	}
+
+	resp, err := p.client.CreateChatCompletion(ctx, completionReq)
+	if err != nil {
+		p.log.Error(fmt.Sprintf("Qwen API request failed: %v", err))
+
+		var apiErr *openai.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.HTTPStatusCode {
+			case http.StatusUnauthorized:
+				return domain.AIResponse{}, domain.ErrInvalidAPIKey
+			case http.StatusTooManyRequests:
+				return domain.AIResponse{}, domain.ErrRateLimitExceeded
+			}
+		}
+		return domain.AIResponse{}, err
+	}
+
+	if len(resp.Choices) == 0 {
+		return domain.AIResponse{}, fmt.Errorf("no choices returned from Qwen API")
+	}
+
+	processingTime := time.Since(startTime)
+	tokensUsed := resp.Usage.TotalTokens
+
+	return domain.AIResponse{
+		Content:        resp.Choices[0].Message.Content,
+		TokensUsed:     tokensUsed,
+		ModelUsed:      req.Model,
+		ProcessingTime: processingTime,
+		FinishReason:   string(resp.Choices[0].FinishReason),
+		Confidence:     0.9,
+	}, nil
+}
+
+// GenerateStream sends a streaming request to Qwen API
+func (p *QwenProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
+	p.log.Info(fmt.Sprintf("Starting streaming request to Qwen API with model: %s", req.Model))
+
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: req.SystemPrompt,
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: req.UserPrompt,
+		},
+	}
+
+	// Build streaming completion request
+	completionReq := openai.ChatCompletionRequest{
+		Model:       req.Model,
+		Messages:    messages,
+		Temperature: float32(req.Temperature),
+		MaxTokens:   req.MaxTokens,
+		TopP:        float32(req.TopP),
+		Stream:      true,
+	}
+
+	// Add penalties if set
+	if req.FrequencyPenalty != 0 {
+		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
+	}
+	if req.PresencePenalty != 0 {
+		completionReq.PresencePenalty = float32(req.PresencePenalty)
+	}
+
+	stream, err := p.client.CreateChatCompletionStream(ctx, completionReq)
+	if err != nil {
+		p.log.Error(fmt.Sprintf("Qwen API stream request failed: %v", err))
+
+		var apiErr *openai.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.HTTPStatusCode {
+			case http.StatusUnauthorized:
+				onChunk(domain.StreamChunk{Done: true, Error: "Invalid API key"})
+				return domain.ErrInvalidAPIKey
+			case http.StatusTooManyRequests:
+				onChunk(domain.StreamChunk{Done: true, Error: "Rate limit exceeded"})
+				return domain.ErrRateLimitExceeded
+			}
+		}
+		onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+		return err
+	}
+	defer stream.Close()
+
+	totalTokens := 0
+	for {
+		response, err := stream.Recv()
+		if errors.Is(err, context.Canceled) {
+			onChunk(domain.StreamChunk{Done: true, Error: "Request cancelled"})
+			return err
+		}
+		if err != nil {
+			// Check for stream end
+			if err.Error() == "EOF" {
+				onChunk(domain.StreamChunk{Done: true, TokensUsed: totalTokens, FinishReason: "stop"})
+				return nil
+			}
+			p.log.Error(fmt.Sprintf("Stream error: %v", err))
+			onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+			return err
+		}
+
+		if len(response.Choices) > 0 {
+			content := response.Choices[0].Delta.Content
+			finishReason := string(response.Choices[0].FinishReason)
+
+			if content != "" {
+				totalTokens += len(content) / 4 // Approximate token count
+				onChunk(domain.StreamChunk{
+					Content: content,
+					Done:    false,
+				})
+			}
+
+			if finishReason == "stop" || finishReason == "length" {
+				onChunk(domain.StreamChunk{
+					Done:         true,
+					TokensUsed:   totalTokens,
+					FinishReason: finishReason,
+				})
+				return nil
+			}
+		}
+	}
+}
+
+// GetProviderInfo returns information about the Qwen provider
+func (p *QwenProviderImpl) GetProviderInfo() domain.ProviderInfo {
+	return domain.ProviderInfo{
+		Name:         "Qwen",
+		Version:      "1.0",
+		Capabilities: []string{"chat", "completion", "code_generation", "large_context"},
+		Limitations:  []string{"rate_limited"},
+		SupportedModels: []string{
+			"qwen-coder-plus-latest",
+			"qwen-coder-plus",
+			"qwen-plus-latest",
+			"qwen-turbo-latest",
+			"qwen-max",
+		},
+	}
+}
+
+// ValidateRequest validates the request parameters
+func (p *QwenProviderImpl) ValidateRequest(req domain.AIRequest) error {
+	if req.Model == "" {
+		return fmt.Errorf("model is required")
+	}
+	if req.UserPrompt == "" {
+		return fmt.Errorf("user prompt is required")
+	}
+	if req.Temperature < 0 || req.Temperature > 2 {
+		return fmt.Errorf("temperature must be between 0 and 2")
+	}
+	if req.MaxTokens < 1 {
+		return fmt.Errorf("max tokens must be greater than 0")
+	}
+	return nil
+}
+
+// EstimateTokens estimates the number of tokens in the request
+func (p *QwenProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
+	// Approximate: ~4 characters per token for mixed content
+	totalChars := len(req.SystemPrompt) + len(req.UserPrompt)
+	estimatedTokens := totalChars / 4
+	return estimatedTokens + 100, nil // Add buffer
+}
+
+// GetPricing returns pricing information for Qwen models
+func (p *QwenProviderImpl) GetPricing(model string) domain.PricingInfo {
+	pricing := domain.PricingInfo{
+		Model:    model,
+		Currency: "CNY", // Qwen uses Chinese Yuan
+	}
+
+	// Pricing per 1K tokens (approximate, check official docs)
+	switch model {
+	case "qwen-coder-plus-latest", "qwen-coder-plus":
+		pricing.InputTokensPer1K = 0.004
+		pricing.OutputTokensPer1K = 0.012
+	case "qwen-coder-turbo-latest", "qwen-coder-turbo":
+		pricing.InputTokensPer1K = 0.002
+		pricing.OutputTokensPer1K = 0.006
+	case "qwen-plus-latest", "qwen-plus":
+		pricing.InputTokensPer1K = 0.004
+		pricing.OutputTokensPer1K = 0.012
+	case "qwen-turbo-latest", "qwen-turbo":
+		pricing.InputTokensPer1K = 0.002
+		pricing.OutputTokensPer1K = 0.006
+	case "qwen-max", "qwen-max-latest":
+		pricing.InputTokensPer1K = 0.02
+		pricing.OutputTokensPer1K = 0.06
+	default:
+		pricing.InputTokensPer1K = 0.004
+		pricing.OutputTokensPer1K = 0.012
+	}
+
+	return pricing
+}
+
+// GetMaxContextTokens returns the maximum context size for a model
+func (p *QwenProviderImpl) GetMaxContextTokens(model string) int {
+	switch model {
+	case "qwen-coder-plus-latest", "qwen-coder-plus":
+		return 1000000 // 1M tokens
+	case "qwen-coder-turbo-latest", "qwen-coder-turbo":
+		return 131072 // 128K tokens
+	case "qwen-plus-latest", "qwen-plus":
+		return 131072
+	case "qwen-turbo-latest", "qwen-turbo":
+		return 131072
+	case "qwen-max", "qwen-max-latest":
+		return 32768
+	default:
+		return 32768
+	}
+}

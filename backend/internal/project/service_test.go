@@ -110,6 +110,55 @@ func (m *MockGitRepository) GenerateDiff(projectPath string) (string, error) {
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockGitRepository) IsGitRepository(projectPath string) bool {
+	args := m.Called(projectPath)
+	return args.Bool(0)
+}
+
+func (m *MockGitRepository) CloneRepository(url, targetPath string, depth int) error {
+	args := m.Called(url, targetPath, depth)
+	return args.Error(0)
+}
+
+func (m *MockGitRepository) CheckoutBranch(projectPath, branch string) error {
+	args := m.Called(projectPath, branch)
+	return args.Error(0)
+}
+
+func (m *MockGitRepository) CheckoutCommit(projectPath, commitHash string) error {
+	args := m.Called(projectPath, commitHash)
+	return args.Error(0)
+}
+
+func (m *MockGitRepository) GetCommitHistory(projectPath string, limit int) ([]domain.CommitInfo, error) {
+	args := m.Called(projectPath, limit)
+	if commits := args.Get(0); commits != nil {
+		return commits.([]domain.CommitInfo), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGitRepository) FetchRemoteBranches(projectPath string) ([]string, error) {
+	args := m.Called(projectPath)
+	if branches := args.Get(0); branches != nil {
+		return branches.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGitRepository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
+	args := m.Called(projectPath, ref)
+	if files := args.Get(0); files != nil {
+		return files.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGitRepository) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
+	args := m.Called(projectPath, filePath, ref)
+	return args.String(0), args.Error(1)
+}
+
 // Mock ContextService for testing
 type MockContextService struct {
 	mock.Mock

@@ -169,14 +169,14 @@ func (c *ResultCommand) collectTaskInfo(result *ResultData) error {
 
 // formatAsText форматирует результат как текст
 func (c *ResultCommand) formatAsText(result *ResultData) string {
-	text := fmt.Sprintf("ARK Results Report\n")
-	text += fmt.Sprintf("==================\n\n")
+	text := "ARK Results Report\n"
+	text += "==================\n\n"
 	text += fmt.Sprintf("Project Path: %s\n", result.ProjectPath)
 	text += fmt.Sprintf("Report Type: %s\n", result.ReportType)
 	text += fmt.Sprintf("Generated: %s\n\n", result.Timestamp.Format(time.RFC3339))
 
 	if result.Guardrails != nil {
-		text += fmt.Sprintf("Guardrails Configuration:\n")
+		text += "Guardrails Configuration:\n"
 		text += fmt.Sprintf("  Fail Closed: %t\n", result.Guardrails.FailClosed)
 		text += fmt.Sprintf("  Ephemeral Mode: %t\n", result.Guardrails.EnableEphemeralMode)
 		text += fmt.Sprintf("  Task Validation: %t\n", result.Guardrails.EnableTaskValidation)

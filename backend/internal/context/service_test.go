@@ -100,6 +100,7 @@ func TestService_BuildContext(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(150)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Execute
@@ -162,6 +163,7 @@ func TestService_BuildContext_TokenLimitExceeded(t *testing.T) {
 	mockFileReader.On("ReadContents", mock.Anything, includedPaths, projectPath, mock.AnythingOfType("func(int64, int64)")).Return(fileContents, nil)
 	mockTokenCounter.On("CountTokens", mock.AnythingOfType("string")).Return(2000)
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
+	mockLogger.On("Warning", mock.AnythingOfType("string")).Return().Maybe()
 	mockBus.On("Emit", mock.AnythingOfType("string"), mock.Anything).Return()
 
 	// Execute

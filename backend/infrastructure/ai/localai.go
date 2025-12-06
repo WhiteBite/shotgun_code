@@ -279,3 +279,34 @@ func (p *LocalAIProviderImpl) GetPricing(model string) domain.PricingInfo {
 		Model:             model,
 	}
 }
+
+// GenerateStream implements streaming for LocalAI (fallback to non-streaming)
+func (p *LocalAIProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
+	// LocalAI may not support streaming, fallback to regular generation
+	resp, err := p.Generate(ctx, req)
+	if err != nil {
+		onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+		return err
+	}
+
+	// Send content in chunks to simulate streaming
+	content := resp.Content
+	chunkSize := 50
+	for i := 0; i < len(content); i += chunkSize {
+		end := i + chunkSize
+		if end > len(content) {
+			end = len(content)
+		}
+		onChunk(domain.StreamChunk{
+			Content: content[i:end],
+			Done:    false,
+		})
+	}
+
+	onChunk(domain.StreamChunk{
+		Done:         true,
+		TokensUsed:   resp.TokensUsed,
+		FinishReason: "stop",
+	})
+	return nil
+}

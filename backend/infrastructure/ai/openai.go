@@ -172,3 +172,83 @@ func (p *OpenAIProviderImpl) GetPricing(model string) domain.PricingInfo {
 
 	return pricing
 }
+
+// GenerateStream sends a streaming request to OpenAI API
+func (p *OpenAIProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
+	p.log.Info(fmt.Sprintf("Starting streaming request to OpenAI API with model: %s", req.Model))
+
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: req.SystemPrompt,
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: req.UserPrompt,
+		},
+	}
+
+	completionReq := openai.ChatCompletionRequest{
+		Model:       req.Model,
+		Messages:    messages,
+		Temperature: float32(req.Temperature),
+		MaxTokens:   req.MaxTokens,
+		TopP:        float32(req.TopP),
+		Stream:      true,
+	}
+
+	if req.FrequencyPenalty != 0 {
+		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
+	}
+	if req.PresencePenalty != 0 {
+		completionReq.PresencePenalty = float32(req.PresencePenalty)
+	}
+
+	stream, err := p.client.CreateChatCompletionStream(ctx, completionReq)
+	if err != nil {
+		p.log.Error(fmt.Sprintf("OpenAI API stream request failed: %v", err))
+		onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+		return err
+	}
+	defer stream.Close()
+
+	totalTokens := 0
+	for {
+		response, err := stream.Recv()
+		if errors.Is(err, context.Canceled) {
+			onChunk(domain.StreamChunk{Done: true, Error: "Request cancelled"})
+			return err
+		}
+		if err != nil {
+			if err.Error() == "EOF" {
+				onChunk(domain.StreamChunk{Done: true, TokensUsed: totalTokens, FinishReason: "stop"})
+				return nil
+			}
+			p.log.Error(fmt.Sprintf("Stream error: %v", err))
+			onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+			return err
+		}
+
+		if len(response.Choices) > 0 {
+			content := response.Choices[0].Delta.Content
+			finishReason := string(response.Choices[0].FinishReason)
+
+			if content != "" {
+				totalTokens += len(content) / 4
+				onChunk(domain.StreamChunk{
+					Content: content,
+					Done:    false,
+				})
+			}
+
+			if finishReason == "stop" || finishReason == "length" {
+				onChunk(domain.StreamChunk{
+					Done:         true,
+					TokensUsed:   totalTokens,
+					FinishReason: finishReason,
+				})
+				return nil
+			}
+		}
+	}
+}

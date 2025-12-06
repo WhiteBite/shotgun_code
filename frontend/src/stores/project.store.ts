@@ -3,9 +3,11 @@
  * Direct localStorage integration for simplicity
  */
 
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { useContextStore } from '@/features/context'
+import { useFileStore } from '@/features/files'
 import { apiService } from '@/services/api.service'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 
 export interface RecentProject {
   path: string
@@ -42,8 +44,24 @@ export const useProjectStore = defineStore('project', () => {
       currentPath.value = path
       currentName.value = path.split(/[\\/]/).pop() || path
 
+      // Reset file store and context store when project changes
+      const fileStore = useFileStore()
+      const contextStore = useContextStore()
+      fileStore.resetStore()
+      contextStore.clearContext()
+
       // Update recent projects
       addToRecent(path)
+
+      // Сохраняем проект в backend через apiService
+      try {
+        const name = path.split(/[\\/]/).pop() || path
+        await apiService.addRecentProject(path, name)
+      } catch (backendError) {
+        console.error('Failed to save project to backend:', backendError)
+        // Продолжаем выполнение, даже если сохранение в бэкенд не удалось
+      }
+
       saveRecentProjects()
 
       return true
@@ -98,10 +116,10 @@ export const useProjectStore = defineStore('project', () => {
     try {
       isLoading.value = true
       error.value = null
-      
+
       // Вызываем метод из нашего api.service.ts
       const projectsJson = await apiService.getRecentProjects()
-      
+
       // Парсим JSON ответ от бэкенда
       if (projectsJson) {
         const projects = JSON.parse(projectsJson)
@@ -144,8 +162,17 @@ export const useProjectStore = defineStore('project', () => {
     return await openProjectByPath(lastProjectPath.value)
   }
 
-  function removeFromRecent(path: string) {
+  async function removeFromRecent(path: string) {
     recentProjects.value = recentProjects.value.filter(p => p.path !== path)
+
+    // Также удаляем из backend через apiService
+    try {
+      await apiService.removeRecentProject(path)
+    } catch (backendError) {
+      console.error('Failed to remove project from backend:', backendError)
+      // Продолжаем выполнение, даже если удаление из бэкенда не удалось
+    }
+
     saveRecentProjects()
   }
 
@@ -158,10 +185,12 @@ export const useProjectStore = defineStore('project', () => {
     currentPath.value = null
     currentName.value = null
     error.value = null
-  }
 
-  function closeProject() {
-    clearProject()
+    // Also reset file store and context store when clearing project
+    const fileStore = useFileStore()
+    const contextStore = useContextStore()
+    fileStore.resetStore()
+    contextStore.clearContext()
   }
 
   // Initialize
@@ -187,7 +216,6 @@ export const useProjectStore = defineStore('project', () => {
     removeFromRecent,
     clearRecent,
     clearProject,
-    closeProject,
     setAutoOpenLast,
     maybeAutoOpenLastProject
   }

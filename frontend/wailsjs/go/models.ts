@@ -581,6 +581,11 @@ export namespace domain {
 	    stripComments: boolean;
 	    includeManifest: boolean;
 	    maxTokens: number;
+	    maxMemoryMB: number;
+	    includeTests: boolean;
+	    splitStrategy: string;
+	    forceStream: boolean;
+	    enableProgressEvents: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ContextBuildOptions(source);
@@ -591,41 +596,96 @@ export namespace domain {
 	        this.stripComments = source["stripComments"];
 	        this.includeManifest = source["includeManifest"];
 	        this.maxTokens = source["maxTokens"];
+	        this.maxMemoryMB = source["maxMemoryMB"];
+	        this.includeTests = source["includeTests"];
+	        this.splitStrategy = source["splitStrategy"];
+	        this.forceStream = source["forceStream"];
+	        this.enableProgressEvents = source["enableProgressEvents"];
 	    }
 	}
-	export class ContextSummaryInfo {
-	    FileCount: number;
-	    TotalSize: number;
-	    TokenCount: number;
-	    LineCount: number;
-	    LanguageStats: Record<string, number>;
+	export class ContextMetadata {
+	    buildDuration: number;
 	    // Go type: time
-	    LastModified: any;
-	    GitRepo: boolean;
-	    BuildSystem: string;
-	    Frameworks: string[];
-	    HasTests: boolean;
-	    HasDockerfile: boolean;
-	    HasCICD: boolean;
+	    lastModified: any;
+	    selectedFiles: string[];
+	    buildOptions?: ContextBuildOptions;
+	    warnings: string[];
+	    errors: string[];
+	    contentPath: string;
+	    skippedFiles?: string[];
+	    skippedReasons?: Record<string, string>;
+	    projectPath?: string;
+	    chunksCount?: number;
+	    splitStrategy?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ContextSummaryInfo(source);
+	        return new ContextMetadata(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.FileCount = source["FileCount"];
-	        this.TotalSize = source["TotalSize"];
-	        this.TokenCount = source["TokenCount"];
-	        this.LineCount = source["LineCount"];
-	        this.LanguageStats = source["LanguageStats"];
-	        this.LastModified = this.convertValues(source["LastModified"], null);
-	        this.GitRepo = source["GitRepo"];
-	        this.BuildSystem = source["BuildSystem"];
-	        this.Frameworks = source["Frameworks"];
-	        this.HasTests = source["HasTests"];
-	        this.HasDockerfile = source["HasDockerfile"];
-	        this.HasCICD = source["HasCICD"];
+	        this.buildDuration = source["buildDuration"];
+	        this.lastModified = this.convertValues(source["lastModified"], null);
+	        this.selectedFiles = source["selectedFiles"];
+	        this.buildOptions = this.convertValues(source["buildOptions"], ContextBuildOptions);
+	        this.warnings = source["warnings"];
+	        this.errors = source["errors"];
+	        this.contentPath = source["contentPath"];
+	        this.skippedFiles = source["skippedFiles"];
+	        this.skippedReasons = source["skippedReasons"];
+	        this.projectPath = source["projectPath"];
+	        this.chunksCount = source["chunksCount"];
+	        this.splitStrategy = source["splitStrategy"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ContextSummary {
+	    id: string;
+	    projectPath: string;
+	    fileCount: number;
+	    totalSize: number;
+	    tokenCount: number;
+	    lineCount: number;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    status: string;
+	    metadata: ContextMetadata;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContextSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectPath = source["projectPath"];
+	        this.fileCount = source["fileCount"];
+	        this.totalSize = source["totalSize"];
+	        this.tokenCount = source["tokenCount"];
+	        this.lineCount = source["lineCount"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.status = source["status"];
+	        this.metadata = this.convertValues(source["metadata"], ContextMetadata);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1546,6 +1606,8 @@ export namespace domain {
 	    localAIAPIKey: string;
 	    localAIHost: string;
 	    localAIModelName: string;
+	    qwenAPIKey: string;
+	    qwenHost: string;
 	    selectedProvider: string;
 	    selectedModels: Record<string, string>;
 	    availableModels: Record<string, string[]>;
@@ -1567,6 +1629,8 @@ export namespace domain {
 	        this.localAIAPIKey = source["localAIAPIKey"];
 	        this.localAIHost = source["localAIHost"];
 	        this.localAIModelName = source["localAIModelName"];
+	        this.qwenAPIKey = source["qwenAPIKey"];
+	        this.qwenHost = source["qwenHost"];
 	        this.selectedProvider = source["selectedProvider"];
 	        this.selectedModels = source["selectedModels"];
 	        this.availableModels = source["availableModels"];

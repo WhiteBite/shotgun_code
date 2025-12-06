@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"shotgun_code/domain"
+	"sync"
 	"time"
 )
 
@@ -14,7 +15,18 @@ type SymbolGraphService struct {
 	importGraphBuilders map[string]domain.ImportGraphBuilder
 	cache               map[string]*domain.SymbolGraph
 	cacheTimestamps     map[string]int64
+	lastAccessed        map[string]int64
+	cacheSize           int64
+	cacheHits           int64
+	cacheMisses         int64
+	evictions           int64
+	mu                  sync.RWMutex
 }
+
+const (
+	maxCacheGraphs = 10
+	maxCacheSizeMB = 50
+)
 
 // NewSymbolGraphService создает новый сервис графа символов
 func NewSymbolGraphService(log domain.Logger, symbolGraphBuilders map[string]domain.SymbolGraphBuilder, importGraphBuilders map[string]domain.ImportGraphBuilder) *SymbolGraphService {
@@ -24,6 +36,7 @@ func NewSymbolGraphService(log domain.Logger, symbolGraphBuilders map[string]dom
 		importGraphBuilders: importGraphBuilders,
 		cache:               make(map[string]*domain.SymbolGraph),
 		cacheTimestamps:     make(map[string]int64),
+		lastAccessed:        make(map[string]int64),
 	}
 }
 
@@ -46,12 +59,30 @@ func (s *SymbolGraphService) BuildSymbolGraph(ctx context.Context, projectRoot, 
 		return nil, fmt.Errorf("no symbol graph builder registered for language: %s", language)
 	}
 
-	// Проверяем кэш
+	// Проверяем кэш (только чтение под RLock)
 	cacheKey := fmt.Sprintf("%s:%s", projectRoot, language)
-	if cached, exists := s.cache[cacheKey]; exists {
-		s.log.Info(fmt.Sprintf("Using cached symbol graph for project: %s (language: %s)", projectRoot, language))
-		return cached, nil
+	s.mu.RLock()
+	_, cacheExists := s.cache[cacheKey]
+	s.mu.RUnlock()
+
+	if cacheExists {
+		// Cache hit - обновляем метрики под Lock
+		s.mu.Lock()
+		// Повторная проверка после получения Lock (double-checked locking)
+		if graph, stillExists := s.cache[cacheKey]; stillExists {
+			s.lastAccessed[cacheKey] = time.Now().Unix()
+			s.cacheHits++
+			s.mu.Unlock()
+			s.log.Info(fmt.Sprintf("Using cached symbol graph for project: %s (language: %s)", projectRoot, language))
+			return graph, nil
+		}
+		s.mu.Unlock()
 	}
+
+	// Cache miss - инкрементируем счётчик под Lock
+	s.mu.Lock()
+	s.cacheMisses++
+	s.mu.Unlock()
 
 	s.log.Info(fmt.Sprintf("Building symbol graph for project: %s (language: %s)", projectRoot, language))
 	graph, err := builder.BuildGraph(ctx, projectRoot)
@@ -59,11 +90,73 @@ func (s *SymbolGraphService) BuildSymbolGraph(ctx context.Context, projectRoot, 
 		return nil, err
 	}
 
-	// Кэшируем результат
+	// Кэшируем результат с LRU eviction
+	s.mu.Lock()
+	graphSize := s.estimateGraphSize(graph)
+	
+	// Если ключ уже существует, вычитаем старый размер
+	if oldGraph, exists := s.cache[cacheKey]; exists {
+		oldSize := s.estimateGraphSize(oldGraph)
+		s.cacheSize -= oldSize
+	}
+	
+	s.evictOldestIfNeeded(graphSize)
 	s.cache[cacheKey] = graph
 	s.cacheTimestamps[cacheKey] = time.Now().Unix()
+	s.lastAccessed[cacheKey] = time.Now().Unix()
+	s.cacheSize += graphSize
+	s.mu.Unlock()
 
 	return graph, nil
+}
+
+// estimateGraphSize оценивает размер графа в байтах
+func (s *SymbolGraphService) estimateGraphSize(graph *domain.SymbolGraph) int64 {
+	if graph == nil {
+		return 0
+	}
+	// Приблизительная оценка: количество узлов * средний размер узла
+	nodeCount := len(graph.Nodes)
+	avgNodeSize := int64(500) // Примерно 500 байт на узел
+	return int64(nodeCount) * avgNodeSize
+}
+
+// evictOldestIfNeeded удаляет старые записи при превышении лимитов
+func (s *SymbolGraphService) evictOldestIfNeeded(newGraphSize int64) {
+	maxSize := int64(maxCacheSizeMB * 1024 * 1024)
+	
+	// Проверяем лимиты
+	for len(s.cache) >= maxCacheGraphs || (s.cacheSize+newGraphSize) > maxSize {
+		if len(s.cache) == 0 {
+			break
+		}
+		
+		// Находим самую старую запись
+		var oldestKey string
+		var oldestTime int64 = time.Now().Unix()
+		
+		for key, accessTime := range s.lastAccessed {
+			if accessTime < oldestTime {
+				oldestTime = accessTime
+				oldestKey = key
+			}
+		}
+		
+		if oldestKey == "" {
+			break
+		}
+		
+		// Удаляем старую запись
+		if graph, exists := s.cache[oldestKey]; exists {
+			s.cacheSize -= s.estimateGraphSize(graph)
+		}
+		delete(s.cache, oldestKey)
+		delete(s.cacheTimestamps, oldestKey)
+		delete(s.lastAccessed, oldestKey)
+		s.evictions++
+		
+		s.log.Info(fmt.Sprintf("Evicted symbol graph from cache: %s", oldestKey))
+	}
 }
 
 // BuildImportGraph строит граф импортов для проекта
@@ -151,25 +244,48 @@ func (s *SymbolGraphService) UpdateSymbolGraph(ctx context.Context, projectRoot,
 		return nil, err
 	}
 
-	// Обновляем кэш
+	// Обновляем кэш с LRU eviction
 	cacheKey := fmt.Sprintf("%s:%s", projectRoot, language)
+	s.mu.Lock()
+	graphSize := s.estimateGraphSize(graph)
+	
+	// Если ключ уже существует, вычитаем старый размер
+	if oldGraph, exists := s.cache[cacheKey]; exists {
+		oldSize := s.estimateGraphSize(oldGraph)
+		s.cacheSize -= oldSize
+	}
+	
+	s.evictOldestIfNeeded(graphSize)
 	s.cache[cacheKey] = graph
 	s.cacheTimestamps[cacheKey] = time.Now().Unix()
+	s.lastAccessed[cacheKey] = time.Now().Unix()
+	s.cacheSize += graphSize
+	s.mu.Unlock()
 
 	return graph, nil
 }
 
 // ClearCache очищает кэш графов символов
 func (s *SymbolGraphService) ClearCache() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.cache = make(map[string]*domain.SymbolGraph)
 	s.cacheTimestamps = make(map[string]int64)
+	s.lastAccessed = make(map[string]int64)
+	s.cacheSize = 0
 	s.log.Info("Symbol graph cache cleared")
 }
 
 // GetCacheStats возвращает статистику кэша
 func (s *SymbolGraphService) GetCacheStats() map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return map[string]interface{}{
 		"cached_graphs":    len(s.cache),
 		"cache_timestamps": len(s.cacheTimestamps),
+		"cache_size_mb":    s.cacheSize / (1024 * 1024),
+		"cache_hits":       s.cacheHits,
+		"cache_misses":     s.cacheMisses,
+		"evictions":        s.evictions,
 	}
 }

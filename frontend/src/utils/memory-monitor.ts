@@ -8,12 +8,19 @@
  * 4. Forcing garbage collection when possible
  */
 
-import {useUIStore} from '@/stores/ui.store';
+import { useUIStore } from '@/stores/ui.store';
 
 export interface MemoryStats {
   used: number;        // Used memory in MB
   total: number;       // Total available memory in MB
   percentage: number;  // Usage percentage (0-100)
+  storeMetrics?: StoreMetrics;
+}
+
+export interface StoreMetrics {
+  fileStore: { nodesCount: number; memoryEstimate: number }
+  contextStore: { cacheSize: number; chunkSize: number }
+  apiCache: { entries: number; totalSize: number }
 }
 
 export interface MemoryWarningOptions {
@@ -25,9 +32,9 @@ export interface MemoryWarningOptions {
 }
 
 const DEFAULT_OPTIONS: MemoryWarningOptions = {
-  warningThreshold: 15,  // CRITICAL: 15MB instead of 70%
-  criticalThreshold: 25, // CRITICAL: 25MB instead of 85%
-  pollingInterval: 1000, // CRITICAL: Check every 1 second instead of 5
+  warningThreshold: 150,  // FIXED: 150MB (was incorrectly 15MB)
+  criticalThreshold: 250, // FIXED: 250MB (was incorrectly 25MB)
+  pollingInterval: 10000,  // Check every 10 seconds to reduce overhead
   showToasts: true,
   autoCleanup: true
 };
@@ -40,8 +47,15 @@ export class MemoryMonitor {
   private criticalIssued = false;
   private uiStore = useUIStore();
 
+  // Cache store imports to avoid repeated dynamic imports
+  private storeImportsCache: {
+    useFileStore?: any;
+    useContextStore?: any;
+    getCacheStats?: any;
+  } = {};
+
   private constructor(options: MemoryWarningOptions = {}) {
-    this.options = {...DEFAULT_OPTIONS, ...options};
+    this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
   /**
@@ -60,7 +74,7 @@ export class MemoryMonitor {
    * Update monitoring options
    */
   public updateOptions(options: Partial<MemoryWarningOptions>): void {
-    this.options = {...this.options, ...options};
+    this.options = { ...this.options, ...options };
 
     // If monitoring is active, restart it with new options
     if (this.monitorInterval) {
@@ -70,9 +84,9 @@ export class MemoryMonitor {
   }
 
   /**
-   * Get current memory stats
+   * Get current memory stats with store metrics
    */
-  public getMemoryStats(): MemoryStats | null {
+  public async getMemoryStats(): Promise<MemoryStats | null> {
     if (!('performance' in window) || !('memory' in (performance as any))) {
       return null;
     }
@@ -82,7 +96,62 @@ export class MemoryMonitor {
     const total = Math.round(memory.jsHeapSizeLimit / (1024 * 1024));
     const percentage = Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100);
 
-    return {used, total, percentage};
+    // Collect store metrics
+    const storeMetrics = await this.collectStoreMetrics();
+
+    return { used, total, percentage, storeMetrics };
+  }
+
+  /**
+   * Collect memory metrics from all stores
+   */
+  private async collectStoreMetrics(): Promise<StoreMetrics> {
+    const metrics: StoreMetrics = {
+      fileStore: { nodesCount: 0, memoryEstimate: 0 },
+      contextStore: { cacheSize: 0, chunkSize: 0 },
+      apiCache: { entries: 0, totalSize: 0 }
+    };
+
+    try {
+      // Import stores once and cache them to avoid repeated dynamic imports
+      if (!this.storeImportsCache.useFileStore) {
+        const fileStoreModule = await import('@/features/files/model/file.store');
+        this.storeImportsCache.useFileStore = fileStoreModule.useFileStore;
+      }
+
+      if (!this.storeImportsCache.useContextStore) {
+        const contextStoreModule = await import('@/features/context/model/context.store');
+        this.storeImportsCache.useContextStore = contextStoreModule.useContextStore;
+      }
+
+      if (!this.storeImportsCache.getCacheStats) {
+        const apiCacheModule = await import('@/composables/useApiCache');
+        this.storeImportsCache.getCacheStats = apiCacheModule.getCacheStats;
+      }
+
+      const fileStore = this.storeImportsCache.useFileStore();
+      const contextStore = this.storeImportsCache.useContextStore();
+      const cacheStats = this.storeImportsCache.getCacheStats();
+
+      metrics.fileStore = {
+        nodesCount: fileStore.nodes?.length || 0,
+        memoryEstimate: fileStore.getMemoryUsage ? fileStore.getMemoryUsage() : 0
+      };
+
+      metrics.contextStore = {
+        cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0,
+        chunkSize: contextStore.currentChunk?.lines?.length || 0
+      };
+
+      metrics.apiCache = {
+        entries: cacheStats.entries || 0,
+        totalSize: cacheStats.size || 0
+      };
+    } catch (e) {
+      console.warn('[MemoryMonitor] Could not collect store metrics:', e);
+    }
+
+    return metrics;
   }
 
   /**
@@ -93,10 +162,10 @@ export class MemoryMonitor {
       return; // Already monitoring
     }
 
-    this.checkMemory();
+    void this.checkMemory();
     this.monitorInterval = window.setInterval(
-        () => this.checkMemory(),
-        this.options.pollingInterval
+      () => void this.checkMemory(),
+      this.options.pollingInterval
     );
 
     console.log(`Memory monitoring started (interval: ${this.options.pollingInterval}ms)`);
@@ -124,6 +193,27 @@ export class MemoryMonitor {
       // Clear large arrays and objects
       (window as any).largeObjects = [];
       (window as any).cachedData = null;
+
+      // Clear API caches
+      import('@/composables/useApiCache').then(({ clearAllCaches }) => {
+        clearAllCaches();
+      }).catch(e => {
+        console.warn('Could not clear API caches:', e);
+      });
+
+      // Clear stores
+      Promise.all([
+        import('@/features/files/model/file.store'),
+        import('@/features/context/model/context.store')
+      ]).then(([{ useFileStore }, { useContextStore }]) => {
+        const fileStore = useFileStore();
+        const contextStore = useContextStore();
+
+        fileStore.resetStore();
+        contextStore.clearContext();
+      }).catch(e => {
+        console.warn('Could not cleanup stores:', e);
+      });
 
       // Clear Vue reactive caches if possible
       try {
@@ -153,10 +243,11 @@ export class MemoryMonitor {
 
       // Add a small delay to allow garbage collection to work
       setTimeout(() => {
-        const stats = this.getMemoryStats();
-        if (stats) {
-          console.log(`Memory after aggressive cleanup: ${stats.used}MB / ${stats.total}MB (${stats.percentage}%)`);
-        }
+        void this.getMemoryStats().then(stats => {
+          if (stats) {
+            console.log(`Memory after aggressive cleanup: ${stats.used}MB / ${stats.total}MB (${stats.percentage}%)`);
+          }
+        });
       }, 500);
     } catch (e) {
       console.error('Error during emergency memory cleanup:', e);
@@ -164,33 +255,89 @@ export class MemoryMonitor {
   }
 
   /**
-   * Check current memory usage with ABSOLUTE thresholds in MB
+   * Dump heap snapshot for analysis in Chrome DevTools
    */
-  private checkMemory(): void {
-    const stats = this.getMemoryStats();
-    if (!stats) return;
+  public async dumpHeapSnapshot(reason: string): Promise<void> {
+    if ('performance' in window && (performance as any).writeHeapSnapshot) {
+      try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `heap-snapshot-${timestamp}-${reason}.heapsnapshot`;
+        await (performance as any).writeHeapSnapshot(filename);
+        console.log(`Heap snapshot saved: ${filename}`);
+        this.uiStore.addToast(`Heap snapshot saved: ${filename}`, 'info');
+      } catch (e) {
+        console.error('Failed to dump heap snapshot:', e);
+      }
+    } else {
+      console.warn('Heap snapshot API not available. Run Chrome with --enable-precise-memory-info flag.');
+    }
+  }
 
-    const {used, total, percentage} = stats;
+  /**
+   * Register callback for critical memory events
+   */
+  private criticalCallbacks: Array<() => void> = [];
 
-    // Log memory usage to console
-    console.debug(`Memory usage: ${used}MB / ${total}MB (${percentage}%)`);
+  public onCritical(callback: () => void): void {
+    this.criticalCallbacks.push(callback);
+  }
 
-    // CRITICAL: Use absolute MB values instead of percentages
-    const warningThresholdMB = this.options.warningThreshold || 15;
-    const criticalThresholdMB = this.options.criticalThreshold || 25;
+  /**
+   * Check current memory usage with PERCENTAGE-BASED thresholds (more reliable)
+   */
+  private memoryHistory: number[] = [];
 
-    // Check if we've reached critical threshold (absolute MB)
-    if (used >= criticalThresholdMB) {
+  private async checkMemory(): Promise<void> {
+    const stats = await this.getMemoryStats();
+
+    // Check if memory stats are available
+    if (!stats) {
+      console.warn('[MemoryMonitor] Memory stats unavailable - performance.memory API not supported in this browser');
+      return;
+    }
+
+    const { used, total, percentage } = stats;
+
+    // Validate percentage is a valid number greater than 0
+    if (!percentage || percentage <= 0 || !isFinite(percentage)) {
+      console.warn('[MemoryMonitor] Invalid memory percentage calculated:', percentage);
+      return;
+    }
+
+    // Log memory usage to console (only in dev mode)
+    if (import.meta.env.DEV) {
+      console.debug(`Memory usage: ${used}MB / ${total}MB (${percentage}%)`);
+    }
+
+    // Use percentage-based thresholds (more reliable than absolute MB)
+    const warningPercentage = 60; // Warning at 60% of heap limit
+    const criticalPercentage = 80; // Critical at 80% of heap limit
+
+    // Don't warn if using less than 500MB (even if high percentage of small heap)
+    if (used < 500) {
+      return;
+    }
+
+    // Track memory growth trend
+    const memoryTrend = this.getMemoryTrend(used);
+
+    // Check if we've reached critical threshold
+    if (percentage >= criticalPercentage) {
       if (!this.criticalIssued) {
-        console.error(`CRITICAL: Memory usage at ${used}MB >= ${criticalThresholdMB}MB`);
+        console.error(`CRITICAL: Memory usage at ${percentage}% (${used}MB / ${total}MB)`);
 
         if (this.options.showToasts) {
-          this.uiStore.addToast(
-              `CRITICAL memory usage (${used}MB). Browser may crash! Cleaning up...`,
-              'error',
-              15000
-          );
+          // Get current locale for localized message
+          const locale = localStorage.getItem('app-locale') || 'ru';
+          const message = locale === 'ru'
+            ? `КРИТИЧЕСКОЕ использование памяти: ${used}МБ / ${total}МБ (${percentage}%). Браузер может зависнуть! Очистка...`
+            : `CRITICAL memory usage: ${used}MB / ${total}MB (${percentage}%). Browser may crash! Cleaning up...`;
+
+          this.uiStore.addToast(message, 'error', 15000);
         }
+
+        // Dump heap snapshot for analysis
+        this.dumpHeapSnapshot('critical-memory');
 
         // Force cleanup immediately
         if (this.options.autoCleanup) {
@@ -199,20 +346,31 @@ export class MemoryMonitor {
           setTimeout(() => this.forceCleanup(), 500);
         }
 
+        // Trigger critical callbacks
+        this.criticalCallbacks.forEach(cb => {
+          try {
+            cb();
+          } catch (e) {
+            console.error('Critical callback error:', e);
+          }
+        });
+
         this.criticalIssued = true;
       }
     }
-    // Check if we've reached warning threshold (absolute MB)
-    else if (used >= warningThresholdMB) {
+    // Check if we've reached warning threshold or rapid growth
+    else if (percentage >= warningPercentage || (memoryTrend > 10 && this.memoryHistory.length >= 5)) {
       if (!this.warningIssued) {
-        console.warn(`WARNING: Memory usage at ${used}MB >= ${warningThresholdMB}MB`);
+        console.warn(`WARNING: Memory usage at ${percentage}% (${used}MB / ${total}MB)`);
 
         if (this.options.showToasts) {
-          this.uiStore.addToast(
-              `High memory usage (${used}MB). Reduce file selection or context size.`,
-              'warning',
-              8000
-          );
+          // Get current locale for localized message
+          const locale = localStorage.getItem('app-locale') || 'ru';
+          const message = locale === 'ru'
+            ? `Использование памяти: ${used}МБ / ${total}МБ (${percentage}% от heap limit). Рекомендуется уменьшить выбор файлов.`
+            : `Memory usage: ${used}MB / ${total}MB (${percentage}% of heap limit). Consider reducing file selection.`;
+
+          this.uiStore.addToast(message, 'warning', 8000);
         }
 
         this.warningIssued = true;
@@ -221,11 +379,34 @@ export class MemoryMonitor {
     // Reset flags if memory usage drops below thresholds
     else {
       // Only reset if we drop significantly below thresholds
-      if (used < warningThresholdMB - 2) {
+      if (percentage < warningPercentage - 10) {
         this.warningIssued = false;
         this.criticalIssued = false;
       }
     }
+  }
+
+  /**
+   * Track memory trend to detect rapid growth
+   */
+  private getMemoryTrend(currentUsed: number): number {
+    this.memoryHistory.push(currentUsed);
+
+    // Keep only last 10 measurements
+    if (this.memoryHistory.length > 10) {
+      this.memoryHistory.shift();
+    }
+
+    // Calculate growth rate (MB per minute)
+    if (this.memoryHistory.length < 2) {
+      return 0;
+    }
+
+    const oldest = this.memoryHistory[0];
+    const newest = this.memoryHistory[this.memoryHistory.length - 1];
+    const timeDiff = (this.memoryHistory.length - 1) * (this.options.pollingInterval || 5000) / 60000; // minutes
+
+    return (newest - oldest) / timeDiff;
   }
 }
 

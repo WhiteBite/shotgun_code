@@ -27,7 +27,7 @@ func NewGofpdfGenerator(log domain.Logger) domain.PDFGenerator {
 // заменяем экзотические руны на ASCII-маркер <U+XXXX>
 func replaceUnsupported(text string) string {
 	var b strings.Builder
-	for _, r := range []rune(text) {
+	for _, r := range text {
 		if r == '\n' || r == '\r' || r == '\t' {
 			b.WriteRune(r)
 			continue

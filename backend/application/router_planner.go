@@ -703,15 +703,11 @@ func (r *RouterPlannerService) executeStaticStep(ctx context.Context, step *Task
 
 	// Агрегируем результаты
 	success := true
-	var messages []string
 	totalIssues := 0
 	totalDuration := 0.0
 	for _, result := range results.Results {
 		totalIssues += len(result.Issues)
 		totalDuration += result.Duration
-		for _, issue := range result.Issues {
-			messages = append(messages, fmt.Sprintf("File %s: %s", issue.File, issue.Message))
-		}
 	}
 
 	if failOnError && totalIssues > 0 {

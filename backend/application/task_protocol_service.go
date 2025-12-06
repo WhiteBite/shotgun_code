@@ -320,10 +320,6 @@ func (s *TaskProtocolServiceImpl) parseErrorDetails(err error, stage domain.Prot
 	}
 }
 
-func (s *TaskProtocolServiceImpl) buildCorrectionPrompt(error *domain.ErrorDetails, context *domain.TaskContext) string {
-	return fmt.Sprintf("Error in %s stage: %s. Please provide correction guidance.", error.Stage, error.Message)
-}
-
 func generateTaskID() string {
 	return fmt.Sprintf("task_%d", time.Now().UnixNano())
 }

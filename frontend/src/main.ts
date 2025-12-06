@@ -4,7 +4,7 @@ import { autoAnimatePlugin } from "@formkit/auto-animate/vue";
 
 import App from "./App.vue";
 import "./assets/main.css";
-import "./assets/design-system.css";
+import "./assets/design-tokens.css";
 import { setupErrorHandler } from "./plugins/errorHandler";
 import 'highlight.js/styles/github-dark.css';
 

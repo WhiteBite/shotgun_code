@@ -121,8 +121,8 @@ func (w *Watcher) run(ctx context.Context) {
 				continue
 			}
 
-			// Логируем только дебагом
-			w.log.Debug(fmt.Sprintf("FS event: %s", event.String()))
+			// MEMORY OPTIMIZATION: Removed debug logging to prevent log accumulation
+			// File system events can fire hundreds of times per second
 			w.bus.Emit("projectFilesChanged", w.rootDir)
 		case err, ok := <-w.fsWatcher.Errors:
 			if !ok {

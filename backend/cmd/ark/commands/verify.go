@@ -64,12 +64,7 @@ func (c *VerifyCommand) Execute(ctx context.Context, args []string) error {
 	// Parse languages
 	var languageList []string
 	if *languages != "" {
-		languageList = []string{}
-		for _, lang := range []string{*languages} {
-			for _, l := range []string{lang} {
-				languageList = append(languageList, l)
-			}
-		}
+		languageList = []string{*languages}
 	} else {
 		// Auto-detect languages
 		languageList, err = c.container.VerificationService.DetectLanguages(ctx, absPath)

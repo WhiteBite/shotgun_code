@@ -1,46 +1,28 @@
 ﻿<template>
   <div id="app" class="h-screen bg-gray-900 text-white overflow-hidden">
     <!-- Global Error Handler -->
-    <div v-if="globalError" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div class="bg-red-900 border border-red-700 rounded-lg p-6 max-w-md mx-4">
-        <h3 class="text-lg font-semibold text-red-200 mb-2">Critical Error</h3>
-        <p class="text-red-300 text-sm mb-4">{{ globalError }}</p>
-        <button
-          @click="clearGlobalError"
-          class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded transition-colors"
-        >
+    <div v-if="globalError" class="modal-container">
+      <div class="modal-overlay" @click="clearGlobalError"></div>
+      <div class="modal-content modal-error">
+        <h3 class="modal-title">Critical Error</h3>
+        <p class="modal-text">{{ globalError }}</p>
+        <button @click="clearGlobalError" class="btn btn-danger">
           Dismiss
         </button>
       </div>
     </div>
 
     <!-- Global Loading Overlay -->
-    <div v-if="projectStore.isLoading" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div class="bg-gray-800 border border-gray-600 rounded-lg p-8 max-w-sm mx-4 text-center">
+    <div v-if="projectStore.isLoading" class="loading-overlay">
+      <div class="loading-card">
         <div class="flex items-center justify-center mb-4">
-          <svg
-            class="animate-spin h-8 w-8 text-blue-500"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            ></path>
+          <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
         </div>
-        <h3 class="text-lg font-semibold text-white mb-2">Loading Project</h3>
-        <p class="text-gray-300 text-sm">Please wait...</p>
+        <h3 class="loading-title">Loading Project</h3>
+        <p class="loading-text">Please wait...</p>
       </div>
     </div>
 
@@ -48,21 +30,40 @@
     <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
     <MainWorkspace v-else />
 
-    <!-- Toast Notifications -->
-    <div class="fixed top-4 right-4 z-50 space-y-2">
-      <div
-        v-for="toast in uiStore.toasts"
-        :key="toast.id"
-        :class="[
-          'px-4 py-3 rounded-lg shadow-lg max-w-sm',
-          toast.type === 'error' ? 'bg-red-900 border border-red-700 text-red-100' :
-          toast.type === 'success' ? 'bg-green-900 border border-green-700 text-green-100' :
-          toast.type === 'warning' ? 'bg-yellow-900 border border-yellow-700 text-yellow-100' :
-          'bg-blue-900 border border-blue-700 text-blue-100'
-        ]"
-      >
-        {{ toast.message }}
-      </div>
+    <!-- Toast Notifications (Bottom Center) -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+      <TransitionGroup name="toast">
+        <div
+          v-for="toast in uiStore.toasts"
+          :key="toast.id"
+          :class="[
+            'toast',
+            toast.type === 'error' ? 'toast-error' :
+            toast.type === 'success' ? 'toast-success' :
+            toast.type === 'warning' ? 'toast-warning' : 'toast-info'
+          ]"
+        >
+          <!-- Icon -->
+          <svg v-if="toast.type === 'success'" class="toast-icon toast-icon-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <svg v-else-if="toast.type === 'error'" class="toast-icon toast-icon-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <svg v-else-if="toast.type === 'warning'" class="toast-icon toast-icon-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <svg v-else class="toast-icon toast-icon-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="toast-message">{{ toast.message }}</span>
+          <button @click="uiStore.removeToast(toast.id)" class="toast-close">
+            <svg class="w-4 h-4 opacity-60 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </TransitionGroup>
     </div>
 
     <!-- Global components (lazy loaded) -->
@@ -77,38 +78,49 @@
       @close="isShortcutsModalOpen = false" 
     />
     
-    <!-- Theme toggle (always available) -->
-    <div class="fixed bottom-4 right-4 z-40">
-      <ThemeToggle />
-    </div>
+    <!-- Memory Dashboard -->
+    <MemoryDashboard
+      v-if="showMemoryDashboard && projectStore.hasProject"
+      class="fixed top-20 right-4 z-40"
+      @close="showMemoryDashboard = false"
+    />
+    
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent, watch } from 'vue'
-import { useMagicKeys } from '@vueuse/core'
 import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
+import { useMemoryMonitor } from '@/composables/useMemoryMonitor'
 import { useProjectStore } from '@/stores/project.store'
 import { useUIStore } from '@/stores/ui.store'
-import { useTheme } from '@/composables/useTheme'
+import { useMagicKeys } from '@vueuse/core'
+import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 
 // Lazy load heavy components
 const CommandPalette = defineAsyncComponent(() => import('@/components/CommandPalette.vue'))
 const KeyboardShortcutsModal = defineAsyncComponent(() => import('@/components/KeyboardShortcutsModal.vue'))
-const ThemeToggle = defineAsyncComponent(() => import('@/components/ThemeToggle.vue'))
+// ThemeToggle removed - app uses dark theme only
+const MemoryDashboard = defineAsyncComponent(() => import('@/components/MemoryDashboard.vue'))
 
 const projectStore = useProjectStore()
 const uiStore = useUIStore()
 const globalError = ref<string | null>(null)
 const isCommandPaletteOpen = ref(false)
 const isShortcutsModalOpen = ref(false)
+const showMemoryDashboard = ref(false)
 
 // Keyboard shortcuts
 const keys = useMagicKeys()
 const ctrlK = keys['Ctrl+K']
 const ctrlP = keys['Ctrl+P']
 const ctrlSlash = keys['Ctrl+/']
+const ctrlB = keys['Ctrl+B']
+const ctrlEnter = keys['Ctrl+Enter']
+const ctrlE = keys['Ctrl+E']
+const ctrlShiftC = keys['Ctrl+Shift+C']
+const ctrlShiftM = keys['Ctrl+Shift+M']
 
 watch(ctrlK, (v) => {
   if (v) isCommandPaletteOpen.value = !isCommandPaletteOpen.value
@@ -123,8 +135,40 @@ watch(ctrlSlash, (v) => {
   if (v) isShortcutsModalOpen.value = !isShortcutsModalOpen.value
 })
 
-// Initialize theme early to prevent white flash on load
-useTheme()
+// Build context shortcuts
+watch([ctrlB, ctrlEnter], ([b, enter]) => {
+  if ((b || enter) && projectStore.hasProject) {
+    // Trigger build context
+    const event = new CustomEvent('global-build-context')
+    window.dispatchEvent(event)
+  }
+})
+
+// Export shortcut
+watch(ctrlE, (v) => {
+  if (v && projectStore.hasProject) {
+    const event = new CustomEvent('global-open-export')
+    window.dispatchEvent(event)
+  }
+})
+
+// Copy context shortcut
+watch(ctrlShiftC, (v) => {
+  if (v && projectStore.hasProject) {
+    const event = new CustomEvent('global-copy-context')
+    window.dispatchEvent(event)
+  }
+})
+
+// Memory dashboard shortcut
+watch(ctrlShiftM, (v) => {
+  if (v && projectStore.hasProject) {
+    showMemoryDashboard.value = !showMemoryDashboard.value
+  }
+})
+
+// Start memory monitoring
+const memoryMonitor = useMemoryMonitor()
 
 function clearGlobalError() {
   globalError.value = null
@@ -135,9 +179,91 @@ function onProjectOpened(path: string) {
   uiStore.addToast('Project loaded successfully', 'success')
 }
 
-onMounted(() => {
+// Store cleanup interval ref
+const cleanupIntervalRef = ref<number | null>(null)
+
+onMounted(async () => {
+  // Start memory monitoring FIRST (before any heavy operations)
+  memoryMonitor.startMonitoring()
+  
+  // Register critical memory callback to show dashboard
+  memoryMonitor.onCritical(() => {
+    showMemoryDashboard.value = true
+  })
+  
+  // Note: fetchRecentProjects is called in ProjectSelector.vue onMounted
+  // We don't call it here to avoid duplicate calls
+  
   // Try to auto-open last project if setting is enabled
+  // This will only work if recent projects are already loaded from localStorage
   projectStore.maybeAutoOpenLastProject()
+  
+  // Periodic cleanup every 10 minutes (now optimized)
+  cleanupIntervalRef.value = window.setInterval(async () => {
+    console.log('[App] Running periodic cleanup...')
+    
+    // Clear old caches
+    try {
+      const { clearAllCaches, getCacheStats } = await import('@/composables/useApiCache')
+      const stats = getCacheStats()
+      if (stats.size > stats.maxSize * 0.5) {
+        clearAllCaches()
+        console.log('[App] Cleared API caches')
+      }
+    } catch (e) {
+      console.warn('Could not clear API caches:', e)
+    }
+    
+    // Check memory stats
+    const memStats = await memoryMonitor.getMemoryStats()
+    if (memStats) {
+      console.log(`[App] Memory: ${memStats.used}MB / ${memStats.total}MB (${memStats.percentage}%)`)
+    }
+  }, 10 * 60 * 1000) // Every 10 minutes
+})
+
+onUnmounted(() => {
+  // Clear cleanup interval
+  if (cleanupIntervalRef.value) {
+    clearInterval(cleanupIntervalRef.value)
+    cleanupIntervalRef.value = null
+  }
+  
+  // Stop memory monitoring
+  memoryMonitor.stopMonitoring()
+  
+  // Clear all caches
+  import('@/composables/useApiCache').then(({ clearAllCaches }) => {
+    clearAllCaches()
+  }).catch(() => {
+    // Ignore
+  })
+})
+
+// Global error handler for memory errors (moved outside onMounted)
+onMounted(() => {
+  window.addEventListener('error', (event) => {
+    if (event.message && event.message.includes('out of memory')) {
+      console.error('[App] Out of memory error detected!')
+      uiStore.addToast('Critical memory error. Clearing caches...', 'error')
+      
+      // Emergency cleanup
+      try {
+        const { clearAllCaches } = require('@/composables/useApiCache')
+        clearAllCaches()
+        
+        const { useContextStore } = require('@/features/context/model/context.store')
+        const { useFileStore } = require('@/features/files/model/file.store')
+        const contextStore = useContextStore()
+        const fileStore = useFileStore()
+        
+        contextStore.clearContext()
+        fileStore.resetStore()
+      } catch (e) {
+        console.error('Emergency cleanup failed:', e)
+      }
+    }
+  })
 })
 </script>
 
@@ -273,6 +399,37 @@ input:focus, textarea:focus, select:focus {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Toast animations */
+.toast-enter-active {
+  animation: toast-in 0.3s ease-out;
+}
+
+.toast-leave-active {
+  animation: toast-out 0.2s ease-in;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
   }
 }
 </style>

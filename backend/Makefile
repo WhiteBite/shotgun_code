@@ -50,6 +50,27 @@ lint:
 	@echo "$(GREEN)Running linter...$(NC)"
 	golangci-lint run
 
+lint-full:
+	@echo "$(GREEN)Running full linting with all checks...$(NC)"
+	golangci-lint run --config .golangci.yml
+
+lint-deadcode:
+	@echo "$(GREEN)Checking for dead code...$(NC)"
+	golangci-lint run --disable-all --enable unused,ineffassign
+
+lint-dupl:
+	@echo "$(GREEN)Checking for code duplication...$(NC)"
+	golangci-lint run --disable-all --enable dupl
+
+analyze-complexity:
+	@echo "$(GREEN)Analyzing code complexity...$(NC)"
+	golangci-lint run --disable-all --enable gocyclo,gocognit
+
+lint-report:
+	@echo "$(GREEN)Generating lint report...$(NC)"
+	golangci-lint run --config .golangci.yml --out-format json > golangci-lint-report.json || true
+	@echo "$(GREEN)Report saved to golangci-lint-report.json$(NC)"
+
 format:
 	@echo "$(GREEN)Formatting code...$(NC)"
 	go fmt ./...
@@ -67,6 +88,39 @@ test-result:
 	@echo "$(GREEN)Testing result command...$(NC)"
 	./$(BUILD_DIR)/$(BINARY_NAME) result --help
 
+# Performance targets
+perf-test:
+	@echo "$(GREEN)Running performance tests...$(NC)"
+	go test -bench=. -benchmem ./...
+
+bench:
+	@echo "$(GREEN)Running benchmarks...$(NC)"
+	go test -bench=. -benchmem -benchtime=5s ./... | tee benchmark.txt
+
+pprof-cpu:
+	@echo "$(GREEN)Running CPU profiling...$(NC)"
+	go test -cpuprofile=cpu.prof -bench=. ./internal/context
+	go tool pprof -http=:8080 cpu.prof
+
+pprof-mem:
+	@echo "$(GREEN)Running memory profiling...$(NC)"
+	go test -memprofile=mem.prof -bench=. ./internal/context
+	go tool pprof -http=:8080 mem.prof
+
+leak-check:
+	@echo "$(GREEN)Running leak detection tests...$(NC)"
+	go test -race -count=1 ./...
+
+stress-test:
+	@echo "$(GREEN)Running stress tests...$(NC)"
+	go test -race -count=10 -timeout=10m ./...
+
+coverage:
+	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)Coverage report: coverage.html$(NC)"
+
 # Справка
 help:
 	@echo "$(GREEN)ARK CLI Makefile$(NC)"
@@ -83,4 +137,11 @@ help:
 	@echo "  test-index  - Test index command"
 	@echo "  test-solve  - Test solve command"
 	@echo "  test-result - Test result command"
+	@echo "  perf-test   - Run performance tests"
+	@echo "  bench       - Run benchmarks"
+	@echo "  pprof-cpu   - Run CPU profiling"
+	@echo "  pprof-mem   - Run memory profiling"
+	@echo "  leak-check  - Run leak detection tests"
+	@echo "  stress-test - Run stress tests"
+	@echo "  coverage    - Run tests with coverage"
 	@echo "  help        - Show this help"

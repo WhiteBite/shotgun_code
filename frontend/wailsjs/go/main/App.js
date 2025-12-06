@@ -18,6 +18,10 @@ export function AddRepairRule(arg1) {
   return window['go']['main']['App']['AddRepairRule'](arg1);
 }
 
+export function AddToGitignore(arg1, arg2) {
+  return window['go']['main']['App']['AddToGitignore'](arg1, arg2);
+}
+
 export function AnalyzeFile(arg1, arg2) {
   return window['go']['main']['App']['AnalyzeFile'](arg1, arg2);
 }
@@ -66,12 +70,16 @@ export function BuildContext(arg1, arg2, arg3) {
   return window['go']['main']['App']['BuildContext'](arg1, arg2, arg3);
 }
 
+export function BuildContextAtRef(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['BuildContextAtRef'](arg1, arg2, arg3, arg4);
+}
+
 export function BuildContextFromRequest(arg1, arg2, arg3) {
   return window['go']['main']['App']['BuildContextFromRequest'](arg1, arg2, arg3);
 }
 
-export function BuildContextLegacy(arg1, arg2, arg3) {
-  return window['go']['main']['App']['BuildContextLegacy'](arg1, arg2, arg3);
+export function BuildContextLegacy() {
+  return window['go']['main']['App']['BuildContextLegacy']();
 }
 
 export function BuildSymbolGraph(arg1, arg2) {
@@ -82,8 +90,24 @@ export function CancelAutonomousTask(arg1) {
   return window['go']['main']['App']['CancelAutonomousTask'](arg1);
 }
 
+export function CheckoutBranch(arg1, arg2) {
+  return window['go']['main']['App']['CheckoutBranch'](arg1, arg2);
+}
+
+export function CheckoutCommit(arg1, arg2) {
+  return window['go']['main']['App']['CheckoutCommit'](arg1, arg2);
+}
+
 export function CleanupTempFiles(arg1) {
   return window['go']['main']['App']['CleanupTempFiles'](arg1);
+}
+
+export function CleanupTempRepository(arg1) {
+  return window['go']['main']['App']['CleanupTempRepository'](arg1);
+}
+
+export function CloneRepository(arg1) {
+  return window['go']['main']['App']['CloneRepository'](arg1);
 }
 
 export function CloseStreamingContext(arg1) {
@@ -154,6 +178,10 @@ export function GenerateCode(arg1, arg2) {
   return window['go']['main']['App']['GenerateCode'](arg1, arg2);
 }
 
+export function GenerateCodeStream(arg1, arg2) {
+  return window['go']['main']['App']['GenerateCodeStream'](arg1, arg2);
+}
+
 export function GenerateCodeWithOptions(arg1, arg2, arg3) {
   return window['go']['main']['App']['GenerateCodeWithOptions'](arg1, arg2, arg3);
 }
@@ -218,6 +246,10 @@ export function GetBudgetPolicies() {
   return window['go']['main']['App']['GetBudgetPolicies']();
 }
 
+export function GetCommitHistory(arg1, arg2) {
+  return window['go']['main']['App']['GetCommitHistory'](arg1, arg2);
+}
+
 export function GetContext(arg1) {
   return window['go']['main']['App']['GetContext'](arg1);
 }
@@ -238,8 +270,16 @@ export function GetCurrentDirectory() {
   return window['go']['main']['App']['GetCurrentDirectory']();
 }
 
+export function GetCustomIgnoreRules() {
+  return window['go']['main']['App']['GetCustomIgnoreRules']();
+}
+
 export function GetExportHistory(arg1) {
   return window['go']['main']['App']['GetExportHistory'](arg1);
+}
+
+export function GetFileAtRef(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetFileAtRef'](arg1, arg2, arg3);
 }
 
 export function GetFileContentAtCommit(arg1, arg2, arg3) {
@@ -250,8 +290,16 @@ export function GetFileStats(arg1) {
   return window['go']['main']['App']['GetFileStats'](arg1);
 }
 
+export function GetFullContextContent(arg1) {
+  return window['go']['main']['App']['GetFullContextContent'](arg1);
+}
+
 export function GetGitignoreContent(arg1) {
   return window['go']['main']['App']['GetGitignoreContent'](arg1);
+}
+
+export function GetGitignoreContentForProject(arg1) {
+  return window['go']['main']['App']['GetGitignoreContentForProject'](arg1);
 }
 
 export function GetGuardrailPolicies() {
@@ -276,6 +324,10 @@ export function GetReadyTasks() {
 
 export function GetRecentProjects() {
   return window['go']['main']['App']['GetRecentProjects']();
+}
+
+export function GetRemoteBranches(arg1) {
+  return window['go']['main']['App']['GetRemoteBranches'](arg1);
 }
 
 export function GetReport(arg1) {
@@ -350,8 +402,68 @@ export function GetUncommittedFiles(arg1) {
   return window['go']['main']['App']['GetUncommittedFiles'](arg1);
 }
 
+export function GitHubBuildContext(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitHubBuildContext'](arg1, arg2, arg3);
+}
+
+export function GitHubGetBranches(arg1) {
+  return window['go']['main']['App']['GitHubGetBranches'](arg1);
+}
+
+export function GitHubGetCommits(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitHubGetCommits'](arg1, arg2, arg3);
+}
+
+export function GitHubGetDefaultBranch(arg1) {
+  return window['go']['main']['App']['GitHubGetDefaultBranch'](arg1);
+}
+
+export function GitHubGetFileContent(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitHubGetFileContent'](arg1, arg2, arg3);
+}
+
+export function GitHubListFiles(arg1, arg2) {
+  return window['go']['main']['App']['GitHubListFiles'](arg1, arg2);
+}
+
+export function GitLabBuildContext(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitLabBuildContext'](arg1, arg2, arg3);
+}
+
+export function GitLabGetBranches(arg1) {
+  return window['go']['main']['App']['GitLabGetBranches'](arg1);
+}
+
+export function GitLabGetCommits(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitLabGetCommits'](arg1, arg2, arg3);
+}
+
+export function GitLabGetDefaultBranch(arg1) {
+  return window['go']['main']['App']['GitLabGetDefaultBranch'](arg1);
+}
+
+export function GitLabGetFileContent(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GitLabGetFileContent'](arg1, arg2, arg3);
+}
+
+export function GitLabListFiles(arg1, arg2) {
+  return window['go']['main']['App']['GitLabListFiles'](arg1, arg2);
+}
+
 export function IsGitAvailable() {
   return window['go']['main']['App']['IsGitAvailable']();
+}
+
+export function IsGitHubURL(arg1) {
+  return window['go']['main']['App']['IsGitHubURL'](arg1);
+}
+
+export function IsGitLabURL(arg1) {
+  return window['go']['main']['App']['IsGitLabURL'](arg1);
+}
+
+export function IsGitRepository(arg1) {
+  return window['go']['main']['App']['IsGitRepository'](arg1);
 }
 
 export function ListAutonomousTasks(arg1) {
@@ -364,6 +476,10 @@ export function ListAvailableModels() {
 
 export function ListFiles(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListFiles'](arg1, arg2, arg3);
+}
+
+export function ListFilesAtRef(arg1, arg2) {
+  return window['go']['main']['App']['ListFilesAtRef'](arg1, arg2);
 }
 
 export function ListReports(arg1) {
@@ -380,6 +496,18 @@ export function PauseTask(arg1) {
 
 export function PublishDiff(arg1) {
   return window['go']['main']['App']['PublishDiff'](arg1);
+}
+
+export function QwenExecuteTask(arg1) {
+  return window['go']['main']['App']['QwenExecuteTask'](arg1);
+}
+
+export function QwenGetAvailableModels() {
+  return window['go']['main']['App']['QwenGetAvailableModels']();
+}
+
+export function QwenPreviewContext(arg1) {
+  return window['go']['main']['App']['QwenPreviewContext'](arg1);
 }
 
 export function ReadFileContent(arg1, arg2) {
@@ -490,12 +618,20 @@ export function TestBackend(arg1, arg2) {
   return window['go']['main']['App']['TestBackend'](arg1, arg2);
 }
 
+export function TestIgnoreRules(arg1, arg2) {
+  return window['go']['main']['App']['TestIgnoreRules'](arg1, arg2);
+}
+
 export function TypeCheck(arg1, arg2) {
   return window['go']['main']['App']['TypeCheck'](arg1, arg2);
 }
 
 export function UpdateBudgetPolicy(arg1) {
   return window['go']['main']['App']['UpdateBudgetPolicy'](arg1);
+}
+
+export function UpdateCustomIgnoreRules(arg1) {
+  return window['go']['main']['App']['UpdateCustomIgnoreRules'](arg1);
 }
 
 export function UpdateGuardrailPolicy(arg1) {

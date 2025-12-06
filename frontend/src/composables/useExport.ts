@@ -1,6 +1,6 @@
 import { ref, reactive } from 'vue'
-import { useContextStore } from '@/stores/context.store'
-import { ExportContext } from '../wailsjs/go/main/App'
+import { useContextStore } from '@/features/context/model/context.store'
+import { apiService } from '@/services/api.service'
 
 export type ExportMode = 'clipboard' | 'ai' | 'human'
 
@@ -93,7 +93,7 @@ export function useExport() {
 
     try {
       // Get full context content (warning: can be large)
-      const contextContent = await contextStore.getContextContent(0, contextStore.lineCount)
+      const contextContent = await contextStore.getFullContextContent()
       
       // Build export settings JSON
       const exportSettingsJson = {
@@ -120,8 +120,7 @@ export function useExport() {
         includePageNumbers: settings.includePageNumbers
       }
 
-      const resultJson = await ExportContext(JSON.stringify(exportSettingsJson))
-      const result = JSON.parse(resultJson)
+      const result = await apiService.exportContext(exportSettingsJson)
       exportResult.value = result
 
       // Handle result based on mode
@@ -180,6 +179,8 @@ export function useExport() {
     settings,
     exportResult,
     error,
+    // Include context store for use in components
+    contextStore,
     
     // Actions
     open,

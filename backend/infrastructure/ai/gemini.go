@@ -15,7 +15,6 @@ import (
 )
 
 type GeminiProviderImpl struct {
-	client *genai.GenerativeModel
 	log    domain.Logger
 	apiKey string
 }
@@ -181,4 +180,63 @@ func (p *GeminiProviderImpl) GetPricing(model string) domain.PricingInfo {
 	}
 
 	return pricing
+}
+
+// GenerateStream implements streaming for Gemini
+func (p *GeminiProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
+	p.log.Info(fmt.Sprintf("Starting streaming request to Gemini API with model: %s", req.Model))
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(p.apiKey))
+	if err != nil {
+		onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+		return fmt.Errorf("failed to create gemini client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel(req.Model)
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{genai.Text(req.SystemPrompt)},
+	}
+
+	if req.Temperature > 0 {
+		temp := float32(req.Temperature)
+		model.Temperature = &temp
+	}
+	if req.MaxTokens > 0 {
+		maxTokens := int32(req.MaxTokens)
+		model.MaxOutputTokens = &maxTokens
+	}
+	if req.TopP > 0 {
+		topP := float32(req.TopP)
+		model.TopP = &topP
+	}
+
+	iter := model.GenerateContentStream(ctx, genai.Text(req.UserPrompt))
+	totalTokens := 0
+
+	for {
+		resp, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			onChunk(domain.StreamChunk{Done: true, TokensUsed: totalTokens, FinishReason: "stop"})
+			return nil
+		}
+		if err != nil {
+			p.log.Error(fmt.Sprintf("Gemini stream error: %v", err))
+			onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
+			return err
+		}
+
+		if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
+			for _, part := range resp.Candidates[0].Content.Parts {
+				if text, ok := part.(genai.Text); ok {
+					content := string(text)
+					totalTokens += len(content) / 4
+					onChunk(domain.StreamChunk{
+						Content: content,
+						Done:    false,
+					})
+				}
+			}
+		}
+	}
 }

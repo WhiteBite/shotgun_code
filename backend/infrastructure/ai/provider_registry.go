@@ -24,7 +24,7 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 				if err != nil {
 					return nil, err
 				}
-				return p.(*GeminiProviderImpl).ListModels(ctx)
+				return p.ListModels(ctx)
 			},
 		},
 		"openai": {
@@ -36,7 +36,7 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 				if err != nil {
 					return nil, err
 				}
-				return p.(*OpenAIProviderImpl).ListModels(ctx)
+				return p.ListModels(ctx)
 			},
 		},
 		"openrouter": {
@@ -52,7 +52,7 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 				if err != nil {
 					return nil, err
 				}
-				return p.(*OpenAIProviderImpl).ListModels(ctx)
+				return p.ListModels(ctx)
 			},
 		},
 		"localai": {
@@ -64,7 +64,31 @@ func GetProviderRegistry(openRouterHost string) map[string]ProviderConfig {
 				if err != nil {
 					return nil, err
 				}
-				return p.(*LocalAIProviderImpl).ListModels(ctx)
+				return p.ListModels(ctx)
+			},
+		},
+		"qwen": {
+			FactoryFunc: func(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
+				return NewQwen(apiKey, host, log)
+			},
+			ModelFetcher: func(ctx context.Context, apiKey, host string, log domain.Logger) ([]string, error) {
+				p, err := NewQwen(apiKey, host, log)
+				if err != nil {
+					return nil, err
+				}
+				return p.ListModels(ctx)
+			},
+		},
+		"qwen-cli": {
+			FactoryFunc: func(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
+				return NewQwenCLI(log)
+			},
+			ModelFetcher: func(ctx context.Context, apiKey, host string, log domain.Logger) ([]string, error) {
+				p, err := NewQwenCLI(log)
+				if err != nil {
+					return nil, err
+				}
+				return p.ListModels(ctx)
 			},
 		},
 	}

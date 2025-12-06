@@ -252,18 +252,6 @@ func TestApp_StartAutonomousTask_Integration(t *testing.T) {
 	assert.Equal(t, validRequest.Options.MaxTokens, deserializedRequest.Options.MaxTokens)
 }
 
-func sprintf(format string, args ...interface{}) string {
-	// Simple sprintf implementation for test names
-	result := format
-	for i, arg := range args {
-		placeholder := "%d"
-		if i == 0 {
-			result = strings.Replace(result, placeholder, arg.(string), 1)
-		}
-	}
-	return result
-}
-
 func TestApp_ListReports_Integration(t *testing.T) {
 	// Setup test reports directory
 	tempDir, err := os.MkdirTemp("", "app_reports_test")
@@ -419,3 +407,6 @@ npm install
 		})
 	}
 }
+
+// NOTE: RecentProjects tests removed - they used deprecated settingsManager API
+// The functionality is now tested through SettingsService tests

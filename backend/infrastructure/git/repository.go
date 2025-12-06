@@ -292,3 +292,200 @@ func (r *Repository) GenerateDiff(projectPath string) (string, error) {
 
 	return string(output), nil
 }
+
+// IsGitRepository checks if the given path is a git repository
+func (r *Repository) IsGitRepository(projectPath string) bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = projectPath
+	err := cmd.Run()
+	return err == nil
+}
+
+// CloneRepository clones a remote repository to a local path (shallow clone for speed)
+func (r *Repository) CloneRepository(url, targetPath string, depth int) error {
+	args := []string{"clone"}
+	if depth > 0 {
+		args = append(args, "--depth", fmt.Sprintf("%d", depth))
+	}
+	args = append(args, url, targetPath)
+
+	cmd := exec.Command("git", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to clone repository: %s - %w", string(output), err)
+	}
+
+	r.log.Info(fmt.Sprintf("Cloned repository %s to %s", url, targetPath))
+	return nil
+}
+
+// CheckoutBranch switches to a specific branch
+func (r *Repository) CheckoutBranch(projectPath, branch string) error {
+	cmd := exec.Command("git", "checkout", branch)
+	cmd.Dir = projectPath
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch %s: %s - %w", branch, string(output), err)
+	}
+
+	r.log.Info(fmt.Sprintf("Checked out branch %s in %s", branch, projectPath))
+	return nil
+}
+
+// CheckoutCommit switches to a specific commit (detached HEAD)
+func (r *Repository) CheckoutCommit(projectPath, commitHash string) error {
+	cmd := exec.Command("git", "checkout", commitHash)
+	cmd.Dir = projectPath
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to checkout commit %s: %s - %w", commitHash, string(output), err)
+	}
+
+	r.log.Info(fmt.Sprintf("Checked out commit %s in %s", commitHash, projectPath))
+	return nil
+}
+
+// ListFilesAtRef returns list of files at a specific branch or commit without checkout
+func (r *Repository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
+	cmd := exec.Command("git", "ls-tree", "-r", "--name-only", ref)
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files at ref %s: %w", ref, err)
+	}
+
+	var files []string
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		files = append(files, scanner.Text())
+	}
+
+	r.log.Info(fmt.Sprintf("Listed %d files at ref %s in %s", len(files), ref, projectPath))
+	return files, nil
+}
+
+// GetFileAtRef returns file content at a specific branch or commit without checkout
+func (r *Repository) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
+	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", ref, filePath))
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get file %s at ref %s: %w", filePath, ref, err)
+	}
+
+	return string(output), nil
+}
+
+// GetTreeAtRef returns file tree structure at a specific ref
+func (r *Repository) GetTreeAtRef(projectPath, ref string) ([]GitTreeEntry, error) {
+	cmd := exec.Command("git", "ls-tree", "-r", "--long", ref)
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tree at ref %s: %w", ref, err)
+	}
+
+	var entries []GitTreeEntry
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Format: <mode> <type> <hash> <size>\t<path>
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		
+		meta := strings.Fields(parts[0])
+		if len(meta) < 4 {
+			continue
+		}
+		
+		size := int64(0)
+		if meta[3] != "-" {
+			fmt.Sscanf(meta[3], "%d", &size)
+		}
+		
+		entries = append(entries, GitTreeEntry{
+			Path:   parts[1],
+			Type:   meta[1],
+			Size:   size,
+			IsDir:  meta[1] == "tree",
+		})
+	}
+
+	return entries, nil
+}
+
+// GitTreeEntry represents a file/folder in git tree
+type GitTreeEntry struct {
+	Path  string `json:"path"`
+	Type  string `json:"type"`
+	Size  int64  `json:"size"`
+	IsDir bool   `json:"isDir"`
+}
+
+// GetCommitHistory returns recent commits with hash and subject
+func (r *Repository) GetCommitHistory(projectPath string, limit int) ([]domain.CommitInfo, error) {
+	cmd := exec.Command("git", "log", "--pretty=format:%H|%s|%an|%cI", fmt.Sprintf("-n%d", limit))
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit history: %w", err)
+	}
+
+	var commits []domain.CommitInfo
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "|", 4)
+		if len(parts) >= 4 {
+			commits = append(commits, domain.CommitInfo{
+				Hash:    parts[0],
+				Subject: parts[1],
+				Author:  parts[2],
+				Date:    parts[3],
+			})
+		}
+	}
+
+	return commits, nil
+}
+
+// FetchRemoteBranches fetches and returns all remote branches
+func (r *Repository) FetchRemoteBranches(projectPath string) ([]string, error) {
+	// First fetch all remotes
+	fetchCmd := exec.Command("git", "fetch", "--all")
+	fetchCmd.Dir = projectPath
+	fetchCmd.Run() // Ignore errors, might not have network
+
+	// Get remote branches
+	cmd := exec.Command("git", "branch", "-r")
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get remote branches: %w", err)
+	}
+
+	var branches []string
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.Contains(line, "HEAD") {
+			continue
+		}
+		// Remove "origin/" prefix for cleaner display
+		if strings.HasPrefix(line, "origin/") {
+			line = strings.TrimPrefix(line, "origin/")
+		}
+		branches = append(branches, line)
+	}
+
+	return branches, nil
+}

@@ -4,171 +4,291 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"shotgun_code/domain"
+	"strings"
 	"testing"
 )
 
-// Unit test for the parser logic
-func TestParseRichLogOutput(t *testing.T) {
-	testCases := []struct {
-		name        string
-		gitOutput   string
-		expected    []domain.CommitWithFiles
-		expectError bool
-	}{
-		{
-			name: "Standard Commit",
-			gitOutput: `COMMIT 1234567 89abcde
-feat: add new feature
-M	README.md
-A	src/feature.js
-`,
-			expected: []domain.CommitWithFiles{
-				{Hash: "1234567", Subject: "feat: add new feature", IsMerge: false, Files: []string{"README.md", "src/feature.js"}},
-			},
-			expectError: false,
-		},
-		{
-			name: "Merge Commit",
-			gitOutput: `COMMIT abcdef0 1234567 fedcba9
-Merge pull request #123
-M	package.json
-`,
-			expected: []domain.CommitWithFiles{
-				{Hash: "abcdef0", Subject: "Merge pull request #123", IsMerge: true, Files: []string{"package.json"}},
-			},
-			expectError: false,
-		},
-		{
-			name: "Commit with no files",
-			gitOutput: `COMMIT fedcba9 89abcde
-docs: update contributing guide
-`,
-			expected: []domain.CommitWithFiles{
-				{Hash: "fedcba9", Subject: "docs: update contributing guide", IsMerge: false, Files: []string{}},
-			},
-			expectError: false,
-		},
-		{
-			name: "Multiple Commits",
-			gitOutput: `COMMIT abcdef0 1234567 fedcba9
-Merge pull request #123
-M	package.json
-COMMIT 1234567 89abcde
-feat: add new feature
-M	README.md
-`,
-			expected: []domain.CommitWithFiles{
-				{Hash: "abcdef0", Subject: "Merge pull request #123", IsMerge: true, Files: []string{"package.json"}},
-				{Hash: "1234567", Subject: "feat: add new feature", IsMerge: false, Files: []string{"README.md"}},
-			},
-			expectError: false,
-		},
-		{
-			name:        "Empty Input",
-			gitOutput:   "",
-			expected:    nil,
-			expectError: false,
-		},
-		{
-			name:        "Corrupted Input",
-			gitOutput:   "COMMIT \nsubject",
-			expected:    nil,
-			expectError: false, // Parser should be resilient
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := ParseRichLogOutput(tc.gitOutput)
-
-			if (err != nil) != tc.expectError {
-				t.Fatalf("Expected error: %v, got: %v", tc.expectError, err)
-			}
-
-			if len(result) == 0 && len(tc.expected) == 0 {
-				return // Both are nil or empty, which is a pass
-			}
-
-			if !reflect.DeepEqual(result, tc.expected) {
-				t.Errorf("Expected:\n%#v\nGot:\n%#v", tc.expected, result)
-			}
-		})
-	}
-}
-
-// Integration test for the full git command execution
-func TestGetRichCommitHistory_Integration(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping integration test in CI environment")
-	}
-
-	dir, err := os.MkdirTemp("", "git-repo-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
-
-	runGit := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		err := cmd.Run()
-		if err != nil {
-			t.Fatalf("Git command failed: %v", err)
-		}
-	}
-
-	// Setup git repo
-	runGit("init")
-	runGit("config", "user.email", "test@example.com")
-	runGit("config", "user.name", "Test User")
-
-	// First commit on master
-	if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("hello"), 0644); err != nil {
-		t.Fatalf("Failed to write initial file: %v", err)
-	}
-	runGit("add", "file1.txt")
-	runGit("commit", "-m", "Initial commit")
-
-	// Create and switch to a new branch
-	runGit("checkout", "-b", "feature")
-	if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("feature"), 0644); err != nil {
-		t.Fatalf("Failed to write feature file: %v", err)
-	}
-	runGit("add", "file2.txt")
-	runGit("commit", "-m", "feat: add file2")
-
-	// Switch back and merge
-	runGit("checkout", "master")
-	runGit("merge", "--no-ff", "feature", "-m", "Merge feature branch")
-
-	repo := New(&testLogger{})
-	commits, err := repo.GetRichCommitHistory(dir, "", 3)
-
-	if err != nil {
-		t.Fatalf("GetRichCommitHistory failed: %v", err)
-	}
-
-	if len(commits) != 3 {
-		t.Fatalf("Expected 3 commits, got %d", len(commits))
-	}
-
-	// With --topo-order, the order is predictable: merge, then feature, then initial.
-	if !commits[0].IsMerge || commits[0].Subject != "Merge feature branch" {
-		t.Errorf("Expected merge commit at index 0, got %+v", commits[0])
-	}
-	if commits[1].IsMerge || commits[1].Subject != "feat: add file2" || len(commits[1].Files) != 1 || commits[1].Files[0] != "file2.txt" {
-		t.Errorf("Expected feature commit at index 1, got %+v", commits[1])
-	}
-	if commits[2].IsMerge || commits[2].Subject != "Initial commit" || len(commits[2].Files) != 1 || commits[2].Files[0] != "file1.txt" {
-		t.Errorf("Expected initial commit at index 2, got %+v", commits[2])
-	}
-}
-
 type testLogger struct{}
 
-func (l *testLogger) Debug(message string)   {}
-func (l *testLogger) Info(message string)    {}
-func (l *testLogger) Warning(message string) {}
-func (l *testLogger) Error(message string)   {}
-func (l *testLogger) Fatal(message string)   {}
+func (l *testLogger) Debug(msg string)   {}
+func (l *testLogger) Info(msg string)    {}
+func (l *testLogger) Warning(msg string) {}
+func (l *testLogger) Error(msg string)   {}
+func (l *testLogger) Fatal(msg string)   {}
+
+func TestIsGitAvailable(t *testing.T) {
+	repo := New(&testLogger{})
+	
+	// Git should be available on most dev machines
+	available := repo.IsGitAvailable()
+	
+	// Just check it doesn't panic - result depends on environment
+	t.Logf("Git available: %v", available)
+}
+
+func TestIsGitRepository(t *testing.T) {
+	repo := New(&testLogger{})
+	
+	// Create temp dir without git
+	tempDir, err := os.MkdirTemp("", "git-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	
+	// Should return false for non-git directory
+	if repo.IsGitRepository(tempDir) {
+		t.Error("Expected false for non-git directory")
+	}
+}
+
+func TestIsGitRepository_WithGit(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	// Create temp dir and init git
+	tempDir, err := os.MkdirTemp("", "git-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	
+	// Init git repo
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tempDir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	
+	// Should return true for git directory
+	if !repo.IsGitRepository(tempDir) {
+		t.Error("Expected true for git directory")
+	}
+}
+
+func TestGetBranches(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	// Create temp git repo with a commit
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	branches, err := repo.GetBranches(tempDir)
+	if err != nil {
+		t.Fatalf("GetBranches error: %v", err)
+	}
+	
+	// Should have at least one branch (main or master)
+	if len(branches) == 0 {
+		t.Error("Expected at least one branch")
+	}
+	
+	t.Logf("Branches: %v", branches)
+}
+
+func TestGetCurrentBranch(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	branch, err := repo.GetCurrentBranch(tempDir)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch error: %v", err)
+	}
+	
+	if branch == "" {
+		t.Error("Expected non-empty branch name")
+	}
+	
+	t.Logf("Current branch: %s", branch)
+}
+
+func TestGetCommitHistory(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	commits, err := repo.GetCommitHistory(tempDir, 10)
+	if err != nil {
+		t.Fatalf("GetCommitHistory error: %v", err)
+	}
+	
+	if len(commits) == 0 {
+		t.Error("Expected at least one commit")
+	}
+	
+	// Check commit structure
+	for _, c := range commits {
+		if c.Hash == "" {
+			t.Error("Commit hash should not be empty")
+		}
+		if c.Subject == "" {
+			t.Error("Commit subject should not be empty")
+		}
+	}
+	
+	t.Logf("Commits: %d", len(commits))
+}
+
+func TestListFilesAtRef(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	// Get current branch
+	branch, _ := repo.GetCurrentBranch(tempDir)
+	
+	files, err := repo.ListFilesAtRef(tempDir, branch)
+	if err != nil {
+		t.Fatalf("ListFilesAtRef error: %v", err)
+	}
+	
+	// Should have test.txt from setup
+	found := false
+	for _, f := range files {
+		if f == "test.txt" {
+			found = true
+			break
+		}
+	}
+	
+	if !found {
+		t.Error("Expected test.txt in files list")
+	}
+	
+	t.Logf("Files at %s: %v", branch, files)
+}
+
+func TestGetFileAtRef(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	branch, _ := repo.GetCurrentBranch(tempDir)
+	
+	content, err := repo.GetFileAtRef(tempDir, "test.txt", branch)
+	if err != nil {
+		t.Fatalf("GetFileAtRef error: %v", err)
+	}
+	
+	if !strings.Contains(content, "test content") {
+		t.Errorf("Expected 'test content' in file, got: %s", content)
+	}
+}
+
+func TestCheckoutBranch(t *testing.T) {
+	// Skip if git not available
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	
+	repo := New(&testLogger{})
+	
+	tempDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tempDir)
+	
+	// Create a new branch
+	cmd := exec.Command("git", "branch", "test-branch")
+	cmd.Dir = tempDir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	
+	// Checkout the new branch
+	err := repo.CheckoutBranch(tempDir, "test-branch")
+	if err != nil {
+		t.Fatalf("CheckoutBranch error: %v", err)
+	}
+	
+	// Verify we're on the new branch
+	branch, _ := repo.GetCurrentBranch(tempDir)
+	if branch != "test-branch" {
+		t.Errorf("Expected 'test-branch', got '%s'", branch)
+	}
+}
+
+// Helper to setup a test git repository
+func setupTestGitRepo(t *testing.T) string {
+	tempDir, err := os.MkdirTemp("", "git-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	// Init git
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tempDir
+	if err := cmd.Run(); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatal(err)
+	}
+	
+	// Configure git user for commits
+	cmd = exec.Command("git", "config", "user.email", "test@test.com")
+	cmd.Dir = tempDir
+	cmd.Run()
+	
+	cmd = exec.Command("git", "config", "user.name", "Test User")
+	cmd.Dir = tempDir
+	cmd.Run()
+	
+	// Create a test file
+	testFile := filepath.Join(tempDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatal(err)
+	}
+	
+	// Add and commit
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = tempDir
+	if err := cmd.Run(); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatal(err)
+	}
+	
+	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd.Dir = tempDir
+	if err := cmd.Run(); err != nil {
+		os.RemoveAll(tempDir)
+		t.Fatal(err)
+	}
+	
+	return tempDir
+}
+
+// Verify Repository implements GitRepository interface
+var _ domain.GitRepository = (*Repository)(nil)

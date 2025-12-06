@@ -6,12 +6,18 @@ import (
 	"sync"
 )
 
+// AIProviderCacheInvalidator interface for invalidating AI provider cache
+type AIProviderCacheInvalidator interface {
+	InvalidateProviderCache()
+}
+
 // SettingsService отвечает за управление настройками приложения.
 type SettingsService struct {
 	log                           domain.Logger
 	bus                           domain.EventBus
 	settingsRepo                  domain.SettingsRepository
 	modelFetchers                 domain.ModelFetcherRegistry
+	aiCacheInvalidator            AIProviderCacheInvalidator
 	onIgnoreRulesChangedCallbacks []func() error
 	muCallbacks                   sync.RWMutex
 }
@@ -40,6 +46,16 @@ func (s *SettingsService) GetSettingsDTO() (domain.SettingsDTO, error) {
 
 // SaveSettingsDTO принимает DTO с фронтенда и обновляет настройки.
 func (s *SettingsService) SaveSettingsDTO(dto domain.SettingsDTO) error {
+	// Track if AI-related settings changed
+	oldDTO, _ := s.settingsRepo.GetSettingsDTO()
+	aiSettingsChanged := oldDTO.SelectedProvider != dto.SelectedProvider ||
+		oldDTO.OpenAIAPIKey != dto.OpenAIAPIKey ||
+		oldDTO.GeminiAPIKey != dto.GeminiAPIKey ||
+		oldDTO.OpenRouterAPIKey != dto.OpenRouterAPIKey ||
+		oldDTO.LocalAIAPIKey != dto.LocalAIAPIKey ||
+		oldDTO.LocalAIHost != dto.LocalAIHost ||
+		oldDTO.QwenAPIKey != dto.QwenAPIKey
+
 	s.settingsRepo.SetCustomIgnoreRules(dto.CustomIgnoreRules)
 	s.settingsRepo.SetCustomPromptRules(dto.CustomPromptRules)
 	s.settingsRepo.SetOpenAIKey(dto.OpenAIAPIKey)
@@ -61,6 +77,11 @@ func (s *SettingsService) SaveSettingsDTO(dto domain.SettingsDTO) error {
 
 	if err := s.settingsRepo.Save(); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
+	}
+
+	// Invalidate AI provider cache if AI settings changed
+	if aiSettingsChanged && s.aiCacheInvalidator != nil {
+		s.aiCacheInvalidator.InvalidateProviderCache()
 	}
 
 	s.notifyIgnoreRulesChanged()
@@ -139,4 +160,42 @@ func (s *SettingsService) RemoveRecentProject(path string) {
 // Save persists settings to disk
 func (s *SettingsService) Save() error {
 	return s.settingsRepo.Save()
+}
+
+// SetAICacheInvalidator sets the AI cache invalidator (called after AIService is created)
+func (s *SettingsService) SetAICacheInvalidator(invalidator AIProviderCacheInvalidator) {
+	s.aiCacheInvalidator = invalidator
+}
+
+// GetCustomIgnoreRules returns custom ignore rules
+func (s *SettingsService) GetCustomIgnoreRules() string {
+	return s.settingsRepo.GetCustomIgnoreRules()
+}
+
+// SetCustomIgnoreRules updates custom ignore rules
+func (s *SettingsService) SetCustomIgnoreRules(rules string) {
+	s.settingsRepo.SetCustomIgnoreRules(rules)
+	s.notifyIgnoreRulesChanged()
+}
+
+// GetUseGitignore returns whether to use .gitignore
+func (s *SettingsService) GetUseGitignore() bool {
+	return s.settingsRepo.GetUseGitignore()
+}
+
+// SetUseGitignore updates whether to use .gitignore
+func (s *SettingsService) SetUseGitignore(use bool) {
+	s.settingsRepo.SetUseGitignore(use)
+	s.notifyIgnoreRulesChanged()
+}
+
+// GetUseCustomIgnore returns whether to use custom ignore rules
+func (s *SettingsService) GetUseCustomIgnore() bool {
+	return s.settingsRepo.GetUseCustomIgnore()
+}
+
+// SetUseCustomIgnore updates whether to use custom ignore rules
+func (s *SettingsService) SetUseCustomIgnore(use bool) {
+	s.settingsRepo.SetUseCustomIgnore(use)
+	s.notifyIgnoreRulesChanged()
 }

@@ -117,6 +117,40 @@ func (m *mockGitRepository) GenerateDiff(projectPath string) (string, error) {
 	return "diff --git a/file1.go b/file1.go...", nil
 }
 
+func (m *mockGitRepository) IsGitRepository(projectPath string) bool {
+	return true
+}
+
+func (m *mockGitRepository) CloneRepository(url, targetPath string, depth int) error {
+	return nil
+}
+
+func (m *mockGitRepository) CheckoutBranch(projectPath, branch string) error {
+	return nil
+}
+
+func (m *mockGitRepository) CheckoutCommit(projectPath, commitHash string) error {
+	return nil
+}
+
+func (m *mockGitRepository) GetCommitHistory(projectPath string, limit int) ([]domain.CommitInfo, error) {
+	return []domain.CommitInfo{
+		{Hash: "abc123", Subject: "Initial commit", Author: "test", Date: "2024-01-01"},
+	}, nil
+}
+
+func (m *mockGitRepository) FetchRemoteBranches(projectPath string) ([]string, error) {
+	return []string{"origin/main", "origin/develop"}, nil
+}
+
+func (m *mockGitRepository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
+	return []string{"file1.go", "file2.js"}, nil
+}
+
+func (m *mockGitRepository) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
+	return "file content at ref", nil
+}
+
 // Mock ContextService for benchmarking
 type mockContextService struct {
 	delayMs int

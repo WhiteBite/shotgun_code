@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"shotgun_code/application"
 	"shotgun_code/domain"
+	"shotgun_code/handlers"
 	"shotgun_code/infrastructure/ai"
 	"shotgun_code/infrastructure/applyengine"
 	execinfra "shotgun_code/infrastructure/exec"
@@ -26,6 +27,7 @@ import (
 	"shotgun_code/infrastructure/textutils"
 	"shotgun_code/infrastructure/uxreports"
 	"shotgun_code/infrastructure/wailsbridge"
+	"sync"
 	"time"
 
 	// new wiring
@@ -35,6 +37,11 @@ import (
 	"shotgun_code/infrastructure/pdfgen"
 	"shotgun_code/infrastructure/policy"
 	"shotgun_code/infrastructure/symbolgraph"
+	"shotgun_code/internal/initmanager"
+
+	// Internal services (unified architecture)
+	contextservice "shotgun_code/internal/context"
+	projectservice "shotgun_code/internal/project"
 )
 
 const openRouterHost = "https://openrouter.ai/api/v1"
@@ -51,7 +58,6 @@ type AppContainer struct {
 	Watcher               domain.FileSystemWatcher
 	CommandRunner         domain.CommandRunner
 	SettingsService       *application.SettingsService
-	ProjectService        *application.ProjectService
 	AIService             *application.AIService
 	ContextAnalysis       domain.ContextAnalyzer
 	SymbolGraph           *application.SymbolGraphService
@@ -66,15 +72,20 @@ type AppContainer struct {
 	DiffService           *application.DiffService
 	BuildService          domain.IBuildService
 	ExportService         *application.ExportService
-	// NEW: Separate context services following SRP
+
+	// Unified internal services (new architecture)
+	ContextService *contextservice.Service
+	ProjectService *projectservice.Service
+
+	// Context interfaces (implemented by ContextService)
 	ContextBuilder    domain.ContextBuilder
 	ContextAnalyzer   domain.ContextAnalyzer
 	ContextRepository domain.ContextRepository
-	ContextGenerator  *application.ContextGenerator // NEW: For async context generation
-	ReportService     *application.ReportService
-	RouterLLMService  *application.RouterLLMService
-	Bridge            *wailsbridge.Bridge
-	GitService        domain.GitService
+
+	ReportService    *application.ReportService
+	RouterLLMService *application.RouterLLMService
+	Bridge           *wailsbridge.Bridge
+	GitService       domain.GitService
 
 	// Task Protocol Services
 	TaskProtocolService         domain.TaskProtocolService
@@ -83,6 +94,32 @@ type AppContainer struct {
 	TaskProtocolConfigService   *application.TaskProtocolConfigService
 	TaskflowProtocolIntegration *application.TaskflowProtocolIntegration
 	VerificationPipelineService *application.VerificationPipelineService
+
+	// Qwen Task Services
+	SmartContextService *application.SmartContextService
+	QwenTaskService     *application.QwenTaskService
+
+	// Handlers (new architecture)
+	ProjectHandler  *handlers.ProjectHandler
+	ContextHandler  *handlers.ContextHandler
+	QwenHandler     *handlers.QwenHandler
+	AIHandler       *handlers.AIHandler
+	AnalysisHandler *handlers.AnalysisHandler
+	SettingsHandler *handlers.SettingsHandler
+	TaskflowHandler *handlers.TaskflowHandler
+
+	// Lazy initialization support
+	lazyInitOnce              sync.Once
+	testServiceOnce           sync.Once
+	staticAnalyzerServiceOnce sync.Once
+	sbomServiceOnce           sync.Once
+	symbolGraphOnce           sync.Once
+
+	// Lazy service manager for coordinated lifecycle management
+	lazyManager *initmanager.LazyServiceManager
+	
+	// Cleanup goroutine control
+	cleanupStopCh chan struct{}
 }
 
 // NewContainer creates and wires up all the application dependencies.
@@ -132,9 +169,12 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Create AI service with intelligent service
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
-
-	// NEW: Create separate context services following SRP
-	tokenCounter := application.SimpleTokenCounter
+	
+	// Set AIService reference in IntelligentAIService to avoid provider duplication
+	intelligentService.SetAIService(c.AIService)
+	
+	// Connect SettingsService to AIService for cache invalidation on settings change
+	c.SettingsService.SetAICacheInvalidator(c.AIService)
 
 	// Create OPA service
 	opaService := policy.NewOPAService(c.Log)
@@ -157,40 +197,40 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Create comment stripper for code preprocessing
 	commentStripper := textutils.NewCommentStripper(c.Log)
+	_ = commentStripper  // Will be used by ContextService internally
+	_ = opaService       // Will be used by ContextService internally
+	_ = pathProvider     // Will be used by ProjectService internally
+	_ = fileSystemWriter // Will be used by ContextService internally
 
-	// Create context repository for persistent, memory-safe storage
-	contextRepository := application.NewContextRepository(c.Log, contextDir)
-	c.ContextRepository = contextRepository
-
-	// Create separate context services
-	c.ContextBuilder = application.NewContextBuilder(
+	// Create unified ContextService (replaces ContextBuilder, ContextGenerator, ContextRepository)
+	c.ContextService, err = contextservice.NewService(
 		c.FileReader,
-		tokenCounter,
-		c.Log,
-		c.SettingsService,
+		&SimpleTokenCounter{},
 		c.Bus,
-		opaService,
-		pathProvider,
-		fileSystemWriter,
-		commentStripper,
-		contextRepository,
-		contextDir,
+		c.Log,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context service: %w", err)
+	}
 
-	// Create ContextGenerator for async operations
-	c.ContextGenerator = application.NewContextGenerator(
-		c.FileReader,
-		c.Log,
-		c.Bus,
-		contextDir,
-	)
+	// ContextService implements ContextRepository interface
+	c.ContextRepository = c.ContextService
+
+	// Create ContextBuilder adapter
+	c.ContextBuilder = contextservice.NewContextBuilderAdapter(c.ContextService)
 
 	// Create analyzer responsible for task-driven context suggestions
 	contextAnalyzer := application.NewContextAnalyzer(c.Log, c.AIService)
 	c.ContextAnalyzer = contextAnalyzer
 
-	// Create ProjectService with the new context builder and generator
-	c.ProjectService = application.NewProjectService(c.Log, c.Bus, c.TreeBuilder, c.GitRepo, c.ContextBuilder, c.ContextGenerator, pathProvider, &OSFileStatProvider{})
+	// Create unified ProjectService
+	c.ProjectService = projectservice.NewService(
+		c.Log,
+		c.Bus,
+		c.TreeBuilder,
+		c.GitRepo,
+		c.ContextService, // Pass context service interface
+	)
 
 	// Initialize remaining services
 	c.ContextAnalysis = contextAnalyzer
@@ -205,19 +245,30 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	c.SymbolGraph = application.NewSymbolGraphService(c.Log, symbolGraphBuilders, importGraphBuilders)
 
-	// Create TestEngine and infrastructure components
-	testEngine := testengine.NewTestEngine(c.Log, goSymbolGraphBuilder)
-	testEngine.RegisterTestRunner("go", testengine.NewGoTestRunner(c.Log))
-	// testEngine.RegisterTestRunner("typescript", testengine.NewTypeScriptTestRunner(c.Log))
-	// testEngine.RegisterTestRunner("java", testengine.NewJavaTestRunner(c.Log))
+	// Create CallStack Analyzer and Smart Context Service for Qwen integration
+	callStackAnalyzer := symbolgraph.NewCallStackAnalyzerAdapter(c.Log)
+	c.SmartContextService = application.NewSmartContextService(
+		c.Log,
+		c.FileReader,
+		c.SymbolGraph,
+		callStackAnalyzer,
+	)
 
-	// Register test analyzers for supported languages
-	testEngine.RegisterTestAnalyzer("go", testengine.NewGoTestAnalyzer(c.Log))
-	// testEngine.RegisterTestAnalyzer("typescript", testengine.NewTypeScriptTestAnalyzer(c.Log))
-	// testEngine.RegisterTestAnalyzer("java", testengine.NewJavaTestAnalyzer(c.Log))
+	// Create TestService with lazy initialization
+	c.testServiceOnce.Do(func() {
+		testEngine := testengine.NewTestEngine(c.Log, goSymbolGraphBuilder)
+		testEngine.RegisterTestRunner("go", testengine.NewGoTestRunner(c.Log))
+		// testEngine.RegisterTestRunner("typescript", testengine.NewTypeScriptTestRunner(c.Log))
+		// testEngine.RegisterTestRunner("java", testengine.NewJavaTestRunner(c.Log))
 
-	// Create TestService with the TestEngine
-	c.TestService = application.NewTestService(c.Log, testEngine)
+		// Register test analyzers for supported languages
+		testEngine.RegisterTestAnalyzer("go", testengine.NewGoTestAnalyzer(c.Log))
+		// testEngine.RegisterTestAnalyzer("typescript", testengine.NewTypeScriptTestAnalyzer(c.Log))
+		// testEngine.RegisterTestAnalyzer("java", testengine.NewJavaTestAnalyzer(c.Log))
+
+		// Create TestService with the TestEngine
+		c.TestService = application.NewTestService(c.Log, testEngine)
+	})
 
 	// Create Static Analyzer Engine and infrastructure components
 	staticAnalyzerEngine := staticanalyzer.NewStaticAnalyzerEngine(c.Log)
@@ -361,7 +412,124 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		return nil, fmt.Errorf("failed to initialize task protocol services: %w", err)
 	}
 
+	// Initialize lazy service manager for memory optimization
+	c.lazyManager = initmanager.NewLazyServiceManager()
+	
+	// Note: Services are currently eagerly initialized for compatibility
+	// Future enhancement: wrap heavy services in LazyService[T] and register with manager
+	// Example: c.lazyManager.Register("symbolgraph", lazySymbolGraphService)
+	
+	// Start periodic cleanup of unused services (runs every 5 minutes)
+	// Note: This goroutine will be stopped when lazyManager is shutdown
+	c.cleanupStopCh = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-c.cleanupStopCh:
+				return
+			case <-ticker.C:
+				// Unload services idle for more than 10 minutes
+				unloaded := c.lazyManager.UnloadUnusedServices(10 * time.Minute)
+				if unloaded > 0 {
+					c.Log.Info(fmt.Sprintf("Unloaded %d idle services to free memory", unloaded))
+				}
+			}
+		}
+	}()
+
+	// Initialize handlers (new architecture)
+	if err := c.initializeHandlers(); err != nil {
+		return nil, fmt.Errorf("failed to initialize handlers: %w", err)
+	}
+
 	return c, nil
+}
+
+// initializeHandlers creates all handlers with proper dependencies
+func (c *AppContainer) initializeHandlers() error {
+	// Project Handler - delegates to ProjectService
+	c.ProjectHandler = handlers.NewProjectHandler(
+		c.Log,
+		c.Bus,
+		c.ProjectService,
+		c.Watcher,
+		c.FileReader,
+		c.GitRepo,
+	)
+
+	// Context Handler - uses unified ContextService
+	c.ContextHandler = handlers.NewContextHandler(
+		c.Log,
+		c.Bus,
+		c.ContextService,
+	)
+
+	// AI Handler
+	c.AIHandler = handlers.NewAIHandler(
+		c.Log,
+		c.AIService,
+		c.ContextAnalysis,
+	)
+
+	// Analysis Handler
+	c.AnalysisHandler = handlers.NewAnalysisHandler(
+		c.Log,
+		c.TestService,
+		c.StaticAnalyzerService,
+		c.BuildService,
+		c.SBOMService,
+		c.SymbolGraph,
+	)
+
+	// Settings Handler
+	c.SettingsHandler = handlers.NewSettingsHandler(
+		c.Log,
+		c.SettingsService,
+	)
+
+	// Taskflow Handler
+	c.TaskflowHandler = handlers.NewTaskflowHandler(
+		c.Log,
+		c.TaskflowService,
+		c.GuardrailService,
+		c.RepairService,
+		c.TaskProtocolService,
+		c.TaskProtocolConfigService,
+		c.TaskflowProtocolIntegration,
+		c.BuildService,
+	)
+
+	// Qwen Task Service and Handler
+	c.QwenTaskService = application.NewQwenTaskService(
+		c.Log,
+		c.AIService,
+		c.SmartContextService,
+		c.SettingsService,
+	)
+
+	c.QwenHandler = handlers.NewQwenHandler(
+		c.Log,
+		c.QwenTaskService,
+	)
+
+	return nil
+}
+
+// GetLazyServiceStats returns statistics about lazy-loaded services
+func (c *AppContainer) GetLazyServiceStats() map[string]interface{} {
+	if c.lazyManager == nil {
+		return map[string]interface{}{
+			"enabled": false,
+			"message": "Lazy service manager not initialized",
+		}
+	}
+	
+	stats := c.lazyManager.GetInitializationStats()
+	stats["enabled"] = true
+	return stats
 }
 
 func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.SettingsRepository) domain.ModelFetcherRegistry {
@@ -369,9 +537,17 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 	fetchers := make(domain.ModelFetcherRegistry)
 
 	for providerType, config := range registry {
-		// Capture variables for closure
+	// Capture variables for closure
 		providerType := providerType
 		config := config
+
+	// Create a cached fetcher
+		cachedFetcher := &cachedModelFetcher{
+			fetcher: config.ModelFetcher,
+			log:     log,
+			repo:    repo,
+			cache:   make(map[string][]string),
+		}
 
 		fetchers[providerType] = func(apiKey string) ([]string, error) {
 			// For the model fetchers, we need to provide the host and logger
@@ -381,9 +557,11 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 				host = openRouterHost
 			} else if providerType == "localai" {
 				host = repo.GetLocalAIHost()
+			} else if providerType == "qwen" {
+				host = repo.GetQwenHost()
 			}
 
-			models, err := config.ModelFetcher(ctx, apiKey, host, log)
+			models, err := cachedFetcher.FetchModels(ctx, apiKey, host, log)
 			if err != nil {
 				log.Warning("Failed to create " + providerType + " client for model listing: " + err.Error())
 				return nil, err
@@ -393,6 +571,42 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 	}
 
 	return fetchers
+}
+
+// cachedModelFetcher adds caching to model fetchers
+type cachedModelFetcher struct {
+	fetcher func(context.Context, string, string, domain.Logger) ([]string, error)
+	log     domain.Logger
+	repo    domain.SettingsRepository
+	cache   map[string][]string
+	mu      sync.RWMutex
+}
+
+func (c *cachedModelFetcher) FetchModels(ctx context.Context, apiKey, host string, log domain.Logger) ([]string, error) {
+	// Create a cache key based on API key and host
+	cacheKey := apiKey + "|" + host
+
+	// Check if we have cached models
+	c.mu.RLock()
+	if models, exists := c.cache[cacheKey]; exists {
+		c.mu.RUnlock()
+		log.Debug("Using cached models for provider")
+		return models, nil
+	}
+	c.mu.RUnlock()
+
+	// Fetch models and cache them
+	models, err := c.fetcher(ctx, apiKey, host, log)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in cache
+	c.mu.Lock()
+	c.cache[cacheKey] = models
+	c.mu.Unlock()
+
+	return models, nil
 }
 
 func createProviderRegistry(log domain.Logger, settingsService *application.SettingsService) map[string]domain.AIProviderFactory {
@@ -406,6 +620,15 @@ func createProviderRegistry(log domain.Logger, settingsService *application.Sett
 				return "", err
 			}
 			return dto.LocalAIHost, nil
+		case "qwen":
+			dto, err := settingsService.GetSettingsDTO()
+			if err != nil {
+				return "", err
+			}
+			if dto.QwenHost != "" {
+				return dto.QwenHost, nil
+			}
+			return "https://dashscope.aliyuncs.com/compatible-mode/v1", nil
 		default:
 			return "", nil
 		}
@@ -444,12 +667,12 @@ func (p *FilePathProvider) Getwd() (string, error) {
 // OSFileSystemWriter implements domain.FileSystemWriter using standard os functions
 type OSFileSystemWriter struct{}
 
-func (w *OSFileSystemWriter) WriteFile(filename string, data []byte, _ os.FileMode) error {
-	return os.WriteFile(filename, data, 0644)
+func (w *OSFileSystemWriter) WriteFile(filename string, data []byte, perm int) error {
+	return os.WriteFile(filename, data, os.FileMode(perm))
 }
 
-func (w *OSFileSystemWriter) MkdirAll(path string, _ os.FileMode) error {
-	return os.MkdirAll(path, 0755)
+func (w *OSFileSystemWriter) MkdirAll(path string, perm int) error {
+	return os.MkdirAll(path, os.FileMode(perm))
 }
 
 func (w *OSFileSystemWriter) Remove(name string) error {
@@ -534,12 +757,12 @@ func (o *OSFileSystemProvider) ReadFile(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
 
-func (o *OSFileSystemProvider) WriteFile(filename string, data []byte, _ os.FileMode) error {
-	return os.WriteFile(filename, data, 0644)
+func (o *OSFileSystemProvider) WriteFile(filename string, data []byte, perm int) error {
+	return os.WriteFile(filename, data, os.FileMode(perm))
 }
 
-func (o *OSFileSystemProvider) MkdirAll(path string, _ os.FileMode) error {
-	return os.MkdirAll(path, 0755)
+func (o *OSFileSystemProvider) MkdirAll(path string, perm int) error {
+	return os.MkdirAll(path, os.FileMode(perm))
 }
 
 // CommandRunnerImpl implements domain.CommandRunner
@@ -554,4 +777,57 @@ func (c *CommandRunnerImpl) RunCommandInDir(_ context.Context, dir, name string,
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	return cmd.Output()
+}
+
+// SimpleTokenCounter provides basic token estimation
+type SimpleTokenCounter struct{}
+
+func (s *SimpleTokenCounter) CountTokens(text string) int {
+	// Simple approximation: 1 token ≈ 4 characters
+	return len(text) / 4
+}
+
+// Shutdown gracefully shuts down all services in the container
+func (c *AppContainer) Shutdown(ctx context.Context) error {
+	c.Log.Info("Starting container shutdown...")
+
+	var shutdownErrors []error
+
+	// Stop cleanup goroutine first
+	if c.cleanupStopCh != nil {
+		close(c.cleanupStopCh)
+	}
+
+	// Shutdown handlers that support it
+	if c.AIHandler != nil {
+		if err := c.AIHandler.Shutdown(ctx); err != nil {
+			shutdownErrors = append(shutdownErrors, fmt.Errorf("AIHandler shutdown: %w", err))
+		}
+	}
+
+	// Shutdown services
+	if c.AIService != nil {
+		if err := c.AIService.Shutdown(ctx); err != nil {
+			shutdownErrors = append(shutdownErrors, fmt.Errorf("AIService shutdown: %w", err))
+		}
+	}
+
+	// Stop file watcher
+	if c.Watcher != nil {
+		c.Watcher.Stop()
+	}
+
+	// Shutdown lazy service manager
+	if c.lazyManager != nil {
+		// Force unload all services on shutdown
+		c.lazyManager.UnloadUnusedServices(0)
+	}
+
+	if len(shutdownErrors) > 0 {
+		c.Log.Warning(fmt.Sprintf("Container shutdown completed with %d errors", len(shutdownErrors)))
+		return fmt.Errorf("shutdown errors: %v", shutdownErrors)
+	}
+
+	c.Log.Info("Container shutdown complete")
+	return nil
 }

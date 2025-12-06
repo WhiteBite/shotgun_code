@@ -10,6 +10,8 @@ export function AddRecentProject(arg1:string,arg2:string):Promise<void>;
 
 export function AddRepairRule(arg1:domain.RepairRule):Promise<void>;
 
+export function AddToGitignore(arg1:string,arg2:string):Promise<void>;
+
 export function AnalyzeFile(arg1:string,arg2:string):Promise<domain.StaticAnalysisResult>;
 
 export function AnalyzeGoProject(arg1:string):Promise<domain.StaticAnalysisResult>;
@@ -34,15 +36,25 @@ export function BuildAndTypeCheck(arg1:string,arg2:string):Promise<domain.BuildR
 
 export function BuildContext(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 
-export function BuildContextFromRequest(arg1:string,arg2:Array<string>,arg3:domain.ContextBuildOptions):Promise<domain.ContextSummaryInfo>;
+export function BuildContextAtRef(arg1:string,arg2:Array<string>,arg3:string,arg4:string):Promise<string>;
 
-export function BuildContextLegacy(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
+export function BuildContextFromRequest(arg1:string,arg2:Array<string>,arg3:domain.ContextBuildOptions):Promise<domain.ContextSummary>;
+
+export function BuildContextLegacy():Promise<string>;
 
 export function BuildSymbolGraph(arg1:string,arg2:string):Promise<domain.SymbolGraph>;
 
 export function CancelAutonomousTask(arg1:string):Promise<void>;
 
+export function CheckoutBranch(arg1:string,arg2:string):Promise<void>;
+
+export function CheckoutCommit(arg1:string,arg2:string):Promise<void>;
+
 export function CleanupTempFiles(arg1:string):Promise<void>;
+
+export function CleanupTempRepository(arg1:string):Promise<void>;
+
+export function CloneRepository(arg1:string):Promise<string>;
 
 export function CloseStreamingContext(arg1:string):Promise<void>;
 
@@ -78,6 +90,8 @@ export function GenerateAndPublishDiff(arg1:string,arg2:string,arg3:domain.DiffF
 
 export function GenerateCode(arg1:string,arg2:string):Promise<string>;
 
+export function GenerateCodeStream(arg1:string,arg2:string):Promise<void>;
+
 export function GenerateCodeWithOptions(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GenerateComplianceReport(arg1:string,arg2:domain.ComplianceRequirements):Promise<domain.ComplianceReport>;
@@ -110,6 +124,8 @@ export function GetBranches(arg1:string):Promise<string>;
 
 export function GetBudgetPolicies():Promise<Array<domain.BudgetPolicy>>;
 
+export function GetCommitHistory(arg1:string,arg2:number):Promise<string>;
+
 export function GetContext(arg1:string):Promise<string>;
 
 export function GetContextContent(arg1:string,arg2:number,arg3:number):Promise<string>;
@@ -120,13 +136,21 @@ export function GetCurrentBranch(arg1:string):Promise<string>;
 
 export function GetCurrentDirectory():Promise<string>;
 
+export function GetCustomIgnoreRules():Promise<string>;
+
 export function GetExportHistory(arg1:string):Promise<string>;
+
+export function GetFileAtRef(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GetFileContentAtCommit(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GetFileStats(arg1:string):Promise<string>;
 
+export function GetFullContextContent(arg1:string):Promise<string>;
+
 export function GetGitignoreContent(arg1:string):Promise<string>;
+
+export function GetGitignoreContentForProject(arg1:string):Promise<string>;
 
 export function GetGuardrailPolicies():Promise<Array<domain.GuardrailPolicy>>;
 
@@ -139,6 +163,8 @@ export function GetProviderInfo():Promise<string>;
 export function GetReadyTasks():Promise<Array<domain.Task>>;
 
 export function GetRecentProjects():Promise<string>;
+
+export function GetRemoteBranches(arg1:string):Promise<string>;
 
 export function GetReport(arg1:string):Promise<string>;
 
@@ -176,13 +202,45 @@ export function GetUXReports(arg1:domain.UXReportType):Promise<Array<domain.UXRe
 
 export function GetUncommittedFiles(arg1:string):Promise<Array<domain.FileStatus>>;
 
+export function GitHubBuildContext(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
+
+export function GitHubGetBranches(arg1:string):Promise<string>;
+
+export function GitHubGetCommits(arg1:string,arg2:string,arg3:number):Promise<string>;
+
+export function GitHubGetDefaultBranch(arg1:string):Promise<string>;
+
+export function GitHubGetFileContent(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function GitHubListFiles(arg1:string,arg2:string):Promise<string>;
+
+export function GitLabBuildContext(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
+
+export function GitLabGetBranches(arg1:string):Promise<string>;
+
+export function GitLabGetCommits(arg1:string,arg2:string,arg3:number):Promise<string>;
+
+export function GitLabGetDefaultBranch(arg1:string):Promise<string>;
+
+export function GitLabGetFileContent(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function GitLabListFiles(arg1:string,arg2:string):Promise<string>;
+
 export function IsGitAvailable():Promise<boolean>;
+
+export function IsGitHubURL(arg1:string):Promise<boolean>;
+
+export function IsGitLabURL(arg1:string):Promise<boolean>;
+
+export function IsGitRepository(arg1:string):Promise<boolean>;
 
 export function ListAutonomousTasks(arg1:string):Promise<string>;
 
 export function ListAvailableModels():Promise<Array<string>>;
 
 export function ListFiles(arg1:string,arg2:boolean,arg3:boolean):Promise<Array<domain.FileNode>>;
+
+export function ListFilesAtRef(arg1:string,arg2:string):Promise<string>;
 
 export function ListReports(arg1:string):Promise<string>;
 
@@ -191,6 +249,12 @@ export function LoadTasks():Promise<Array<domain.Task>>;
 export function PauseTask(arg1:string):Promise<void>;
 
 export function PublishDiff(arg1:domain.DiffResult):Promise<void>;
+
+export function QwenExecuteTask(arg1:string):Promise<string>;
+
+export function QwenGetAvailableModels():Promise<string>;
+
+export function QwenPreviewContext(arg1:string):Promise<string>;
 
 export function ReadFileContent(arg1:string,arg2:string):Promise<string>;
 
@@ -246,9 +310,13 @@ export function SuggestContextFiles(arg1:string,arg2:Array<domain.FileNode>):Pro
 
 export function TestBackend(arg1:string,arg2:string):Promise<string>;
 
+export function TestIgnoreRules(arg1:string,arg2:string):Promise<Array<string>>;
+
 export function TypeCheck(arg1:string,arg2:string):Promise<domain.TypeCheckResult>;
 
 export function UpdateBudgetPolicy(arg1:domain.BudgetPolicy):Promise<void>;
+
+export function UpdateCustomIgnoreRules(arg1:string):Promise<void>;
 
 export function UpdateGuardrailPolicy(arg1:domain.GuardrailPolicy):Promise<void>;
 

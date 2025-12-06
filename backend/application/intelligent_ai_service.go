@@ -6,17 +6,17 @@ import (
 	"math/rand"
 	"shotgun_code/domain"
 	"strings"
+	"sync"
 	"time"
 )
 
 // IntelligentAIService предоставляет интеллектуальные возможности для работы с ИИ
 type IntelligentAIService struct {
-	settingsService  *SettingsService
-	log              domain.Logger
-	providerRegistry map[string]domain.AIProviderFactory
-	providers        map[string]domain.AIProvider
-	rateLimiter      *RateLimiter
-	metrics          *MetricsCollector
+	settingsService *SettingsService
+	log             domain.Logger
+	aiService       *AIService // Используем AIService для базовой работы с провайдерами
+	rateLimiter     *RateLimiter
+	metrics         *MetricsCollector
 }
 
 // NewIntelligentAIService создает новый интеллектуальный сервис ИИ
@@ -28,13 +28,17 @@ func NewIntelligentAIService(
 	metrics *MetricsCollector,
 ) *IntelligentAIService {
 	return &IntelligentAIService{
-		settingsService:  settingsService,
-		log:              log,
-		providerRegistry: providerRegistry,
-		providers:        make(map[string]domain.AIProvider),
-		rateLimiter:      rateLimiter,
-		metrics:          metrics,
+		settingsService: settingsService,
+		log:             log,
+		aiService:       nil, // Will be set by AIService after creation
+		rateLimiter:     rateLimiter,
+		metrics:         metrics,
 	}
+}
+
+// SetAIService устанавливает ссылку на AIService для доступа к провайдерам
+func (s *IntelligentAIService) SetAIService(aiService *AIService) {
+	s.aiService = aiService
 }
 
 // GenerateIntelligentCode выполняет интеллектуальную генерацию кода
@@ -174,65 +178,29 @@ func (s *IntelligentAIService) selectOptimalProvider(
 	req domain.IntelligentRequest,
 	dto domain.SettingsDTO,
 ) (domain.AIProvider, string, error) {
-	// Получаем или создаем провайдер
-	providerType := dto.SelectedProvider
-	if providerType == "" {
-		return nil, "", fmt.Errorf("no AI provider selected")
+	if s.aiService == nil {
+		return nil, "", fmt.Errorf("AIService not initialized")
 	}
 
-	provider, exists := s.providers[providerType]
-	if !exists {
-		var err error
-		provider, err = s.createProvider(providerType, dto)
-		if err != nil {
-			return nil, "", err
-		}
-		s.providers[providerType] = provider
+	// Используем GetProvider из AIService для получения провайдера
+	provider, model, err := s.aiService.GetProvider(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get provider: %w", err)
 	}
 
-	// Выбираем модель
-	model := dto.SelectedModels[providerType]
+	// Если модель не указана, пытаемся выбрать оптимальную
 	if model == "" {
-		// Пытаемся выбрать оптимальную модель
 		if intelligentProvider, ok := provider.(domain.IntelligentAIProvider); ok {
-			model, err := intelligentProvider.SelectOptimalModel(ctx, req.BaseRequest, req.Optimization.ModelSelection)
+			model, err = intelligentProvider.SelectOptimalModel(ctx, req.BaseRequest, req.Optimization.ModelSelection)
 			if err != nil {
 				return nil, "", fmt.Errorf("failed to select optimal model: %w", err)
 			}
-			return provider, model, nil
+		} else {
+			return nil, "", fmt.Errorf("no model selected for provider")
 		}
-		return nil, "", fmt.Errorf("no model selected for provider %s", providerType)
 	}
 
 	return provider, model, nil
-}
-
-// createProvider создает провайдер
-func (s *IntelligentAIService) createProvider(providerType string, dto domain.SettingsDTO) (domain.AIProvider, error) {
-	keyExtractors := map[string]func(domain.SettingsDTO) string{
-		"openai":     func(d domain.SettingsDTO) string { return d.OpenAIAPIKey },
-		"gemini":     func(d domain.SettingsDTO) string { return d.GeminiAPIKey },
-		"openrouter": func(d domain.SettingsDTO) string { return d.OpenRouterAPIKey },
-		"localai":    func(d domain.SettingsDTO) string { return d.LocalAIAPIKey },
-	}
-
-	extractor, ok := keyExtractors[providerType]
-	if !ok {
-		return nil, fmt.Errorf("unsupported AI provider: %s", providerType)
-	}
-
-	apiKey := extractor(dto)
-
-	if apiKey == "" && providerType != "localai" {
-		return nil, fmt.Errorf("API key for %s is not set", providerType)
-	}
-
-	factory, exists := s.providerRegistry[providerType]
-	if !exists {
-		return nil, fmt.Errorf("no factory registered for provider %s", providerType)
-	}
-
-	return factory(providerType, apiKey)
 }
 
 // optimizePrompt оптимизирует промпт
@@ -283,36 +251,10 @@ func (s *IntelligentAIService) tryFallback(
 	req domain.AIRequest,
 	dto domain.SettingsDTO,
 ) (domain.AIResponse, error) {
-	fallbackProviders := []string{"openai", "gemini", "openrouter"}
-
-	for _, providerType := range fallbackProviders {
-		if providerType == dto.SelectedProvider {
-			continue // Пропускаем основной провайдер
-		}
-
-		provider, err := s.createProvider(providerType, dto)
-		if err != nil {
-			s.log.Warning(fmt.Sprintf("Failed to create fallback provider %s: %v", providerType, err))
-			continue
-		}
-
-		// Пробуем с fallback моделью
-		fallbackModel := dto.SelectedModels[providerType]
-		if fallbackModel == "" {
-			continue
-		}
-
-		req.Model = fallbackModel
-		response, err := provider.Generate(ctx, req)
-		if err == nil {
-			s.log.Info(fmt.Sprintf("Successfully used fallback provider %s", providerType))
-			return response, nil
-		}
-
-		s.log.Warning(fmt.Sprintf("Fallback provider %s failed: %v", providerType, err))
-	}
-
-	return domain.AIResponse{}, fmt.Errorf("all fallback providers failed")
+	// Fallback не поддерживается в упрощенной версии
+	// В будущем можно добавить через AIService
+	s.log.Warning("Fallback providers not supported in current implementation")
+	return domain.AIResponse{}, fmt.Errorf("fallback not supported")
 }
 
 // analyzeResponse анализирует ответ
@@ -388,25 +330,88 @@ func generateRequestID() string {
 	return fmt.Sprintf("req_%d_%d", time.Now().Unix(), rand.Intn(1000))
 }
 
-// RateLimiter простой rate limiter
+// RateLimiter implements token bucket rate limiting per provider
 type RateLimiter struct {
-	limits map[string]*time.Ticker
+	buckets map[string]*tokenBucket
+	mu      sync.RWMutex
+	config  map[string]rateLimitConfig
+}
+
+type tokenBucket struct {
+	tokens     float64
+	lastRefill time.Time
+	mu         sync.Mutex
+}
+
+type rateLimitConfig struct {
+	tokensPerSecond float64
+	maxTokens       float64
 }
 
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		limits: make(map[string]*time.Ticker),
+		buckets: make(map[string]*tokenBucket),
+		config: map[string]rateLimitConfig{
+			"openai":     {tokensPerSecond: 10, maxTokens: 60},
+			"gemini":     {tokensPerSecond: 10, maxTokens: 60},
+			"openrouter": {tokensPerSecond: 5, maxTokens: 30},
+			"localai":    {tokensPerSecond: 100, maxTokens: 100}, // Local has no real limit
+		},
 	}
 }
 
 func (r *RateLimiter) CheckLimit(provider string) error {
-	// Простая реализация - в реальном проекте нужно использовать более сложную логику
+	r.mu.RLock()
+	bucket, exists := r.buckets[provider]
+	r.mu.RUnlock()
+
+	if !exists {
+		r.mu.Lock()
+		// Double-check after acquiring write lock
+		if bucket, exists = r.buckets[provider]; !exists {
+			config := r.config[provider]
+			if config.maxTokens == 0 {
+				config = rateLimitConfig{tokensPerSecond: 10, maxTokens: 60}
+			}
+			bucket = &tokenBucket{
+				tokens:     config.maxTokens,
+				lastRefill: time.Now(),
+			}
+			r.buckets[provider] = bucket
+		}
+		r.mu.Unlock()
+	}
+
+	bucket.mu.Lock()
+	defer bucket.mu.Unlock()
+
+	// Refill tokens based on time elapsed
+	config := r.config[provider]
+	if config.maxTokens == 0 {
+		config = rateLimitConfig{tokensPerSecond: 10, maxTokens: 60}
+	}
+
+	elapsed := time.Since(bucket.lastRefill).Seconds()
+	bucket.tokens += elapsed * config.tokensPerSecond
+	if bucket.tokens > config.maxTokens {
+		bucket.tokens = config.maxTokens
+	}
+	bucket.lastRefill = time.Now()
+
+	// Check if we have a token
+	if bucket.tokens < 1 {
+		return fmt.Errorf("rate limit exceeded for provider %s, please wait", provider)
+	}
+
+	bucket.tokens--
 	return nil
 }
 
-// MetricsCollector сборщик метрик
+// MetricsCollector сборщик метрик (thread-safe)
 type MetricsCollector struct {
 	generations []GenerationMetric
+	mu          sync.RWMutex
+	maxSize     int
 }
 
 type GenerationMetric struct {
@@ -419,7 +424,8 @@ type GenerationMetric struct {
 
 func NewMetricsCollector() *MetricsCollector {
 	return &MetricsCollector{
-		generations: make([]GenerationMetric, 0),
+		generations: make([]GenerationMetric, 0, 1000),
+		maxSize:     1000,
 	}
 }
 
@@ -431,5 +437,37 @@ func (m *MetricsCollector) RecordGeneration(provider, model string, duration tim
 		TokensUsed: tokens,
 		Timestamp:  time.Now(),
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Limit size to prevent unbounded growth
+	if len(m.generations) >= m.maxSize {
+		// Remove oldest 10%
+		m.generations = m.generations[m.maxSize/10:]
+	}
 	m.generations = append(m.generations, metric)
+}
+
+// GetMetrics returns aggregated metrics
+func (m *MetricsCollector) GetMetrics() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	totalTokens := 0
+	totalDuration := time.Duration(0)
+	providerCounts := make(map[string]int)
+
+	for _, gen := range m.generations {
+		totalTokens += gen.TokensUsed
+		totalDuration += gen.Duration
+		providerCounts[gen.Provider]++
+	}
+
+	return map[string]interface{}{
+		"total_generations": len(m.generations),
+		"total_tokens":      totalTokens,
+		"total_duration_ms": totalDuration.Milliseconds(),
+		"by_provider":       providerCounts,
+	}
 }

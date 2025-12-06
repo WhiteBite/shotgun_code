@@ -9,7 +9,11 @@ import (
 	"shotgun_code/application"
 	"shotgun_code/cmd/app"
 	"shotgun_code/domain"
+	"shotgun_code/handlers"
+	"shotgun_code/infrastructure/git"
 	"shotgun_code/infrastructure/wailsbridge"
+	contextservice "shotgun_code/internal/context"
+	projectservice "shotgun_code/internal/project"
 	"strings"
 	"time"
 )
@@ -20,8 +24,22 @@ type contextAnalysisService interface {
 }
 
 type App struct {
-	ctx                   context.Context
-	projectService        *application.ProjectService
+	ctx       context.Context
+	log       domain.Logger
+	bridge    *wailsbridge.Bridge
+	container *app.AppContainer
+
+	// Handlers (new architecture) - primary delegation targets
+	projectHandler  *handlers.ProjectHandler
+	contextHandler  *handlers.ContextHandler
+	aiHandler       *handlers.AIHandler
+	analysisHandler *handlers.AnalysisHandler
+	settingsHandler *handlers.SettingsHandler
+	taskflowHandler *handlers.TaskflowHandler
+
+	// Services (kept for methods not yet migrated to handlers)
+	projectService        *projectservice.Service
+	contextService        *contextservice.Service
 	aiService             *application.AIService
 	settingsService       *application.SettingsService
 	contextAnalysis       contextAnalysisService
@@ -40,21 +58,34 @@ type App struct {
 	gitRepo               domain.GitRepository
 	exportService         *application.ExportService
 	fileReader            domain.FileContentReader
-	contextBuilder        domain.ContextBuilder
-	contextRepository     domain.ContextRepository
 	reportService         *application.ReportService
-	bridge                *wailsbridge.Bridge
-	log                   domain.Logger
+
 	// Task Protocol Services
 	taskProtocolService         domain.TaskProtocolService
 	taskProtocolConfigService   *application.TaskProtocolConfigService
 	taskflowProtocolIntegration *application.TaskflowProtocolIntegration
+
+	// Qwen Services
+	qwenHandler *handlers.QwenHandler
 }
 
 func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.ctx = ctx
 	a.log = container.Log
+	a.bridge = container.Bridge
+	a.container = container
+
+	// Initialize handlers from container
+	a.projectHandler = container.ProjectHandler
+	a.contextHandler = container.ContextHandler
+	a.aiHandler = container.AIHandler
+	a.analysisHandler = container.AnalysisHandler
+	a.settingsHandler = container.SettingsHandler
+	a.taskflowHandler = container.TaskflowHandler
+
+	// Services (for methods not yet migrated)
 	a.projectService = container.ProjectService
+	a.contextService = container.ContextService
 	a.aiService = container.AIService
 	a.settingsService = container.SettingsService
 	if analyzer, ok := container.ContextAnalysis.(contextAnalysisService); ok {
@@ -80,14 +111,15 @@ func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.gitRepo = container.GitRepo
 	a.exportService = container.ExportService
 	a.fileReader = container.FileReader
-	a.contextBuilder = container.ContextBuilder
-	a.contextRepository = container.ContextRepository
 	a.reportService = container.ReportService
-	a.bridge = container.Bridge
+
 	// Task Protocol Services
 	a.taskProtocolService = container.TaskProtocolService
 	a.taskProtocolConfigService = container.TaskProtocolConfigService
 	a.taskflowProtocolIntegration = container.TaskflowProtocolIntegration
+
+	// Qwen Handler
+	a.qwenHandler = container.QwenHandler
 }
 
 func (a *App) domReady(ctx context.Context) {
@@ -97,6 +129,15 @@ func (a *App) domReady(ctx context.Context) {
 
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
+	
+	// Shutdown container services first
+	if a.container != nil {
+		if err := a.container.Shutdown(ctx); err != nil {
+			a.log.Warning("Container shutdown error: " + err.Error())
+		}
+	}
+	
+	// Stop file watcher
 	a.fileWatcher.Stop()
 }
 
@@ -110,35 +151,44 @@ func (a *App) GetCurrentDirectory() (string, error) {
 }
 
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
-	return a.projectService.ListFiles(dirPath, useGitignore, useCustomIgnore)
+	return a.projectHandler.ListFiles(dirPath, useGitignore, useCustomIgnore)
 }
 
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {
-	a.projectService.GenerateContext(a.ctx, rootDir, includedPaths)
+	a.projectHandler.GenerateContext(a.ctx, rootDir, includedPaths)
 }
 
 func (a *App) GenerateCode(systemPrompt, userPrompt string) (string, error) {
-	return a.aiService.GenerateCode(a.ctx, systemPrompt, userPrompt)
+	return a.aiHandler.GenerateCode(a.ctx, systemPrompt, userPrompt)
+}
+
+// GenerateCodeStream generates code with streaming response via Wails events
+func (a *App) GenerateCodeStream(systemPrompt, userPrompt string) {
+	go func() {
+		a.aiHandler.GenerateCodeStream(a.ctx, systemPrompt, userPrompt, func(chunk domain.StreamChunk) {
+			a.bridge.Emit("ai:stream:chunk", chunk)
+		})
+	}()
 }
 
 // BuildSymbolGraph строит граф символов для проекта
 func (a *App) BuildSymbolGraph(projectRoot, language string) (*domain.SymbolGraph, error) {
-	return a.symbolGraph.BuildSymbolGraph(a.ctx, projectRoot, language)
+	return a.analysisHandler.BuildSymbolGraph(a.ctx, projectRoot, language)
 }
 
 // GetSymbolSuggestions возвращает предложения символов
 func (a *App) GetSymbolSuggestions(query, language string, graph *domain.SymbolGraph) ([]*domain.SymbolNode, error) {
-	return a.symbolGraph.GetSuggestions(a.ctx, query, language, graph)
+	return a.analysisHandler.GetSymbolSuggestions(a.ctx, query, language, graph)
 }
 
 // GetSymbolDependencies возвращает зависимости символа
 func (a *App) GetSymbolDependencies(symbolID, language string, graph *domain.SymbolGraph) ([]*domain.SymbolNode, error) {
-	return a.symbolGraph.GetDependencies(a.ctx, symbolID, language, graph)
+	return a.analysisHandler.GetSymbolDependencies(a.ctx, symbolID, language, graph)
 }
 
 // GetSymbolDependents возвращает символы, зависящие от указанного
 func (a *App) GetSymbolDependents(symbolID, language string, graph *domain.SymbolGraph) ([]*domain.SymbolNode, error) {
-	return a.symbolGraph.GetDependents(a.ctx, symbolID, language, graph)
+	return a.analysisHandler.GetSymbolDependents(a.ctx, symbolID, language, graph)
 }
 
 // ApplyEdits применяет правки из Edits JSON
@@ -188,132 +238,132 @@ func (a *App) GenerateAndPublishDiff(beforePath, afterPath string, format domain
 
 // Build выполняет сборку проекта
 func (a *App) Build(projectPath, language string) (*domain.BuildResult, error) {
-	return a.buildService.Build(a.ctx, projectPath, language)
+	return a.analysisHandler.Build(a.ctx, projectPath, language)
 }
 
 // TypeCheck выполняет проверку типов
 func (a *App) TypeCheck(projectPath, language string) (*domain.TypeCheckResult, error) {
-	return a.buildService.TypeCheck(a.ctx, projectPath, language)
+	return a.analysisHandler.TypeCheck(a.ctx, projectPath, language)
 }
 
 // BuildAndTypeCheck выполняет сборку и проверку типов
 func (a *App) BuildAndTypeCheck(projectPath, language string) (*domain.BuildResult, *domain.TypeCheckResult, error) {
-	return a.buildService.BuildAndTypeCheck(a.ctx, projectPath, language)
+	return a.analysisHandler.BuildAndTypeCheck(a.ctx, projectPath, language)
 }
 
 // ValidateProject выполняет полную валидацию проекта
 func (a *App) ValidateProject(projectPath string, languages []string) (*domain.ProjectValidationResult, error) {
-	return a.buildService.ValidateProject(a.ctx, projectPath, languages)
+	return a.analysisHandler.ValidateProject(a.ctx, projectPath, languages)
 }
 
 // DetectLanguages определяет языки в проекте
 func (a *App) DetectLanguages(projectPath string) ([]string, error) {
-	return a.buildService.DetectLanguages(a.ctx, projectPath)
+	return a.analysisHandler.DetectLanguages(a.ctx, projectPath)
 }
 
 // RunTests выполняет тесты согласно конфигурации
 func (a *App) RunTests(config *domain.TestConfig) ([]*domain.TestResult, error) {
-	return a.testService.RunTests(a.ctx, config)
+	return a.analysisHandler.RunTests(a.ctx, config)
 }
 
 // RunTargetedTests выполняет целевые тесты для затронутых файлов
 func (a *App) RunTargetedTests(config *domain.TestConfig, changedFiles []string) ([]*domain.TestResult, error) {
-	return a.testService.RunTargetedTests(a.ctx, config, changedFiles)
+	return a.analysisHandler.RunTargetedTests(a.ctx, config, changedFiles)
 }
 
 // DiscoverTests обнаруживает тесты в проекте
 func (a *App) DiscoverTests(projectPath, language string) (*domain.TestSuite, error) {
-	return a.testService.DiscoverTests(a.ctx, projectPath, language)
+	return a.analysisHandler.DiscoverTests(a.ctx, projectPath, language)
 }
 
 // BuildAffectedGraph строит граф затронутых файлов
 func (a *App) BuildAffectedGraph(changedFiles []string, projectPath string) (*domain.AffectedGraph, error) {
-	return a.testService.BuildAffectedGraph(a.ctx, changedFiles, projectPath)
+	return a.analysisHandler.BuildAffectedGraph(a.ctx, changedFiles, projectPath)
 }
 
 // RunSmokeTests выполняет только smoke тесты
 func (a *App) RunSmokeTests(projectPath, language string) ([]*domain.TestResult, error) {
-	return a.testService.RunSmokeTests(a.ctx, projectPath, language)
+	return a.analysisHandler.RunSmokeTests(a.ctx, projectPath, language)
 }
 
 // RunUnitTests выполняет только unit тесты
 func (a *App) RunUnitTests(projectPath, language string) ([]*domain.TestResult, error) {
-	return a.testService.RunUnitTests(a.ctx, projectPath, language)
+	return a.analysisHandler.RunUnitTests(a.ctx, projectPath, language)
 }
 
 // RunIntegrationTests выполняет только integration тесты
 func (a *App) RunIntegrationTests(projectPath, language string) ([]*domain.TestResult, error) {
-	return a.testService.RunIntegrationTests(a.ctx, projectPath, language)
+	return a.analysisHandler.RunIntegrationTests(a.ctx, projectPath, language)
 }
 
 // ValidateTestResults валидирует результаты тестов
 func (a *App) ValidateTestResults(results []*domain.TestResult) *domain.TestValidationResult {
-	return a.testService.ValidateTestResults(results)
+	return a.analysisHandler.ValidateTestResults(results)
 }
 
 // AnalyzeProject выполняет статический анализ проекта
 func (a *App) AnalyzeProject(projectPath string, languages []string) (*domain.StaticAnalysisReport, error) {
-	return a.staticAnalyzerService.AnalyzeProject(a.ctx, projectPath, languages)
+	return a.analysisHandler.AnalyzeProject(a.ctx, projectPath, languages)
 }
 
 // AnalyzeFile выполняет статический анализ одного файла
 func (a *App) AnalyzeFile(filePath, language string) (*domain.StaticAnalysisResult, error) {
-	return a.staticAnalyzerService.AnalyzeFile(a.ctx, filePath, language)
+	return a.analysisHandler.AnalyzeFile(a.ctx, filePath, language)
 }
 
 // AnalyzeGoProject выполняет статический анализ Go проекта
 func (a *App) AnalyzeGoProject(projectPath string) (*domain.StaticAnalysisResult, error) {
-	return a.staticAnalyzerService.AnalyzeGoProject(a.ctx, projectPath)
+	return a.analysisHandler.AnalyzeGoProject(a.ctx, projectPath)
 }
 
 // AnalyzeTypeScriptProject выполняет статический анализ TypeScript проекта
 func (a *App) AnalyzeTypeScriptProject(projectPath string) (*domain.StaticAnalysisResult, error) {
-	return a.staticAnalyzerService.AnalyzeTypeScriptProject(a.ctx, projectPath)
+	return a.analysisHandler.AnalyzeTypeScriptProject(a.ctx, projectPath)
 }
 
 // AnalyzeJavaScriptProject выполняет статический анализ JavaScript проекта
 func (a *App) AnalyzeJavaScriptProject(projectPath string) (*domain.StaticAnalysisResult, error) {
-	return a.staticAnalyzerService.AnalyzeJavaScriptProject(a.ctx, projectPath)
+	return a.analysisHandler.AnalyzeJavaScriptProject(a.ctx, projectPath)
 }
 
 // GetSupportedAnalyzers возвращает поддерживаемые анализаторы
 func (a *App) GetSupportedAnalyzers() []domain.StaticAnalyzerType {
-	return a.staticAnalyzerService.GetSupportedAnalyzers()
+	return a.analysisHandler.GetSupportedAnalyzers()
 }
 
 // ValidateAnalysisResults валидирует результаты статического анализа
 func (a *App) ValidateAnalysisResults(results map[string]*domain.StaticAnalysisResult) *domain.StaticAnalysisValidationResult {
-	return a.staticAnalyzerService.ValidateAnalysisResults(results)
+	return a.analysisHandler.ValidateAnalysisResults(results)
 }
 
 // GenerateSBOM генерирует SBOM для проекта
 func (a *App) GenerateSBOM(projectPath string, format domain.SBOMFormat) (*domain.SBOMResult, error) {
-	return a.sbomService.GenerateSBOM(a.ctx, projectPath, format)
+	return a.analysisHandler.GenerateSBOM(a.ctx, projectPath, format)
 }
 
 // ScanVulnerabilities сканирует уязвимости в проекте
 func (a *App) ScanVulnerabilities(projectPath string) (*domain.VulnerabilityScanResult, error) {
-	return a.sbomService.ScanVulnerabilities(a.ctx, projectPath)
+	return a.analysisHandler.ScanVulnerabilities(a.ctx, projectPath)
 }
 
 // ScanLicenses сканирует лицензии в проекте
 func (a *App) ScanLicenses(projectPath string) (*domain.LicenseScanResult, error) {
-	return a.sbomService.ScanLicenses(a.ctx, projectPath)
+	return a.analysisHandler.ScanLicenses(a.ctx, projectPath)
 }
 
 // GenerateComplianceReport генерирует отчет о соответствии
 func (a *App) GenerateComplianceReport(projectPath string, requirements *domain.ComplianceRequirements) (*domain.ComplianceReport, error) {
-	return a.sbomService.GenerateComplianceReport(a.ctx, projectPath, requirements)
+	return a.analysisHandler.GenerateComplianceReport(a.ctx, projectPath, requirements)
 }
 
 // GetSupportedSBOMFormats возвращает поддерживаемые форматы SBOM
 func (a *App) GetSupportedSBOMFormats() []domain.SBOMFormat {
-	return a.sbomService.GetSupportedSBOMFormats()
+	return a.analysisHandler.GetSupportedSBOMFormats()
 }
 
 // ValidateSBOM валидирует SBOM
 func (a *App) ValidateSBOM(sbomPath string, format domain.SBOMFormat) error {
-	return a.sbomService.ValidateSBOM(a.ctx, sbomPath, format)
+	return a.analysisHandler.ValidateSBOM(a.ctx, sbomPath, format)
 }
 
 // ExecuteRepair выполняет repair цикл
@@ -449,99 +499,31 @@ func (a *App) ResetTaskflow() error {
 
 // GenerateIntelligentCode выполняет интеллектуальную генерацию кода
 func (a *App) GenerateIntelligentCode(task, context, optionsJson string) (string, error) {
-	var options application.IntelligentGenerationOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
-		validationErr := domain.NewValidationError("failed to parse options JSON", map[string]interface{}{
-			"originalError": err.Error(),
-			"optionsJson":   optionsJson,
-		})
-		return "", a.transformError(validationErr)
-	}
-
-	result, err := a.aiService.GenerateIntelligentCode(a.ctx, task, context, options)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	// Возвращаем результат как JSON
-	resultJson, err := json.Marshal(result)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal result", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(resultJson), nil
+	return a.aiHandler.GenerateIntelligentCode(a.ctx, task, context, optionsJson)
 }
 
 // GenerateCodeWithOptions генерирует код с дополнительными опциями
 func (a *App) GenerateCodeWithOptions(systemPrompt, userPrompt, optionsJson string) (string, error) {
-	var options application.CodeGenerationOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
-		return "", fmt.Errorf("failed to parse options JSON: %w", err)
-	}
-
-	return a.aiService.GenerateCodeWithOptions(a.ctx, systemPrompt, userPrompt, options)
+	return a.aiHandler.GenerateCodeWithOptions(a.ctx, systemPrompt, userPrompt, optionsJson)
 }
 
 // GetProviderInfo возвращает информацию о текущем провайдере
 func (a *App) GetProviderInfo() (string, error) {
-	info, err := a.aiService.GetProviderInfo(a.ctx)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	infoJson, err := json.Marshal(info)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal provider info", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(infoJson), nil
+	return a.aiHandler.GetProviderInfo(a.ctx)
 }
 
 // ListAvailableModels возвращает список доступных моделей
 func (a *App) ListAvailableModels() ([]string, error) {
-	return a.aiService.ListAvailableModels(a.ctx)
+	return a.aiHandler.ListAvailableModels(a.ctx)
 }
 
 func (a *App) SuggestContextFiles(task string, allFiles []*domain.FileNode) ([]string, error) {
-	if a.contextAnalysis == nil {
-		return nil, a.transformError(domain.NewConfigurationError("context analysis service not available", nil))
-	}
-
-	files, err := a.contextAnalysis.SuggestFiles(a.ctx, task, allFiles)
-	if err != nil {
-		return nil, a.transformError(err)
-	}
-
-	return files, nil
+	return a.aiHandler.SuggestContextFiles(a.ctx, task, allFiles)
 }
 
 // AnalyzeTaskAndCollectContext анализирует задачу и собирает релевантный контекст
 func (a *App) AnalyzeTaskAndCollectContext(task string, allFilesJson string, rootDir string) (string, error) {
-	var allFiles []*domain.FileNode
-	if err := json.Unmarshal([]byte(allFilesJson), &allFiles); err != nil {
-		return "", domain.NewValidationError("invalid allFiles JSON", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	if a.contextAnalysis == nil {
-		return "", a.transformError(domain.NewConfigurationError("context analysis service not available", nil))
-	}
-
-	result, err := a.contextAnalysis.AnalyzeTaskAndCollectContext(a.ctx, task, allFiles, rootDir)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-
-	resultJson, err := json.Marshal(result)
-	if err != nil {
-		marshalErr := domain.NewInternalError("failed to marshal analysis result", err)
-		return "", a.transformError(marshalErr)
-	}
-
-	return string(resultJson), nil
+	return a.aiHandler.AnalyzeTaskAndCollectContext(a.ctx, task, allFilesJson, rootDir)
 }
 
 // TestBackend простой тест для проверки работы backend
@@ -573,63 +555,47 @@ func (a *App) TestBackend(allFilesJson string, rootDir string) (string, error) {
 }
 
 func (a *App) GetSettings() (domain.SettingsDTO, error) {
-	return a.settingsService.GetSettingsDTO()
+	return a.settingsHandler.GetSettings()
 }
 
 func (a *App) SaveSettings(settingsJson string) error {
-	var dto domain.SettingsDTO
-	err := json.Unmarshal([]byte(settingsJson), &dto)
-	if err != nil {
-		return fmt.Errorf("failed to parse settings JSON: %w", err)
-	}
-	return a.settingsService.SaveSettingsDTO(dto)
+	return a.settingsHandler.SaveSettings(settingsJson)
 }
 
 func (a *App) RefreshAIModels(provider, apiKey string) error {
-	return a.settingsService.RefreshModels(provider, apiKey)
+	return a.settingsHandler.RefreshAIModels(provider, apiKey)
 }
 
 func (a *App) StartFileWatcher(rootDirPath string) error {
-	return a.fileWatcher.Start(rootDirPath)
+	return a.projectHandler.StartFileWatcher(rootDirPath)
 }
 
 func (a *App) StopFileWatcher() {
-	a.fileWatcher.Stop()
+	a.projectHandler.StopFileWatcher()
 }
 
 func (a *App) IsGitAvailable() bool {
-	return a.gitRepo.IsGitAvailable()
+	return a.projectHandler.IsGitAvailable()
 }
 
 func (a *App) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
-	return a.gitRepo.GetUncommittedFiles(projectRoot)
+	return a.projectHandler.GetUncommittedFiles(projectRoot)
 }
 
 func (a *App) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
-	return a.gitRepo.GetRichCommitHistory(projectRoot, branchName, limit)
+	return a.projectHandler.GetRichCommitHistory(projectRoot, branchName, limit)
 }
 
 func (a *App) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
-	return a.gitRepo.GetFileContentAtCommit(projectRoot, filePath, commitHash)
+	return a.projectHandler.GetFileContentAtCommit(projectRoot, filePath, commitHash)
 }
 
 func (a *App) GetGitignoreContent(projectRoot string) (string, error) {
-	return a.gitRepo.GetGitignoreContent(projectRoot)
+	return a.projectHandler.GetGitignoreContent(projectRoot)
 }
 
 func (a *App) ReadFileContent(rootDir, relPath string) (string, error) {
-	contents, err := a.fileReader.ReadContents(a.ctx, []string{relPath}, rootDir, nil)
-	if err != nil {
-		return "", a.transformError(err)
-	}
-	if content, ok := contents[relPath]; ok {
-		return content, nil
-	}
-	fileErr := domain.NewValidationError("file not found or could not be read", map[string]interface{}{
-		"rootDir": rootDir,
-		"relPath": relPath,
-	})
-	return "", a.transformError(fileErr)
+	return a.projectHandler.ReadFileContent(a.ctx, rootDir, relPath)
 }
 
 func (a *App) ExportContext(settingsJson string) (domain.ExportResult, error) {
@@ -838,8 +804,8 @@ func (a *App) GetReport(reportId string) (string, error) {
 // CRITICAL OOM FIX: BuildContext now returns ContextSummary instead of full context
 // This prevents OOM issues by not storing large text content in memory
 func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJson string) (string, error) {
-	if a.contextBuilder == nil {
-		return "", a.transformError(domain.NewConfigurationError("context builder not available", nil))
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
 	var options domain.ContextBuildOptions
@@ -853,15 +819,13 @@ func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJs
 		}
 	}
 
+	// Allow empty includedPaths for backward compatibility - use all files from projectPath
 	if len(includedPaths) == 0 {
-		validationErr := domain.NewValidationError("no files provided for context build", map[string]interface{}{
-			"projectPath":   projectPath,
-			"includedPaths": includedPaths,
-		})
-		return "", a.transformError(validationErr)
+		a.log.Warning("BuildContext called with empty includedPaths - this may include all project files")
+		// In future, we could auto-discover files here, but for now just warn
 	}
 
-	summary, err := a.contextBuilder.BuildContext(a.ctx, projectPath, includedPaths, &options)
+	summary, err := a.contextService.BuildContextSummary(a.ctx, projectPath, includedPaths, &options)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -878,15 +842,15 @@ func (a *App) BuildContext(projectPath string, includedPaths []string, optionsJs
 // GetContextContent returns paginated context content for memory-safe viewing
 // This allows accessing context content without loading it all into memory
 func (a *App) GetContextContent(contextID string, startLine int, lineCount int) (string, error) {
-	if a.contextRepository == nil {
-		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
 	if lineCount <= 0 {
 		lineCount = 1000
 	}
 
-	chunk, err := a.contextRepository.ReadContextChunk(a.ctx, contextID, startLine, lineCount)
+	chunk, err := a.contextService.ReadContextChunk(a.ctx, contextID, startLine, lineCount)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -900,6 +864,21 @@ func (a *App) GetContextContent(contextID string, startLine int, lineCount int) 
 	return string(chunkJson), nil
 }
 
+// GetFullContextContent returns the full context content as a string
+// This method is needed for export functionality when the entire context text is required at once
+func (a *App) GetFullContextContent(contextID string) (string, error) {
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
+	}
+
+	content, err := a.contextService.ReadContextContent(a.ctx, contextID)
+	if err != nil {
+		return "", a.transformError(err)
+	}
+
+	return content, nil
+}
+
 // Legacy BuildContextLegacy for backward compatibility - DEPRECATED
 // The disk-based context architecture replaces this functionality
 func (a *App) BuildContextLegacy() (string, error) {
@@ -908,11 +887,11 @@ func (a *App) BuildContextLegacy() (string, error) {
 
 // GetContext retrieves context metadata by ID without loading full content into memory
 func (a *App) GetContext(contextID string) (string, error) {
-	if a.contextRepository == nil {
-		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
-	summary, err := a.contextRepository.GetContextSummary(a.ctx, contextID)
+	summary, err := a.contextService.GetContextSummary(a.ctx, contextID)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -928,11 +907,11 @@ func (a *App) GetContext(contextID string) (string, error) {
 
 // GetProjectContexts lists all stored context summaries for a project path
 func (a *App) GetProjectContexts(projectPath string) (string, error) {
-	if a.contextRepository == nil {
-		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
-	summaries, err := a.contextRepository.GetProjectContextSummaries(a.ctx, projectPath)
+	summaries, err := a.contextService.GetProjectContextSummaries(a.ctx, projectPath)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -948,11 +927,11 @@ func (a *App) GetProjectContexts(projectPath string) (string, error) {
 
 // DeleteContext removes context metadata and associated content from disk
 func (a *App) DeleteContext(contextID string) error {
-	if a.contextRepository == nil {
-		return a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	if a.contextService == nil {
+		return a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
-	if err := a.contextRepository.DeleteContext(a.ctx, contextID); err != nil {
+	if err := a.contextService.DeleteContext(a.ctx, contextID); err != nil {
 		return a.transformError(err)
 	}
 
@@ -961,22 +940,22 @@ func (a *App) DeleteContext(contextID string) error {
 
 // BuildContextFromRequest builds context using provided options and returns ContextSummary
 func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummary, error) {
-	if a.contextBuilder == nil {
-		return nil, a.transformError(domain.NewConfigurationError("context builder not available", nil))
+	if a.contextService == nil {
+		return nil, a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
+	// Allow empty includedPaths for backward compatibility
 	if len(includedPaths) == 0 {
-		return nil, a.transformError(domain.NewValidationError("no files provided for context build", map[string]interface{}{
-			"projectPath":   projectPath,
-			"includedPaths": includedPaths,
-		}))
+		a.log.Warning("BuildContextFromRequest called with empty includedPaths")
 	}
 
 	if options == nil {
 		options = &domain.ContextBuildOptions{}
 	}
 
-	summary, err := a.contextBuilder.BuildContext(a.ctx, projectPath, includedPaths, options)
+	// Note: We allow files from any location, not just within projectPath
+	// This gives users flexibility to include files from multiple projects
+	summary, err := a.contextService.BuildContextSummary(a.ctx, projectPath, includedPaths, options)
 	if err != nil {
 		return nil, a.transformError(err)
 	}
@@ -986,8 +965,8 @@ func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string
 
 // GetContextLines returns a chunk of context content between startLine and endLine inclusive
 func (a *App) GetContextLines(contextID string, startLine, endLine int64) (string, error) {
-	if a.contextRepository == nil {
-		return "", a.transformError(domain.NewConfigurationError("context repository not available", nil))
+	if a.contextService == nil {
+		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
 	}
 
 	if endLine < startLine {
@@ -998,7 +977,7 @@ func (a *App) GetContextLines(contextID string, startLine, endLine int64) (strin
 	}
 
 	lineCount := int(endLine-startLine) + 1
-	chunk, err := a.contextRepository.ReadContextChunk(a.ctx, contextID, int(startLine), lineCount)
+	chunk, err := a.contextService.ReadContextChunk(a.ctx, contextID, int(startLine), lineCount)
 	if err != nil {
 		return "", a.transformError(err)
 	}
@@ -1110,6 +1089,358 @@ func (a *App) GetCurrentBranch(projectRoot string) (string, error) {
 	}
 
 	return branch, nil
+}
+
+// IsGitRepository checks if the given path is a git repository
+func (a *App) IsGitRepository(projectPath string) bool {
+	return a.gitRepo.IsGitRepository(projectPath)
+}
+
+// CloneRepository clones a remote git repository
+func (a *App) CloneRepository(url string) (string, error) {
+	// Create temp directory for clone
+	tempDir, err := os.MkdirTemp("", "shotgun-git-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	// Shallow clone for speed
+	if err := a.gitRepo.CloneRepository(url, tempDir, 1); err != nil {
+		os.RemoveAll(tempDir)
+		return "", err
+	}
+
+	return tempDir, nil
+}
+
+// CheckoutBranch switches to a specific branch in a git repository
+func (a *App) CheckoutBranch(projectPath, branch string) error {
+	return a.gitRepo.CheckoutBranch(projectPath, branch)
+}
+
+// CheckoutCommit switches to a specific commit in a git repository
+func (a *App) CheckoutCommit(projectPath, commitHash string) error {
+	return a.gitRepo.CheckoutCommit(projectPath, commitHash)
+}
+
+// GetCommitHistory returns recent commits for selection
+func (a *App) GetCommitHistory(projectPath string, limit int) (string, error) {
+	commits, err := a.gitRepo.GetCommitHistory(projectPath, limit)
+	if err != nil {
+		return "", err
+	}
+
+	commitsJson, err := json.Marshal(commits)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal commits: %w", err)
+	}
+
+	return string(commitsJson), nil
+}
+
+// GetRemoteBranches returns all remote branches
+func (a *App) GetRemoteBranches(projectPath string) (string, error) {
+	branches, err := a.gitRepo.FetchRemoteBranches(projectPath)
+	if err != nil {
+		return "", err
+	}
+
+	branchesJson, err := json.Marshal(branches)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal branches: %w", err)
+	}
+
+	return string(branchesJson), nil
+}
+
+// CleanupTempRepository removes a temporary cloned repository
+func (a *App) CleanupTempRepository(path string) error {
+	// Safety check - only remove paths in temp directory
+	tempDir := os.TempDir()
+	if !strings.HasPrefix(path, tempDir) && !strings.Contains(path, "shotgun-git-") {
+		return fmt.Errorf("refusing to remove non-temp path: %s", path)
+	}
+	return os.RemoveAll(path)
+}
+
+// ListFilesAtRef returns list of files at a specific branch/commit without checkout
+func (a *App) ListFilesAtRef(projectPath, ref string) (string, error) {
+	files, err := a.gitRepo.ListFilesAtRef(projectPath, ref)
+	if err != nil {
+		return "", err
+	}
+	result, err := json.Marshal(files)
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
+}
+
+// GetFileAtRef returns file content at a specific branch/commit without checkout
+func (a *App) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
+	return a.gitRepo.GetFileAtRef(projectPath, filePath, ref)
+}
+
+// BuildContextAtRef builds context from files at a specific git ref without checkout
+func (a *App) BuildContextAtRef(projectPath string, files []string, ref string, optionsJson string) (string, error) {
+	var contents []string
+
+	for _, file := range files {
+		content, err := a.gitRepo.GetFileAtRef(projectPath, file, ref)
+		if err != nil {
+			a.log.Info(fmt.Sprintf("Warning: Failed to read file %s at ref %s: %v", file, ref, err))
+			continue
+		}
+		contents = append(contents, fmt.Sprintf("// File: %s (ref: %s)\n%s", file, ref, content))
+	}
+
+	result := strings.Join(contents, "\n\n---\n\n")
+	return result, nil
+}
+
+// ============================================
+// GitHub API Methods (no clone required)
+// ============================================
+
+// GitHubGetBranches returns branches for a GitHub repository via API
+func (a *App) GitHubGetBranches(repoURL string) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	branches, err := api.GetBranches(repo.Owner, repo.Name)
+	if err != nil {
+		return "", err
+	}
+
+	result, err := json.Marshal(branches)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
+}
+
+// GitHubGetCommits returns commits for a GitHub repository branch via API
+func (a *App) GitHubGetCommits(repoURL, branch string, limit int) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	commits, err := api.GetCommits(repo.Owner, repo.Name, branch, limit)
+	if err != nil {
+		return "", err
+	}
+
+	result, err := json.Marshal(commits)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
+}
+
+// GitHubListFiles returns file list for a GitHub repository at specific ref via API
+func (a *App) GitHubListFiles(repoURL, ref string) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	files, err := api.ListFiles(repo.Owner, repo.Name, ref)
+	if err != nil {
+		return "", err
+	}
+
+	result, err := json.Marshal(files)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
+}
+
+// GitHubGetFileContent returns file content from GitHub repository via API
+func (a *App) GitHubGetFileContent(repoURL, filePath, ref string) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Use raw content for better performance
+	content, err := api.GetRawFileContent(repo.Owner, repo.Name, filePath, ref)
+	if err != nil {
+		return "", err
+	}
+
+	return content, nil
+}
+
+// GitHubBuildContext builds context from GitHub files via API (no clone)
+func (a *App) GitHubBuildContext(repoURL string, files []string, ref string) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	var contents []string
+	for _, file := range files {
+		content, err := api.GetRawFileContent(repo.Owner, repo.Name, file, ref)
+		if err != nil {
+			a.log.Info(fmt.Sprintf("Warning: Failed to read GitHub file %s: %v", file, err))
+			continue
+		}
+		contents = append(contents, fmt.Sprintf("// File: %s (GitHub: %s/%s@%s)\n%s", file, repo.Owner, repo.Name, ref, content))
+	}
+
+	result := strings.Join(contents, "\n\n---\n\n")
+	return result, nil
+}
+
+// GitHubGetDefaultBranch returns the default branch for a GitHub repository
+func (a *App) GitHubGetDefaultBranch(repoURL string) (string, error) {
+	api := git.NewGitHubAPI()
+
+	repo, err := git.ParseGitHubURL(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	return api.GetDefaultBranch(repo.Owner, repo.Name)
+}
+
+// IsGitHubURL checks if URL is a GitHub repository
+func (a *App) IsGitHubURL(url string) bool {
+	return git.IsGitHubURL(url)
+}
+
+// ============ GITLAB API ENDPOINTS ============
+
+// IsGitLabURL checks if URL is a GitLab repository
+func (a *App) IsGitLabURL(url string) bool {
+	return git.IsGitLabURL(url)
+}
+
+// GitLabGetBranches returns branches for a GitLab repository
+func (a *App) GitLabGetBranches(repoURL string) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	branches, err := api.GetBranches(repo.Host, repo.Namespace, repo.Name)
+	if err != nil {
+		return "", fmt.Errorf("failed to get branches: %w", err)
+	}
+
+	branchesJson, err := json.Marshal(branches)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal branches: %w", err)
+	}
+
+	return string(branchesJson), nil
+}
+
+// GitLabGetDefaultBranch returns the default branch for a GitLab repository
+func (a *App) GitLabGetDefaultBranch(repoURL string) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	return api.GetDefaultBranch(repo.Host, repo.Namespace, repo.Name)
+}
+
+// GitLabGetCommits returns commits for a GitLab repository branch
+func (a *App) GitLabGetCommits(repoURL, branch string, limit int) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	commits, err := api.GetCommits(repo.Host, repo.Namespace, repo.Name, branch, limit)
+	if err != nil {
+		return "", fmt.Errorf("failed to get commits: %w", err)
+	}
+
+	commitsJson, err := json.Marshal(commits)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal commits: %w", err)
+	}
+
+	return string(commitsJson), nil
+}
+
+// GitLabListFiles returns list of files in a GitLab repository at a specific ref
+func (a *App) GitLabListFiles(repoURL, ref string) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	files, err := api.ListFiles(repo.Host, repo.Namespace, repo.Name, ref)
+	if err != nil {
+		return "", fmt.Errorf("failed to list files: %w", err)
+	}
+
+	filesJson, err := json.Marshal(files)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal files: %w", err)
+	}
+
+	return string(filesJson), nil
+}
+
+// GitLabGetFileContent returns content of a file from GitLab repository
+func (a *App) GitLabGetFileContent(repoURL, filePath, ref string) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	return api.GetFileContent(repo.Host, repo.Namespace, repo.Name, filePath, ref)
+}
+
+// GitLabBuildContext builds context from GitLab repository files
+func (a *App) GitLabBuildContext(repoURL string, files []string, ref string) (string, error) {
+	repo, err := git.ParseGitLabURL(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GitLab URL: %w", err)
+	}
+
+	api := git.NewGitLabAPI()
+	var contextBuilder strings.Builder
+
+	for _, filePath := range files {
+		content, err := api.GetFileContent(repo.Host, repo.Namespace, repo.Name, filePath, ref)
+		if err != nil {
+			a.log.Warning(fmt.Sprintf("Failed to get file %s: %v", filePath, err))
+			continue
+		}
+
+		contextBuilder.WriteString(fmt.Sprintf("// File: %s\n", filePath))
+		contextBuilder.WriteString(content)
+		contextBuilder.WriteString("\n\n")
+	}
+
+	return contextBuilder.String(), nil
 }
 
 // GenerateReport generates a new report
@@ -1492,4 +1823,157 @@ func (a *App) AddRecentProject(path, name string) error {
 func (a *App) RemoveRecentProject(path string) error {
 	a.settingsService.RemoveRecentProject(path)
 	return a.settingsService.Save()
+}
+
+// ============ IGNORE RULES API ENDPOINTS ============
+
+// GetGitignoreContentForProject returns .gitignore content for a project
+func (a *App) GetGitignoreContentForProject(projectPath string) (string, error) {
+	content, err := a.gitRepo.GetGitignoreContent(projectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get .gitignore content: %w", err)
+	}
+	return content, nil
+}
+
+// GetCustomIgnoreRules returns custom ignore rules from settings
+func (a *App) GetCustomIgnoreRules() (string, error) {
+	dto, err := a.settingsService.GetSettingsDTO()
+	if err != nil {
+		return "", fmt.Errorf("failed to get settings: %w", err)
+	}
+	return dto.CustomIgnoreRules, nil
+}
+
+// UpdateCustomIgnoreRules updates custom ignore rules in settings
+func (a *App) UpdateCustomIgnoreRules(rules string) error {
+	dto, err := a.settingsService.GetSettingsDTO()
+	if err != nil {
+		return fmt.Errorf("failed to get settings: %w", err)
+	}
+	dto.CustomIgnoreRules = rules
+	return a.settingsService.SaveSettingsDTO(dto)
+}
+
+// TestIgnoreRules tests ignore rules against project files
+func (a *App) TestIgnoreRules(projectPath string, rules string) ([]string, error) {
+	// Get all files in project
+	files, err := a.projectService.ListFiles(projectPath, false, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files: %w", err)
+	}
+
+	// Test which files would be ignored
+	var ignoredFiles []string
+	for _, file := range files {
+		if !file.IsDir && a.matchesIgnorePattern(file.RelPath, rules) {
+			ignoredFiles = append(ignoredFiles, file.RelPath)
+		}
+	}
+
+	return ignoredFiles, nil
+}
+
+// matchesIgnorePattern checks if a path matches any ignore pattern
+func (a *App) matchesIgnorePattern(path string, rules string) bool {
+	if rules == "" {
+		return false
+	}
+
+	lines := strings.Split(rules, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Simple pattern matching (can be enhanced with proper gitignore library)
+		if strings.Contains(path, line) || strings.HasSuffix(path, line) {
+			return true
+		}
+
+		// Handle wildcards
+		if strings.Contains(line, "*") {
+			pattern := strings.ReplaceAll(line, "*", ".*")
+			if matched, _ := filepath.Match(pattern, path); matched {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// AddToGitignore adds a pattern to .gitignore file
+func (a *App) AddToGitignore(projectPath string, pattern string) error {
+	gitignorePath := filepath.Join(projectPath, ".gitignore")
+	
+	// Read existing content
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read .gitignore: %w", err)
+	}
+
+	// Append new pattern
+	newContent := string(content)
+	if !strings.HasSuffix(newContent, "\n") && newContent != "" {
+		newContent += "\n"
+	}
+	newContent += pattern + "\n"
+
+	// Write back
+	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .gitignore: %w", err)
+	}
+
+	return nil
+}
+
+
+// ==================== Qwen Task Methods ====================
+
+// QwenExecuteTask executes a task using Qwen with smart context collection
+func (a *App) QwenExecuteTask(requestJson string) (string, error) {
+	var req handlers.ExecuteTaskRequest
+	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+		return "", fmt.Errorf("failed to parse request: %w", err)
+	}
+
+	result := a.qwenHandler.ExecuteTask(req)
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return string(resultJson), nil
+}
+
+// QwenPreviewContext returns a preview of the context that would be collected
+func (a *App) QwenPreviewContext(requestJson string) (string, error) {
+	var req handlers.ExecuteTaskRequest
+	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+		return "", fmt.Errorf("failed to parse request: %w", err)
+	}
+
+	result := a.qwenHandler.PreviewContext(req)
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return string(resultJson), nil
+}
+
+// QwenGetAvailableModels returns available Qwen models
+func (a *App) QwenGetAvailableModels() (string, error) {
+	models := a.qwenHandler.GetAvailableModels()
+
+	resultJson, err := json.Marshal(models)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal models: %w", err)
+	}
+
+	return string(resultJson), nil
 }

@@ -8,6 +8,7 @@
 @tailwind utilities;
 
 @layer base {
+
     /* Design Tokens - Only essential custom properties that extend Tailwind */
     :root {
         /* App-specific semantic tokens that map to Tailwind utilities */
@@ -31,7 +32,8 @@
         box-sizing: border-box;
     }
 
-    html, body {
+    html,
+    body {
         margin: 0;
         padding: 0;
         height: 100%;
@@ -78,13 +80,10 @@
 }
 
 @layer components {
+
     /* Essential component patterns that are reused across the app */
     .btn-primary {
-        @apply px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500
-        text-white font-medium rounded-lg transition-all duration-200
-        transform hover:scale-[1.02] active:scale-[0.98]
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-        relative overflow-hidden;
+        @apply px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 relative overflow-hidden;
     }
 
     .btn-primary:hover {
@@ -96,15 +95,11 @@
     }
 
     .btn-secondary {
-        @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg
-        transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500;
+        @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500;
     }
 
     .input-field {
-        @apply w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg
-        text-white placeholder-slate-400
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-        focus:scale-[1.01] transition-all;
+        @apply w-full px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:scale-[1.01] transition-all;
     }
 
     .card {
@@ -128,11 +123,7 @@
 
     /* Enhanced drawer/modal components with animations */
     .drawer {
-        @apply fixed inset-y-0 right-0 w-full max-w-md
-        bg-gradient-to-b from-slate-900 to-slate-800
-        border-l border-slate-700 shadow-2xl
-        transform transition-transform duration-300 ease-in-out z-50
-        flex flex-col;
+        @apply fixed inset-y-0 right-0 w-full max-w-md bg-gradient-to-b from-slate-900 to-slate-800 border-l border-slate-700 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 flex flex-col;
     }
 
     .drawer-open {
@@ -144,15 +135,11 @@
     }
 
     .modal-overlay {
-        @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40
-        transition-opacity duration-300;
+        @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300;
     }
 
     .modal-content {
-        @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2
-        bg-slate-800 rounded-xl border border-slate-700 shadow-2xl
-        max-w-lg w-full mx-4 z-50
-        transition-all duration-300;
+        @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-lg w-full mx-4 z-50 transition-all duration-300;
     }
 
     /* Progress bar with shimmer animation */
@@ -196,6 +183,22 @@
 
 @layer utilities {
     /* Custom utilities that extend Tailwind */
+
+    /* Panel header utility */
+    .panel-header {
+        @apply px-3 py-2 bg-gray-800/50 border-b border-gray-700 text-sm font-medium text-gray-300;
+    }
+
+    /* Action button utility */
+    .action-button {
+        @apply px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded transition-all duration-200 flex items-center gap-2;
+    }
+
+    /* Stat badge utility */
+    .stat-badge {
+        @apply inline-flex items-center px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full border border-blue-500/30;
+    }
+
     .text-gradient {
         @apply bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent;
     }
@@ -367,6 +370,20 @@
         @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
     }
 
+    /* Context display utilities */
+    .context-content {
+        user-select: text;
+        cursor: text;
+    }
+
+    .context-line {
+        transition: background-color 0.2s ease;
+    }
+
+    .context-fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+
     /* Memory usage indicator utilities */
     .memory-safe {
         @apply bg-green-500/10 border-green-500/20;
@@ -395,6 +412,19 @@
     }
 }
 
+/* Additional context-specific animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Essential app-specific animations that extend Tailwind */
 
 /* Animation variables matching Tailwind's duration scale */
@@ -411,18 +441,24 @@
 
 /* Essential custom keyframes for app-specific animations */
 @keyframes pulse-glow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
     }
+
     50% {
         box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
     }
 }
 
 @keyframes pulse-green {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
     }
+
     50% {
         box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
     }
@@ -433,6 +469,7 @@
         border-color: theme('colors.blue.500');
         background-color: theme('colors.blue.500/5');
     }
+
     to {
         border-color: theme('colors.blue.400');
         background-color: theme('colors.blue.500/10');
@@ -443,6 +480,7 @@
     0% {
         transform: translateX(-100%);
     }
+
     100% {
         transform: translateX(100%);
     }
@@ -477,6 +515,70 @@
     }
 }
 
+/* File Explorer Animations */
+.settings-panel-enter-active {
+    transition: all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.settings-panel-enter-from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+}
+
+.settings-panel-leave-active {
+    transition: all 0.2s ease-out;
+}
+
+.settings-panel-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+}
+
+.context-menu-enter-active {
+    transition: all 0.15s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.context-menu-enter-from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+}
+
+.context-menu-leave-active {
+    transition: all 0.1s ease-out;
+}
+
+.context-menu-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+@keyframes pulse-selection {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.selection-indicator {
+    animation: pulse-selection 2s ease-in-out infinite;
+}
+
+.ignored-file {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ignored-file:hover {
+    opacity: 0.8;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
     .hover-lift {
@@ -490,4 +592,72 @@
         animation: none;
         @apply transition-none;
     }
+
+    .settings-panel-enter-active,
+    .settings-panel-leave-active,
+    .context-menu-enter-active,
+    .context-menu-leave-active {
+        transition: none !important;
+    }
+
+    .selection-indicator {
+        animation: none;
+    }
+}
+
+/*
+ Tooltip Animations */
+@keyframes tooltip-fade-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes tooltip-fade-out {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+.animate-tooltip-in {
+    animation: tooltip-fade-in 0.2s ease-out forwards;
+}
+
+.animate-tooltip-out {
+    animation: tooltip-fade-out 0.15s ease-in forwards;
+}
+
+/* Hover Effects */
+.hover-scale-sm {
+    transition: transform 0.15s ease-out;
+}
+
+.hover-scale-sm:hover {
+    transform: scale(1.02);
+}
+
+.hover-brightness {
+    transition: filter 0.15s ease-out;
+}
+
+.hover-brightness:hover {
+    filter: brightness(1.1);
+}
+
+.hover-shadow-glow {
+    transition: box-shadow 0.15s ease-out;
+}
+
+.hover-shadow-glow:hover {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
 }

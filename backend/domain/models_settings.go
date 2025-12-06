@@ -11,6 +11,8 @@ type SettingsDTO struct {
 	LocalAIAPIKey     string              `json:"localAIAPIKey"`
 	LocalAIHost       string              `json:"localAIHost"`
 	LocalAIModelName  string              `json:"localAIModelName"`
+	QwenAPIKey        string              `json:"qwenAPIKey"`
+	QwenHost          string              `json:"qwenHost"` // Default: https://dashscope.aliyuncs.com/compatible-mode/v1
 	SelectedProvider  string              `json:"selectedProvider"`
 	SelectedModels    map[string]string   `json:"selectedModels"`  // provider -> selected model
 	AvailableModels   map[string][]string `json:"availableModels"` // provider -> available models

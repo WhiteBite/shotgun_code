@@ -1,0 +1,131 @@
+# golangci-lint configuration for Shotgun Code
+# Run: golangci-lint run --config .golangci.yml
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+    - frontend
+
+linters:
+  enable:
+    # Dead code detection
+    - unused # Finds unused code
+    - ineffassign # Detects ineffectual assignments
+
+    # Code duplication
+    - dupl # Code clone detection
+
+    # Constants
+    - goconst # Finds repeated strings that could be constants
+
+    # Complexity
+    - gocyclo # Cyclomatic complexity
+    - gocognit # Cognitive complexity
+
+    # Code quality
+    - gocritic # Comprehensive code critic
+    - revive # Fast, configurable linter (golint replacement)
+    - staticcheck # Static analysis
+    - gosimple # Simplify code
+
+    # Error handling
+    - errcheck # Check error returns
+    - errorlint # Error wrapping issues
+
+    # Performance
+    - unconvert # Unnecessary type conversions
+    - prealloc # Slice preallocation
+
+    # Style
+    - gofmt # Formatting
+    - goimports # Import formatting
+    - misspell # Spelling mistakes
+
+    # Security
+    - gosec # Security issues
+
+linters-settings:
+  dupl:
+    threshold: 100 # Minimum tokens for duplication detection
+
+  gocyclo:
+    min-complexity: 15
+
+  gocognit:
+    min-complexity: 20
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam # Allow large params (common in Go)
+      - rangeValCopy # Allow range value copies
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked (too noisy)
+      - G304 # File path provided as taint input (common pattern)
+
+  staticcheck:
+    checks:
+      - all
+      - -SA1019 # Deprecated (handle separately)
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests
+    - path: _test\.go
+      linters:
+        - dupl
+        - gosec
+        - errcheck
+
+    # Exclude known issues in generated files
+    - path: ".*_gen\\.go"
+      linters:
+        - unused
+        - revive
+        - gocritic
+        - staticcheck
+        - gosimple
+        - errcheck
+        - dupl
+        - goconst
+
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"regexp"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/contextbuilder"
 	"strings"
@@ -41,25 +40,6 @@ func NewExportService(log domain.Logger, splitter domain.ContextSplitter, pdf do
 
 // Грубая оценка числа токенов (~ четверть от количества рун)
 func approxTokens(s string) int { return len([]rune(s)) / 4 }
-
-// Разделение по заголовкам --- File: ... ---
-func splitByFiles(text string) []string {
-	re := regexp.MustCompile(`(?m)^--- File: .*? ---\s*`)
-	idxs := re.FindAllStringIndex(text, -1)
-	if len(idxs) == 0 {
-		return []string{text}
-	}
-	var parts []string
-	for i := 0; i < len(idxs); i++ {
-		start := idxs[i][0]
-		end := len(text)
-		if i+1 < len(idxs) {
-			end = idxs[i+1][0]
-		}
-		parts = append(parts, text[start:end])
-	}
-	return parts
-}
 
 func (s *ExportService) Export(_ context.Context, settings domain.ExportSettings) (domain.ExportResult, error) {
 	if settings.Context == "" {

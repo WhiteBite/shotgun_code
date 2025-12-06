@@ -303,3 +303,21 @@ fabric.properties
 
 !/.github/
 
+# Example projects for testing (node_modules inside them)
+examples/*/node_modules/
+
+# Kiro IDE
+.kiro/
+
+# Roo
+.roo/
+
+# Build artifacts
+*.exe
+backend/*.exe
+
+# Temporary markdown docs (auto-generated)
+check-memory-optimizations.md
+backend/wails.json.md
+frontend/README_ARCHITECTURE.md
+

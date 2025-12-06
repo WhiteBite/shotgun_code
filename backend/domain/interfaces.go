@@ -56,6 +56,16 @@ type GitRepository interface {
 	GetCurrentBranch(projectRoot string) (string, error)
 	GetAllFiles(projectPath string) ([]string, error)
 	GenerateDiff(projectPath string) (string, error)
+	// New methods for remote/branch context building
+	IsGitRepository(projectPath string) bool
+	CloneRepository(url, targetPath string, depth int) error
+	CheckoutBranch(projectPath, branch string) error
+	CheckoutCommit(projectPath, commitHash string) error
+	GetCommitHistory(projectPath string, limit int) ([]CommitInfo, error)
+	FetchRemoteBranches(projectPath string) ([]string, error)
+	// Read files at specific ref without checkout
+	ListFilesAtRef(projectPath, ref string) ([]string, error)
+	GetFileAtRef(projectPath, filePath, ref string) (string, error)
 }
 
 // SettingsRepository определяет интерфейс для работы с настройками
@@ -76,6 +86,10 @@ type SettingsRepository interface {
 	SetLocalAIHost(host string)
 	GetLocalAIModelName() string
 	SetLocalAIModelName(name string)
+	GetQwenKey() string
+	SetQwenKey(key string)
+	GetQwenHost() string
+	SetQwenHost(host string)
 	GetSelectedAIProvider() string
 	SetSelectedAIProvider(provider string)
 	GetSelectedModel(provider string) string

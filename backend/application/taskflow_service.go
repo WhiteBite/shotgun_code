@@ -750,7 +750,7 @@ func (s *TaskflowServiceImpl) executeAutonomousTask(ctx context.Context, request
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed to build context for task: %v", err)
 		s.log.Error(fmt.Sprintf("[Task %s] %s", status.TaskId, errMessage))
-		return fmt.Errorf(errMessage)
+		return fmt.Errorf("%s", errMessage)
 	}
 
 	planningTask := domain.Task{
@@ -782,7 +782,7 @@ func (s *TaskflowServiceImpl) executeAutonomousTask(ctx context.Context, request
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed to create execution plan: %v", err)
 		s.log.Error(fmt.Sprintf("[Task %s] %s", status.TaskId, errMessage))
-		return fmt.Errorf(errMessage)
+		return fmt.Errorf("%s", errMessage)
 	}
 
 	s.log.Info(fmt.Sprintf("[Task %s] Execution plan generated with %d steps.", status.TaskId, len(basePipeline.Steps)))

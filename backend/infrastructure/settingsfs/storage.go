@@ -71,6 +71,10 @@ func (s *storage) loadKeysFromKeyring(settings *secureSettings) error {
 	if err != nil && err != keyring.ErrNotFound {
 		return fmt.Errorf("failed to get localai key: %w", err)
 	}
+	settings.qwenAPIKey, err = keyring.Get(keyringService, "qwen")
+	if err != nil && err != keyring.ErrNotFound {
+		return fmt.Errorf("failed to get qwen key: %w", err)
+	}
 	return nil
 }
 
@@ -87,6 +91,9 @@ func (s *storage) saveKeysToKeyring(settings *secureSettings) error {
 	}
 	if err := keyring.Set(keyringService, "localai", settings.localAIAPIKey); err != nil {
 		return fmt.Errorf("failed to set localai key: %w", err)
+	}
+	if err := keyring.Set(keyringService, "qwen", settings.qwenAPIKey); err != nil {
+		return fmt.Errorf("failed to set qwen key: %w", err)
 	}
 	return nil
 }

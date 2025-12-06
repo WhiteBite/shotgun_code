@@ -4,8 +4,8 @@
  * Это обеспечивает единую точку для обработки ошибок, логирования и тестирования
  */
 
-import * as wails from '@/wailsjs/go/main/App'
-import type { domain } from '@/wailsjs/go/models'
+import * as wails from '#wailsjs/go/main/App'
+import type { domain } from '#wailsjs/go/models'
 
 /**
  * Класс API сервиса с обертками для всех функций Wails
@@ -113,6 +113,36 @@ class ApiService {
       return await wails.BuildContextFromRequest(projectPath, files, options)
     } catch (error) {
       console.error('[ApiService] Error building context from request:', error)
+
+      // Parse error - handle both string and object formats
+      let errorMsg = ''
+
+      if (error && typeof error === 'object') {
+        // Handle domain_error format: {"cause":"...", "message":"..."}
+        const err = error as any
+        errorMsg = err.cause || err.message || String(error)
+      } else if (error instanceof Error) {
+        errorMsg = error.message
+      } else {
+        errorMsg = String(error)
+      }
+
+      // Extract token limit information
+      if (errorMsg.includes('token limit')) {
+        // Match pattern: "number > number" or "number \u003e number"
+        // Note: \u003e in JSON is already decoded to > in JavaScript string
+        const match = errorMsg.match(/(\d+)\s*[>\u003e]\s*(\d+)/)
+        if (match) {
+          const actual = Number(match[1])
+          const limit = Number(match[2])
+          const actualK = Math.round(actual / 1000)
+          const limitK = Math.round(limit / 1000)
+          throw new Error(`Context exceeds token limit: ${actualK}K tokens (limit: ${limitK}K). Please reduce file selection.`)
+        }
+        // If no match but contains "token limit", throw generic message
+        throw new Error(`Context exceeds token limit. Please reduce file selection.`)
+      }
+
       throw new Error('Failed to build context.')
     }
   }
@@ -144,12 +174,21 @@ class ApiService {
     }
   }
 
-  async exportContext(contextId: string): Promise<domain.ExportResult> {
+  async exportContext(exportSettings: any): Promise<domain.ExportResult> {
     try {
-      return await wails.ExportContext(contextId)
+      return await wails.ExportContext(JSON.stringify(exportSettings))
     } catch (error) {
-      console.error(`[ApiService] Error exporting context "${contextId}":`, error)
+      console.error('[ApiService] Error exporting context:', error)
       throw new Error('Failed to export context.')
+    }
+  }
+
+  async getFullContextContent(contextId: string): Promise<string> {
+    try {
+      return await wails.GetFullContextContent(contextId)
+    } catch (error) {
+      console.error(`[ApiService] Error getting full context content "${contextId}":`, error)
+      throw new Error('Failed to get full context content.')
     }
   }
 
@@ -172,6 +211,17 @@ class ApiService {
     } catch (error) {
       console.error('[ApiService] Error generating code:', error)
       throw new Error('Failed to generate code.')
+    }
+  }
+
+  /**
+   * Start streaming code generation - results come via Wails events
+   */
+  generateCodeStream(context: string, task: string): void {
+    try {
+      wails.GenerateCodeStream(context, task)
+    } catch (error) {
+      console.error('[ApiService] Error starting code stream:', error)
     }
   }
 
@@ -291,6 +341,240 @@ class ApiService {
     }
   }
 
+  async isGitRepository(projectPath: string): Promise<boolean> {
+    try {
+      return await wails.IsGitRepository(projectPath)
+    } catch (error) {
+      console.error('[ApiService] Error checking git repository:', error)
+      return false
+    }
+  }
+
+  async cloneRepository(url: string): Promise<string> {
+    try {
+      return await wails.CloneRepository(url)
+    } catch (error) {
+      console.error('[ApiService] Error cloning repository:', error)
+      throw new Error('Failed to clone repository.')
+    }
+  }
+
+  async checkoutBranch(projectPath: string, branch: string): Promise<void> {
+    try {
+      await wails.CheckoutBranch(projectPath, branch)
+    } catch (error) {
+      console.error('[ApiService] Error checking out branch:', error)
+      throw new Error('Failed to checkout branch.')
+    }
+  }
+
+  async checkoutCommit(projectPath: string, commitHash: string): Promise<void> {
+    try {
+      await wails.CheckoutCommit(projectPath, commitHash)
+    } catch (error) {
+      console.error('[ApiService] Error checking out commit:', error)
+      throw new Error('Failed to checkout commit.')
+    }
+  }
+
+  async getCommitHistory(projectPath: string, limit: number = 50): Promise<CommitInfo[]> {
+    try {
+      const result = await wails.GetCommitHistory(projectPath, limit)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting commit history:', error)
+      throw new Error('Failed to get commit history.')
+    }
+  }
+
+  async getRemoteBranches(projectPath: string): Promise<string[]> {
+    try {
+      const result = await wails.GetRemoteBranches(projectPath)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting remote branches:', error)
+      throw new Error('Failed to get remote branches.')
+    }
+  }
+
+  async cleanupTempRepository(path: string): Promise<void> {
+    try {
+      await wails.CleanupTempRepository(path)
+    } catch (error) {
+      console.error('[ApiService] Error cleaning up temp repository:', error)
+      // Don't throw - cleanup failure is not critical
+    }
+  }
+
+  async listFilesAtRef(projectPath: string, ref: string): Promise<string[]> {
+    try {
+      const result = await wails.ListFilesAtRef(projectPath, ref)
+      const parsed = JSON.parse(result)
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.error('[ApiService] Error listing files at ref:', error)
+      throw new Error('Failed to list files at ref.')
+    }
+  }
+
+  async getFileAtRef(projectPath: string, filePath: string, ref: string): Promise<string> {
+    try {
+      return await wails.GetFileAtRef(projectPath, filePath, ref)
+    } catch (error) {
+      console.error('[ApiService] Error getting file at ref:', error)
+      throw new Error('Failed to get file at ref.')
+    }
+  }
+
+  async buildContextAtRef(projectPath: string, files: string[], ref: string): Promise<string> {
+    try {
+      return await wails.BuildContextAtRef(projectPath, files, ref, '{}')
+    } catch (error) {
+      console.error('[ApiService] Error building context at ref:', error)
+      throw new Error('Failed to build context at ref.')
+    }
+  }
+
+  // ============================================
+  // GitHub API (no clone required)
+  // ============================================
+
+  async isGitHubURL(url: string): Promise<boolean> {
+    try {
+      return await wails.IsGitHubURL(url)
+    } catch (error) {
+      return false
+    }
+  }
+
+  async gitHubGetDefaultBranch(repoURL: string): Promise<string> {
+    try {
+      return await wails.GitHubGetDefaultBranch(repoURL)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitHub default branch:', error)
+      throw new Error('Failed to get default branch.')
+    }
+  }
+
+  async gitHubGetBranches(repoURL: string): Promise<GitHubBranch[]> {
+    try {
+      const result = await wails.GitHubGetBranches(repoURL)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitHub branches:', error)
+      throw new Error('Failed to get GitHub branches.')
+    }
+  }
+
+  async gitHubGetCommits(repoURL: string, branch: string, limit: number = 50): Promise<GitHubCommit[]> {
+    try {
+      const result = await wails.GitHubGetCommits(repoURL, branch, limit)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitHub commits:', error)
+      throw new Error('Failed to get GitHub commits.')
+    }
+  }
+
+  async gitHubListFiles(repoURL: string, ref: string): Promise<string[]> {
+    try {
+      const result = await wails.GitHubListFiles(repoURL, ref)
+      const parsed = JSON.parse(result)
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.error('[ApiService] Error listing GitHub files:', error)
+      throw new Error('Failed to list GitHub files.')
+    }
+  }
+
+  async gitHubGetFileContent(repoURL: string, filePath: string, ref: string): Promise<string> {
+    try {
+      return await wails.GitHubGetFileContent(repoURL, filePath, ref)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitHub file content:', error)
+      throw new Error('Failed to get GitHub file content.')
+    }
+  }
+
+  async gitHubBuildContext(repoURL: string, files: string[], ref: string): Promise<string> {
+    try {
+      return await wails.GitHubBuildContext(repoURL, files, ref)
+    } catch (error) {
+      console.error('[ApiService] Error building GitHub context:', error)
+      throw new Error('Failed to build GitHub context.')
+    }
+  }
+
+  // ============================================
+  // GitLab API (no clone required)
+  // ============================================
+
+  async isGitLabURL(url: string): Promise<boolean> {
+    try {
+      return await wails.IsGitLabURL(url)
+    } catch (error) {
+      return false
+    }
+  }
+
+  async gitLabGetDefaultBranch(repoURL: string): Promise<string> {
+    try {
+      return await wails.GitLabGetDefaultBranch(repoURL)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitLab default branch:', error)
+      throw new Error('Failed to get default branch.')
+    }
+  }
+
+  async gitLabGetBranches(repoURL: string): Promise<GitLabBranch[]> {
+    try {
+      const result = await wails.GitLabGetBranches(repoURL)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitLab branches:', error)
+      throw new Error('Failed to get GitLab branches.')
+    }
+  }
+
+  async gitLabGetCommits(repoURL: string, branch: string, limit: number = 50): Promise<GitLabCommit[]> {
+    try {
+      const result = await wails.GitLabGetCommits(repoURL, branch, limit)
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitLab commits:', error)
+      throw new Error('Failed to get GitLab commits.')
+    }
+  }
+
+  async gitLabListFiles(repoURL: string, ref: string): Promise<string[]> {
+    try {
+      const result = await wails.GitLabListFiles(repoURL, ref)
+      const parsed = JSON.parse(result)
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.error('[ApiService] Error listing GitLab files:', error)
+      throw new Error('Failed to list GitLab files.')
+    }
+  }
+
+  async gitLabGetFileContent(repoURL: string, filePath: string, ref: string): Promise<string> {
+    try {
+      return await wails.GitLabGetFileContent(repoURL, filePath, ref)
+    } catch (error) {
+      console.error('[ApiService] Error getting GitLab file content:', error)
+      throw new Error('Failed to get GitLab file content.')
+    }
+  }
+
+  async gitLabBuildContext(repoURL: string, files: string[], ref: string): Promise<string> {
+    try {
+      return await wails.GitLabBuildContext(repoURL, files, ref)
+    } catch (error) {
+      console.error('[ApiService] Error building GitLab context:', error)
+      throw new Error('Failed to build GitLab context.')
+    }
+  }
+
   // ============================================
   // Настройки
   // ============================================
@@ -310,6 +594,55 @@ class ApiService {
     } catch (error) {
       console.error('[ApiService] Error saving settings:', error)
       throw new Error('Failed to save settings.')
+    }
+  }
+
+  // ============================================
+  // Ignore Rules
+  // ============================================
+
+  async getGitignoreContent(projectPath: string): Promise<string> {
+    try {
+      return await wails.GetGitignoreContentForProject(projectPath)
+    } catch (error) {
+      console.error('[ApiService] Error getting .gitignore content:', error)
+      throw new Error('Failed to load .gitignore content.')
+    }
+  }
+
+  async getCustomIgnoreRules(): Promise<string> {
+    try {
+      return await wails.GetCustomIgnoreRules()
+    } catch (error) {
+      console.error('[ApiService] Error getting custom ignore rules:', error)
+      throw new Error('Failed to load custom ignore rules.')
+    }
+  }
+
+  async updateCustomIgnoreRules(rules: string): Promise<void> {
+    try {
+      return await wails.UpdateCustomIgnoreRules(rules)
+    } catch (error) {
+      console.error('[ApiService] Error updating custom ignore rules:', error)
+      throw new Error('Failed to update custom ignore rules.')
+    }
+  }
+
+  async testIgnoreRules(projectPath: string, rules: string): Promise<string[]> {
+    try {
+      return await wails.TestIgnoreRules(projectPath, rules)
+    } catch (error) {
+      console.error('[ApiService] Error testing ignore rules:', error)
+      throw new Error('Failed to test ignore rules.')
+    }
+  }
+
+  async addToGitignore(projectPath: string, pattern: string): Promise<void> {
+    try {
+      return await wails.AddToGitignore(projectPath, pattern)
+    } catch (error) {
+      console.error('[ApiService] Error adding to .gitignore:', error)
+      throw new Error('Failed to add to .gitignore.')
     }
   }
 
@@ -481,6 +814,159 @@ class ApiService {
       throw new Error('Failed to get budget policies.')
     }
   }
+
+  // ============================================
+  // Qwen Task Execution
+  // ============================================
+
+  /**
+   * Execute a task using Qwen with smart context collection
+   */
+  async qwenExecuteTask(request: QwenTaskRequest): Promise<QwenTaskResponse> {
+    try {
+      const result = await wails.QwenExecuteTask(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error executing Qwen task:', error)
+      throw new Error('Failed to execute task with Qwen.')
+    }
+  }
+
+  /**
+   * Preview the context that would be collected for a task
+   */
+  async qwenPreviewContext(request: QwenTaskRequest): Promise<QwenContextPreview> {
+    try {
+      const result = await wails.QwenPreviewContext(JSON.stringify(request))
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error previewing Qwen context:', error)
+      throw new Error('Failed to preview context.')
+    }
+  }
+
+  /**
+   * Get available Qwen models
+   */
+  async qwenGetAvailableModels(): Promise<QwenModelInfo[]> {
+    try {
+      const result = await wails.QwenGetAvailableModels()
+      return JSON.parse(result)
+    } catch (error) {
+      console.error('[ApiService] Error getting Qwen models:', error)
+      throw new Error('Failed to get Qwen models.')
+    }
+  }
+}
+
+// ============================================
+// Qwen Types
+// ============================================
+
+export interface QwenTaskRequest {
+  task: string
+  projectRoot: string
+  selectedFiles?: string[]
+  selectedCode?: string
+  sourceFile?: string
+  model?: string
+  maxTokens?: number
+  temperature?: number
+}
+
+export interface QwenTaskResponse {
+  content: string
+  model: string
+  tokensUsed: number
+  processingTime: string
+  contextSummary: QwenContextSummary
+  success: boolean
+  error?: string
+}
+
+export interface QwenContextSummary {
+  totalFiles: number
+  totalTokens: number
+  includedFiles: string[]
+  truncatedFiles: string[]
+  excludedFiles: string[]
+}
+
+export interface QwenContextPreview {
+  totalFiles: number
+  totalTokens: number
+  files: QwenFilePreview[]
+  truncatedFiles: string[]
+  excludedFiles: string[]
+  callStackInfo?: QwenCallStackInfo
+  relevanceScores: Record<string, number>
+}
+
+export interface QwenFilePreview {
+  path: string
+  tokens: number
+  relevance: number
+  reason: string
+}
+
+export interface QwenCallStackInfo {
+  rootSymbol: string
+  callers: string[]
+  callees: string[]
+  dependencies: string[]
+}
+
+export interface QwenModelInfo {
+  id: string
+  name: string
+  description: string
+  maxContext: number
+  recommended: boolean
+}
+
+// Git types
+export interface CommitInfo {
+  hash: string
+  subject: string
+  author: string
+  date: string
+}
+
+// GitHub API types
+export interface GitHubBranch {
+  name: string
+  commit: {
+    sha: string
+  }
+}
+
+export interface GitHubCommit {
+  sha: string
+  commit: {
+    message: string
+    author: {
+      name: string
+      date: string
+    }
+  }
+}
+
+// GitLab API types
+export interface GitLabBranch {
+  name: string
+  commit: {
+    id: string
+  }
+  default: boolean
+}
+
+export interface GitLabCommit {
+  id: string
+  short_id: string
+  title: string
+  message: string
+  author_name: string
+  committed_date: string
 }
 
 // Экспортируем синглтон экземпляр сервиса
@@ -488,3 +974,4 @@ export const apiService = new ApiService()
 
 // Экспортируем класс для возможности моков в тестах
 export { ApiService }
+

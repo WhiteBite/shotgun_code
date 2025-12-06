@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"shotgun_code/domain"
 	"sort"
@@ -430,9 +429,4 @@ func removeDuplicates(slice []string) []string {
 	}
 
 	return list
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
 }

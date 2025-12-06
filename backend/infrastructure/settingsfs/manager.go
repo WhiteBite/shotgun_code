@@ -16,6 +16,7 @@ type appSettings struct {
 	UseCustomIgnore   bool                       `json:"useCustomIgnore"`
 	LocalAIHost       string                     `json:"localAIHost,omitempty"`
 	LocalAIModelName  string                     `json:"localAIModelName,omitempty"`
+	QwenHost          string                     `json:"qwenHost,omitempty"`
 	SelectedProvider  string                     `json:"selectedProvider"`
 	SelectedModels    map[string]string          `json:"selectedModels"`
 	AvailableModels   map[string][]string        `json:"availableModels"`
@@ -28,6 +29,7 @@ type secureSettings struct {
 	geminiAPIKey     string
 	openRouterAPIKey string
 	localAIAPIKey    string
+	qwenAPIKey       string
 }
 
 // Manager orchestrates settings persistence, separating file and keyring storage.
@@ -84,17 +86,20 @@ func (m *Manager) loadDefaults() {
 		UseCustomIgnore:  true,
 		SelectedProvider: "openai",
 		LocalAIHost:      "http://localhost:1234/v1",
+		QwenHost:         "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		SelectedModels: map[string]string{
 			"openai":     "gpt-4o",
 			"gemini":     "gemini-1.5-pro-latest",
 			"openrouter": "google/gemini-flash-1.5",
 			"localai":    "local-model",
+			"qwen":       "qwen-coder-plus-latest",
 		},
 		AvailableModels: map[string][]string{
 			"openai":     {"gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"},
 			"gemini":     {"gemini-1.5-pro-latest", "gemini-1.5-flash-latest"},
 			"openrouter": {"google/gemini-flash-1.5", "openai/gpt-4o", "meta-llama/llama-3-70b-instruct"},
 			"localai":    {"local-model"},
+			"qwen":       {"qwen-coder-plus-latest", "qwen-coder-plus", "qwen-plus-latest", "qwen-turbo-latest", "qwen-max"},
 		},
 	}
 }
@@ -149,6 +154,12 @@ func (m *Manager) SetOpenRouterKey(k string) {
 	m.mu.Unlock()
 }
 func (m *Manager) SetLocalAIKey(k string) { m.mu.Lock(); m.secure.localAIAPIKey = k; m.mu.Unlock() }
+func (m *Manager) GetQwenKey() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.secure.qwenAPIKey
+}
+func (m *Manager) SetQwenKey(k string) { m.mu.Lock(); m.secure.qwenAPIKey = k; m.mu.Unlock() }
 
 // Getters and Setters for file-based settings
 func (m *Manager) GetCustomIgnoreRules() string {
@@ -181,6 +192,15 @@ func (m *Manager) GetLocalAIModelName() string {
 	defer m.mu.RUnlock()
 	return m.settings.LocalAIModelName
 }
+func (m *Manager) GetQwenHost() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.settings.QwenHost == "" {
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	}
+	return m.settings.QwenHost
+}
+func (m *Manager) SetQwenHost(h string) { m.mu.Lock(); m.settings.QwenHost = h; m.mu.Unlock() }
 func (m *Manager) GetSelectedAIProvider() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -256,6 +276,11 @@ func (m *Manager) GetSettingsDTO() (domain.SettingsDTO, error) {
 		availableModelsCopy[k] = append([]string(nil), v...)
 	}
 
+	qwenHost := m.settings.QwenHost
+	if qwenHost == "" {
+		qwenHost = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	}
+
 	return domain.SettingsDTO{
 		CustomIgnoreRules: m.settings.CustomIgnoreRules,
 		CustomPromptRules: m.settings.CustomPromptRules,
@@ -265,6 +290,8 @@ func (m *Manager) GetSettingsDTO() (domain.SettingsDTO, error) {
 		LocalAIAPIKey:     m.secure.localAIAPIKey,
 		LocalAIHost:       m.settings.LocalAIHost,
 		LocalAIModelName:  m.settings.LocalAIModelName,
+		QwenAPIKey:        m.secure.qwenAPIKey,
+		QwenHost:          qwenHost,
 		SelectedProvider:  m.settings.SelectedProvider,
 		SelectedModels:    selectedModelsCopy,
 		AvailableModels:   availableModelsCopy,

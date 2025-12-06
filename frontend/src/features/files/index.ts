@@ -1,0 +1,7 @@
+export { useFileStore } from './model/file.store'
+export { default as FileExplorer } from './ui/FileExplorer.vue'
+export { default as FileTreeNode } from './ui/FileTreeNode.vue'
+export { default as BreadcrumbsNav } from './ui/BreadcrumbsNav.vue'
+export { default as FileFilterDropdown } from './ui/FileFilterDropdown.vue'
+export { filesApi } from './api/files.api'
+export type { FileNode } from './model/file.store'

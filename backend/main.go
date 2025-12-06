@@ -24,9 +24,11 @@ func main() {
 	appInstance := &App{}
 
 	err := wails.Run(&options.App{
-		Title:  "Shotgun Code",
-		Width:  1280,
-		Height: 800,
+		Title:    "Shotgun Code",
+		Width:    1600,
+		Height:   900,
+		MinWidth: 1280,
+		MinHeight: 720,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

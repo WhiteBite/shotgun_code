@@ -36,6 +36,14 @@ type CommitWithFiles struct {
 	IsMerge bool     `json:"isMerge"`
 }
 
+// CommitInfo represents a simplified commit for selection UI
+type CommitInfo struct {
+	Hash    string `json:"hash"`
+	Subject string `json:"subject"`
+	Author  string `json:"author"`
+	Date    string `json:"date"`
+}
+
 // TokenCounter defines a function type for counting tokens.
 type TokenCounter func(text string) int
 
@@ -122,9 +130,14 @@ type GenericReport struct {
 
 // ContextBuildOptions опции для построения контекста
 type ContextBuildOptions struct {
-	StripComments   bool `json:"stripComments"`
-	IncludeManifest bool `json:"includeManifest"`
-	MaxTokens       int  `json:"maxTokens"`
+	StripComments        bool   `json:"stripComments"`
+	IncludeManifest      bool   `json:"includeManifest"`
+	MaxTokens            int    `json:"maxTokens"`
+	MaxMemoryMB          int    `json:"maxMemoryMB"`
+	IncludeTests         bool   `json:"includeTests"`
+	SplitStrategy        string `json:"splitStrategy"`
+	ForceStream          bool   `json:"forceStream"`
+	EnableProgressEvents bool   `json:"enableProgressEvents"`
 }
 
 // Context представляет контекст проекта
@@ -138,6 +151,8 @@ type Context struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 	ProjectPath string    `json:"projectPath"`
 	TokenCount  int       `json:"tokenCount"`
+	TotalLines  int64     `json:"totalLines"`
+	TotalChars  int64     `json:"totalChars"`
 }
 
 // CRITICAL OOM FIX: ContextSummary replaces full Context content to prevent memory issues
@@ -157,13 +172,18 @@ type ContextSummary struct {
 
 // ContextMetadata contains additional context information
 type ContextMetadata struct {
-	BuildDuration int64                `json:"buildDuration"`
-	LastModified  time.Time            `json:"lastModified"`
-	SelectedFiles []string             `json:"selectedFiles"`
-	BuildOptions  *ContextBuildOptions `json:"buildOptions,omitempty"`
-	Warnings      []string             `json:"warnings"`
-	Errors        []string             `json:"errors"`
-	ContentPath   string               `json:"contentPath"`
+	BuildDuration  int64                `json:"buildDuration"`
+	LastModified   time.Time            `json:"lastModified"`
+	SelectedFiles  []string             `json:"selectedFiles"`
+	BuildOptions   *ContextBuildOptions `json:"buildOptions,omitempty"`
+	Warnings       []string             `json:"warnings"`
+	Errors         []string             `json:"errors"`
+	ContentPath    string               `json:"contentPath"`
+	SkippedFiles   []string             `json:"skippedFiles,omitempty"`
+	SkippedReasons map[string]string    `json:"skippedReasons,omitempty"`
+	ProjectPath    string               `json:"projectPath,omitempty"`
+	ChunksCount    int                  `json:"chunksCount,omitempty"`
+	SplitStrategy  string               `json:"splitStrategy,omitempty"`
 }
 
 // ContextChunk represents a paginated piece of context content

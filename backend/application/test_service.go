@@ -8,9 +8,8 @@ import (
 
 // TestService предоставляет высокоуровневый API для работы с тестами
 type TestService struct {
-	log         domain.Logger
-	testEngine  domain.TestEngine
-	symbolGraph domain.SymbolGraphBuilder
+	log        domain.Logger
+	testEngine domain.TestEngine
 }
 
 // NewTestService создает новый сервис тестирования
