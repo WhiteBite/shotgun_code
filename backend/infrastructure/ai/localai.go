@@ -68,7 +68,7 @@ type Grammar struct {
 // NewLocalAI создает новый провайдер LocalAI
 func NewLocalAI(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
 	if host == "" {
-		host = "http://localhost:1234/v1"
+		host = domain.LocalAIDefaultHost
 	}
 
 	return &LocalAIProviderImpl{

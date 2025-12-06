@@ -81,7 +81,7 @@ type LlamaCppStreamResponse struct {
 // NewLlamaCppClient создает новый клиент для llama.cpp server
 func NewLlamaCppClient(config LlamaCppConfig, log domain.Logger) *LlamaCppClient {
 	if config.BaseURL == "" {
-		config.BaseURL = "http://localhost:8080"
+		config.BaseURL = domain.LlamaCppDefaultHost
 	}
 	if config.Timeout == 0 {
 		config.Timeout = 30 * time.Second

@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	// DefaultQwenHost is the default Qwen API endpoint (DashScope compatible mode)
-	DefaultQwenHost = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	// QwenMaxContextTokens is the maximum context window for qwen-coder-plus (1M tokens)
 	QwenMaxContextTokens = 1000000
 )
@@ -29,7 +27,7 @@ type QwenProviderImpl struct {
 // NewQwen creates a new Qwen provider instance
 func NewQwen(apiKey, host string, log domain.Logger) (domain.AIProvider, error) {
 	if host == "" {
-		host = DefaultQwenHost
+		host = domain.QwenDefaultHost
 	}
 
 	config := openai.DefaultConfig(apiKey)
