@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"shotgun_code/domain"
+	"shotgun_code/infrastructure/ai/common"
 	"sort"
 	"time"
 )
@@ -262,12 +263,7 @@ func (p *LocalAIProviderImpl) ValidateRequest(req domain.AIRequest) error {
 
 // EstimateTokens оценивает количество токенов в запросе
 func (p *LocalAIProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
-	// Простая оценка: ~4 символа на токен
-	totalText := req.SystemPrompt + req.UserPrompt
-	estimatedTokens := len(totalText) / 4
-
-	// Добавляем небольшой запас
-	return estimatedTokens + 100, nil
+	return common.EstimateTokens(req)
 }
 
 // GetPricing возвращает информацию о стоимости

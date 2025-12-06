@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"shotgun_code/domain"
+	"shotgun_code/infrastructure/ai/common"
 	"sort"
 	"time"
 
@@ -115,15 +115,8 @@ func (p *QwenProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (
 	resp, err := p.client.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("Qwen API request failed: %v", err))
-
-		var apiErr *openai.APIError
-		if errors.As(err, &apiErr) {
-			switch apiErr.HTTPStatusCode {
-			case http.StatusUnauthorized:
-				return domain.AIResponse{}, domain.ErrInvalidAPIKey
-			case http.StatusTooManyRequests:
-				return domain.AIResponse{}, domain.ErrRateLimitExceeded
-			}
+		if domainErr := common.HandleOpenAIError(err); domainErr != err {
+			return domain.AIResponse{}, domainErr
 		}
 		return domain.AIResponse{}, err
 	}
@@ -181,20 +174,9 @@ func (p *QwenProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequ
 	stream, err := p.client.CreateChatCompletionStream(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("Qwen API stream request failed: %v", err))
-
-		var apiErr *openai.APIError
-		if errors.As(err, &apiErr) {
-			switch apiErr.HTTPStatusCode {
-			case http.StatusUnauthorized:
-				onChunk(domain.StreamChunk{Done: true, Error: "Invalid API key"})
-				return domain.ErrInvalidAPIKey
-			case http.StatusTooManyRequests:
-				onChunk(domain.StreamChunk{Done: true, Error: "Rate limit exceeded"})
-				return domain.ErrRateLimitExceeded
-			}
-		}
-		onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
-		return err
+		domainErr := common.HandleOpenAIError(err)
+		onChunk(domain.StreamChunk{Done: true, Error: domainErr.Error()})
+		return domainErr
 	}
 	defer stream.Close()
 
@@ -259,27 +241,12 @@ func (p *QwenProviderImpl) GetProviderInfo() domain.ProviderInfo {
 
 // ValidateRequest validates the request parameters
 func (p *QwenProviderImpl) ValidateRequest(req domain.AIRequest) error {
-	if req.Model == "" {
-		return fmt.Errorf("model is required")
-	}
-	if req.UserPrompt == "" {
-		return fmt.Errorf("user prompt is required")
-	}
-	if req.Temperature < 0 || req.Temperature > 2 {
-		return fmt.Errorf("temperature must be between 0 and 2")
-	}
-	if req.MaxTokens < 1 {
-		return fmt.Errorf("max tokens must be greater than 0")
-	}
-	return nil
+	return common.ValidateRequestStrict(req)
 }
 
 // EstimateTokens estimates the number of tokens in the request
 func (p *QwenProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
-	// Approximate: ~4 characters per token for mixed content
-	totalChars := len(req.SystemPrompt) + len(req.UserPrompt)
-	estimatedTokens := totalChars / 4
-	return estimatedTokens + 100, nil // Add buffer
+	return common.EstimateTokens(req)
 }
 
 // GetPricing returns pricing information for Qwen models

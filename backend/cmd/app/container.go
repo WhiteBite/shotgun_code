@@ -47,7 +47,8 @@ import (
 	projectservice "shotgun_code/internal/project"
 )
 
-const openRouterHost = "https://openrouter.ai/api/v1"
+// Use domain constants for default hosts
+const openRouterHost = domain.OpenRouterDefaultHost
 
 // AppContainer holds all the services and repositories for the application.
 type AppContainer struct {
@@ -181,8 +182,8 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create AI service with intelligent service
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 	
-	// Set AIService reference in IntelligentAIService to avoid provider duplication
-	intelligentService.SetAIService(c.AIService)
+	// Set provider getter in IntelligentAIService (uses interface to break circular dependency)
+	intelligentService.SetProviderGetter(c.AIService)
 	
 	// Connect SettingsService to AIService for cache invalidation on settings change
 	c.SettingsService.SetAICacheInvalidator(c.AIService)
@@ -730,7 +731,7 @@ func createProviderRegistry(log domain.Logger, settingsService *application.Sett
 			if dto.QwenHost != "" {
 				return dto.QwenHost, nil
 			}
-			return "https://dashscope.aliyuncs.com/compatible-mode/v1", nil
+			return domain.QwenDefaultHost, nil
 		default:
 			return "", nil
 		}

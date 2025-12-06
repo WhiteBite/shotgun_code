@@ -2,6 +2,7 @@ package application
 
 import (
 	"shotgun_code/domain"
+	"sort"
 	"strings"
 )
 
@@ -157,15 +158,9 @@ func buildReason(keywords []string) string {
 
 // sortSuggestionsByConfidence sorts suggestions by confidence (descending)
 func sortSuggestionsByConfidence(suggestions []domain.SuggestedFile) {
-	// Simple bubble sort (good enough for small lists)
-	n := len(suggestions)
-	for i := 0; i < n-1; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if suggestions[j].Confidence < suggestions[j+1].Confidence {
-				suggestions[j], suggestions[j+1] = suggestions[j+1], suggestions[j]
-			}
-		}
-	}
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Confidence > suggestions[j].Confidence
+	})
 }
 
 // containsString checks if slice contains string

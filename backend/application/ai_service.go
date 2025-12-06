@@ -44,9 +44,22 @@ type cachedAIResponse struct {
 	tokens    int
 }
 
+// AI Service configuration constants
 const (
+	// Cache settings
 	maxResponseCacheSize = 100
 	responseCacheTTL     = 30 * time.Minute
+	cacheCleanupInterval = 5 * time.Minute
+
+	// Default generation parameters
+	defaultTemperature    = 0.7
+	defaultMaxTokens      = 4000
+	defaultTopP           = 1.0
+	defaultTimeout        = 60 * time.Second
+	defaultStreamTimeout  = 120 * time.Second
+
+	// Cache behavior thresholds
+	deterministicTempThreshold = 0.1 // Disable cache above this temperature
 )
 
 // NewAIService creates a new AIService.
@@ -110,7 +123,7 @@ func (s *AIService) Shutdown(ctx context.Context) error {
 func (s *AIService) cleanupResponseCache() {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(cacheCleanupInterval)
 	defer ticker.Stop()
 
 	for {
@@ -190,10 +203,10 @@ func (s *AIService) generateCodeInternal(ctx context.Context, systemPrompt, user
 	}
 
 	// Set default values
-	temperature := 0.7
-	maxTokens := 4000
-	topP := 1.0
-	timeout := 60 * time.Second
+	temperature := defaultTemperature
+	maxTokens := defaultMaxTokens
+	topP := defaultTopP
+	timeout := defaultTimeout
 	priority := domain.PriorityNormal
 	useCache := true
 
@@ -205,7 +218,7 @@ func (s *AIService) generateCodeInternal(ctx context.Context, systemPrompt, user
 		if options.Temperature != 0 {
 			temperature = options.Temperature
 			// Disable cache for non-deterministic requests
-			if temperature > 0.1 {
+			if temperature > deterministicTempThreshold {
 				useCache = false
 			}
 		}
@@ -455,12 +468,12 @@ func (s *AIService) GenerateCodeStream(ctx context.Context, systemPrompt, userPr
 		Model:        model,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
-		Temperature:  0.7,
-		MaxTokens:    4000,
-		TopP:         1.0,
+		Temperature:  defaultTemperature,
+		MaxTokens:    defaultMaxTokens,
+		TopP:         defaultTopP,
 		RequestID:    fmt.Sprintf("stream_%d", time.Now().UnixNano()),
 		Priority:     domain.PriorityNormal,
-		Timeout:      120 * time.Second,
+		Timeout:      defaultStreamTimeout,
 	}
 
 	tctx, cancel := context.WithTimeout(ctx, req.Timeout)

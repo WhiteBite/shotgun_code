@@ -275,11 +275,34 @@ export class MemoryMonitor {
 
   /**
    * Register callback for critical memory events
+   * Returns unsubscribe function to prevent memory leaks
    */
-  private criticalCallbacks: Array<() => void> = [];
+  private criticalCallbacks: Set<() => void> = new Set();
 
-  public onCritical(callback: () => void): void {
-    this.criticalCallbacks.push(callback);
+  public onCritical(callback: () => void): () => void {
+    this.criticalCallbacks.add(callback);
+    // Return unsubscribe function
+    return () => {
+      this.criticalCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Clear all critical callbacks
+   */
+  public clearCriticalCallbacks(): void {
+    this.criticalCallbacks.clear();
+  }
+
+  /**
+   * Cleanup and reset the monitor (call when unmounting)
+   */
+  public cleanup(): void {
+    this.stopMonitoring();
+    this.criticalCallbacks.clear();
+    this.memoryHistory = [];
+    this.warningIssued = false;
+    this.criticalIssued = false;
   }
 
   /**
@@ -347,13 +370,13 @@ export class MemoryMonitor {
         }
 
         // Trigger critical callbacks
-        this.criticalCallbacks.forEach(cb => {
+        for (const cb of this.criticalCallbacks) {
           try {
             cb();
           } catch (e) {
             console.error('Critical callback error:', e);
           }
-        });
+        }
 
         this.criticalIssued = true;
       }

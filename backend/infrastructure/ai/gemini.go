@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"shotgun_code/domain"
+	"shotgun_code/infrastructure/ai/common"
 	"sort"
 	"strings"
 	"time"
@@ -139,22 +140,11 @@ func (p *GeminiProviderImpl) GetProviderInfo() domain.ProviderInfo {
 }
 
 func (p *GeminiProviderImpl) ValidateRequest(req domain.AIRequest) error {
-	if req.Model == "" {
-		return fmt.Errorf("model is required")
-	}
-	if req.UserPrompt == "" {
-		return fmt.Errorf("user prompt is required")
-	}
-	return nil
+	return common.ValidateRequestBasic(req)
 }
 
 func (p *GeminiProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
-	// Простая оценка токенов для Gemini
-	totalChars := len(req.SystemPrompt) + len(req.UserPrompt)
-	estimatedTokens := totalChars / 4
-
-	// Добавляем буфер для безопасности
-	return estimatedTokens + 100, nil
+	return common.EstimateTokens(req)
 }
 
 func (p *GeminiProviderImpl) GetPricing(model string) domain.PricingInfo {

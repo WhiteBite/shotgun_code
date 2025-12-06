@@ -12,11 +12,11 @@ import (
 
 // IntelligentAIService предоставляет интеллектуальные возможности для работы с ИИ
 type IntelligentAIService struct {
-	settingsService *SettingsService
-	log             domain.Logger
-	aiService       *AIService // Используем AIService для базовой работы с провайдерами
-	rateLimiter     *RateLimiter
-	metrics         *MetricsCollector
+	settingsService  *SettingsService
+	log              domain.Logger
+	providerGetter   domain.AIProviderGetter // Используем интерфейс для разрыва циклической зависимости
+	rateLimiter      *RateLimiter
+	metrics          *MetricsCollector
 }
 
 // NewIntelligentAIService создает новый интеллектуальный сервис ИИ
@@ -28,17 +28,17 @@ func NewIntelligentAIService(
 	metrics *MetricsCollector,
 ) *IntelligentAIService {
 	return &IntelligentAIService{
-		settingsService: settingsService,
-		log:             log,
-		aiService:       nil, // Will be set by AIService after creation
-		rateLimiter:     rateLimiter,
-		metrics:         metrics,
+		settingsService:  settingsService,
+		log:              log,
+		providerGetter:   nil, // Will be set via SetProviderGetter after creation
+		rateLimiter:      rateLimiter,
+		metrics:          metrics,
 	}
 }
 
-// SetAIService устанавливает ссылку на AIService для доступа к провайдерам
-func (s *IntelligentAIService) SetAIService(aiService *AIService) {
-	s.aiService = aiService
+// SetProviderGetter устанавливает источник провайдеров для доступа к AI
+func (s *IntelligentAIService) SetProviderGetter(getter domain.AIProviderGetter) {
+	s.providerGetter = getter
 }
 
 // GenerateIntelligentCode выполняет интеллектуальную генерацию кода
@@ -178,12 +178,12 @@ func (s *IntelligentAIService) selectOptimalProvider(
 	req domain.IntelligentRequest,
 	dto domain.SettingsDTO,
 ) (domain.AIProvider, string, error) {
-	if s.aiService == nil {
-		return nil, "", fmt.Errorf("AIService not initialized")
+	if s.providerGetter == nil {
+		return nil, "", fmt.Errorf("provider getter not initialized")
 	}
 
-	// Используем GetProvider из AIService для получения провайдера
-	provider, model, err := s.aiService.GetProvider(ctx)
+	// Используем интерфейс для получения провайдера
+	provider, model, err := s.providerGetter.GetProvider(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get provider: %w", err)
 	}
