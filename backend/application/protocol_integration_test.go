@@ -54,6 +54,14 @@ func TestTaskProtocolIntegration_EndToEnd(t *testing.T) {
 	configService := NewTaskProtocolConfigService(logger, fileSystemProvider)
 
 	taskflowService.On("ExecuteTaskflow").Return(nil)
+	taskflowService.On("LoadTasks").Return([]domain.Task{
+		{ID: "task-1", Name: "Test Task", State: domain.TaskStateTodo},
+	}, nil)
+	taskflowService.On("GetTaskStatus", mock.Anything).Return(&domain.TaskStatus{
+		TaskID: "task-1",
+		State:  domain.TaskStateDone,
+	}, nil)
+	taskflowService.On("UpdateTaskStatus", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Create integration service
 	integration := NewTaskflowProtocolIntegration(
@@ -411,6 +419,13 @@ func TestProtocolPerformance(t *testing.T) {
 	guardrailService := &testutils.MockGuardrailService{}
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
+	guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
 
 	taskProtocolService := NewTaskProtocolService(
 		logger,

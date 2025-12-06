@@ -368,7 +368,7 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 	if !p.checkJavaEnvironment() {
 		result.Success = false
 		result.Error = "Java environment not available"
-		return result, fmt.Errorf(result.Error)
+		return result, fmt.Errorf("%s", result.Error)
 	}
 
 	// Проверяем наличие pom.xml или build.gradle
@@ -415,7 +415,7 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 	} else {
 		result.Success = false
 		result.Error = "neither pom.xml nor build.gradle found"
-		return result, fmt.Errorf(result.Error)
+		return result, fmt.Errorf("%s", result.Error)
 	}
 
 	return result, nil

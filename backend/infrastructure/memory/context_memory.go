@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // ContextMemoryImpl implements domain.ContextMemory interface
@@ -29,7 +29,7 @@ func NewContextMemory(cacheDir string) (*ContextMemoryImpl, error) {
 	}
 
 	dbPath := filepath.Join(cacheDir, "context_memory.db")
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL")
+	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL")
 	if err != nil {
 		return nil, err
 	}

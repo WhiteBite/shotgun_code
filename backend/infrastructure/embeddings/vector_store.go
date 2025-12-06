@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // SQLiteVectorStore implements VectorStore using SQLite
@@ -33,7 +33,7 @@ func NewSQLiteVectorStore(dataDir string, log domain.Logger) (*SQLiteVectorStore
 	
 	dbPath := filepath.Join(dataDir, "embeddings.db")
 	
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
+	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

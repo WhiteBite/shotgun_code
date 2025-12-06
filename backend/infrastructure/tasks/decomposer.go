@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type TaskManagerImpl struct {
@@ -22,7 +22,7 @@ var _ domain.DecompTaskManager = (*TaskManagerImpl)(nil)
 
 func NewTaskManager(cacheDir string) (*TaskManagerImpl, error) {
 	os.MkdirAll(cacheDir, 0755)
-	db, err := sql.Open("sqlite3", filepath.Join(cacheDir, "tasks.db")+"?_journal_mode=WAL")
+	db, err := sql.Open("sqlite", filepath.Join(cacheDir, "tasks.db")+"?_journal_mode=WAL")
 	if err != nil {
 		return nil, err
 	}

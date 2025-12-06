@@ -2,9 +2,6 @@
   <div class="action-bar">
     <!-- Left: Project & Stats -->
     <div class="action-bar-left">
-      <!-- Version Badge -->
-      <VersionBadge />
-
       <!-- Project Name -->
       <button @click="changeProject" class="project-btn" :title="t('hotkey.changeProject')">
         <div class="project-icon">

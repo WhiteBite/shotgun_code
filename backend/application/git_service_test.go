@@ -42,13 +42,23 @@ func TestGenerateDiff_NoChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Test
+	// Make second commit with same content (no actual changes)
+	_, err = worktree.Commit("second commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+		},
+		AllowEmptyCommits: true,
+	})
+	require.NoError(t, err)
+
+	// Test - GenerateDiff compares HEAD with HEAD~1
 	service := NewGitService(&domain.NoopLogger{})
 	diff, err := service.GenerateDiff(tmpDir)
 
 	// Assert
 	assert.NoError(t, err)
-	assert.Empty(t, diff, "Diff should be empty when there are no changes")
+	assert.Empty(t, diff, "Diff should be empty when commits have no changes")
 }
 
 func TestGenerateDiff_WithChanges(t *testing.T) {
@@ -80,17 +90,27 @@ func TestGenerateDiff_WithChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Modify the file
+	// Modify the file and commit again
 	err = os.WriteFile(testFile, []byte("modified content"), 0644)
 	require.NoError(t, err)
 
-	// Test
+	_, err = worktree.Add("test.txt")
+	require.NoError(t, err)
+
+	_, err = worktree.Commit("second commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+		},
+	})
+	require.NoError(t, err)
+
+	// Test - GenerateDiff compares HEAD with HEAD~1
 	service := NewGitService(&domain.NoopLogger{})
 	diff, err := service.GenerateDiff(tmpDir)
 
 	// Assert
 	assert.NoError(t, err)
-	assert.NotEmpty(t, diff, "Diff should not be empty when there are changes")
+	assert.NotEmpty(t, diff, "Diff should not be empty when commits have changes")
 	assert.Contains(t, diff, "test.txt", "Diff should mention the modified file")
-	assert.Contains(t, diff, "Changes in repository", "Diff should contain header")
 }

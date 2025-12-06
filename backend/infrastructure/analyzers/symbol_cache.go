@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // CachedSymbolIndex wraps SymbolIndexImpl with SQLite persistence
@@ -32,7 +32,7 @@ func NewCachedSymbolIndex(registry analysis.AnalyzerRegistry, cacheDir string) (
 	}
 
 	dbPath := filepath.Join(cacheDir, "symbols.db")
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
+	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
 		return nil, err
 	}

@@ -80,6 +80,16 @@ func (e *ErrorAnalyzerImpl) SuggestCorrections(error *domain.ErrorDetails) ([]*d
 func (e *ErrorAnalyzerImpl) ClassifyErrorType(errorOutput string) domain.ErrorType {
 	errorLower := strings.ToLower(errorOutput)
 
+	// TypeScript specific errors (check first for specificity)
+	if strings.Contains(errorOutput, "TS2304") || strings.Contains(errorLower, "cannot find name") {
+		return domain.ErrorTypeImport
+	}
+
+	// Import errors
+	if strings.Contains(errorLower, "import") || strings.Contains(errorLower, "module") {
+		return domain.ErrorTypeImport
+	}
+
 	// Compilation errors
 	if strings.Contains(errorLower, "compile") || strings.Contains(errorLower, "syntax error") {
 		return domain.ErrorTypeCompilation
@@ -88,11 +98,6 @@ func (e *ErrorAnalyzerImpl) ClassifyErrorType(errorOutput string) domain.ErrorTy
 	// Type checking errors
 	if strings.Contains(errorLower, "type") || strings.Contains(errorLower, "cannot use") {
 		return domain.ErrorTypeTypeCheck
-	}
-
-	// Import errors
-	if strings.Contains(errorLower, "import") || strings.Contains(errorLower, "module") {
-		return domain.ErrorTypeImport
 	}
 
 	// Linting errors

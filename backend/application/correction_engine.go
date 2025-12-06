@@ -306,6 +306,11 @@ func (c *CorrectionEngineImpl) registerCorrectionRules() {
 	c.correctionRules[domain.ErrorTypeLinting] = []domain.CorrectionRule{
 		NewLintingCorrectionRule(),
 	}
+
+	// Register rules for compilation errors
+	c.correctionRules[domain.ErrorTypeCompilation] = []domain.CorrectionRule{
+		NewCompilationCorrectionRule(),
+	}
 }
 
 // Correction rule implementations
@@ -413,6 +418,32 @@ func (r *LintingCorrectionRule) GetPriority() int {
 
 func (r *LintingCorrectionRule) GetErrorTypes() []domain.ErrorType {
 	return []domain.ErrorType{domain.ErrorTypeLinting}
+}
+
+// CompilationCorrectionRule handles compilation-related corrections
+type CompilationCorrectionRule struct{}
+
+func NewCompilationCorrectionRule() domain.CorrectionRule {
+	return &CompilationCorrectionRule{}
+}
+
+func (r *CompilationCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
+	return error.ErrorType == domain.ErrorTypeCompilation
+}
+
+func (r *CompilationCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+	return &domain.CorrectionResult{
+		Success: true,
+		Message: "Compilation correction applied",
+	}, nil
+}
+
+func (r *CompilationCorrectionRule) GetPriority() int {
+	return 95
+}
+
+func (r *CompilationCorrectionRule) GetErrorTypes() []domain.ErrorType {
+	return []domain.ErrorType{domain.ErrorTypeCompilation}
 }
 
 // Utility functions

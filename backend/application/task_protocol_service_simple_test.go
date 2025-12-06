@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // TestTaskProtocolService_ExecuteProtocol tests basic protocol execution
@@ -22,6 +23,9 @@ func TestTaskProtocolService_ExecuteProtocol_Basic(t *testing.T) {
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
 
 	service := NewTaskProtocolService(
 		logger,
@@ -69,6 +73,9 @@ func TestTaskProtocolService_ValidateStage_Linting(t *testing.T) {
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
 
 	service := NewTaskProtocolService(
 		logger,
@@ -137,6 +144,13 @@ func TestTaskProtocolService_Integration(t *testing.T) {
 	errorAnalyzer := NewErrorAnalyzer(logger)
 	fileSystemProvider := &MockFileSystemProvider{}
 	correctionEngine := NewCorrectionEngine(logger, fileSystemProvider)
+
+	// Setup mock expectations
+	staticAnalyzer.On("AnalyzeProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.StaticAnalysisReport{}, nil)
+	buildService.On("ValidateProject", mock.Anything, mock.Anything, mock.Anything).Return(&domain.ProjectValidationResult{Success: true}, nil)
+	testService.On("RunSmokeTests", mock.Anything, mock.Anything, mock.Anything).Return([]*domain.TestResult{}, nil)
+	testService.On("ValidateTestResults", mock.Anything).Return(&domain.TestValidationResult{Success: true})
+	guardrailService.On("ValidateTask", mock.Anything, mock.Anything, mock.Anything).Return(&domain.TaskValidationResult{Valid: true}, nil)
 
 	service := NewTaskProtocolService(
 		logger,
