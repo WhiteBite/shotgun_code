@@ -32,81 +32,90 @@ func (b *ContextBuilder) GetRecentChanges(since string, pathFilter string) ([]Re
 		since = "1 week ago"
 	}
 
-	cmdArgs := []string{"log", "--since=" + since, "--name-only", "--format=%H|%an|%at"}
-	if pathFilter != "" {
-		cmdArgs = append(cmdArgs, "--", pathFilter)
-	}
-
-	cmd := exec.Command("git", cmdArgs...)
-	cmd.Dir = b.projectRoot
-	output, err := cmd.Output()
+	output, err := b.runGitLog(since, pathFilter)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse output
-	changes := make(map[string]*RecentChange)
-	lines := strings.Split(string(output), "\n")
+	changes := b.parseGitLogOutput(string(output))
+	return b.sortRecentChanges(changes), nil
+}
 
+// runGitLog executes git log command
+func (b *ContextBuilder) runGitLog(since, pathFilter string) ([]byte, error) {
+	cmdArgs := []string{"log", "--since=" + since, "--name-only", "--format=%H|%an|%at"}
+	if pathFilter != "" {
+		cmdArgs = append(cmdArgs, "--", pathFilter)
+	}
+	cmd := exec.Command("git", cmdArgs...)
+	cmd.Dir = b.projectRoot
+	return cmd.Output()
+}
+
+// parseGitLogOutput parses git log output into changes map
+func (b *ContextBuilder) parseGitLogOutput(output string) map[string]*RecentChange {
+	changes := make(map[string]*RecentChange)
 	var currentAuthor string
 	var currentTime time.Time
 
-	for _, line := range lines {
+	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 
 		if strings.Contains(line, "|") {
-			parts := strings.Split(line, "|")
-			if len(parts) >= 3 {
-				currentAuthor = parts[1]
-				// Parse unix timestamp
-				var ts int64
-				if _, err := parseUnixTime(parts[2], &ts); err == nil {
-					currentTime = time.Unix(ts, 0)
-				}
-			}
+			currentAuthor, currentTime = b.parseCommitLine(line)
 			continue
 		}
 
-		// It's a file path
-		filePath := line
-		if change, exists := changes[filePath]; exists {
-			change.ChangeCount++
-			if currentTime.After(change.LastChanged) {
-				change.LastChanged = currentTime
-			}
-			if !containsString(change.Authors, currentAuthor) {
-				change.Authors = append(change.Authors, currentAuthor)
-			}
-		} else {
-			changes[filePath] = &RecentChange{
-				FilePath:    filePath,
-				ChangeCount: 1,
-				LastChanged: currentTime,
-				Authors:     []string{currentAuthor},
-			}
+		b.updateFileChange(changes, line, currentAuthor, currentTime)
+	}
+	return changes
+}
+
+// parseCommitLine parses a commit metadata line
+func (b *ContextBuilder) parseCommitLine(line string) (string, time.Time) {
+	parts := strings.Split(line, "|")
+	if len(parts) < 3 {
+		return "", time.Time{}
+	}
+	var ts int64
+	_, _ = parseUnixTime(parts[2], &ts)
+	return parts[1], time.Unix(ts, 0)
+}
+
+// updateFileChange updates or creates a file change entry
+func (b *ContextBuilder) updateFileChange(changes map[string]*RecentChange, filePath, author string, changeTime time.Time) {
+	if change, exists := changes[filePath]; exists {
+		change.ChangeCount++
+		if changeTime.After(change.LastChanged) {
+			change.LastChanged = changeTime
+		}
+		if !containsString(change.Authors, author) {
+			change.Authors = append(change.Authors, author)
+		}
+	} else {
+		changes[filePath] = &RecentChange{
+			FilePath: filePath, ChangeCount: 1, LastChanged: changeTime, Authors: []string{author},
 		}
 	}
+}
 
-	// Convert to slice and sort
+// sortRecentChanges converts map to sorted slice
+func (b *ContextBuilder) sortRecentChanges(changes map[string]*RecentChange) []RecentChange {
 	result := make([]RecentChange, 0, len(changes))
 	for _, c := range changes {
 		result = append(result, *c)
 	}
-
 	sort.Slice(result, func(i, j int) bool {
-		// Sort by change count descending, then by last changed descending
 		if result[i].ChangeCount != result[j].ChangeCount {
 			return result[i].ChangeCount > result[j].ChangeCount
 		}
 		return result[i].LastChanged.After(result[j].LastChanged)
 	})
-
-	return result, nil
+	return result
 }
-
 
 // GetRelatedByAuthor returns files frequently changed by the same author
 func (b *ContextBuilder) GetRelatedByAuthor(filePath string, limit int) ([]string, error) {
@@ -145,7 +154,7 @@ func (b *ContextBuilder) GetRelatedByAuthor(filePath string, limit int) ([]strin
 	}
 
 	// Get files changed by this author
-	cmd = exec.Command("git", "log", "--author="+topAuthor, "--name-only", "--format=", "-n", "100")
+	cmd = exec.Command("git", "log", "--author="+topAuthor, "--name-only", "--format=", "-n", "100") //nolint:gosec // Git command with validated input
 	cmd.Dir = b.projectRoot
 	output, err = cmd.Output()
 	if err != nil {
@@ -165,7 +174,7 @@ func (b *ContextBuilder) GetRelatedByAuthor(filePath string, limit int) ([]strin
 		path  string
 		count int
 	}
-	var sorted []fileCount
+	sorted := make([]fileCount, 0, len(fileCounts))
 	for path, count := range fileCounts {
 		sorted = append(sorted, fileCount{path, count})
 	}
@@ -226,7 +235,7 @@ func (b *ContextBuilder) GetCoChangedFiles(filePath string, limit int) ([]string
 		path  string
 		count int
 	}
-	var sorted []fileCount
+	sorted := make([]fileCount, 0, len(fileCounts))
 	for path, count := range fileCounts {
 		sorted = append(sorted, fileCount{path, count})
 	}
@@ -252,22 +261,32 @@ func (b *ContextBuilder) SuggestContextFiles(taskDescription string, currentFile
 	}
 
 	suggestions := make(map[string]int)
+	b.addCoChangedSuggestions(currentFiles, suggestions)
+	b.addRecentChangeSuggestions(currentFiles, suggestions)
+	b.addKeywordSuggestions(taskDescription, suggestions)
 
-	// 1. Add co-changed files for current files
+	for _, f := range currentFiles {
+		delete(suggestions, f)
+	}
+
+	return b.topSuggestions(suggestions, limit), nil
+}
+
+// addCoChangedSuggestions adds co-changed files to suggestions
+func (b *ContextBuilder) addCoChangedSuggestions(currentFiles []string, suggestions map[string]int) {
 	for _, file := range currentFiles {
-		coChanged, err := b.GetCoChangedFiles(file, 5)
-		if err == nil {
+		if coChanged, err := b.GetCoChangedFiles(file, 5); err == nil {
 			for _, f := range coChanged {
 				suggestions[f] += 3
 			}
 		}
 	}
+}
 
-	// 2. Add recently changed files in same directories
+// addRecentChangeSuggestions adds recently changed files in same directories
+func (b *ContextBuilder) addRecentChangeSuggestions(currentFiles []string, suggestions map[string]int) {
 	for _, file := range currentFiles {
-		dir := filepath.Dir(file)
-		recent, err := b.GetRecentChanges("2 weeks ago", dir)
-		if err == nil {
+		if recent, err := b.GetRecentChanges("2 weeks ago", filepath.Dir(file)); err == nil {
 			for _, r := range recent {
 				if r.FilePath != file {
 					suggestions[r.FilePath] += r.ChangeCount
@@ -275,32 +294,30 @@ func (b *ContextBuilder) SuggestContextFiles(taskDescription string, currentFile
 			}
 		}
 	}
+}
 
-	// 3. Search commits by task keywords
-	keywords := extractKeywords(taskDescription)
-	for _, kw := range keywords {
-		cmd := exec.Command("git", "log", "--grep="+kw, "-i", "--name-only", "--format=", "-n", "20")
+// addKeywordSuggestions searches commits by task keywords
+func (b *ContextBuilder) addKeywordSuggestions(taskDescription string, suggestions map[string]int) {
+	for _, kw := range extractKeywords(taskDescription) {
+		cmd := exec.Command("git", "log", "--grep="+kw, "-i", "--name-only", "--format=", "-n", "20") //nolint:gosec // Git command with validated input
 		cmd.Dir = b.projectRoot
-		output, _ := cmd.Output()
-		for _, file := range strings.Split(string(output), "\n") {
-			file = strings.TrimSpace(file)
-			if file != "" {
-				suggestions[file] += 2
+		if output, err := cmd.Output(); err == nil {
+			for _, file := range strings.Split(string(output), "\n") {
+				if file = strings.TrimSpace(file); file != "" {
+					suggestions[file] += 2
+				}
 			}
 		}
 	}
+}
 
-	// Remove current files from suggestions
-	for _, f := range currentFiles {
-		delete(suggestions, f)
-	}
-
-	// Sort by score
+// topSuggestions returns top N suggestions sorted by score
+func (b *ContextBuilder) topSuggestions(suggestions map[string]int, limit int) []string {
 	type suggestion struct {
 		path  string
 		score int
 	}
-	var sorted []suggestion
+	sorted := make([]suggestion, 0, len(suggestions))
 	for path, score := range suggestions {
 		sorted = append(sorted, suggestion{path, score})
 	}
@@ -315,8 +332,7 @@ func (b *ContextBuilder) SuggestContextFiles(taskDescription string, currentFile
 		}
 		result = append(result, s.path)
 	}
-
-	return result, nil
+	return result
 }
 
 func containsString(slice []string, s string) bool {

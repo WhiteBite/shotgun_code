@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testProjectPath = "/test/project"
+	branchMain      = "main"
+)
+
 // Mock implementations for benchmarking
 type mockProjectLogger struct{}
 
@@ -32,20 +37,20 @@ func (m *mockTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 	nodes := []*domain.FileNode{
 		{
 			Name:    "file1.go",
-			Path:    "/test/project/file1.go",
+			Path:    testProjectPath + "/file1.go",
 			RelPath: "file1.go",
 			IsDir:   false,
 			Size:    1024,
 		},
 		{
 			Name:    "dir1",
-			Path:    "/test/project/dir1",
+			Path:    testProjectPath + "/dir1",
 			RelPath: "dir1",
 			IsDir:   true,
 			Children: []*domain.FileNode{
 				{
 					Name:    "file2.js",
-					Path:    "/test/project/dir1/file2.js",
+					Path:    testProjectPath + "/dir1/file2.js",
 					RelPath: "dir1/file2.js",
 					IsDir:   false,
 					Size:    2048,
@@ -102,11 +107,11 @@ func (m *mockGitRepository) IsGitAvailable() bool {
 }
 
 func (m *mockGitRepository) GetBranches(projectRoot string) ([]string, error) {
-	return []string{"main", "develop", "feature/test"}, nil
+	return []string{branchMain, "develop", "feature/test"}, nil
 }
 
 func (m *mockGitRepository) GetCurrentBranch(projectRoot string) (string, error) {
-	return "main", nil
+	return branchMain, nil
 }
 
 func (m *mockGitRepository) GetAllFiles(projectPath string) ([]string, error) {
@@ -173,7 +178,7 @@ func BenchmarkProjectService_ListFiles(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	dirPath := "/test/project"
+	dirPath := testProjectPath
 	useGitignore := true
 	useCustomIgnore := true
 
@@ -198,7 +203,7 @@ func BenchmarkProjectService_GetUncommittedFiles(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectRoot := "/test/project"
+	projectRoot := testProjectPath
 
 	for i := 0; i < b.N; i++ {
 		_, err := service.GetUncommittedFiles(projectRoot)
@@ -221,8 +226,8 @@ func BenchmarkProjectService_GetRichCommitHistory(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectRoot := "/test/project"
-	branchName := "main"
+	projectRoot := testProjectPath
+	branchName := branchMain
 	limit := 10
 
 	for i := 0; i < b.N; i++ {
@@ -266,7 +271,7 @@ func BenchmarkProjectService_GenerateContext(b *testing.B) {
 	b.ReportAllocs()
 
 	ctx := context.Background()
-	rootDir := "/test/project"
+	rootDir := testProjectPath
 	includedPaths := []string{"file1.go", "dir1/file2.js"}
 
 	for i := 0; i < b.N; i++ {

@@ -115,63 +115,72 @@ func buildTree(paths []string) string {
 	return b.String()
 }
 
+// buildPlainFormat builds plain text format output
+func buildPlainFormat(entries []entry, opts BuildOptions) string {
+	var b strings.Builder
+	for _, e := range entries {
+		content := e.Content
+		if opts.StripComments {
+			content = stripComments(content)
+		}
+		b.WriteString("--- File: " + e.Path + " ---\n")
+		b.WriteString(content)
+		b.WriteString("\n\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// buildManifestFormat builds manifest format output with tree
+func buildManifestFormat(entries []entry, opts BuildOptions) string {
+	paths := make([]string, 0, len(entries))
+	for _, e := range entries {
+		paths = append(paths, e.Path)
+	}
+	var b strings.Builder
+	b.WriteString("Manifest:\n")
+	b.WriteString(buildTree(paths))
+	b.WriteString("\n")
+	for _, e := range entries {
+		content := e.Content
+		if opts.StripComments {
+			content = stripComments(content)
+		}
+		b.WriteString("--- File: " + e.Path + " ---\n")
+		b.WriteString(content)
+		b.WriteString("\n\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// buildJSONFormat builds JSON format output
+func buildJSONFormat(entries []entry, opts BuildOptions) (string, error) {
+	j := make([]entry, 0, len(entries))
+	for _, e := range entries {
+		c := e.Content
+		if opts.StripComments {
+			c = stripComments(c)
+		}
+		j = append(j, entry{Path: e.Path, Content: c})
+	}
+	raw, err := json.MarshalIndent(j, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // BuildFromContext — собирает строку по формату: "plain" | "manifest" | "json"
 func BuildFromContext(format string, ctx string, opts BuildOptions) (string, error) {
 	entries := parseContext(ctx)
 
 	switch strings.ToLower(format) {
 	case "plain":
-		var b strings.Builder
-		for _, e := range entries {
-			content := e.Content
-			if opts.StripComments {
-				content = stripComments(content)
-			}
-			b.WriteString("--- File: " + e.Path + " ---\n")
-			b.WriteString(content)
-			b.WriteString("\n\n")
-		}
-		return strings.TrimSpace(b.String()), nil
-
+		return buildPlainFormat(entries, opts), nil
 	case "manifest", "manifest+text":
-		paths := make([]string, 0, len(entries))
-		for _, e := range entries {
-			paths = append(paths, e.Path)
-		}
-		var b strings.Builder
-		// всегда генерим дерево
-		b.WriteString("Manifest:\n")
-		b.WriteString(buildTree(paths))
-		b.WriteString("\n")
-		// затем plain
-		for _, e := range entries {
-			content := e.Content
-			if opts.StripComments {
-				content = stripComments(content)
-			}
-			b.WriteString("--- File: " + e.Path + " ---\n")
-			b.WriteString(content)
-			b.WriteString("\n\n")
-		}
-		return strings.TrimSpace(b.String()), nil
-
+		return buildManifestFormat(entries, opts), nil
 	case "json":
-		j := make([]entry, 0, len(entries))
-		for _, e := range entries {
-			c := e.Content
-			if opts.StripComments {
-				c = stripComments(c)
-			}
-			j = append(j, entry{Path: e.Path, Content: c})
-		}
-		raw, err := json.MarshalIndent(j, "", "  ")
-		if err != nil {
-			return "", err
-		}
-		return string(raw), nil
-
+		return buildJSONFormat(entries, opts)
 	default:
-		// по умолчанию как "manifest"
 		return BuildFromContext("manifest", ctx, opts)
 	}
 }

@@ -60,7 +60,7 @@ func TestService_CreateStream(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotEmpty(t, result.ID)
-	assert.True(t, len(result.ID) > 0)
+	assert.True(t, result.ID != "")
 	assert.Equal(t, projectPath, result.ProjectPath)
 	assert.Equal(t, includedPaths, result.Files)
 	assert.Equal(t, int64(26), result.TotalLines) // Expected line count for streaming context
@@ -81,7 +81,7 @@ func TestService_CreateStream(t *testing.T) {
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
 	mockLogger.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }
 
 func TestService_CreateStream_MemoryLimitExceeded(t *testing.T) {
@@ -140,7 +140,7 @@ func TestService_CreateStream_TokenLimitExceeded(t *testing.T) {
 
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }
 
 func TestService_GetContextLines(t *testing.T) {
@@ -207,7 +207,7 @@ func TestService_GetContextLines(t *testing.T) {
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
 	mockLogger.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }
 
 func TestService_GetContextLines_StreamNotFound(t *testing.T) {
@@ -283,5 +283,5 @@ func TestService_BuildContext_StreamingForced(t *testing.T) {
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
 	mockLogger.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }

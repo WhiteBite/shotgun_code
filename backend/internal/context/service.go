@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,21 +20,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
-
-// Buffer pool for memory efficiency - prevents GC pressure
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		buf := make([]byte, 0, 64*1024) // 64KB initial capacity
-		return &buf
-	},
-}
-
-// String builder pool for context building
-var stringBuilderPool = sync.Pool{
-	New: func() interface{} {
-		return &strings.Builder{}
-	},
-}
 
 // Service handles all context management operations with memory-safe streaming by default
 type Service struct {
@@ -56,12 +42,12 @@ type Service struct {
 
 	// Worker pool for file scanning (fixed goroutine count)
 	workerCount int
-	
+
 	// Shutdown coordination
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
 	wg           sync.WaitGroup
-	
+
 	// Metrics for monitoring
 	activeOperations int64
 	totalOperations  int64
@@ -128,7 +114,7 @@ func NewService(
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	if err := os.MkdirAll(contextDir, 0755); err != nil {
+	if err := os.MkdirAll(contextDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create context directory: %w", err)
 	}
 
@@ -166,19 +152,19 @@ func NewService(
 // Safe to call multiple times - uses sync.Once to prevent double-close panic
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.logger.Info("Shutting down context service...")
-	
+
 	// Signal shutdown (safe to call multiple times)
 	s.shutdownOnce.Do(func() {
 		close(s.shutdownCh)
 	})
-	
+
 	// Wait for goroutines with timeout
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		s.logger.Info("Context service shutdown complete")
@@ -187,30 +173,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		s.logger.Warning("Context service shutdown timed out")
 		return ctx.Err()
 	}
-}
-
-// getBuffer gets a buffer from the pool
-func getBuffer() *[]byte {
-	return bufferPool.Get().(*[]byte)
-}
-
-// putBuffer returns a buffer to the pool
-func putBuffer(buf *[]byte) {
-	*buf = (*buf)[:0] // Reset length but keep capacity
-	bufferPool.Put(buf)
-}
-
-// getStringBuilder gets a string builder from the pool
-func getStringBuilder() *strings.Builder {
-	sb := stringBuilderPool.Get().(*strings.Builder)
-	sb.Reset()
-	return sb
-}
-
-// putStringBuilder returns a string builder to the pool
-func putStringBuilder(sb *strings.Builder) {
-	sb.Reset()
-	stringBuilderPool.Put(sb)
 }
 
 // BuildContext builds a context from project files with memory-safe streaming by default
@@ -248,55 +210,115 @@ func (s *Service) GenerateContextAsync(ctx context.Context, rootDir string, incl
 }
 
 // CreateStream creates a memory-safe streaming context
-func (s *Service) CreateStream(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (stream *Stream, err error) {
-	if options == nil {
-		options = &BuildOptions{
-			MaxMemoryMB: s.defaultMaxMemoryMB,
-			MaxTokens:   s.defaultMaxTokens,
+// streamWriteState holds state during stream writing
+type streamWriteState struct {
+	totalLines int64
+	totalChars int64
+	tokenCount int
+	files      []string
+}
+
+// checkMemoryLimit validates memory constraints
+func (s *Service) checkMemoryLimit(options *BuildOptions, totalSize int64, oversizedFiles []string) error {
+	if options.MaxMemoryMB > 0 {
+		maxBytes := int64(options.MaxMemoryMB) * 1024 * 1024
+		if totalSize > maxBytes {
+			return fmt.Errorf("context would exceed memory limit: %d MB > %d MB. Oversized files: %v",
+				totalSize/(1024*1024), options.MaxMemoryMB, oversizedFiles)
 		}
 	}
+	return nil
+}
 
-	// Validate limits
+// createProgressCallback creates a progress callback for file reading
+func (s *Service) createProgressCallback(ctx context.Context, options *BuildOptions) func(int64, int64) {
+	return func(current, total int64) {
+		if options.EnableProgressEvents && s.eventBus != nil {
+			select {
+			case <-ctx.Done():
+			default:
+				s.eventBus.Emit("shotgunContextGenerationProgress", map[string]interface{}{"current": current, "total": total})
+			}
+		}
+	}
+}
+
+// writeStreamHeader writes the manifest header if requested
+func (s *Service) writeStreamHeader(writer *bufio.Writer, projectPath string, options *BuildOptions, state *streamWriteState) error {
+	if !options.IncludeManifest {
+		return nil
+	}
+	header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
+	if _, err := writer.WriteString(header); err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
+	state.totalLines += int64(strings.Count(header, "\n"))
+	state.totalChars += int64(len(header))
+	return nil
+}
+
+// writeFileToStream writes a single file to the stream
+func (s *Service) writeFileToStream(writer *bufio.Writer, filePath, content string, options *BuildOptions, state *streamWriteState) error {
+	if options.StripComments {
+		content = s.stripComments(content, filePath)
+	}
+
+	fileTokens := s.tokenCounter.CountTokens(content)
+	state.tokenCount += fileTokens
+
+	if options.MaxTokens > 0 && state.tokenCount > options.MaxTokens {
+		return fmt.Errorf("context would exceed token limit: %d > %d", state.tokenCount, options.MaxTokens)
+	}
+
+	format := options.OutputFormat
+	if format == "" {
+		format = FormatMarkdown
+	}
+
+	escapedContent := s.escapeForFormat(content, format)
+	parts := []string{s.formatFileHeader(filePath, format), escapedContent, s.formatFileFooter(format)}
+
+	for _, part := range parts {
+		if _, err := writer.WriteString(part); err != nil {
+			return fmt.Errorf("failed to write: %w", err)
+		}
+		state.totalLines += int64(strings.Count(part, "\n"))
+		state.totalChars += int64(len(part))
+	}
+	state.totalLines++ // for content without trailing newline
+
+	if options.MaxMemoryMB > 0 && state.totalChars > int64(options.MaxMemoryMB*1024*1024)/2 {
+		return writer.Flush()
+	}
+	return nil
+}
+
+// CreateStream creates a memory-safe streaming context
+func (s *Service) CreateStream(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (stream *Stream, err error) {
+	if options == nil {
+		options = &BuildOptions{MaxMemoryMB: s.defaultMaxMemoryMB, MaxTokens: s.defaultMaxTokens}
+	}
+
 	if err := s.validateLimits(options); err != nil {
 		return nil, err
 	}
 
 	s.logger.Info(fmt.Sprintf("Creating streaming context for project: %s, files: %d", projectPath, len(includedPaths)))
 
-	// Pre-check file sizes to prevent memory issues
 	totalSize, oversizedFiles, err := s.estimateTotalSize(projectPath, includedPaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate file sizes: %w", err)
 	}
 
-	// Check memory limit
-	if options.MaxMemoryMB > 0 {
-		maxBytes := int64(options.MaxMemoryMB) * 1024 * 1024
-		if totalSize > maxBytes {
-			return nil, fmt.Errorf("context would exceed memory limit: %d MB > %d MB. Oversized files: %v",
-				totalSize/(1024*1024), options.MaxMemoryMB, oversizedFiles)
-		}
+	if err := s.checkMemoryLimit(options, totalSize, oversizedFiles); err != nil {
+		return nil, err
 	}
 
-	// Read file contents with progress tracking
-	contents, err := s.fileReader.ReadContents(ctx, includedPaths, projectPath, func(current, total int64) {
-		if options.EnableProgressEvents && s.eventBus != nil {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				s.eventBus.Emit("shotgunContextGenerationProgress", map[string]interface{}{
-					"current": current,
-					"total":   total,
-				})
-			}
-		}
-	})
+	contents, err := s.fileReader.ReadContents(ctx, includedPaths, projectPath, s.createProgressCallback(ctx, options))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file contents: %w", err)
 	}
 
-	// Create context content and save to file
 	contextID := fmt.Sprintf("stream_%s", uuid.New().String())
 	contextPath := filepath.Join(s.contextDir, contextID+".ctx")
 
@@ -305,142 +327,52 @@ func (s *Service) CreateStream(ctx context.Context, projectPath string, included
 		return nil, fmt.Errorf("failed to create context file: %w", err)
 	}
 	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			if err == nil {
-				err = fmt.Errorf("failed to close context file: %w", closeErr)
-			} else {
-				s.logger.Warning(fmt.Sprintf("failed to close context file: %v", closeErr))
-			}
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close context file: %w", closeErr)
 		}
 	}()
 
 	writer := bufio.NewWriter(file)
 	defer func() {
-		if flushErr := writer.Flush(); flushErr != nil {
-			if err == nil {
-				err = fmt.Errorf("failed to flush writer: %w", flushErr)
-			} else {
-				s.logger.Warning(fmt.Sprintf("failed to flush writer: %v", flushErr))
-			}
+		if flushErr := writer.Flush(); flushErr != nil && err == nil {
+			err = fmt.Errorf("failed to flush writer: %w", flushErr)
 		}
 	}()
 
-	writeString := func(value string) error {
-		if _, writeErr := writer.WriteString(value); writeErr != nil {
-			return fmt.Errorf("failed to write streaming context: %w", writeErr)
-		}
-		return nil
+	state := &streamWriteState{files: make([]string, 0, len(includedPaths))}
+
+	if err := s.writeStreamHeader(writer, projectPath, options, state); err != nil {
+		return nil, err
 	}
 
-	var totalLines int64
-	var totalChars int64
-	var actualFiles []string
-	var tokenCount int
-
-	// Write header if manifest requested
-	if options.IncludeManifest {
-		header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
-		if err := writeString(header); err != nil {
-			return nil, err
-		}
-		totalLines += int64(strings.Count(header, "\n"))
-		totalChars += int64(len(header))
-	}
-
-	// Write file contents with token counting
 	for _, filePath := range includedPaths {
 		content, exists := contents[filePath]
 		if !exists {
-			s.logger.Warning(fmt.Sprintf("[CreateStream] File not found in contents: %s", filePath))
+			s.logger.Warning(fmt.Sprintf("[CreateStream] File not found: %s", filePath))
 			continue
 		}
 
-		actualFiles = append(actualFiles, filePath)
-
-		// Process content based on options
-		if options.StripComments {
-			content = s.stripComments(content, filePath)
-		}
-
-		// Count tokens for this file
-		fileTokens := s.tokenCounter.CountTokens(content)
-		tokenCount += fileTokens
-
-		// Check token limit
-		if options.MaxTokens > 0 && tokenCount > options.MaxTokens {
-			// Clean up partial file
-			if err := file.Close(); err != nil {
-				s.logger.Warning(fmt.Sprintf("Failed to close partial context file: %v", err))
-			}
-			if err := os.Remove(contextPath); err != nil {
-				s.logger.Warning(fmt.Sprintf("Failed to remove partial context file: %v", err))
-			}
-			return nil, fmt.Errorf("context would exceed token limit: %d > %d", tokenCount, options.MaxTokens)
-		}
-
-		// Determine output format (default to markdown)
-		format := options.OutputFormat
-		if format == "" {
-			format = FormatMarkdown
-		}
-
-		// Escape content if needed
-		escapedContent := s.escapeForFormat(content, format)
-
-		// Write file header
-		fileHeader := s.formatFileHeader(filePath, format)
-		if err := writeString(fileHeader); err != nil {
+		state.files = append(state.files, filePath)
+		if err := s.writeFileToStream(writer, filePath, content, options, state); err != nil {
+			_ = file.Close()
+			_ = os.Remove(contextPath)
 			return nil, err
-		}
-		totalLines += int64(strings.Count(fileHeader, "\n"))
-		totalChars += int64(len(fileHeader))
-
-		// Write content
-		if err := writeString(escapedContent); err != nil {
-			return nil, err
-		}
-		totalLines += int64(strings.Count(escapedContent, "\n")) + 1
-		totalChars += int64(len(escapedContent))
-
-		// Write file footer
-		fileFooter := s.formatFileFooter(format)
-		if err := writeString(fileFooter); err != nil {
-			return nil, err
-		}
-		totalLines += int64(strings.Count(fileFooter, "\n"))
-		totalChars += int64(len(fileFooter))
-
-		// Memory safety check - flush if getting too large
-		if options.MaxMemoryMB > 0 && totalChars > int64(options.MaxMemoryMB*1024*1024)/2 {
-			if err := writer.Flush(); err != nil {
-				return nil, fmt.Errorf("failed to flush writer: %w", err)
-			}
 		}
 	}
 
 	now := time.Now()
-
-	// Create context stream object
 	stream = &Stream{
-		ID:          contextID,
-		Name:        s.generateContextName(projectPath, actualFiles),
-		Description: fmt.Sprintf("Streaming context with %d files from %s", len(actualFiles), filepath.Base(projectPath)),
-		Files:       actualFiles,
-		ProjectPath: projectPath,
-		TotalLines:  totalLines,
-		TotalChars:  totalChars,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		TokenCount:  tokenCount,
-		contextPath: contextPath,
+		ID: contextID, Name: s.generateContextName(projectPath, state.files),
+		Description: fmt.Sprintf("Streaming context with %d files from %s", len(state.files), filepath.Base(projectPath)),
+		Files:       state.files, ProjectPath: projectPath, TotalLines: state.totalLines, TotalChars: state.totalChars,
+		CreatedAt: now, UpdatedAt: now, TokenCount: state.tokenCount, contextPath: contextPath,
 	}
 
-	// Store stream reference
 	s.streamsMu.Lock()
 	s.streams[contextID] = stream
 	s.streamsMu.Unlock()
 
-	s.logger.Info(fmt.Sprintf("Created streaming context %s with %d lines, %d tokens", contextID, totalLines, tokenCount))
+	s.logger.Info(fmt.Sprintf("Created streaming context %s with %d lines, %d tokens", contextID, state.totalLines, state.tokenCount))
 	return stream, nil
 }
 
@@ -453,7 +385,7 @@ func (s *Service) GetContextLines(ctx context.Context, contextID string, startLi
 	if !exists {
 		return nil, fmt.Errorf("streaming context not found: %s", contextID)
 	}
-	
+
 	// Limit maximum lines per request
 	const maxLinesPerRequest = 10000
 	if endLine-startLine > maxLinesPerRequest {
@@ -470,7 +402,7 @@ func (s *Service) GetContextLines(ctx context.Context, contextID string, startLi
 	reader := bufio.NewReaderSize(file, 64*1024) // 64KB buffer
 	scanner := bufio.NewScanner(reader)
 	var lines []string
-	var currentLine int64 = 0
+	var currentLine int64
 
 	// Skip to start line
 	for currentLine < startLine && scanner.Scan() {
@@ -498,7 +430,7 @@ func (s *Service) GetContextLines(ctx context.Context, contextID string, startLi
 func (s *Service) CleanupOldStreams(maxAge time.Duration) error {
 	s.streamsMu.Lock()
 	defer s.streamsMu.Unlock()
-	
+
 	now := time.Now()
 	for id, stream := range s.streams {
 		if now.Sub(stream.CreatedAt) > maxAge {
@@ -510,7 +442,7 @@ func (s *Service) CleanupOldStreams(maxAge time.Duration) error {
 			s.logger.Info(fmt.Sprintf("Cleaned up old streaming context: %s", id))
 		}
 	}
-	
+
 	// Ограничиваем количество активных streams
 	const maxActiveStreams = 10
 	if len(s.streams) > maxActiveStreams {
@@ -526,7 +458,7 @@ func (s *Service) CleanupOldStreams(maxAge time.Duration) error {
 		sort.Slice(ages, func(i, j int) bool {
 			return ages[i].age.Before(ages[j].age)
 		})
-		
+
 		// Удаляем лишние
 		for i := 0; i < len(ages)-maxActiveStreams; i++ {
 			id := ages[i].id
@@ -536,14 +468,14 @@ func (s *Service) CleanupOldStreams(maxAge time.Duration) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 // periodicCleanup запускает периодическую очистку старых контекстов
 func (s *Service) periodicCleanup() {
 	defer s.wg.Done()
-	
+
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
@@ -557,7 +489,7 @@ func (s *Service) periodicCleanup() {
 				s.logger.Warning(fmt.Sprintf("Failed to cleanup old streams: %v", err))
 			}
 			s.lastCleanup = time.Now()
-			
+
 			// Force GC after cleanup to release memory
 			runtime.GC()
 		}
@@ -581,37 +513,41 @@ func (s *Service) GetMemoryStats() map[string]interface{} {
 	runtime.ReadMemStats(&memStats)
 
 	return map[string]interface{}{
-		"active_streams":       len(s.streams),
-		"total_disk_size_mb":   totalSize / (1024 * 1024),
-		"last_cleanup":         s.lastCleanup,
-		"active_operations":    atomic.LoadInt64(&s.activeOperations),
-		"total_operations":     atomic.LoadInt64(&s.totalOperations),
-		"total_bytes_read":     atomic.LoadInt64(&s.totalBytesRead),
-		"worker_count":         s.workerCount,
-		"heap_alloc_mb":        memStats.HeapAlloc / (1024 * 1024),
-		"heap_sys_mb":          memStats.HeapSys / (1024 * 1024),
-		"num_gc":               memStats.NumGC,
-		"goroutines":           runtime.NumGoroutine(),
+		"active_streams":     len(s.streams),
+		"total_disk_size_mb": totalSize / (1024 * 1024),
+		"last_cleanup":       s.lastCleanup,
+		"active_operations":  atomic.LoadInt64(&s.activeOperations),
+		"total_operations":   atomic.LoadInt64(&s.totalOperations),
+		"total_bytes_read":   atomic.LoadInt64(&s.totalBytesRead),
+		"worker_count":       s.workerCount,
+		"heap_alloc_mb":      memStats.HeapAlloc / (1024 * 1024),
+		"heap_sys_mb":        memStats.HeapSys / (1024 * 1024),
+		"num_gc":             memStats.NumGC,
+		"goroutines":         runtime.NumGoroutine(),
 	}
+}
+
+// readAndUnmarshalJSON is a helper for reading and unmarshaling JSON files
+func (s *Service) readAndUnmarshalJSON(filePath, entityName string, target interface{}) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%s not found", entityName)
+		}
+		return fmt.Errorf("failed to read %s: %w", entityName, err)
+	}
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("failed to unmarshal %s: %w", entityName, err)
+	}
+	return nil
 }
 
 // GetContext retrieves a context by ID (backward compatibility)
 func (s *Service) GetContext(ctx context.Context, contextID string) (*domain.Context, error) {
-	contextPath := filepath.Join(s.contextDir, contextID+".json")
-
-	data, err := os.ReadFile(contextPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("context not found: %s", contextID)
-		}
-		return nil, fmt.Errorf("failed to read context file: %w", err)
-	}
-
 	var context domain.Context
-	if err := json.Unmarshal(data, &context); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal context: %w", err)
+	if err := s.readAndUnmarshalJSON(filepath.Join(s.contextDir, contextID+".json"), "context: "+contextID, &context); err != nil {
+		return nil, err
 	}
-
 	return &context, nil
 }
 
@@ -692,7 +628,7 @@ func (s *Service) validateLimits(options *BuildOptions) error {
 	// This is just a sanity check to prevent accidental huge requests
 	const maxTokenLimit = 10000000 // 10M tokens - matches frontend max
 	if options.MaxTokens > 0 && options.MaxTokens > maxTokenLimit {
-		return fmt.Errorf("token limit cannot exceed %d (requested: %d). Please adjust settings on frontend.", maxTokenLimit, options.MaxTokens)
+		return fmt.Errorf("token limit cannot exceed %d (requested: %d), please adjust settings on frontend", maxTokenLimit, options.MaxTokens)
 	}
 
 	return nil
@@ -743,45 +679,74 @@ func (s *Service) buildStreamingContext(ctx context.Context, projectPath string,
 
 // Legacy method removed - always use streaming for memory safety
 
+// emitEvent safely emits an event if eventBus is available
+func (s *Service) emitEvent(event string, data interface{}) {
+	if s.eventBus != nil {
+		s.eventBus.Emit(event, data)
+	}
+}
+
+// handleGenerationError handles errors during context generation
+func (s *Service) handleGenerationError(err error) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		s.logger.Error("Context generation timed out")
+		s.emitEvent("app:error", "Context generation timed out after 30 seconds")
+		s.emitEvent("shotgunContextGenerationTimeout", nil)
+	} else {
+		s.logger.Error(fmt.Sprintf("Failed to read file contents: %v", err))
+		s.emitEvent("app:error", fmt.Sprintf("Context generation failed: %v", err))
+		s.emitEvent("shotgunContextGenerationFailed", fmt.Sprintf("%v", err))
+	}
+}
+
+// buildContextString builds the final context string from contents
+func (s *Service) buildContextString(contents map[string]string) string {
+	var contextBuilder strings.Builder
+	contextBuilder.WriteString("Manifest:\n")
+
+	manifestPaths := make([]string, 0, len(contents))
+	for path := range contents {
+		manifestPaths = append(manifestPaths, path)
+	}
+	sort.Strings(manifestPaths)
+
+	contextBuilder.WriteString(s.buildSimpleTree(manifestPaths))
+	contextBuilder.WriteString("\n")
+
+	for _, relPath := range manifestPaths {
+		if content, exists := contents[relPath]; exists {
+			contextBuilder.WriteString(fmt.Sprintf("--- File: %s ---\n", relPath))
+			contextBuilder.WriteString(content)
+			contextBuilder.WriteString("\n\n")
+		}
+	}
+	return strings.TrimSpace(contextBuilder.String())
+}
+
 func (s *Service) generateContextSafe(ctx context.Context, rootDir string, includedPaths []string) {
 	defer func() {
 		if r := recover(); r != nil {
-			stack := debug.Stack()
-			s.logger.Error(fmt.Sprintf("PANIC recovered in GenerateContext: %v\nStack: %s", r, stack))
-			if s.eventBus != nil {
-				s.eventBus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", r))
-				s.eventBus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", r))
-			}
+			s.logger.Error(fmt.Sprintf("PANIC recovered in GenerateContext: %v\nStack: %s", r, debug.Stack()))
+			s.emitEvent("app:error", fmt.Sprintf("Context generation failed: %v", r))
+			s.emitEvent("shotgunContextGenerationFailed", fmt.Sprintf("%v", r))
 		}
 	}()
 
-	// Emit start event
-	if s.eventBus != nil {
-		s.eventBus.Emit("shotgunContextGenerationStarted", map[string]interface{}{
-			"fileCount": len(includedPaths),
-			"rootDir":   rootDir,
-		})
-	}
+	s.emitEvent("shotgunContextGenerationStarted", map[string]interface{}{"fileCount": len(includedPaths), "rootDir": rootDir})
 
-	// Ensure we always have a non-nil context
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
-	// Add timeout for safety
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	s.logger.Info(fmt.Sprintf("Starting async context generation for %d files", len(includedPaths)))
 
-	// Sort paths for deterministic processing
 	sortedPaths := make([]string, len(includedPaths))
 	copy(sortedPaths, includedPaths)
 	sort.Strings(sortedPaths)
 
-	// Use errgroup for controlled concurrency
 	g, gctx := errgroup.WithContext(ctx)
-
 	var contents map[string]string
 
 	g.Go(func() error {
@@ -789,71 +754,21 @@ func (s *Service) generateContextSafe(ctx context.Context, rootDir string, inclu
 		contents, err = s.fileReader.ReadContents(gctx, sortedPaths, rootDir, func(current, total int64) {
 			select {
 			case <-gctx.Done():
-				return
 			default:
-				if s.eventBus != nil {
-					s.eventBus.Emit("shotgunContextGenerationProgress", map[string]interface{}{
-						"current": current,
-						"total":   total,
-					})
-				}
+				s.emitEvent("shotgunContextGenerationProgress", map[string]interface{}{"current": current, "total": total})
 			}
 		})
 		return err
 	})
 
 	if err := g.Wait(); err != nil {
-		if err == context.DeadlineExceeded {
-			s.logger.Error("Context generation timed out")
-			if s.eventBus != nil {
-				s.eventBus.Emit("app:error", "Context generation timed out after 30 seconds")
-				s.eventBus.Emit("shotgunContextGenerationTimeout")
-			}
-		} else {
-			s.logger.Error(fmt.Sprintf("Failed to read file contents: %v", err))
-			if s.eventBus != nil {
-				s.eventBus.Emit("app:error", fmt.Sprintf("Context generation failed: %v", err))
-				s.eventBus.Emit("shotgunContextGenerationFailed", fmt.Sprintf("%v", err))
-			}
-		}
+		s.handleGenerationError(err)
 		return
 	}
 
-	// Build context content
-	var contextBuilder strings.Builder
-
-	// Add manifest header
-	contextBuilder.WriteString("Manifest:\n")
-	manifestPaths := make([]string, 0, len(contents))
-	for path := range contents {
-		manifestPaths = append(manifestPaths, path)
-	}
-	sort.Strings(manifestPaths)
-
-	// Build simple tree structure
-	contextBuilder.WriteString(s.buildSimpleTree(manifestPaths))
-	contextBuilder.WriteString("\n")
-
-	// Add file contents in sorted order
-	for _, relPath := range manifestPaths {
-		content, exists := contents[relPath]
-		if !exists {
-			continue
-		}
-
-		contextBuilder.WriteString(fmt.Sprintf("--- File: %s ---\n", relPath))
-		contextBuilder.WriteString(content)
-		contextBuilder.WriteString("\n\n")
-	}
-
-	finalContext := strings.TrimSpace(contextBuilder.String())
+	finalContext := s.buildContextString(contents)
 	s.logger.Info(fmt.Sprintf("Async context generation completed. Length: %d characters", len(finalContext)))
-
-	if s.eventBus != nil {
-		s.logger.Info("Emitting shotgunContextGenerated event")
-		s.eventBus.Emit("shotgunContextGenerated", finalContext)
-		s.logger.Info("Event emitted successfully")
-	}
+	s.emitEvent("shotgunContextGenerated", finalContext)
 }
 
 type treeNode struct {
@@ -925,7 +840,7 @@ func (s *Service) saveContext(context *domain.Context) error {
 	}
 
 	contextPath := filepath.Join(s.contextDir, context.ID+".json")
-	if err := os.WriteFile(contextPath, data, 0644); err != nil {
+	if err := os.WriteFile(contextPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write context file: %w", err)
 	}
 
@@ -976,34 +891,6 @@ func (s *Service) formatFileFooter(format OutputFormat) string {
 	}
 }
 
-// formatContextHeader returns the header for the entire context
-func (s *Service) formatContextHeader(projectPath string, fileCount int, format OutputFormat) string {
-	switch format {
-	case FormatXML:
-		return fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<context project=\"%s\" files=\"%d\">\n", filepath.Base(projectPath), fileCount)
-	case FormatJSON:
-		return fmt.Sprintf("{\"project\":\"%s\",\"files\":[", filepath.Base(projectPath))
-	case FormatPlain:
-		return fmt.Sprintf("=== Context: %s (%d files) ===\n\n", filepath.Base(projectPath), fileCount)
-	default: // FormatMarkdown
-		return fmt.Sprintf("# Context: %s\n\nFiles: %d\n\n---\n\n", filepath.Base(projectPath), fileCount)
-	}
-}
-
-// formatContextFooter returns the footer for the entire context
-func (s *Service) formatContextFooter(format OutputFormat) string {
-	switch format {
-	case FormatXML:
-		return "</context>\n"
-	case FormatJSON:
-		return "]}"
-	case FormatPlain:
-		return "=== End of Context ===\n"
-	default: // FormatMarkdown
-		return "---\n\n*End of context*\n"
-	}
-}
-
 // escapeForFormat escapes content based on output format
 func (s *Service) escapeForFormat(content string, format OutputFormat) string {
 	switch format {
@@ -1038,7 +925,7 @@ func (s *Service) stripComments(content, filePath string) string {
 
 func (s *Service) stripCStyleComments(content string) string {
 	lines := strings.Split(content, "\n")
-	var result []string
+	result := make([]string, 0, len(lines))
 
 	inBlockComment := false
 	for _, line := range lines {
@@ -1083,7 +970,7 @@ func (s *Service) stripCStyleComments(content string) string {
 
 func (s *Service) stripHashComments(content string) string {
 	lines := strings.Split(content, "\n")
-	var result []string
+	result := make([]string, 0, len(lines))
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -1191,7 +1078,7 @@ func (s *Service) SaveContextSummary(summary *domain.ContextSummary) error {
 	}
 
 	summaryPath := filepath.Join(s.contextDir, summary.ID+".summary.json")
-	if err := os.WriteFile(summaryPath, data, 0644); err != nil {
+	if err := os.WriteFile(summaryPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write context summary: %w", err)
 	}
 
@@ -1200,20 +1087,10 @@ func (s *Service) SaveContextSummary(summary *domain.ContextSummary) error {
 
 // GetContextSummary retrieves context metadata by ID
 func (s *Service) GetContextSummary(ctx context.Context, contextID string) (*domain.ContextSummary, error) {
-	summaryPath := filepath.Join(s.contextDir, contextID+".summary.json")
-	data, err := os.ReadFile(summaryPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("context summary not found: %s", contextID)
-		}
-		return nil, fmt.Errorf("failed to read context summary: %w", err)
-	}
-
 	var summary domain.ContextSummary
-	if err := json.Unmarshal(data, &summary); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal context summary: %w", err)
+	if err := s.readAndUnmarshalJSON(filepath.Join(s.contextDir, contextID+".summary.json"), "context summary: "+contextID, &summary); err != nil {
+		return nil, err
 	}
-
 	return &summary, nil
 }
 
@@ -1354,89 +1231,4 @@ func (s *Service) ReadContextContent(ctx context.Context, contextID string) (str
 
 	atomic.AddInt64(&s.totalBytesRead, int64(len(data)))
 	return string(data), nil
-}
-
-// ============ WORKER POOL FOR PARALLEL FILE PROCESSING ============
-
-type fileResult struct {
-	path    string
-	content string
-	err     error
-}
-
-// processFilesParallel processes files using a worker pool
-func (s *Service) processFilesParallel(ctx context.Context, projectPath string, paths []string, processor func(string, string) error) error {
-	if len(paths) == 0 {
-		return nil
-	}
-
-	// Create buffered channels
-	jobs := make(chan string, len(paths))
-	results := make(chan fileResult, len(paths))
-
-	// Start workers
-	var wg sync.WaitGroup
-	for i := 0; i < s.workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case path, ok := <-jobs:
-					if !ok {
-						return
-					}
-					// Read file content
-					contents, err := s.fileReader.ReadContents(ctx, []string{path}, projectPath, nil)
-					if err != nil {
-						results <- fileResult{path: path, err: err}
-						continue
-					}
-					content, exists := contents[path]
-					if !exists {
-						results <- fileResult{path: path, err: fmt.Errorf("file not found: %s", path)}
-						continue
-					}
-					results <- fileResult{path: path, content: content}
-				}
-			}
-		}()
-	}
-
-	// Send jobs
-	go func() {
-		for _, path := range paths {
-			select {
-			case <-ctx.Done():
-				break
-			case jobs <- path:
-			}
-		}
-		close(jobs)
-	}()
-
-	// Wait for workers and close results
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	var errs []error
-	for result := range results {
-		if result.err != nil {
-			errs = append(errs, result.err)
-			continue
-		}
-		if err := processor(result.path, result.content); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("processing errors: %v", errs)
-	}
-	return nil
 }

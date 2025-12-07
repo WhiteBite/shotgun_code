@@ -137,7 +137,7 @@ func (c *CorrectionEngineImpl) applyImportFix(ctx context.Context, step *domain.
 	}
 
 	// Write the modified content back
-	err = c.fileSystem.WriteFile(filePath, []byte(modifiedContent), 0644)
+	err = c.fileSystem.WriteFile(filePath, []byte(modifiedContent), 0o644)
 	if err != nil {
 		return &domain.CorrectionResult{Success: false, Message: fmt.Sprintf("Failed to write file: %v", err)}, nil
 	}
@@ -192,9 +192,9 @@ func (c *CorrectionEngineImpl) applyFormatCode(ctx context.Context, step *domain
 	ext := filepath.Ext(filePath)
 
 	switch ext {
-	case ".go":
+	case extGo:
 		return c.formatGoFile(filePath)
-	case ".ts", ".js":
+	case extTS, extJS:
 		return c.formatJSFile(filePath)
 	default:
 		return &domain.CorrectionResult{

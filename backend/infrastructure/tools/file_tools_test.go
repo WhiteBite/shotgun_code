@@ -75,7 +75,6 @@ func TestSearchFiles_EmptyPattern(t *testing.T) {
 	}
 }
 
-
 func TestReadFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	content := "line1\nline2\nline3\nline4\nline5"
@@ -234,7 +233,7 @@ func TestSearchContent(t *testing.T) {
 // Helper functions
 func createDir(t *testing.T, base, path string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(base, path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(base, path), 0o755); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
 }
@@ -243,10 +242,10 @@ func createFile(t *testing.T, base, path, content string) {
 	t.Helper()
 	fullPath := filepath.Join(base, path)
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 }

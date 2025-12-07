@@ -106,7 +106,7 @@ func TestNewGitHubAPI(t *testing.T) {
 	api := NewGitHubAPI()
 
 	if api == nil {
-		t.Error("NewGitHubAPI() returned nil")
+		t.Fatal("NewGitHubAPI() returned nil")
 	}
 
 	if api.client == nil {

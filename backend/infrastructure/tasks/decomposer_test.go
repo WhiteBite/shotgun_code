@@ -183,7 +183,7 @@ func TestTaskManager_GetNextTask_WithDependencies(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test - SQLite not available: %v", err)
 	}
-	
+
 	task1 := &domain.DecompTask{ID: "task-1", Title: "Task 1", Order: 1}
 	task2 := &domain.DecompTask{Title: "Task 2", Order: 2, Dependencies: []string{"task-1"}}
 	if err := tm.AddTask(plan.ID, task1); err != nil {

@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+// Category constants
+const (
+	categoryWeb = "web"
+)
+
 // Detector implements ProjectStructureDetector
 type Detector struct {
 	frameworkDetectors []frameworkDetector
@@ -37,13 +42,13 @@ func (d *Detector) DetectStructure(projectPath string) (*domain.ProjectStructure
 	}
 
 	return &domain.ProjectStructure{
-		Architecture:  arch,
-		Conventions:   conventions,
-		Frameworks:    frameworks,
-		BuildSystems:  buildSystems,
-		Languages:     languages,
-		ProjectType:   projectType,
-		Confidence:    confidence,
+		Architecture: arch,
+		Conventions:  conventions,
+		Frameworks:   frameworks,
+		BuildSystems: buildSystems,
+		Languages:    languages,
+		ProjectType:  projectType,
+		Confidence:   confidence,
 	}, nil
 }
 
@@ -128,44 +133,57 @@ func (d *Detector) GetRelatedLayers(projectPath, filePath string) ([]domain.Laye
 
 // SuggestRelatedFiles suggests related files based on architecture
 func (d *Detector) SuggestRelatedFiles(projectPath, filePath string) ([]string, error) {
-	var suggestions []string
-
 	relPath, _ := filepath.Rel(projectPath, filePath)
 	baseName := filepath.Base(filePath)
 	ext := filepath.Ext(baseName)
-	nameWithoutExt := strings.TrimSuffix(baseName, ext)
+	coreName := extractCoreName(strings.TrimSuffix(baseName, ext))
 
-	// Remove common suffixes to get base name
+	var suggestions []string
+	suggestions = append(suggestions, d.findFilesInOtherLayers(projectPath, relPath, coreName)...)
+	suggestions = append(suggestions, d.findTestFiles(projectPath, relPath, baseName, ext)...)
+
+	return deduplicateStrings(suggestions, relPath), nil
+}
+
+// extractCoreName removes common suffixes to get base name
+func extractCoreName(name string) string {
 	suffixes := []string{"_test", ".test", ".spec", "_spec", "_handler", "_service", "_repository", "_controller", "_model", "_entity"}
-	coreName := nameWithoutExt
 	for _, suffix := range suffixes {
-		coreName = strings.TrimSuffix(coreName, suffix)
+		name = strings.TrimSuffix(name, suffix)
 	}
+	return name
+}
 
-	// Get architecture info
+// findFilesInOtherLayers finds related files in architectural layers
+func (d *Detector) findFilesInOtherLayers(projectPath, relPath, coreName string) []string {
+	var suggestions []string
 	arch, _ := d.DetectArchitecture(projectPath)
-	if arch != nil {
-		// Find related files in other layers
-		for _, layer := range arch.Layers {
-			if !strings.HasPrefix(relPath, layer.Path) {
-				// Look for files with similar name in this layer
-				layerPath := filepath.Join(projectPath, layer.Path)
-				filepath.Walk(layerPath, func(path string, info os.FileInfo, err error) error {
-					if err != nil || info.IsDir() {
-						return nil
-					}
-					fileName := info.Name()
-					if strings.Contains(strings.ToLower(fileName), strings.ToLower(coreName)) {
-						rel, _ := filepath.Rel(projectPath, path)
-						suggestions = append(suggestions, rel)
-					}
-					return nil
-				})
-			}
-		}
+	if arch == nil {
+		return suggestions
 	}
 
-	// Look for test files
+	for _, layer := range arch.Layers {
+		if strings.HasPrefix(relPath, layer.Path) {
+			continue
+		}
+		layerPath := filepath.Join(projectPath, layer.Path)
+		_ = filepath.Walk(layerPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if strings.Contains(strings.ToLower(info.Name()), strings.ToLower(coreName)) {
+				rel, _ := filepath.Rel(projectPath, path)
+				suggestions = append(suggestions, rel)
+			}
+			return nil
+		})
+	}
+	return suggestions
+}
+
+// findTestFiles finds test files for a given source file
+func (d *Detector) findTestFiles(projectPath, relPath, baseName, ext string) []string {
+	var suggestions []string
 	testPatterns := []string{
 		strings.Replace(relPath, ext, "_test"+ext, 1),
 		strings.Replace(relPath, ext, ".test"+ext, 1),
@@ -176,23 +194,24 @@ func (d *Detector) SuggestRelatedFiles(projectPath, filePath string) ([]string, 
 	}
 
 	for _, pattern := range testPatterns {
-		fullPath := filepath.Join(projectPath, pattern)
-		if _, err := os.Stat(fullPath); err == nil {
+		if _, err := os.Stat(filepath.Join(projectPath, pattern)); err == nil {
 			suggestions = append(suggestions, pattern)
 		}
 	}
+	return suggestions
+}
 
-	// Deduplicate
+// deduplicateStrings removes duplicates and excludes a specific path
+func deduplicateStrings(items []string, exclude string) []string {
 	seen := make(map[string]bool)
 	var unique []string
-	for _, s := range suggestions {
-		if !seen[s] && s != relPath {
+	for _, s := range items {
+		if !seen[s] && s != exclude {
 			seen[s] = true
 			unique = append(unique, s)
 		}
 	}
-
-	return unique, nil
+	return unique
 }
 
 // detectLayers detects architectural layers based on architecture type
@@ -282,7 +301,7 @@ func (d *Detector) detectPatternsInDir(dirPath string) []string {
 		"observer":   {"Observer", "Listener", "Subscriber"},
 	}
 
-	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -313,7 +332,7 @@ func (d *Detector) detectPatternsInDir(dirPath string) []string {
 func (d *Detector) detectNamingStyle(projectPath string) domain.NamingStyle {
 	var camelCount, snakeCount, pascalCount, kebabCount int
 
-	filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -337,18 +356,18 @@ func (d *Detector) detectNamingStyle(projectPath string) domain.NamingStyle {
 		return nil
 	})
 
-	max := camelCount
+	maxCount := camelCount
 	style := domain.NamingCamelCase
 
-	if snakeCount > max {
-		max = snakeCount
+	if snakeCount > maxCount {
+		maxCount = snakeCount
 		style = domain.NamingSnakeCase
 	}
-	if pascalCount > max {
-		max = pascalCount
+	if pascalCount > maxCount {
+		maxCount = pascalCount
 		style = domain.NamingPascalCase
 	}
-	if kebabCount > max {
+	if kebabCount > maxCount {
 		style = domain.NamingKebabCase
 	}
 
@@ -363,10 +382,20 @@ func (d *Detector) detectFileNaming(projectPath string) domain.FileNamingStyle {
 		Examples: []string{},
 	}
 
+	suffixCounts, prefixCounts := countFileAffixes(projectPath)
+	style.Suffixes = filterByMinCount(suffixCounts, 2)
+	style.Prefixes = filterByMinCount(prefixCounts, 2)
+	return style
+}
+
+// countFileAffixes counts suffix and prefix occurrences in file names
+func countFileAffixes(projectPath string) (map[string]int, map[string]int) {
 	suffixCounts := make(map[string]int)
 	prefixCounts := make(map[string]int)
+	suffixes := []string{"_test", ".test", ".spec", "_spec", "_handler", "_service", "_controller", "_model", "_repository"}
+	prefixes := []string{"test_", "spec_", "I", "Abstract"}
 
-	filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -375,38 +404,30 @@ func (d *Detector) detectFileNaming(projectPath string) domain.FileNamingStyle {
 		}
 
 		name := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
-
-		// Check suffixes
-		suffixes := []string{"_test", ".test", ".spec", "_spec", "_handler", "_service", "_controller", "_model", "_repository"}
 		for _, suffix := range suffixes {
 			if strings.HasSuffix(name, suffix) {
 				suffixCounts[suffix]++
 			}
 		}
-
-		// Check prefixes
-		prefixes := []string{"test_", "spec_", "I", "Abstract"}
 		for _, prefix := range prefixes {
 			if strings.HasPrefix(name, prefix) {
 				prefixCounts[prefix]++
 			}
 		}
-
 		return nil
 	})
+	return suffixCounts, prefixCounts
+}
 
-	for suffix, count := range suffixCounts {
-		if count > 2 {
-			style.Suffixes = append(style.Suffixes, suffix)
+// filterByMinCount returns keys with count > minCount
+func filterByMinCount(counts map[string]int, minCount int) []string {
+	var result []string
+	for key, count := range counts {
+		if count > minCount {
+			result = append(result, key)
 		}
 	}
-	for prefix, count := range prefixCounts {
-		if count > 2 {
-			style.Prefixes = append(style.Prefixes, prefix)
-		}
-	}
-
-	return style
+	return result
 }
 
 func (d *Detector) detectFolderStructure(projectPath string) domain.FolderStructure {
@@ -415,55 +436,60 @@ func (d *Detector) detectFolderStructure(projectPath string) domain.FolderStruct
 		return domain.FolderFlat
 	}
 
-	var dirCount int
-	hasFeatures := false
-	hasLayers := false
-	hasTypes := false
+	dirNames := collectDirNames(entries)
+	if len(dirNames) < 3 {
+		return domain.FolderFlat
+	}
 
 	layerNames := []string{"domain", "application", "infrastructure", "handlers", "services", "controllers", "models", "views"}
 	typeNames := []string{"components", "utils", "helpers", "types", "interfaces", "constants"}
 	featureIndicators := []string{"features", "modules", "pages", "screens"}
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		dirCount++
-		name := strings.ToLower(entry.Name())
-
-		for _, layer := range layerNames {
-			if name == layer || strings.Contains(name, layer) {
-				hasLayers = true
-				break
-			}
-		}
-		for _, t := range typeNames {
-			if name == t {
-				hasTypes = true
-				break
-			}
-		}
-		for _, f := range featureIndicators {
-			if name == f {
-				hasFeatures = true
-				break
-			}
-		}
-	}
-
-	if dirCount < 3 {
-		return domain.FolderFlat
-	}
-	if hasFeatures {
+	if matchesAny(dirNames, featureIndicators) {
 		return domain.FolderByFeature
 	}
-	if hasLayers {
+	if matchesAnyPartial(dirNames, layerNames) {
 		return domain.FolderByLayer
 	}
-	if hasTypes {
+	if matchesAny(dirNames, typeNames) {
 		return domain.FolderByType
 	}
 	return domain.FolderHybrid
+}
+
+// collectDirNames returns lowercase names of directories
+func collectDirNames(entries []os.DirEntry) []string {
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, strings.ToLower(entry.Name()))
+		}
+	}
+	return names
+}
+
+// matchesAny checks if any dir name exactly matches patterns
+func matchesAny(dirNames, patterns []string) bool {
+	for _, name := range dirNames {
+		for _, p := range patterns {
+			if name == p {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchesAnyPartial checks if any dir name matches or contains patterns
+func matchesAnyPartial(dirNames, patterns []string) bool {
+	for _, name := range dirNames {
+		for _, p := range patterns {
+			if name == p || strings.Contains(name, p) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (d *Detector) detectTestConventions(projectPath string) domain.TestConventions {
@@ -561,12 +587,12 @@ func (d *Detector) detectBuildSystems(projectPath string) []domain.BuildSystemIn
 	var systems []domain.BuildSystemInfo
 
 	buildFiles := map[string]domain.BuildSystemInfo{
-		"package.json": {Name: "npm", ConfigFile: "package.json"},
-		"Makefile":     {Name: "make", ConfigFile: "Makefile"},
-		"go.mod":       {Name: "go", ConfigFile: "go.mod"},
-		"Cargo.toml":   {Name: "cargo", ConfigFile: "Cargo.toml"},
-		"pom.xml":      {Name: "maven", ConfigFile: "pom.xml"},
-		"build.gradle": {Name: "gradle", ConfigFile: "build.gradle"},
+		"package.json":   {Name: "npm", ConfigFile: "package.json"},
+		"Makefile":       {Name: "make", ConfigFile: "Makefile"},
+		"go.mod":         {Name: "go", ConfigFile: "go.mod"},
+		"Cargo.toml":     {Name: "cargo", ConfigFile: "Cargo.toml"},
+		"pom.xml":        {Name: "maven", ConfigFile: "pom.xml"},
+		"build.gradle":   {Name: "gradle", ConfigFile: "build.gradle"},
 		"CMakeLists.txt": {Name: "cmake", ConfigFile: "CMakeLists.txt"},
 	}
 
@@ -633,7 +659,7 @@ func (d *Detector) detectLanguages(projectPath string) []domain.LanguageInfo {
 		".dart":  "Dart",
 	}
 
-	filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -649,7 +675,7 @@ func (d *Detector) detectLanguages(projectPath string) []domain.LanguageInfo {
 		return nil
 	})
 
-	var languages []domain.LanguageInfo
+	languages := make([]domain.LanguageInfo, 0, len(langCounts))
 	var maxCount int
 	var primaryLang string
 
@@ -685,8 +711,8 @@ func (d *Detector) detectProjectType(projectPath string, frameworks []domain.Fra
 	}
 
 	for _, fw := range frameworks {
-		if fw.Category == "web" {
-			return "web"
+		if fw.Category == categoryWeb {
+			return categoryWeb
 		}
 	}
 

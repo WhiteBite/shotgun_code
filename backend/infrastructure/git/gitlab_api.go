@@ -35,12 +35,12 @@ type GitLabBranch struct {
 
 // GitLabCommit represents a commit from GitLab API
 type GitLabCommit struct {
-	ID             string `json:"id"`
-	ShortID        string `json:"short_id"`
-	Title          string `json:"title"`
-	Message        string `json:"message"`
-	AuthorName     string `json:"author_name"`
-	CommittedDate  string `json:"committed_date"`
+	ID            string `json:"id"`
+	ShortID       string `json:"short_id"`
+	Title         string `json:"title"`
+	Message       string `json:"message"`
+	AuthorName    string `json:"author_name"`
+	CommittedDate string `json:"committed_date"`
 }
 
 // GitLabTreeEntry represents a file/folder in GitLab tree
@@ -178,7 +178,7 @@ func (g *GitLabAPI) GetDefaultBranch(host, namespace, name string) (string, erro
 func (g *GitLabAPI) GetCommits(host, namespace, name, branch string, limit int) ([]GitLabCommit, error) {
 	baseURL := g.getAPIBaseURL(host)
 	projectPath := getProjectPath(namespace, name)
-	apiURL := fmt.Sprintf("%s/projects/%s/repository/commits?ref_name=%s&per_page=%d", 
+	apiURL := fmt.Sprintf("%s/projects/%s/repository/commits?ref_name=%s&per_page=%d",
 		baseURL, projectPath, url.QueryEscape(branch), limit)
 
 	resp, err := g.client.Get(apiURL)
@@ -203,7 +203,7 @@ func (g *GitLabAPI) GetCommits(host, namespace, name, branch string, limit int) 
 func (g *GitLabAPI) GetTree(host, namespace, name, ref string) ([]GitLabTreeEntry, error) {
 	baseURL := g.getAPIBaseURL(host)
 	projectPath := getProjectPath(namespace, name)
-	
+
 	var allEntries []GitLabTreeEntry
 	page := 1
 	perPage := 100

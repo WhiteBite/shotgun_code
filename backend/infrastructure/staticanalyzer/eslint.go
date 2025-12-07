@@ -57,7 +57,7 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 	args = append(args, ".")
 
 	// Создаем команду
-	cmd := exec.CommandContext(ctx, "npx", append([]string{"eslint"}, args...)...)
+	cmd := exec.CommandContext(ctx, "npx", append([]string{"eslint"}, args...)...) //nolint:gosec // External tool command
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -98,7 +98,7 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 	}
 
 	// Генерируем сводку
-	result.Summary = a.generateSummary(issues)
+	result.Summary = generateSummary(issues)
 
 	a.log.Info(fmt.Sprintf("ESLint analysis completed in %.2fs, found %d issues", duration, len(issues)))
 	return result, nil
@@ -173,13 +173,13 @@ func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue
 	var eslintResults []struct {
 		FilePathPath string `json:"filePath"`
 		Messages     []struct {
-			RuleId         string `json:"ruleId"`
+			RuleID         string `json:"ruleId"`
 			Severity       int    `json:"severity"`
 			Message        string `json:"message"`
 			LineNumber     int    `json:"line"`
 			ColumnStart    int    `json:"column"`
 			NodeType       string `json:"nodeType,omitempty"`
-			MessageId      string `json:"messageId,omitempty"`
+			MessageID      string `json:"messageId,omitempty"`
 			EndLineNumber  int    `json:"endLineNumber,omitempty"`
 			EndColumnStart int    `json:"endColumnStart,omitempty"`
 			Fix            struct {
@@ -210,8 +210,8 @@ func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue
 				Column:   message.ColumnStart,
 				Severity: severity,
 				Message:  message.Message,
-				Code:     message.RuleId,
-				Category: a.getCategory(message.RuleId),
+				Code:     message.RuleID,
+				Category: a.getCategory(message.RuleID),
 			}
 
 			// Добавляем предложения по исправлению если есть
@@ -230,68 +230,28 @@ func (a *ESLintAnalyzer) parseESLintOutput(output []byte) ([]*domain.StaticIssue
 func (a *ESLintAnalyzer) convertSeverity(eslintSeverity int) string {
 	switch eslintSeverity {
 	case 0:
-		return "info"
+		return severityInfo
 	case 1:
-		return "warning"
+		return severityWarning
 	case 2:
-		return "error"
+		return severityError
 	default:
-		return "warning"
+		return severityWarning
 	}
 }
 
 // getCategory определяет категорию проблемы по коду правила
-func (a *ESLintAnalyzer) getCategory(ruleId string) string {
-	if strings.HasPrefix(ruleId, "@typescript-eslint/") {
+func (a *ESLintAnalyzer) getCategory(ruleID string) string {
+	if strings.HasPrefix(ruleID, "@typescript-eslint/") {
 		return "typescript"
-	} else if strings.HasPrefix(ruleId, "react/") {
+	} else if strings.HasPrefix(ruleID, "react/") {
 		return "react"
-	} else if strings.HasPrefix(ruleId, "import/") {
+	} else if strings.HasPrefix(ruleID, "import/") {
 		return "imports"
-	} else if strings.HasPrefix(ruleId, "prefer-") {
+	} else if strings.HasPrefix(ruleID, "prefer-") {
 		return "style"
-	} else if strings.HasPrefix(ruleId, "no-") {
+	} else if strings.HasPrefix(ruleID, "no-") {
 		return "best-practices"
 	}
-	return "other"
-}
-
-// generateSummary генерирует сводку анализа
-func (a *ESLintAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
-	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
-	}
-
-	filesWithIssues := make(map[string]bool)
-
-	for _, issue := range issues {
-		// Подсчитываем по severity
-		summary.SeverityBreakdown[issue.Severity]++
-
-		// Подсчитываем по категориям
-		summary.CategoryBreakdown[issue.Category]++
-
-		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
-
-		// Подсчитываем по типам
-		switch issue.Severity {
-		case "error":
-			summary.ErrorCount++
-		case "warning":
-			summary.WarningCount++
-		case "info":
-			summary.InfoCount++
-		case "hint":
-			summary.HintCount++
-		}
-	}
-
-	summary.FilesWithIssues = len(filesWithIssues)
-
-	return summary
+	return severityOther
 }

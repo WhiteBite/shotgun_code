@@ -13,78 +13,77 @@ import (
 	"time"
 )
 
-// BuildPipelineImpl реализует BuildPipeline
-type BuildPipelineImpl struct {
+// Language constants
+const (
+	langGo         = "go"
+	langTypeScript = "typescript"
+	langJava       = "java"
+)
+
+// Impl реализует BuildPipeline
+type Impl struct {
 	log           domain.Logger
 	sandboxRunner domain.SandboxRunner
 }
 
 // NewBuildPipeline создает новый build pipeline
-func NewBuildPipeline(log domain.Logger) *BuildPipelineImpl {
-	return &BuildPipelineImpl{
+func NewBuildPipeline(log domain.Logger) *Impl {
+	return &Impl{
 		log:           log,
 		sandboxRunner: sandbox.NewSandboxRunner(log),
 	}
 }
 
 // Build выполняет сборку проекта
-func (p *BuildPipelineImpl) Build(ctx context.Context, projectPath, language string) (*domain.BuildResult, error) {
+func (p *Impl) Build(ctx context.Context, projectPath, language string) (*domain.BuildResult, error) {
 	p.log.Info(fmt.Sprintf("Building %s project at %s", language, projectPath))
-
 	startTime := time.Now()
 
 	var result *domain.BuildResult
 	var err error
-
 	switch language {
-	case "go":
+	case langGo:
 		result, err = p.buildGo(ctx, projectPath)
-	case "typescript", "ts":
+	case langTypeScript, "ts":
 		result, err = p.buildTypeScript(ctx, projectPath)
-	case "java":
+	case langJava:
 		result, err = p.buildJava(ctx, projectPath)
 	default:
 		return nil, fmt.Errorf("unsupported language: %s", language)
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	result.Duration = time.Since(startTime).Seconds()
 	return result, nil
 }
 
 // TypeCheck выполняет проверку типов
-func (p *BuildPipelineImpl) TypeCheck(ctx context.Context, projectPath, language string) (*domain.TypeCheckResult, error) {
+func (p *Impl) TypeCheck(ctx context.Context, projectPath, language string) (*domain.TypeCheckResult, error) {
 	p.log.Info(fmt.Sprintf("Type checking %s project at %s", language, projectPath))
-
 	startTime := time.Now()
 
 	var result *domain.TypeCheckResult
 	var err error
-
 	switch language {
-	case "go":
+	case langGo:
 		result, err = p.typeCheckGo(ctx, projectPath)
-	case "typescript", "ts":
+	case langTypeScript, "ts":
 		result, err = p.typeCheckTypeScript(ctx, projectPath)
-	case "java":
+	case langJava:
 		result, err = p.typeCheckJava(ctx, projectPath)
 	default:
 		return nil, fmt.Errorf("unsupported language: %s", language)
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	result.Duration = time.Since(startTime).Seconds()
 	return result, nil
 }
 
 // BuildAndTypeCheck выполняет сборку и проверку типов
-func (p *BuildPipelineImpl) BuildAndTypeCheck(ctx context.Context, projectPath, language string) (*domain.BuildResult, *domain.TypeCheckResult, error) {
+func (p *Impl) BuildAndTypeCheck(ctx context.Context, projectPath, language string) (*domain.BuildResult, *domain.TypeCheckResult, error) {
 	p.log.Info(fmt.Sprintf("Building and type checking %s project at %s", language, projectPath))
 
 	// Сначала выполняем проверку типов
@@ -103,7 +102,7 @@ func (p *BuildPipelineImpl) BuildAndTypeCheck(ctx context.Context, projectPath, 
 }
 
 // BuildInSandbox выполняет сборку в песочнице
-func (p *BuildPipelineImpl) BuildInSandbox(ctx context.Context, projectPath, language string, sandboxConfig domain.SandboxConfig) (*domain.BuildResult, error) {
+func (p *Impl) BuildInSandbox(ctx context.Context, projectPath, language string, sandboxConfig domain.SandboxConfig) (*domain.BuildResult, error) {
 	p.log.Info(fmt.Sprintf("Building %s project in sandbox at %s", language, projectPath))
 
 	// Проверяем доступность песочницы
@@ -182,12 +181,12 @@ func (p *BuildPipelineImpl) BuildInSandbox(ctx context.Context, projectPath, lan
 }
 
 // GetSupportedLanguages возвращает поддерживаемые языки
-func (p *BuildPipelineImpl) GetSupportedLanguages() []string {
+func (p *Impl) GetSupportedLanguages() []string {
 	return []string{"go", "typescript", "ts", "java"}
 }
 
 // buildGo выполняет сборку Go проекта
-func (p *BuildPipelineImpl) buildGo(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+func (p *Impl) buildGo(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
 		Language:    "go",
 		ProjectPath: projectPath,
@@ -223,15 +222,14 @@ func (p *BuildPipelineImpl) buildGo(ctx context.Context, projectPath string) (*d
 	return result, nil
 }
 
-// typeCheckGo выполняет проверку типов Go проекта
-func (p *BuildPipelineImpl) typeCheckGo(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
+// runTypeCheck is a helper for running type check commands
+func (p *Impl) runTypeCheck(ctx context.Context, projectPath, language string, cmdName string, cmdArgs []string, parseIssues func(string) []*domain.TypeIssue) (*domain.TypeCheckResult, error) {
 	result := &domain.TypeCheckResult{
-		Language:    "go",
+		Language:    language,
 		ProjectPath: projectPath,
 	}
 
-	// Выполняем go vet
-	cmd := exec.CommandContext(ctx, "go", "vet", "./...")
+	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -240,9 +238,9 @@ func (p *BuildPipelineImpl) typeCheckGo(ctx context.Context, projectPath string)
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()
-
-		// Парсим ошибки
-		result.Issues = p.parseGoVetIssues(string(output))
+		if parseIssues != nil {
+			result.Issues = parseIssues(string(output))
+		}
 		return result, nil
 	}
 
@@ -250,10 +248,15 @@ func (p *BuildPipelineImpl) typeCheckGo(ctx context.Context, projectPath string)
 	return result, nil
 }
 
+// typeCheckGo выполняет проверку типов Go проекта
+func (p *Impl) typeCheckGo(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
+	return p.runTypeCheck(ctx, projectPath, langGo, "go", []string{"vet", "./..."}, p.parseGoVetIssues)
+}
+
 // buildTypeScript выполняет сборку TypeScript проекта
-func (p *BuildPipelineImpl) buildTypeScript(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+func (p *Impl) buildTypeScript(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
-		Language:    "typescript",
+		Language:    langTypeScript,
 		ProjectPath: projectPath,
 	}
 
@@ -299,36 +302,14 @@ func (p *BuildPipelineImpl) buildTypeScript(ctx context.Context, projectPath str
 }
 
 // typeCheckTypeScript выполняет проверку типов TypeScript проекта
-func (p *BuildPipelineImpl) typeCheckTypeScript(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
-	result := &domain.TypeCheckResult{
-		Language:    "typescript",
-		ProjectPath: projectPath,
-	}
-
-	// Выполняем tsc --noEmit
-	cmd := exec.CommandContext(ctx, "npx", "tsc", "--noEmit")
-	cmd.Dir = projectPath
-
-	output, err := cmd.CombinedOutput()
-	result.Output = string(output)
-
-	if err != nil {
-		result.Success = false
-		result.Error = err.Error()
-
-		// Парсим ошибки TypeScript
-		result.Issues = p.parseTypeScriptIssues(string(output))
-		return result, nil
-	}
-
-	result.Success = true
-	return result, nil
+func (p *Impl) typeCheckTypeScript(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
+	return p.runTypeCheck(ctx, projectPath, langTypeScript, "npx", []string{"tsc", "--noEmit"}, p.parseTypeScriptIssues)
 }
 
 // buildJava выполняет сборку Java проекта
-func (p *BuildPipelineImpl) buildJava(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+func (p *Impl) buildJava(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
-		Language:    "java",
+		Language:    langJava,
 		ProjectPath: projectPath,
 	}
 
@@ -345,22 +326,24 @@ func (p *BuildPipelineImpl) buildJava(ctx context.Context, projectPath string) (
 	if _, err := os.Stat(filepath.Join(projectPath, "pom.xml")); err == nil {
 		// Maven проект
 		return p.buildMavenProject(ctx, projectPath)
-	} else if _, err := os.Stat(filepath.Join(projectPath, "build.gradle")); err == nil {
+	}
+
+	if _, err := os.Stat(filepath.Join(projectPath, "build.gradle")); err == nil {
 		// Gradle проект
 		return p.buildGradleProject(ctx, projectPath)
-	} else {
-		err := fmt.Errorf("neither pom.xml nor build.gradle found")
-		result.Success = false
-		result.Error = err.Error()
-		result.Warnings = append(result.Warnings, "No Java build configuration found")
-		return result, err
 	}
+
+	err := fmt.Errorf("neither pom.xml nor build.gradle found")
+	result.Success = false
+	result.Error = err.Error()
+	result.Warnings = append(result.Warnings, "No Java build configuration found")
+	return result, err
 }
 
 // typeCheckJava выполняет проверку типов Java проекта
-func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
+func (p *Impl) typeCheckJava(ctx context.Context, projectPath string) (*domain.TypeCheckResult, error) {
 	result := &domain.TypeCheckResult{
-		Language:    "java",
+		Language:    langJava,
 		ProjectPath: projectPath,
 	}
 
@@ -422,7 +405,7 @@ func (p *BuildPipelineImpl) typeCheckJava(ctx context.Context, projectPath strin
 }
 
 // parseGoVetIssues парсит ошибки go vet
-func (p *BuildPipelineImpl) parseGoVetIssues(output string) []*domain.TypeIssue {
+func (p *Impl) parseGoVetIssues(output string) []*domain.TypeIssue {
 	var issues []*domain.TypeIssue
 
 	lines := strings.Split(output, "\n")
@@ -444,93 +427,81 @@ func (p *BuildPipelineImpl) parseGoVetIssues(output string) []*domain.TypeIssue 
 }
 
 // parseTypeScriptIssues парсит ошибки TypeScript
-func (p *BuildPipelineImpl) parseTypeScriptIssues(output string) []*domain.TypeIssue {
-	var issues []*domain.TypeIssue
+func (p *Impl) parseTypeScriptIssues(output string) []*domain.TypeIssue {
+	re := regexp.MustCompile(`([^(]+)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)`)
+	return p.parseIssuesWithRegexCode(output, func(line string) bool {
+		return strings.Contains(line, ".ts") && strings.Contains(line, "error TS")
+	}, re)
+}
 
+// parseIssuesWithRegex is a helper for parsing build output with regex (4 groups: file, line, col, message)
+func (p *Impl) parseIssuesWithRegex(output string, lineFilter func(string) bool, re *regexp.Regexp) []*domain.TypeIssue {
+	var issues []*domain.TypeIssue
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
-		if strings.Contains(line, ".ts") && strings.Contains(line, "error TS") {
-			// Пример: src/file.ts(10,15): error TS2307: Cannot find module './module'
-			re := regexp.MustCompile(`([^(]+)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.+)`)
+		if lineFilter(line) {
+			matches := re.FindStringSubmatch(line)
+			if len(matches) >= 5 {
+				issues = append(issues, &domain.TypeIssue{
+					File:     matches[1],
+					Line:     p.parseInt(matches[2]),
+					Column:   p.parseInt(matches[3]),
+					Message:  matches[4],
+					Severity: "error",
+				})
+			}
+		}
+	}
+	return issues
+}
+
+// parseIssuesWithRegexCode is a helper for parsing build output with regex (5 groups: file, line, col, code, message)
+func (p *Impl) parseIssuesWithRegexCode(output string, lineFilter func(string) bool, re *regexp.Regexp) []*domain.TypeIssue {
+	var issues []*domain.TypeIssue
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if lineFilter(line) {
 			matches := re.FindStringSubmatch(line)
 			if len(matches) >= 6 {
-				issue := &domain.TypeIssue{
+				issues = append(issues, &domain.TypeIssue{
 					File:     matches[1],
 					Line:     p.parseInt(matches[2]),
 					Column:   p.parseInt(matches[3]),
 					Code:     matches[4],
 					Message:  matches[5],
 					Severity: "error",
-				}
-				issues = append(issues, issue)
+				})
 			}
 		}
 	}
-
 	return issues
 }
 
 // parseMavenIssues парсит ошибки Maven
-func (p *BuildPipelineImpl) parseMavenIssues(output string) []*domain.TypeIssue {
-	var issues []*domain.TypeIssue
-
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "[ERROR]") && strings.Contains(line, ".java") {
-			// Пример: [ERROR] /path/to/file.java:[10,15] cannot find symbol
-			re := regexp.MustCompile(`\[ERROR\]\s+([^:]+):\[(\d+),(\d+)\]\s+(.+)`)
-			matches := re.FindStringSubmatch(line)
-			if len(matches) >= 5 {
-				issue := &domain.TypeIssue{
-					File:     matches[1],
-					Line:     p.parseInt(matches[2]),
-					Column:   p.parseInt(matches[3]),
-					Message:  matches[4],
-					Severity: "error",
-				}
-				issues = append(issues, issue)
-			}
-		}
-	}
-
-	return issues
+func (p *Impl) parseMavenIssues(output string) []*domain.TypeIssue {
+	re := regexp.MustCompile(`\[ERROR\]\s+([^:]+):\[(\d+),(\d+)\]\s+(.+)`)
+	return p.parseIssuesWithRegex(output, func(line string) bool {
+		return strings.Contains(line, "[ERROR]") && strings.Contains(line, ".java")
+	}, re)
 }
 
 // parseGradleIssues парсит ошибки Gradle
-func (p *BuildPipelineImpl) parseGradleIssues(output string) []*domain.TypeIssue {
-	var issues []*domain.TypeIssue
-
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "error:") && strings.Contains(line, ".java") {
-			// Пример: /path/to/file.java:10:15: error: cannot find symbol
-			re := regexp.MustCompile(`([^:]+):(\d+):(\d+):\s+error:\s+(.+)`)
-			matches := re.FindStringSubmatch(line)
-			if len(matches) >= 5 {
-				issue := &domain.TypeIssue{
-					File:     matches[1],
-					Line:     p.parseInt(matches[2]),
-					Column:   p.parseInt(matches[3]),
-					Message:  matches[4],
-					Severity: "error",
-				}
-				issues = append(issues, issue)
-			}
-		}
-	}
-
-	return issues
+func (p *Impl) parseGradleIssues(output string) []*domain.TypeIssue {
+	re := regexp.MustCompile(`([^:]+):(\d+):(\d+):\s+error:\s+(.+)`)
+	return p.parseIssuesWithRegex(output, func(line string) bool {
+		return strings.Contains(line, "error:") && strings.Contains(line, ".java")
+	}, re)
 }
 
 // parseInt парсит строку в int
-func (p *BuildPipelineImpl) parseInt(s string) int {
+func (p *Impl) parseInt(s string) int {
 	var i int
-	fmt.Sscanf(s, "%d", &i)
+	_, _ = fmt.Sscanf(s, "%d", &i)
 	return i
 }
 
 // checkJavaEnvironment проверяет наличие Java среды
-func (p *BuildPipelineImpl) checkJavaEnvironment() bool {
+func (p *Impl) checkJavaEnvironment() bool {
 	// Проверяем наличие java
 	if _, err := exec.LookPath("java"); err != nil {
 		p.log.Warning("Java runtime not found")
@@ -554,23 +525,21 @@ func (p *BuildPipelineImpl) checkJavaEnvironment() bool {
 	return true
 }
 
-// buildMavenProject выполняет сборку Maven проекта
-func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+// buildJavaProject is a helper for building Java projects with Maven or Gradle
+func (p *Impl) buildJavaProject(ctx context.Context, projectPath, toolName string, cmdArgs []string, artifactDir string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
-		Language:    "java",
+		Language:    langJava,
 		ProjectPath: projectPath,
 	}
 
-	// Проверяем наличие Maven
-	if _, err := exec.LookPath("mvn"); err != nil {
+	if _, err := exec.LookPath(toolName); err != nil {
 		result.Success = false
-		result.Error = "Maven not found in PATH"
-		result.Warnings = append(result.Warnings, "Maven build tool not available")
+		result.Error = toolName + " not found in PATH"
+		result.Warnings = append(result.Warnings, toolName+" build tool not available")
 		return result, err
 	}
 
-	// Выполняем Maven compile
-	cmd := exec.CommandContext(ctx, "mvn", "compile", "-q")
+	cmd := exec.CommandContext(ctx, toolName, cmdArgs...)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -579,16 +548,15 @@ func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath s
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()
-		result.Warnings = append(result.Warnings, "Maven compilation failed")
+		result.Warnings = append(result.Warnings, toolName+" build failed")
 		return result, err
 	}
 
 	result.Success = true
-	result.Artifacts = append(result.Artifacts, "target/")
+	result.Artifacts = append(result.Artifacts, artifactDir)
 
-	// Пытаемся запустить тесты, если они есть
 	if p.hasJUnitTests(projectPath) {
-		testResult, testErr := p.runJUnitTests(ctx, projectPath, "mvn")
+		testResult, testErr := p.runJUnitTests(ctx, projectPath, toolName)
 		if testErr != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("JUnit test execution failed with error: %v", testErr))
 		} else if !testResult.Success {
@@ -597,55 +565,20 @@ func (p *BuildPipelineImpl) buildMavenProject(ctx context.Context, projectPath s
 	}
 
 	return result, nil
+}
+
+// buildMavenProject выполняет сборку Maven проекта
+func (p *Impl) buildMavenProject(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+	return p.buildJavaProject(ctx, projectPath, "mvn", []string{"compile", "-q"}, "target/")
 }
 
 // buildGradleProject выполняет сборку Gradle проекта
-func (p *BuildPipelineImpl) buildGradleProject(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
-	result := &domain.BuildResult{
-		Language:    "java",
-		ProjectPath: projectPath,
-	}
-
-	// Проверяем наличие Gradle
-	if _, err := exec.LookPath("gradle"); err != nil {
-		result.Success = false
-		result.Error = "Gradle not found in PATH"
-		result.Warnings = append(result.Warnings, "Gradle build tool not available")
-		return result, err
-	}
-
-	// Выполняем Gradle build
-	cmd := exec.CommandContext(ctx, "gradle", "build", "--quiet")
-	cmd.Dir = projectPath
-
-	output, err := cmd.CombinedOutput()
-	result.Output = string(output)
-
-	if err != nil {
-		result.Success = false
-		result.Error = err.Error()
-		result.Warnings = append(result.Warnings, "Gradle build failed")
-		return result, err
-	}
-
-	result.Success = true
-	result.Artifacts = append(result.Artifacts, "build/")
-
-	// Пытаемся запустить тесты, если они есть
-	if p.hasJUnitTests(projectPath) {
-		testResult, testErr := p.runJUnitTests(ctx, projectPath, "gradle")
-		if testErr != nil {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("JUnit test execution failed with error: %v", testErr))
-		} else if !testResult.Success {
-			result.Warnings = append(result.Warnings, "JUnit tests failed: "+testResult.Error)
-		}
-	}
-
-	return result, nil
+func (p *Impl) buildGradleProject(ctx context.Context, projectPath string) (*domain.BuildResult, error) {
+	return p.buildJavaProject(ctx, projectPath, "gradle", []string{"build", "--quiet"}, "build/")
 }
 
 // hasJUnitTests проверяет наличие JUnit тестов
-func (p *BuildPipelineImpl) hasJUnitTests(projectPath string) bool {
+func (p *Impl) hasJUnitTests(projectPath string) bool {
 	// Проверяем наличие тестовых директорий
 	testDirs := []string{
 		filepath.Join(projectPath, "src", "test", "java"),
@@ -663,7 +596,7 @@ func (p *BuildPipelineImpl) hasJUnitTests(projectPath string) bool {
 }
 
 // runJUnitTests запускает JUnit тесты
-func (p *BuildPipelineImpl) runJUnitTests(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
+func (p *Impl) runJUnitTests(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
 		Language:    "java",
 		ProjectPath: projectPath,
@@ -693,7 +626,7 @@ func (p *BuildPipelineImpl) runJUnitTests(ctx context.Context, projectPath, buil
 }
 
 // runErrorProne запускает ErrorProne анализ
-func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
+func (p *Impl) runErrorProne(ctx context.Context, projectPath, buildTool string) (*domain.BuildResult, error) {
 	result := &domain.BuildResult{
 		Language:    "java",
 		ProjectPath: projectPath,
@@ -737,7 +670,7 @@ func (p *BuildPipelineImpl) runErrorProne(ctx context.Context, projectPath, buil
 }
 
 // hasErrorPronePlugin проверяет наличие ErrorProne plugin в pom.xml
-func (p *BuildPipelineImpl) hasErrorPronePlugin(projectPath string) bool {
+func (p *Impl) hasErrorPronePlugin(projectPath string) bool {
 	pomPath := filepath.Join(projectPath, "pom.xml")
 	content, err := os.ReadFile(pomPath)
 	if err != nil {
@@ -750,28 +683,9 @@ func (p *BuildPipelineImpl) hasErrorPronePlugin(projectPath string) bool {
 }
 
 // parseErrorProneIssues парсит ошибки ErrorProne
-func (p *BuildPipelineImpl) parseErrorProneIssues(output string) []*domain.TypeIssue {
-	var issues []*domain.TypeIssue
-
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "[ERROR]") && strings.Contains(line, "error-prone") {
-			// Пример: [ERROR] /path/to/file.java:[10,15] error: [SomeError] description
-			re := regexp.MustCompile(`\[ERROR\]\s+([^:]+):\[(\d+),(\d+)\]\s+error:\s+\[([^\]]+)\]\s+(.+)`)
-			matches := re.FindStringSubmatch(line)
-			if len(matches) >= 6 {
-				issue := &domain.TypeIssue{
-					File:     matches[1],
-					Line:     p.parseInt(matches[2]),
-					Column:   p.parseInt(matches[3]),
-					Code:     matches[4],
-					Message:  matches[5],
-					Severity: "error",
-				}
-				issues = append(issues, issue)
-			}
-		}
-	}
-
-	return issues
+func (p *Impl) parseErrorProneIssues(output string) []*domain.TypeIssue {
+	re := regexp.MustCompile(`\[ERROR\]\s+([^:]+):\[(\d+),(\d+)\]\s+error:\s+\[([^\]]+)\]\s+(.+)`)
+	return p.parseIssuesWithRegexCode(output, func(line string) bool {
+		return strings.Contains(line, "[ERROR]") && strings.Contains(line, "error-prone")
+	}, re)
 }

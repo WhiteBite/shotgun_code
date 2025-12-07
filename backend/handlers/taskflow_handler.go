@@ -26,9 +26,9 @@ type TaskflowHandler struct {
 	activeTasksMu sync.Mutex
 
 	// Metrics
-	totalTasks    int64
-	activeTasks_  int64
-	failedTasks   int64
+	totalTasks      int64
+	activeTaskCount int64
+	failedTasks     int64
 }
 
 // NewTaskflowHandler creates a new taskflow handler
@@ -74,8 +74,8 @@ func (h *TaskflowHandler) UpdateTaskStatus(taskID string, state domain.TaskState
 
 // ExecuteTask executes a task
 func (h *TaskflowHandler) ExecuteTask(taskID string) error {
-	atomic.AddInt64(&h.activeTasks_, 1)
-	defer atomic.AddInt64(&h.activeTasks_, -1)
+	atomic.AddInt64(&h.activeTaskCount, 1)
+	defer atomic.AddInt64(&h.activeTaskCount, -1)
 	atomic.AddInt64(&h.totalTasks, 1)
 
 	err := h.taskflowService.ExecuteTask(taskID)
@@ -118,9 +118,9 @@ func (h *TaskflowHandler) ResetTaskflow() error {
 // === Autonomous Task Operations ===
 
 // StartAutonomousTask starts an autonomous task
-func (h *TaskflowHandler) StartAutonomousTask(ctx context.Context, requestJson string) (string, error) {
+func (h *TaskflowHandler) StartAutonomousTask(ctx context.Context, requestJSON string) (string, error) {
 	var request domain.AutonomousTaskRequest
-	if err := json.Unmarshal([]byte(requestJson), &request); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &request); err != nil {
 		return "", fmt.Errorf("invalid JSON request format: %w", err)
 	}
 
@@ -138,44 +138,44 @@ func (h *TaskflowHandler) StartAutonomousTask(ctx context.Context, requestJson s
 	h.activeTasks[result.TaskId] = cancel
 	h.activeTasksMu.Unlock()
 
-	atomic.AddInt64(&h.activeTasks_, 1)
+	atomic.AddInt64(&h.activeTaskCount, 1)
 	atomic.AddInt64(&h.totalTasks, 1)
 
-	resultJson, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize response: %w", err)
 	}
 
-	return string(resultJson), nil
+	return string(resultJSON), nil
 }
 
 // CancelAutonomousTask cancels an autonomous task
-func (h *TaskflowHandler) CancelAutonomousTask(ctx context.Context, taskId string) error {
+func (h *TaskflowHandler) CancelAutonomousTask(ctx context.Context, taskID string) error {
 	h.activeTasksMu.Lock()
-	cancel, exists := h.activeTasks[taskId]
+	cancel, exists := h.activeTasks[taskID]
 	if exists {
 		cancel()
-		delete(h.activeTasks, taskId)
+		delete(h.activeTasks, taskID)
 	}
 	h.activeTasksMu.Unlock()
 
-	atomic.AddInt64(&h.activeTasks_, -1)
-	return h.taskflowService.CancelAutonomousTask(ctx, taskId)
+	atomic.AddInt64(&h.activeTaskCount, -1)
+	return h.taskflowService.CancelAutonomousTask(ctx, taskID)
 }
 
 // GetAutonomousTaskStatus returns autonomous task status
-func (h *TaskflowHandler) GetAutonomousTaskStatus(ctx context.Context, taskId string) (string, error) {
-	status, err := h.taskflowService.GetAutonomousTaskStatus(ctx, taskId)
+func (h *TaskflowHandler) GetAutonomousTaskStatus(ctx context.Context, taskID string) (string, error) {
+	status, err := h.taskflowService.GetAutonomousTaskStatus(ctx, taskID)
 	if err != nil {
 		return "", err
 	}
 
-	statusJson, err := json.Marshal(status)
+	statusJSON, err := json.Marshal(status)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal status: %w", err)
 	}
 
-	return string(statusJson), nil
+	return string(statusJSON), nil
 }
 
 // ListAutonomousTasks lists autonomous tasks
@@ -185,37 +185,37 @@ func (h *TaskflowHandler) ListAutonomousTasks(ctx context.Context, projectPath s
 		return "", err
 	}
 
-	tasksJson, err := json.Marshal(tasks)
+	tasksJSON, err := json.Marshal(tasks)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal tasks: %w", err)
 	}
 
-	return string(tasksJson), nil
+	return string(tasksJSON), nil
 }
 
 // GetTaskLogs returns task logs
-func (h *TaskflowHandler) GetTaskLogs(ctx context.Context, taskId string) (string, error) {
-	logs, err := h.taskflowService.GetTaskLogs(ctx, taskId)
+func (h *TaskflowHandler) GetTaskLogs(ctx context.Context, taskID string) (string, error) {
+	logs, err := h.taskflowService.GetTaskLogs(ctx, taskID)
 	if err != nil {
 		return "", err
 	}
 
-	logsJson, err := json.Marshal(logs)
+	logsJSON, err := json.Marshal(logs)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal logs: %w", err)
 	}
 
-	return string(logsJson), nil
+	return string(logsJSON), nil
 }
 
 // PauseTask pauses a task
-func (h *TaskflowHandler) PauseTask(ctx context.Context, taskId string) error {
-	return h.taskflowService.PauseTask(ctx, taskId)
+func (h *TaskflowHandler) PauseTask(ctx context.Context, taskID string) error {
+	return h.taskflowService.PauseTask(ctx, taskID)
 }
 
 // ResumeTask resumes a task
-func (h *TaskflowHandler) ResumeTask(ctx context.Context, taskId string) error {
-	return h.taskflowService.ResumeTask(ctx, taskId)
+func (h *TaskflowHandler) ResumeTask(ctx context.Context, taskID string) error {
+	return h.taskflowService.ResumeTask(ctx, taskID)
 }
 
 // === Guardrail Operations ===
@@ -310,9 +310,9 @@ func (h *TaskflowHandler) GetMetrics() map[string]interface{} {
 	h.activeTasksMu.Unlock()
 
 	return map[string]interface{}{
-		"total_tasks":        atomic.LoadInt64(&h.totalTasks),
-		"active_tasks":       atomic.LoadInt64(&h.activeTasks_),
-		"failed_tasks":       atomic.LoadInt64(&h.failedTasks),
+		"total_tasks":         atomic.LoadInt64(&h.totalTasks),
+		"active_tasks":        atomic.LoadInt64(&h.activeTaskCount),
+		"failed_tasks":        atomic.LoadInt64(&h.failedTasks),
 		"tracked_cancellable": activeCount,
 	}
 }
@@ -322,8 +322,8 @@ func (h *TaskflowHandler) Cleanup() {
 	h.activeTasksMu.Lock()
 	defer h.activeTasksMu.Unlock()
 
-	for taskId, cancel := range h.activeTasks {
-		h.log.Info(fmt.Sprintf("Cancelling task %s during cleanup", taskId))
+	for taskID, cancel := range h.activeTasks {
+		h.log.Info(fmt.Sprintf("Cancelling task %s during cleanup", taskID))
 		cancel()
 	}
 	h.activeTasks = make(map[string]context.CancelFunc)

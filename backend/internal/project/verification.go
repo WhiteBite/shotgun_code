@@ -130,7 +130,7 @@ func (s *VerificationPipelineService) RunVerificationPipeline(ctx context.Contex
 func (s *VerificationPipelineService) runFormatStep(ctx context.Context, config *domain.VerificationConfig) (interface{}, error) {
 	s.log.Info("Running format step")
 
-	var results []*domain.FormatResult
+	results := make([]*domain.FormatResult, 0, len(config.Languages))
 	for _, language := range config.Languages {
 		result, err := s.formatterService.FormatProject(ctx, config.ProjectPath, language)
 		if err != nil {
@@ -185,7 +185,7 @@ func (s *VerificationPipelineService) runSmokeTestsStep(ctx context.Context, con
 func (s *VerificationPipelineService) saveVerificationReport(ctx context.Context, result *domain.VerificationResult) error {
 	// Create reports directory
 	reportsDir := filepath.Join("reports", "verification")
-	if err := s.reportWriter.MkdirAll(reportsDir, 0755); err != nil {
+	if err := s.reportWriter.MkdirAll(reportsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create reports directory: %w", err)
 	}
 

@@ -14,6 +14,13 @@ import (
 	"time"
 )
 
+// Language constants
+const (
+	langGo         = "go"
+	langTypeScript = "typescript"
+	langJavaScript = "javascript"
+)
+
 // ContextPackBuilderImpl реализует ContextPackBuilder
 type ContextPackBuilderImpl struct {
 	log             domain.Logger
@@ -153,7 +160,7 @@ func (b *ContextPackBuilderImpl) createSnippets(
 	options *domain.ContextPackOptions,
 	symbolGraph *domain.SymbolGraph,
 ) ([]*domain.ContextSnippet, error) {
-	var snippets []*domain.ContextSnippet
+	snippets := make([]*domain.ContextSnippet, 0, len(filePaths))
 	totalLines := 0
 
 	// Сортируем файлы для детерминизма
@@ -223,10 +230,8 @@ func (b *ContextPackBuilderImpl) createSmartSnippets(
 	lines []string,
 	symbolGraph *domain.SymbolGraph,
 ) []*domain.ContextSnippet {
-	var snippets []*domain.ContextSnippet
-
 	// Находим символы для этого файла
-	var fileSymbols []*domain.SymbolNode
+	fileSymbols := make([]*domain.SymbolNode, 0, len(symbolGraph.Nodes))
 	for _, node := range symbolGraph.Nodes {
 		if node.Path == filePath {
 			fileSymbols = append(fileSymbols, node)
@@ -240,6 +245,8 @@ func (b *ContextPackBuilderImpl) createSmartSnippets(
 		}
 		return fileSymbols[i].Type < fileSymbols[j].Type
 	})
+
+	snippets := make([]*domain.ContextSnippet, 0, len(fileSymbols)+1)
 
 	// Добавляем заголовок файла (импорты и package)
 	headerSnippet := b.createHeaderSnippet(filePath, lines)
@@ -333,9 +340,9 @@ func (b *ContextPackBuilderImpl) createDependencies(projectRoot, language string
 	var deps []*domain.ContextDependency
 
 	switch language {
-	case "go":
+	case langGo:
 		deps = b.createGoDependencies(projectRoot)
-	case "typescript", "javascript":
+	case langTypeScript, langJavaScript:
 		deps = b.createNodeDependencies(projectRoot)
 	}
 
@@ -375,9 +382,9 @@ func (b *ContextPackBuilderImpl) createGoDependencies(projectRoot string) []*dom
 func (b *ContextPackBuilderImpl) createNodeDependencies(projectRoot string) []*domain.ContextDependency {
 	var deps []*domain.ContextDependency
 
-	packageJsonPath := filepath.Join(projectRoot, "package.json")
-	if _, err := os.Stat(packageJsonPath); err == nil {
-		content, err := os.ReadFile(packageJsonPath)
+	packageJSONPath := filepath.Join(projectRoot, "package.json")
+	if _, err := os.Stat(packageJSONPath); err == nil {
+		content, err := os.ReadFile(packageJSONPath)
 		if err == nil {
 			var pkg struct {
 				Dependencies    map[string]string `json:"dependencies"`
@@ -407,7 +414,7 @@ func (b *ContextPackBuilderImpl) createBuildInfo(language string) *domain.Contex
 	}
 
 	switch language {
-	case "go":
+	case langGo:
 		build.Commands = []string{
 			"go mod tidy",
 			"go build ./...",
@@ -418,7 +425,7 @@ func (b *ContextPackBuilderImpl) createBuildInfo(language string) *domain.Contex
 		build.Env["GOOS"] = "linux"
 		build.Env["GOARCH"] = "amd64"
 		build.Env["CGO_ENABLED"] = "0"
-	case "typescript", "javascript":
+	case langTypeScript, langJavaScript:
 		build.Commands = []string{
 			"npm install",
 			"npm run build",
@@ -633,21 +640,6 @@ func (b *ContextPackBuilderImpl) ValidatePack(ctx context.Context, pack *domain.
 	}
 
 	return nil
-}
-
-// Вспомогательные функции
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // NoopTreeBuilder - заглушка для TreeBuilder

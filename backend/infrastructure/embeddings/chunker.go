@@ -12,11 +12,11 @@ import (
 
 // ChunkerConfig configuration for code chunking
 type ChunkerConfig struct {
-	MaxChunkTokens    int  `json:"maxChunkTokens"`
-	MinChunkTokens    int  `json:"minChunkTokens"`
-	OverlapTokens     int  `json:"overlapTokens"`
-	PreferSymbols     bool `json:"preferSymbols"` // prefer function/class boundaries
-	IncludeContext    bool `json:"includeContext"` // include surrounding context
+	MaxChunkTokens int  `json:"maxChunkTokens"`
+	MinChunkTokens int  `json:"minChunkTokens"`
+	OverlapTokens  int  `json:"overlapTokens"`
+	PreferSymbols  bool `json:"preferSymbols"`  // prefer function/class boundaries
+	IncludeContext bool `json:"includeContext"` // include surrounding context
 }
 
 // DefaultChunkerConfig returns default chunking configuration
@@ -44,12 +44,12 @@ func NewCodeChunker(config ChunkerConfig) *CodeChunker {
 func (c *CodeChunker) ChunkFile(filePath string, content []byte, symbols []SymbolInfo) []domain.CodeChunk {
 	language := detectLanguage(filePath)
 	lines := strings.Split(string(content), "\n")
-	
+
 	// If we have symbols and prefer symbol-based chunking
 	if c.config.PreferSymbols && len(symbols) > 0 {
 		return c.chunkBySymbols(filePath, lines, symbols, language)
 	}
-	
+
 	// Fall back to fixed-size chunking
 	return c.chunkBySize(filePath, lines, language)
 }
@@ -66,23 +66,23 @@ type SymbolInfo struct {
 func (c *CodeChunker) chunkBySymbols(filePath string, lines []string, symbols []SymbolInfo, language string) []domain.CodeChunk {
 	var chunks []domain.CodeChunk
 	usedLines := make(map[int]bool)
-	
+
 	// First, create chunks for each symbol
 	for _, sym := range symbols {
 		if sym.StartLine < 1 || sym.EndLine > len(lines) {
 			continue
 		}
-		
+
 		// Get symbol content
 		symbolLines := lines[sym.StartLine-1 : sym.EndLine]
 		content := strings.Join(symbolLines, "\n")
 		tokenCount := estimateTokens(content)
-		
+
 		// Skip if too small
 		if tokenCount < c.config.MinChunkTokens {
 			continue
 		}
-		
+
 		// If too large, split into sub-chunks
 		if tokenCount > c.config.MaxChunkTokens {
 			subChunks := c.splitLargeSymbol(filePath, symbolLines, sym, language)
@@ -103,30 +103,30 @@ func (c *CodeChunker) chunkBySymbols(filePath string, lines []string, symbols []
 			}
 			chunks = append(chunks, chunk)
 		}
-		
+
 		// Mark lines as used
 		for i := sym.StartLine; i <= sym.EndLine; i++ {
 			usedLines[i] = true
 		}
 	}
-	
+
 	// Create chunks for remaining code (imports, constants, etc.)
 	chunks = append(chunks, c.chunkRemainingLines(filePath, lines, usedLines, language)...)
-	
+
 	return chunks
 }
 
 // splitLargeSymbol splits a large symbol into smaller chunks
 func (c *CodeChunker) splitLargeSymbol(filePath string, lines []string, sym SymbolInfo, language string) []domain.CodeChunk {
-	var chunks []domain.CodeChunk
-	
+	chunks := make([]domain.CodeChunk, 0, len(lines)/50+1)
+
 	currentStart := 0
 	currentTokens := 0
-	var currentLines []string
-	
+	currentLines := make([]string, 0, 50)
+
 	for i, line := range lines {
 		lineTokens := estimateTokens(line)
-		
+
 		if currentTokens+lineTokens > c.config.MaxChunkTokens && len(currentLines) > 0 {
 			// Create chunk
 			content := strings.Join(currentLines, "\n")
@@ -144,18 +144,18 @@ func (c *CodeChunker) splitLargeSymbol(filePath string, lines []string, sym Symb
 				Hash:       hashContent(content),
 			}
 			chunks = append(chunks, chunk)
-			
+
 			// Start new chunk with overlap
 			overlapLines := getOverlapLines(currentLines, c.config.OverlapTokens)
 			currentLines = overlapLines
 			currentStart = i - len(overlapLines)
 			currentTokens = estimateTokens(strings.Join(overlapLines, "\n"))
 		}
-		
+
 		currentLines = append(currentLines, line)
 		currentTokens += lineTokens
 	}
-	
+
 	// Add remaining lines
 	if len(currentLines) > 0 {
 		content := strings.Join(currentLines, "\n")
@@ -174,21 +174,21 @@ func (c *CodeChunker) splitLargeSymbol(filePath string, lines []string, sym Symb
 		}
 		chunks = append(chunks, chunk)
 	}
-	
+
 	return chunks
 }
 
 // chunkBySize creates fixed-size chunks
 func (c *CodeChunker) chunkBySize(filePath string, lines []string, language string) []domain.CodeChunk {
-	var chunks []domain.CodeChunk
-	
+	chunks := make([]domain.CodeChunk, 0, len(lines)/50+1)
+
 	currentStart := 1
 	currentTokens := 0
-	var currentLines []string
-	
+	currentLines := make([]string, 0, 50)
+
 	for i, line := range lines {
 		lineTokens := estimateTokens(line)
-		
+
 		if currentTokens+lineTokens > c.config.MaxChunkTokens && len(currentLines) > 0 {
 			content := strings.Join(currentLines, "\n")
 			// EndLine should be currentStart + len(currentLines) - 1 (1-based, inclusive)
@@ -205,18 +205,18 @@ func (c *CodeChunker) chunkBySize(filePath string, lines []string, language stri
 				Hash:       hashContent(content),
 			}
 			chunks = append(chunks, chunk)
-			
+
 			// Start new chunk with overlap
 			overlapLines := getOverlapLines(currentLines, c.config.OverlapTokens)
 			currentLines = overlapLines
 			currentStart = i + 2 - len(overlapLines) // i+1 is next line (0-based), +1 for 1-based
 			currentTokens = estimateTokens(strings.Join(overlapLines, "\n"))
 		}
-		
+
 		currentLines = append(currentLines, line)
 		currentTokens += lineTokens
 	}
-	
+
 	// Add remaining lines
 	if len(currentLines) > 0 && currentTokens >= c.config.MinChunkTokens {
 		content := strings.Join(currentLines, "\n")
@@ -237,16 +237,16 @@ func (c *CodeChunker) chunkBySize(filePath string, lines []string, language stri
 		}
 		chunks = append(chunks, chunk)
 	}
-	
+
 	return chunks
 }
 
 // chunkRemainingLines creates chunks for lines not covered by symbols
 func (c *CodeChunker) chunkRemainingLines(filePath string, lines []string, usedLines map[int]bool, language string) []domain.CodeChunk {
-	var chunks []domain.CodeChunk
-	var currentLines []string
+	chunks := make([]domain.CodeChunk, 0, len(lines)/50+1)
+	currentLines := make([]string, 0, 50)
 	currentStart := 0
-	
+
 	for i, line := range lines {
 		lineNum := i + 1
 		if usedLines[lineNum] {
@@ -272,13 +272,13 @@ func (c *CodeChunker) chunkRemainingLines(filePath string, lines []string, usedL
 			}
 			continue
 		}
-		
+
 		if len(currentLines) == 0 {
 			currentStart = lineNum
 		}
 		currentLines = append(currentLines, line)
 	}
-	
+
 	// Flush remaining
 	if len(currentLines) > 0 {
 		content := strings.Join(currentLines, "\n")
@@ -298,7 +298,7 @@ func (c *CodeChunker) chunkRemainingLines(filePath string, lines []string, usedL
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks
 }
 
@@ -324,10 +324,10 @@ func getOverlapLines(lines []string, overlapTokens int) []string {
 	if len(lines) == 0 {
 		return nil
 	}
-	
+
 	tokens := 0
 	startIdx := len(lines)
-	
+
 	for i := len(lines) - 1; i >= 0; i-- {
 		lineTokens := estimateTokens(lines[i])
 		if tokens+lineTokens > overlapTokens {
@@ -336,11 +336,11 @@ func getOverlapLines(lines []string, overlapTokens int) []string {
 		tokens += lineTokens
 		startIdx = i
 	}
-	
+
 	if startIdx >= len(lines) {
 		return nil
 	}
-	
+
 	result := make([]string, len(lines)-startIdx)
 	copy(result, lines[startIdx:])
 	return result

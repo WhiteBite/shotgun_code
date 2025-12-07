@@ -33,50 +33,63 @@ func (r *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatu
 		return nil, fmt.Errorf("failed to get git status: %w", err)
 	}
 
-	var files []domain.FileStatus
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) >= 3 {
-			status := strings.TrimSpace(line[:2])
-			path := strings.TrimSpace(line[3:])
-			// Handle renamed files output: "R old_path -> new_path"
-			if strings.HasPrefix(status, "R") {
-				parts := strings.Split(path, " -> ")
-				if len(parts) == 2 {
-					path = parts[1] // Use the new path for renamed files
-				}
-			}
-
-			// Map git status codes to simpler ones for frontend display
-			simpleStatus := status
-			if strings.HasPrefix(status, "M") || strings.Contains(status, "M") {
-				simpleStatus = "M" // Modified
-			} else if strings.HasPrefix(status, "A") {
-				simpleStatus = "A" // Added
-			} else if strings.HasPrefix(status, "D") {
-				simpleStatus = "D" // Deleted
-			} else if strings.HasPrefix(status, "R") {
-				simpleStatus = "R" // Renamed
-			} else if strings.HasPrefix(status, "C") {
-				simpleStatus = "C" // Copied
-			} else if status == "??" {
-				simpleStatus = "U" // Untracked
-			} else if strings.HasPrefix(status, "U") {
-				// Special handling for unmerged (conflict) status
-				// Using "UM" to distinguish from "C" (Copied)
-				simpleStatus = "UM" // Unmerged (Conflict)
-			}
-
-			files = append(files, domain.FileStatus{
-				Path:   path,
-				Status: simpleStatus,
-			})
-		}
-	}
-
+	files := parseGitStatus(string(output))
 	r.log.Info(fmt.Sprintf("Found %d uncommitted files in %s.", len(files), projectRoot))
 	return files, nil
+}
+
+// parseGitStatus parses git status --porcelain output
+func parseGitStatus(output string) []domain.FileStatus {
+	var files []domain.FileStatus
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		if file := parseStatusLine(scanner.Text()); file != nil {
+			files = append(files, *file)
+		}
+	}
+	return files
+}
+
+// parseStatusLine parses a single git status line
+func parseStatusLine(line string) *domain.FileStatus {
+	if len(line) < 3 {
+		return nil
+	}
+	status := strings.TrimSpace(line[:2])
+	path := extractFilePath(status, strings.TrimSpace(line[3:]))
+	return &domain.FileStatus{Path: path, Status: mapGitStatus(status)}
+}
+
+// extractFilePath handles renamed files
+func extractFilePath(status, path string) string {
+	if strings.HasPrefix(status, "R") {
+		if parts := strings.Split(path, " -> "); len(parts) == 2 {
+			return parts[1]
+		}
+	}
+	return path
+}
+
+// mapGitStatus maps git status codes to simple codes
+func mapGitStatus(status string) string {
+	switch {
+	case strings.HasPrefix(status, "M") || strings.Contains(status, "M"):
+		return "M"
+	case strings.HasPrefix(status, "A"):
+		return "A"
+	case strings.HasPrefix(status, "D"):
+		return "D"
+	case strings.HasPrefix(status, "R"):
+		return "R"
+	case strings.HasPrefix(status, "C"):
+		return "C"
+	case status == "??":
+		return "U"
+	case strings.HasPrefix(status, "U"):
+		return "UM"
+	default:
+		return status
+	}
 }
 
 func (r *Repository) GetRichCommitHistory(projectRoot, branchName string, limit int) ([]domain.CommitWithFiles, error) {
@@ -109,7 +122,7 @@ func (r *Repository) GetRichCommitHistory(projectRoot, branchName string, limit 
 }
 
 func (r *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
-	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", commitHash, filePath))
+	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", commitHash, filePath)) //nolint:gosec // Git command
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -137,67 +150,71 @@ func (r *Repository) GetGitignoreContent(projectRoot string) (string, error) {
 // ParseRichLogOutput parses the output of git log with --pretty and --name-status
 func ParseRichLogOutput(gitOutput string) ([]domain.CommitWithFiles, error) {
 	var commits []domain.CommitWithFiles
+	var currentCommit *domain.CommitWithFiles
 	scanner := bufio.NewScanner(strings.NewReader(gitOutput))
 
-	var currentCommit *domain.CommitWithFiles
 	for scanner.Scan() {
-		line := scanner.Text()
-		line = strings.TrimSpace(line)
-
+		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "COMMIT ") {
 			if currentCommit != nil {
 				commits = append(commits, *currentCommit)
 			}
-
-			parts := strings.Fields(line)
-			if len(parts) < 2 {
-				continue // Skip malformed lines
-			}
-
-			hash := parts[1]
-			isMerge := len(parts) > 3 // More than one parent means merge
-
-			currentCommit = &domain.CommitWithFiles{
-				Hash:    hash,
-				IsMerge: isMerge,
-				Files:   []string{},
-			}
+			currentCommit = parseCommitHeader(line)
 		} else if currentCommit != nil {
-			// Check if this is a file status line first
-			if strings.Contains(line, "\t") {
-				// This is a file status line: "M\tfilename" or "A\tfilename"
-				parts := strings.Split(line, "\t")
-				if len(parts) >= 2 {
-					filename := parts[1]
-					if filename != "" {
-						currentCommit.Files = append(currentCommit.Files, filename)
-					}
-				}
-			} else if currentCommit.Subject == "" {
-				// First non-file line is the subject
-				currentCommit.Subject = line
-			} else if currentCommit.Author == "" {
-				// Second non-file line is the author
-				currentCommit.Author = line
-			} else if currentCommit.Date == "" {
-				// Third non-file line is the date
-				currentCommit.Date = line
-				// Optional: parse date into a more human-readable format if needed,
-				// or store as is for frontend formatting.
-				// For now, storing as is from git's %cI format.
-				t, err := time.Parse(time.RFC3339, line)
-				if err == nil {
-					currentCommit.Date = t.Format("2006-01-02 15:04") // Format for display
-				}
-			}
+			parseCommitLine(currentCommit, line)
 		}
 	}
 
 	if currentCommit != nil {
 		commits = append(commits, *currentCommit)
 	}
-
 	return commits, nil
+}
+
+// parseCommitHeader parses a COMMIT line
+func parseCommitHeader(line string) *domain.CommitWithFiles {
+	parts := strings.Fields(line)
+	if len(parts) < 2 {
+		return nil
+	}
+	return &domain.CommitWithFiles{
+		Hash:    parts[1],
+		IsMerge: len(parts) > 3,
+		Files:   []string{},
+	}
+}
+
+// parseCommitLine parses a line belonging to current commit
+func parseCommitLine(commit *domain.CommitWithFiles, line string) {
+	if strings.Contains(line, "\t") {
+		parseFileLine(commit, line)
+	} else {
+		parseMetadataLine(commit, line)
+	}
+}
+
+// parseFileLine parses a file status line
+func parseFileLine(commit *domain.CommitWithFiles, line string) {
+	parts := strings.Split(line, "\t")
+	if len(parts) >= 2 && parts[1] != "" {
+		commit.Files = append(commit.Files, parts[1])
+	}
+}
+
+// parseMetadataLine parses subject/author/date lines
+func parseMetadataLine(commit *domain.CommitWithFiles, line string) {
+	switch {
+	case commit.Subject == "":
+		commit.Subject = line
+	case commit.Author == "":
+		commit.Author = line
+	case commit.Date == "":
+		if t, err := time.Parse(time.RFC3339, line); err == nil {
+			commit.Date = t.Format("2006-01-02 15:04")
+		} else {
+			commit.Date = line
+		}
+	}
 }
 
 // GetBranches returns all git branches
@@ -369,7 +386,7 @@ func (r *Repository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
 
 // GetFileAtRef returns file content at a specific branch or commit without checkout
 func (r *Repository) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
-	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", ref, filePath))
+	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", ref, filePath)) //nolint:gosec // Git command
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -399,22 +416,22 @@ func (r *Repository) GetTreeAtRef(projectPath, ref string) ([]GitTreeEntry, erro
 		if len(parts) != 2 {
 			continue
 		}
-		
+
 		meta := strings.Fields(parts[0])
 		if len(meta) < 4 {
 			continue
 		}
-		
+
 		size := int64(0)
 		if meta[3] != "-" {
-			fmt.Sscanf(meta[3], "%d", &size)
+			_, _ = fmt.Sscanf(meta[3], "%d", &size)
 		}
-		
+
 		entries = append(entries, GitTreeEntry{
-			Path:   parts[1],
-			Type:   meta[1],
-			Size:   size,
-			IsDir:  meta[1] == "tree",
+			Path:  parts[1],
+			Type:  meta[1],
+			Size:  size,
+			IsDir: meta[1] == "tree",
 		})
 	}
 
@@ -431,7 +448,7 @@ type GitTreeEntry struct {
 
 // GetCommitHistory returns recent commits with hash and subject
 func (r *Repository) GetCommitHistory(projectPath string, limit int) ([]domain.CommitInfo, error) {
-	cmd := exec.Command("git", "log", "--pretty=format:%H|%s|%an|%cI", fmt.Sprintf("-n%d", limit))
+	cmd := exec.Command("git", "log", "--pretty=format:%H|%s|%an|%cI", fmt.Sprintf("-n%d", limit)) //nolint:gosec // Git command
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -462,7 +479,7 @@ func (r *Repository) FetchRemoteBranches(projectPath string) ([]string, error) {
 	// First fetch all remotes
 	fetchCmd := exec.Command("git", "fetch", "--all")
 	fetchCmd.Dir = projectPath
-	fetchCmd.Run() // Ignore errors, might not have network
+	_ = fetchCmd.Run() // Ignore errors, might not have network
 
 	// Get remote branches
 	cmd := exec.Command("git", "branch", "-r")
@@ -481,9 +498,7 @@ func (r *Repository) FetchRemoteBranches(projectPath string) ([]string, error) {
 			continue
 		}
 		// Remove "origin/" prefix for cleaner display
-		if strings.HasPrefix(line, "origin/") {
-			line = strings.TrimPrefix(line, "origin/")
-		}
+		line = strings.TrimPrefix(line, "origin/")
 		branches = append(branches, line)
 	}
 

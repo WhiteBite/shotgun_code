@@ -144,14 +144,14 @@ func (cl *ConcurrencyLimiter) TryAcquire() bool {
 
 // CompositeRateLimiter combines rate limiting and concurrency limiting
 type CompositeRateLimiter struct {
-	rateLimiter       *RateLimiter
+	rateLimiter        *RateLimiter
 	concurrencyLimiter *ConcurrencyLimiter
 }
 
 // NewCompositeRateLimiter creates a composite limiter
 func NewCompositeRateLimiter(rateLimit *RateLimiter, concurrencyLimit *ConcurrencyLimiter) *CompositeRateLimiter {
 	return &CompositeRateLimiter{
-		rateLimiter:       rateLimit,
+		rateLimiter:        rateLimit,
 		concurrencyLimiter: concurrencyLimit,
 	}
 }

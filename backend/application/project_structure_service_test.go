@@ -11,17 +11,17 @@ import (
 // mockLogger implements domain.Logger for testing
 type mockLogger struct{}
 
-func (m *mockLogger) Debug(msg string)                              {}
-func (m *mockLogger) Info(msg string)                               {}
-func (m *mockLogger) Warning(msg string)                            {}
-func (m *mockLogger) Error(msg string)                              {}
-func (m *mockLogger) Fatal(msg string)                              {}
-func (m *mockLogger) Debugf(format string, args ...interface{})     {}
-func (m *mockLogger) Infof(format string, args ...interface{})      {}
-func (m *mockLogger) Warningf(format string, args ...interface{})   {}
-func (m *mockLogger) Errorf(format string, args ...interface{})     {}
-func (m *mockLogger) Fatalf(format string, args ...interface{})     {}
-func (m *mockLogger) WithField(key string, value interface{}) domain.Logger { return m }
+func (m *mockLogger) Debug(msg string)                                       {}
+func (m *mockLogger) Info(msg string)                                        {}
+func (m *mockLogger) Warning(msg string)                                     {}
+func (m *mockLogger) Error(msg string)                                       {}
+func (m *mockLogger) Fatal(msg string)                                       {}
+func (m *mockLogger) Debugf(format string, args ...interface{})              {}
+func (m *mockLogger) Infof(format string, args ...interface{})               {}
+func (m *mockLogger) Warningf(format string, args ...interface{})            {}
+func (m *mockLogger) Errorf(format string, args ...interface{})              {}
+func (m *mockLogger) Fatalf(format string, args ...interface{})              {}
+func (m *mockLogger) WithField(key string, value interface{}) domain.Logger  { return m }
 func (m *mockLogger) WithFields(fields map[string]interface{}) domain.Logger { return m }
 
 func TestNewProjectStructureService(t *testing.T) {
@@ -341,7 +341,7 @@ func TestProjectStructureService_ComplexProject(t *testing.T) {
 func createTestDir(t *testing.T, base, path string) {
 	t.Helper()
 	fullPath := filepath.Join(base, path)
-	if err := os.MkdirAll(fullPath, 0755); err != nil {
+	if err := os.MkdirAll(fullPath, 0o755); err != nil {
 		t.Fatalf("Failed to create directory %s: %v", fullPath, err)
 	}
 }
@@ -350,10 +350,10 @@ func createTestFile(t *testing.T, base, path, content string) {
 	t.Helper()
 	fullPath := filepath.Join(base, path)
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("Failed to create directory %s: %v", dir, err)
 	}
-	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("Failed to create file %s: %v", fullPath, err)
 	}
 }

@@ -2,13 +2,31 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"shotgun_code/domain"
 	"sort"
 	"strings"
 	"time"
+)
+
+// File extension constants
+const (
+	extGo  = ".go"
+	extTS  = ".ts"
+	extJS  = ".js"
+	extVue = ".vue"
+	extTSX = ".tsx"
+	extJSX = ".jsx"
+)
+
+// Task type constants
+const (
+	taskTypeFeature       = "feature"
+	taskTypeBugFix        = "bug_fix"
+	taskTypeTest          = "test"
+	taskTypeRefactor      = "refactor"
+	taskTypeDocumentation = "documentation"
 )
 
 // ContextAnalyzerImpl implements the ContextAnalyzer interface
@@ -50,7 +68,7 @@ func (ca *ContextAnalyzerImpl) AnalyzeTaskAndCollectContext(
 	})
 
 	// Take top 15 files with score > 0.1
-	var selectedFiles []domain.ScoredFile
+	selectedFiles := make([]domain.ScoredFile, 0, 15)
 	for i, sf := range scoredFiles {
 		if i >= 15 || sf.Score < 0.1 {
 			break
@@ -124,122 +142,145 @@ func (ca *ContextAnalyzerImpl) flattenFiles(nodes []*domain.FileNode) []*domain.
 	return result
 }
 
+// codeExtensions returns a map of code file extensions
+func codeExtensions() map[string]bool {
+	return map[string]bool{
+		extGo: true, extTS: true, extJS: true, extVue: true, extTSX: true, extJSX: true,
+		".py": true, ".java": true, ".rs": true, ".cpp": true, ".c": true, ".h": true,
+	}
+}
+
+// scoreKeywordMatches scores based on keyword matches in path/name
+func scoreKeywordMatches(nameLower, pathLower string, keywords []string) float64 {
+	score := 0.0
+	for _, kw := range keywords {
+		kwLower := strings.ToLower(kw)
+		if len(kwLower) < 2 {
+			continue
+		}
+		if strings.Contains(nameLower, kwLower) {
+			score += 0.4
+		} else if strings.Contains(pathLower, kwLower) {
+			score += 0.2
+		}
+	}
+	return score
+}
+
+// fileTypeRule defines a scoring rule for file types
+type fileTypeRule struct {
+	namePatterns []string
+	taskPatterns []string
+	score        float64
+}
+
+var fileTypeRules = []fileTypeRule{
+	{[]string{"handler", "controller"}, []string{"api", "endpoint", "route", "http"}, 0.3},
+	{[]string{"auth", "login", "jwt", "token"}, []string{"auth", "login", "авториз", "jwt"}, 0.5},
+	{[]string{"user", "account"}, []string{"user", "пользовател", "account", "profile"}, 0.4},
+	{[]string{"config", "setting"}, []string{"config", "настройк"}, 0.3},
+}
+
+// containsAny checks if s contains any of the patterns
+func containsAny(s string, patterns []string) bool {
+	for _, p := range patterns {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// scoreByFileType scores based on file type and task context
+func scoreByFileType(nameLower, pathLower, ext, taskLower string) float64 {
+	score := 0.0
+
+	for _, rule := range fileTypeRules {
+		if containsAny(nameLower, rule.namePatterns) && containsAny(taskLower, rule.taskPatterns) {
+			score += rule.score
+		}
+	}
+
+	// Component files
+	if ext == extVue || ext == extTSX || ext == extJSX {
+		if containsAny(taskLower, []string{"ui", "компонент", "component", "страниц"}) {
+			score += 0.2
+		}
+	}
+
+	// Test files
+	if strings.Contains(nameLower, "test") || strings.Contains(nameLower, "spec") {
+		if containsAny(taskLower, []string{"test", "тест"}) {
+			score += 0.3
+		} else {
+			score -= 0.2
+		}
+	}
+
+	return score
+}
+
+// scoreByPath scores based on path patterns
+func scoreByPath(pathLower string) float64 {
+	score := 0.0
+	if strings.Contains(pathLower, "domain") || strings.Contains(pathLower, "model") ||
+		strings.Contains(pathLower, "entity") {
+		score += 0.1
+	}
+	if strings.Contains(pathLower, "service") || strings.Contains(pathLower, "application") {
+		score += 0.1
+	}
+	return score
+}
+
+// scoreByName scores based on file name patterns
+func scoreByName(nameLower string) float64 {
+	score := 0.0
+	if strings.Contains(nameLower, "store") || strings.Contains(nameLower, "state") {
+		score += 0.15
+	}
+	if nameLower == "main.go" || nameLower == "app.go" || nameLower == "index.ts" ||
+		nameLower == "main.ts" || nameLower == "app.vue" {
+		score += 0.15
+	}
+	return score
+}
+
+// isExcludedPath checks if path should be excluded
+func isExcludedPath(pathLower string) bool {
+	return strings.Contains(pathLower, "node_modules") || strings.Contains(pathLower, "vendor") ||
+		strings.Contains(pathLower, "dist") || strings.Contains(pathLower, ".git")
+}
+
 // scoreFilesByRelevance scores files based on keyword matching and path analysis
 func (ca *ContextAnalyzerImpl) scoreFilesByRelevance(files []*domain.FileNode, keywords []string, task string) []ScoredFile {
-	// Flatten tree structure first
 	flatFiles := ca.flattenFiles(files)
-
 	var scored []ScoredFile
 	taskLower := strings.ToLower(task)
+	codeExts := codeExtensions()
 
 	for _, file := range flatFiles {
 		if file.IsDir {
 			continue
 		}
 
-		score := 0.0
 		pathLower := strings.ToLower(file.RelPath)
 		nameLower := strings.ToLower(file.Name)
 		ext := strings.ToLower(filepath.Ext(file.Name))
 
-		// Base score for code files
-		codeExts := map[string]bool{
-			".go": true, ".ts": true, ".js": true, ".vue": true, ".tsx": true, ".jsx": true,
-			".py": true, ".java": true, ".rs": true, ".cpp": true, ".c": true, ".h": true,
+		if isExcludedPath(pathLower) {
+			continue
 		}
+
+		score := 0.0
 		if codeExts[ext] {
-			score += 0.1 // Base score for any code file
-		}
-
-		// Score by keyword matches in path/name
-		for _, kw := range keywords {
-			kwLower := strings.ToLower(kw)
-			if len(kwLower) < 2 {
-				continue
-			}
-			if strings.Contains(nameLower, kwLower) {
-				score += 0.4 // Strong match in filename
-			} else if strings.Contains(pathLower, kwLower) {
-				score += 0.2 // Match in path
-			}
-		}
-
-		// Handler/Controller files
-		if strings.Contains(nameLower, "handler") || strings.Contains(nameLower, "controller") {
-			if strings.Contains(taskLower, "api") || strings.Contains(taskLower, "endpoint") ||
-				strings.Contains(taskLower, "route") || strings.Contains(taskLower, "http") {
-				score += 0.3
-			}
-		}
-
-		// Auth-related
-		if strings.Contains(nameLower, "auth") || strings.Contains(nameLower, "login") ||
-			strings.Contains(nameLower, "jwt") || strings.Contains(nameLower, "token") {
-			if strings.Contains(taskLower, "auth") || strings.Contains(taskLower, "login") ||
-				strings.Contains(taskLower, "авториз") || strings.Contains(taskLower, "jwt") {
-				score += 0.5
-			}
-		}
-
-		// User-related
-		if strings.Contains(nameLower, "user") || strings.Contains(nameLower, "account") {
-			if strings.Contains(taskLower, "user") || strings.Contains(taskLower, "пользовател") ||
-				strings.Contains(taskLower, "account") || strings.Contains(taskLower, "profile") {
-				score += 0.4
-			}
-		}
-
-		// Domain/Model files
-		if strings.Contains(pathLower, "domain") || strings.Contains(pathLower, "model") ||
-			strings.Contains(pathLower, "entity") {
 			score += 0.1
 		}
 
-		// Service/Application layer
-		if strings.Contains(pathLower, "service") || strings.Contains(pathLower, "application") {
-			score += 0.1
-		}
-
-		// Store/State files (frontend)
-		if strings.Contains(nameLower, "store") || strings.Contains(nameLower, "state") {
-			score += 0.15
-		}
-
-		// Component files
-		if ext == ".vue" || ext == ".tsx" || ext == ".jsx" {
-			if strings.Contains(taskLower, "ui") || strings.Contains(taskLower, "компонент") ||
-				strings.Contains(taskLower, "component") || strings.Contains(taskLower, "страниц") {
-				score += 0.2
-			}
-		}
-
-		// Config files
-		if strings.Contains(nameLower, "config") || strings.Contains(nameLower, "setting") {
-			if strings.Contains(taskLower, "config") || strings.Contains(taskLower, "настройк") {
-				score += 0.3
-			}
-		}
-
-		// Test files - lower priority unless task is about tests
-		if strings.Contains(nameLower, "test") || strings.Contains(nameLower, "spec") {
-			if strings.Contains(taskLower, "test") || strings.Contains(taskLower, "тест") {
-				score += 0.3
-			} else {
-				score -= 0.2
-			}
-		}
-
-		// Penalize generated/vendor files
-		if strings.Contains(pathLower, "node_modules") || strings.Contains(pathLower, "vendor") ||
-			strings.Contains(pathLower, "dist") || strings.Contains(pathLower, ".git") {
-			score = 0
-		}
-
-		// Boost main entry points
-		if nameLower == "main.go" || nameLower == "app.go" || nameLower == "index.ts" ||
-			nameLower == "main.ts" || nameLower == "app.vue" {
-			score += 0.15
-		}
+		score += scoreKeywordMatches(nameLower, pathLower, keywords)
+		score += scoreByFileType(nameLower, pathLower, ext, taskLower)
+		score += scoreByPath(pathLower)
+		score += scoreByName(nameLower)
 
 		if score > 0 {
 			scored = append(scored, ScoredFile{File: file, Score: score})
@@ -249,87 +290,26 @@ func (ca *ContextAnalyzerImpl) scoreFilesByRelevance(files []*domain.FileNode, k
 	return scored
 }
 
-// refineWithAI uses AI to refine file selection
-func (ca *ContextAnalyzerImpl) refineWithAI(ctx context.Context, task string, candidates []*domain.FileNode, allFiles []*domain.FileNode) ([]*domain.FileNode, error) {
-	if ca.aiService == nil {
-		return candidates, nil
-	}
-
-	// Build file list for AI
-	var fileList []string
-	for _, f := range candidates {
-		fileList = append(fileList, f.RelPath)
-	}
-
-	prompt := fmt.Sprintf(`Given the task: "%s"
-
-And these candidate files:
-%s
-
-Return a JSON array of the most relevant file paths (max 10) for this task.
-Only return the JSON array, nothing else.
-Example: ["path/to/file1.go", "path/to/file2.ts"]`, task, strings.Join(fileList, "\n"))
-
-	response, err := ca.aiService.GenerateCode(ctx, "You are a code analysis assistant. Return only valid JSON.", prompt)
-	if err != nil {
-		return candidates, err
-	}
-
-	// Parse response
-	var selectedPaths []string
-	if err := json.Unmarshal([]byte(strings.TrimSpace(response)), &selectedPaths); err != nil {
-		// Try to extract JSON from response
-		start := strings.Index(response, "[")
-		end := strings.LastIndex(response, "]")
-		if start >= 0 && end > start {
-			if err := json.Unmarshal([]byte(response[start:end+1]), &selectedPaths); err != nil {
-				return candidates, nil
-			}
-		} else {
-			return candidates, nil
-		}
-	}
-
-	// Map paths to files
-	pathToFile := make(map[string]*domain.FileNode)
-	for _, f := range candidates {
-		pathToFile[f.RelPath] = f
-	}
-
-	var refined []*domain.FileNode
-	for _, p := range selectedPaths {
-		if f, ok := pathToFile[p]; ok {
-			refined = append(refined, f)
-		}
-	}
-
-	if len(refined) == 0 {
-		return candidates, nil
-	}
-
-	return refined, nil
-}
-
 // detectTaskType detects task type from description
 func (ca *ContextAnalyzerImpl) detectTaskType(task string) string {
 	taskLower := strings.ToLower(task)
 
 	if strings.Contains(taskLower, "bug") || strings.Contains(taskLower, "fix") ||
 		strings.Contains(taskLower, "ошибк") || strings.Contains(taskLower, "исправ") {
-		return "bug_fix"
+		return taskTypeBugFix
 	}
 	if strings.Contains(taskLower, "test") || strings.Contains(taskLower, "тест") {
-		return "test"
+		return taskTypeTest
 	}
 	if strings.Contains(taskLower, "refactor") || strings.Contains(taskLower, "рефактор") ||
 		strings.Contains(taskLower, "cleanup") || strings.Contains(taskLower, "очист") {
-		return "refactor"
+		return taskTypeRefactor
 	}
 	if strings.Contains(taskLower, "doc") || strings.Contains(taskLower, "документ") {
-		return "documentation"
+		return taskTypeDocumentation
 	}
 
-	return "feature"
+	return taskTypeFeature
 }
 
 // calculateConfidenceFromScores calculates confidence based on score distribution
@@ -374,7 +354,7 @@ func (ca *ContextAnalyzerImpl) extractKeywords(task, _ string) []string {
 	}
 
 	words := strings.Fields(taskLower)
-	var keywords []string
+	keywords := make([]string, 0, len(words))
 
 	for _, word := range words {
 		// Clean punctuation
@@ -405,7 +385,7 @@ func (ca *ContextAnalyzerImpl) SuggestFiles(ctx context.Context, task string, al
 	})
 
 	// Take top 10 files with score > 0.1
-	var filePaths []string
+	filePaths := make([]string, 0, 10)
 	for i, sf := range scoredFiles {
 		if i >= 10 || sf.Score < 0.1 {
 			break

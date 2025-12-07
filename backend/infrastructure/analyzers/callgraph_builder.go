@@ -14,11 +14,17 @@ import (
 	"strings"
 )
 
+const (
+	extGo          = ".go"
+	dirVendor      = "vendor"
+	dirNodeModules = "node_modules"
+)
+
 // CallGraphBuilderImpl builds call graphs
 type CallGraphBuilderImpl struct {
-	registry  analysis.AnalyzerRegistry
-	graph     *analysis.CallGraph
-	depGraph  *analysis.DependencyGraph
+	registry    analysis.AnalyzerRegistry
+	graph       *analysis.CallGraph
+	depGraph    *analysis.DependencyGraph
 	fileImports map[string][]importInfo // file -> imports
 }
 
@@ -59,7 +65,7 @@ func (b *CallGraphBuilderImpl) Build(projectRoot string) (*analysis.CallGraph, e
 
 		if info.IsDir() {
 			name := info.Name()
-			if strings.HasPrefix(name, ".") || name == "vendor" || name == "node_modules" {
+			if strings.HasPrefix(name, ".") || name == dirVendor || name == dirNodeModules {
 				return filepath.SkipDir
 			}
 			return nil
@@ -69,7 +75,7 @@ func (b *CallGraphBuilderImpl) Build(projectRoot string) (*analysis.CallGraph, e
 		relPath, _ := filepath.Rel(projectRoot, path)
 
 		switch ext {
-		case ".go":
+		case extGo:
 			b.analyzeGoFile(path, relPath)
 		case ".ts", ".js", ".tsx", ".jsx":
 			b.analyzeJSFile(path, relPath)
@@ -81,6 +87,69 @@ func (b *CallGraphBuilderImpl) Build(projectRoot string) (*analysis.CallGraph, e
 	})
 
 	return b.graph, err
+}
+
+// buildFuncSignature builds a function signature string
+func buildFuncSignature(decl *ast.FuncDecl) string {
+	var sig strings.Builder
+	sig.WriteString("func ")
+	if decl.Recv != nil && len(decl.Recv.List) > 0 {
+		sig.WriteString("(receiver) ")
+	}
+	sig.WriteString(decl.Name.Name + "(...)")
+	return sig.String()
+}
+
+// collectFuncDeclarations collects all function declarations from a Go file
+func (b *CallGraphBuilderImpl) collectFuncDeclarations(file *ast.File, fset *token.FileSet, pkgName, relPath string) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		decl, ok := n.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		nodeID := b.makeFunctionID(pkgName, decl.Name.Name, relPath)
+		pos := fset.Position(decl.Pos())
+		b.graph.Nodes[nodeID] = &analysis.CallNode{
+			ID: nodeID, Name: decl.Name.Name, FilePath: relPath, Line: pos.Line,
+			Package: pkgName, Signature: buildFuncSignature(decl),
+			Callers: make([]string, 0), Callees: make([]string, 0),
+		}
+		return true
+	})
+}
+
+// collectFuncCalls collects all function calls from a Go file
+func (b *CallGraphBuilderImpl) collectFuncCalls(file *ast.File, fset *token.FileSet, pkgName, relPath string) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		decl, ok := n.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		callerID := b.makeFunctionID(pkgName, decl.Name.Name, relPath)
+		ast.Inspect(decl.Body, func(inner ast.Node) bool {
+			call, ok := inner.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			calleeName := b.extractCallName(call)
+			if calleeName == "" {
+				return true
+			}
+			calleeID := b.makeFunctionID(pkgName, calleeName, "")
+			pos := fset.Position(call.Pos())
+			b.graph.Edges = append(b.graph.Edges, analysis.CallEdge{
+				From: callerID, To: calleeID, FilePath: relPath, Line: pos.Line, CallType: "direct",
+			})
+			if caller, ok := b.graph.Nodes[callerID]; ok {
+				caller.Callees = append(caller.Callees, calleeID)
+			}
+			if callee, ok := b.graph.Nodes[calleeID]; ok {
+				callee.Callers = append(callee.Callers, callerID)
+			}
+			return true
+		})
+		return true
+	})
 }
 
 func (b *CallGraphBuilderImpl) analyzeGoFile(path, relPath string) {
@@ -95,71 +164,8 @@ func (b *CallGraphBuilderImpl) analyzeGoFile(path, relPath string) {
 		pkgName = file.Name.Name
 	}
 
-	// First pass: collect all function declarations
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch decl := n.(type) {
-		case *ast.FuncDecl:
-			nodeID := b.makeFunctionID(pkgName, decl.Name.Name, relPath)
-			pos := fset.Position(decl.Pos())
-
-			var sig strings.Builder
-			sig.WriteString("func ")
-			if decl.Recv != nil && len(decl.Recv.List) > 0 {
-				sig.WriteString("(receiver) ")
-			}
-			sig.WriteString(decl.Name.Name + "(...)")
-
-			b.graph.Nodes[nodeID] = &analysis.CallNode{
-				ID:        nodeID,
-				Name:      decl.Name.Name,
-				FilePath:  relPath,
-				Line:      pos.Line,
-				Package:   pkgName,
-				Signature: sig.String(),
-				Callers:   make([]string, 0),
-				Callees:   make([]string, 0),
-			}
-		}
-		return true
-	})
-
-	// Second pass: find function calls
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch decl := n.(type) {
-		case *ast.FuncDecl:
-			callerID := b.makeFunctionID(pkgName, decl.Name.Name, relPath)
-
-			// Find all calls within this function
-			ast.Inspect(decl.Body, func(inner ast.Node) bool {
-				if call, ok := inner.(*ast.CallExpr); ok {
-					calleeName := b.extractCallName(call)
-					if calleeName != "" {
-						calleeID := b.makeFunctionID(pkgName, calleeName, "")
-						pos := fset.Position(call.Pos())
-
-						// Add edge
-						b.graph.Edges = append(b.graph.Edges, analysis.CallEdge{
-							From:     callerID,
-							To:       calleeID,
-							FilePath: relPath,
-							Line:     pos.Line,
-							CallType: "direct",
-						})
-
-						// Update caller/callee lists
-						if caller, ok := b.graph.Nodes[callerID]; ok {
-							caller.Callees = append(caller.Callees, calleeID)
-						}
-						if callee, ok := b.graph.Nodes[calleeID]; ok {
-							callee.Callers = append(callee.Callers, callerID)
-						}
-					}
-				}
-				return true
-			})
-		}
-		return true
-	})
+	b.collectFuncDeclarations(file, fset, pkgName, relPath)
+	b.collectFuncCalls(file, fset, pkgName, relPath)
 }
 
 func (b *CallGraphBuilderImpl) extractCallName(call *ast.CallExpr) string {
@@ -318,7 +324,7 @@ func (b *CallGraphBuilderImpl) GetImpact(functionID string, maxDepth int) []anal
 
 	traverse(functionID, 0)
 
-	var result []analysis.CallNode
+	result := make([]analysis.CallNode, 0, len(affected))
 	for _, node := range affected {
 		result = append(result, *node)
 	}
@@ -364,7 +370,7 @@ func (b *CallGraphBuilderImpl) GetTransitiveDependencies(functionID string, maxD
 
 	traverse(functionID, 0)
 
-	var result []analysis.CallNode
+	result := make([]analysis.CallNode, 0, len(deps))
 	for _, node := range deps {
 		result = append(result, *node)
 	}
@@ -441,7 +447,7 @@ func (b *CallGraphBuilderImpl) BuildForFile(ctx context.Context, filePath string
 	ext := filepath.Ext(filePath)
 
 	switch ext {
-	case ".go":
+	case extGo:
 		b.analyzeGoFileContent(filePath, content)
 	}
 
@@ -540,53 +546,57 @@ func (b *CallGraphBuilderImpl) analyzeVueFile(path, relPath string) {
 	b.analyzeJSCalls(scriptContent, relPath)
 }
 
-// analyzeJSCalls finds function calls in JS/TS content
-// Improved version that tracks function scopes to correctly identify callers
-func (b *CallGraphBuilderImpl) analyzeJSCalls(content, relPath string) {
-	callRe := regexp.MustCompile(`\b(\w+)\s*\(`)
-	lines := strings.Split(content, "\n")
+// funcScope represents a function's scope in a file
+type funcScope struct {
+	nodeID    string
+	startLine int
+	endLine   int
+}
 
-	// Build a sorted list of functions in this file by line number
-	type funcScope struct {
-		nodeID    string
-		startLine int
-		endLine   int
-	}
+// buildFuncScopes builds sorted function scopes for a file
+func (b *CallGraphBuilderImpl) buildFuncScopes(relPath string) []funcScope {
 	var funcsInFile []funcScope
 	for nodeID, node := range b.graph.Nodes {
 		if node.FilePath == relPath {
-			// Estimate end line: find next function or use a reasonable default
-			endLine := node.Line + 100 // Default scope
-			funcsInFile = append(funcsInFile, funcScope{
-				nodeID:    nodeID,
-				startLine: node.Line,
-				endLine:   endLine,
-			})
+			funcsInFile = append(funcsInFile, funcScope{nodeID: nodeID, startLine: node.Line, endLine: node.Line + 100})
 		}
 	}
-	
-	// Sort by start line
-	sort.Slice(funcsInFile, func(i, j int) bool {
-		return funcsInFile[i].startLine < funcsInFile[j].startLine
-	})
-	
-	// Update end lines based on next function's start
+	sort.Slice(funcsInFile, func(i, j int) bool { return funcsInFile[i].startLine < funcsInFile[j].startLine })
 	for i := 0; i < len(funcsInFile)-1; i++ {
 		funcsInFile[i].endLine = funcsInFile[i+1].startLine - 1
 	}
+	return funcsInFile
+}
 
-	// Find which function contains each line
-	findContainingFunc := func(lineNum int) string {
-		for _, f := range funcsInFile {
-			if lineNum >= f.startLine && lineNum <= f.endLine {
-				return f.nodeID
-			}
+// findContainingFunc finds which function contains a given line
+func findContainingFunc(funcsInFile []funcScope, lineNum int) string {
+	for _, f := range funcsInFile {
+		if lineNum >= f.startLine && lineNum <= f.endLine {
+			return f.nodeID
 		}
-		return ""
 	}
+	return ""
+}
+
+// addCallEdge adds a call edge and updates caller/callee lists
+func (b *CallGraphBuilderImpl) addCallEdge(callerID, calleeID, relPath string, line int) {
+	b.graph.Edges = append(b.graph.Edges, analysis.CallEdge{From: callerID, To: calleeID, FilePath: relPath, Line: line, CallType: "direct"})
+	if caller, ok := b.graph.Nodes[callerID]; ok {
+		caller.Callees = append(caller.Callees, calleeID)
+	}
+	if callee, ok := b.graph.Nodes[calleeID]; ok {
+		callee.Callers = append(callee.Callers, callerID)
+	}
+}
+
+// analyzeJSCalls finds function calls in JS/TS content
+func (b *CallGraphBuilderImpl) analyzeJSCalls(content, relPath string) {
+	callRe := regexp.MustCompile(`\b(\w+)\s*\(`)
+	lines := strings.Split(content, "\n")
+	funcsInFile := b.buildFuncScopes(relPath)
 
 	for lineNum, line := range lines {
-		actualLine := lineNum + 1 // 1-based line number
+		actualLine := lineNum + 1
 		matches := callRe.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			calleeName := match[1]
@@ -594,49 +604,18 @@ func (b *CallGraphBuilderImpl) analyzeJSCalls(content, relPath string) {
 				continue
 			}
 
-			// Find the caller function that contains this line
-			callerID := findContainingFunc(actualLine)
+			callerID := findContainingFunc(funcsInFile, actualLine)
 			if callerID == "" {
 				continue
 			}
 
-			// Try to find the callee in our graph
 			calleeID := b.makeFunctionID("", calleeName, "")
-			
-			// Also try with file path for local functions
 			calleeIDWithFile := b.makeFunctionID("", calleeName, relPath)
-			
-			// Add edge if we know both caller and callee
+
 			if _, exists := b.graph.Nodes[calleeID]; exists {
-				b.graph.Edges = append(b.graph.Edges, analysis.CallEdge{
-					From:     callerID,
-					To:       calleeID,
-					FilePath: relPath,
-					Line:     actualLine,
-					CallType: "direct",
-				})
-				// Update caller/callee lists
-				if caller, ok := b.graph.Nodes[callerID]; ok {
-					caller.Callees = append(caller.Callees, calleeID)
-				}
-				if callee, ok := b.graph.Nodes[calleeID]; ok {
-					callee.Callers = append(callee.Callers, callerID)
-				}
+				b.addCallEdge(callerID, calleeID, relPath, actualLine)
 			} else if _, exists := b.graph.Nodes[calleeIDWithFile]; exists && calleeIDWithFile != callerID {
-				b.graph.Edges = append(b.graph.Edges, analysis.CallEdge{
-					From:     callerID,
-					To:       calleeIDWithFile,
-					FilePath: relPath,
-					Line:     actualLine,
-					CallType: "direct",
-				})
-				// Update caller/callee lists
-				if caller, ok := b.graph.Nodes[callerID]; ok {
-					caller.Callees = append(caller.Callees, calleeIDWithFile)
-				}
-				if callee, ok := b.graph.Nodes[calleeIDWithFile]; ok {
-					callee.Callers = append(callee.Callers, callerID)
-				}
+				b.addCallEdge(callerID, calleeIDWithFile, relPath, actualLine)
 			}
 		}
 	}
@@ -652,6 +631,60 @@ func isJSKeyword(name string) bool {
 	return keywords[name]
 }
 
+// collectImportsFromProject walks project and collects imports
+func (b *CallGraphBuilderImpl) collectImportsFromProject(projectRoot string) error {
+	return filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if strings.HasPrefix(name, ".") || name == dirVendor || name == dirNodeModules {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		relPath, _ := filepath.Rel(projectRoot, path)
+		switch filepath.Ext(path) {
+		case extGo:
+			b.collectGoImports(path, relPath)
+		case ".ts", ".tsx", ".js", ".jsx", ".vue":
+			b.collectJSImports(path, relPath)
+		}
+		return nil
+	})
+}
+
+// ensureDepNode ensures a dependency node exists
+func (b *CallGraphBuilderImpl) ensureDepNode(filePath string) {
+	if _, exists := b.depGraph.Nodes[filePath]; !exists {
+		b.depGraph.Nodes[filePath] = &analysis.DependencyNode{
+			ID: filePath, Name: filepath.Base(filePath), Type: "file",
+			FilePath: filePath, Package: filepath.Dir(filePath),
+			Dependencies: make([]string, 0), Dependents: make([]string, 0),
+		}
+	}
+}
+
+// buildDepEdges builds dependency edges from collected imports
+func (b *CallGraphBuilderImpl) buildDepEdges(projectRoot string) {
+	for filePath, imports := range b.fileImports {
+		b.ensureDepNode(filePath)
+		for _, imp := range imports {
+			targetPath := b.resolveImportPath(filePath, imp.path, projectRoot)
+			if targetPath == "" {
+				continue
+			}
+			b.ensureDepNode(targetPath)
+			b.depGraph.Edges = append(b.depGraph.Edges, analysis.DependencyEdge{
+				From: filePath, To: targetPath, ImportPath: imp.path, Line: imp.line,
+			})
+			b.depGraph.Nodes[filePath].Dependencies = append(b.depGraph.Nodes[filePath].Dependencies, targetPath)
+			b.depGraph.Nodes[targetPath].Dependents = append(b.depGraph.Nodes[targetPath].Dependents, filePath)
+		}
+	}
+}
+
 // BuildDependencyGraph builds file/package dependency graph
 func (b *CallGraphBuilderImpl) BuildDependencyGraph(projectRoot string) (*analysis.DependencyGraph, error) {
 	b.depGraph = &analysis.DependencyGraph{
@@ -660,84 +693,10 @@ func (b *CallGraphBuilderImpl) BuildDependencyGraph(projectRoot string) (*analys
 	}
 	b.fileImports = make(map[string][]importInfo)
 
-	// First pass: collect all files and their imports
-	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if info.IsDir() {
-			name := info.Name()
-			if strings.HasPrefix(name, ".") || name == "vendor" || name == "node_modules" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		ext := filepath.Ext(path)
-		relPath, _ := filepath.Rel(projectRoot, path)
-
-		switch ext {
-		case ".go":
-			b.collectGoImports(path, relPath)
-		case ".ts", ".tsx", ".js", ".jsx", ".vue":
-			b.collectJSImports(path, relPath)
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	if err := b.collectImportsFromProject(projectRoot); err != nil {
 		return nil, err
 	}
-
-	// Build dependency nodes and edges
-	for filePath, imports := range b.fileImports {
-		// Create node for this file
-		if _, exists := b.depGraph.Nodes[filePath]; !exists {
-			b.depGraph.Nodes[filePath] = &analysis.DependencyNode{
-				ID:           filePath,
-				Name:         filepath.Base(filePath),
-				Type:         "file",
-				FilePath:     filePath,
-				Package:      filepath.Dir(filePath),
-				Dependencies: make([]string, 0),
-				Dependents:   make([]string, 0),
-			}
-		}
-
-		for _, imp := range imports {
-			targetPath := b.resolveImportPath(filePath, imp.path, projectRoot)
-			if targetPath == "" {
-				continue
-			}
-
-			// Create node for target if not exists
-			if _, exists := b.depGraph.Nodes[targetPath]; !exists {
-				b.depGraph.Nodes[targetPath] = &analysis.DependencyNode{
-					ID:           targetPath,
-					Name:         filepath.Base(targetPath),
-					Type:         "file",
-					FilePath:     targetPath,
-					Package:      filepath.Dir(targetPath),
-					Dependencies: make([]string, 0),
-					Dependents:   make([]string, 0),
-				}
-			}
-
-			// Add edge
-			b.depGraph.Edges = append(b.depGraph.Edges, analysis.DependencyEdge{
-				From:       filePath,
-				To:         targetPath,
-				ImportPath: imp.path,
-				Line:       imp.line,
-			})
-
-			// Update dependencies/dependents
-			b.depGraph.Nodes[filePath].Dependencies = append(b.depGraph.Nodes[filePath].Dependencies, targetPath)
-			b.depGraph.Nodes[targetPath].Dependents = append(b.depGraph.Nodes[targetPath].Dependents, filePath)
-		}
-	}
+	b.buildDepEdges(projectRoot)
 
 	return b.depGraph, nil
 }
@@ -831,67 +790,75 @@ func (b *CallGraphBuilderImpl) resolveImportPath(fromFile, importPath, projectRo
 	return ""
 }
 
+// cycleDFSState holds state for cycle detection DFS
+type cycleDFSState struct {
+	visited  map[string]bool
+	recStack map[string]bool
+	path     []string
+	cycles   []analysis.CyclicDependency
+}
+
+// extractCycle extracts a cycle from the current path
+func (s *cycleDFSState) extractCycle(dep string) {
+	cycleStart := -1
+	for i, p := range s.path {
+		if p == dep {
+			cycleStart = i
+			break
+		}
+	}
+	if cycleStart >= 0 {
+		cycle := make([]string, len(s.path)-cycleStart+1)
+		copy(cycle, s.path[cycleStart:])
+		cycle[len(cycle)-1] = dep
+		s.cycles = append(s.cycles, analysis.CyclicDependency{Cycle: cycle, Type: "file"})
+	}
+}
+
+// dfsForCycles performs DFS to find cycles
+func (b *CallGraphBuilderImpl) dfsForCycles(node string, state *cycleDFSState) bool {
+	state.visited[node] = true
+	state.recStack[node] = true
+	state.path = append(state.path, node)
+
+	if depNode, exists := b.depGraph.Nodes[node]; exists {
+		for _, dep := range depNode.Dependencies {
+			if !state.visited[dep] {
+				if b.dfsForCycles(dep, state) {
+					return true
+				}
+			} else if state.recStack[dep] {
+				state.extractCycle(dep)
+				return true
+			}
+		}
+	}
+
+	state.path = state.path[:len(state.path)-1]
+	state.recStack[node] = false
+	return false
+}
+
 // FindCyclicDependencies finds all cyclic dependencies in the project
 func (b *CallGraphBuilderImpl) FindCyclicDependencies(projectRoot string) ([]analysis.CyclicDependency, error) {
-	// Build dependency graph first
 	if _, err := b.BuildDependencyGraph(projectRoot); err != nil {
 		return nil, err
 	}
 
-	var cycles []analysis.CyclicDependency
-	visited := make(map[string]bool)
-	recStack := make(map[string]bool)
-	path := make([]string, 0)
-
-	var dfs func(node string) bool
-	dfs = func(node string) bool {
-		visited[node] = true
-		recStack[node] = true
-		path = append(path, node)
-
-		depNode, exists := b.depGraph.Nodes[node]
-		if exists {
-			for _, dep := range depNode.Dependencies {
-				if !visited[dep] {
-					if dfs(dep) {
-						return true
-					}
-				} else if recStack[dep] {
-					// Found cycle - extract it
-					cycleStart := -1
-					for i, p := range path {
-						if p == dep {
-							cycleStart = i
-							break
-						}
-					}
-					if cycleStart >= 0 {
-						cycle := make([]string, len(path)-cycleStart)
-						copy(cycle, path[cycleStart:])
-						cycle = append(cycle, dep) // Close the cycle
-						cycles = append(cycles, analysis.CyclicDependency{
-							Cycle: cycle,
-							Type:  "file",
-						})
-					}
-					return true
-				}
-			}
-		}
-
-		path = path[:len(path)-1]
-		recStack[node] = false
-		return false
+	state := &cycleDFSState{
+		visited:  make(map[string]bool),
+		recStack: make(map[string]bool),
+		path:     make([]string, 0),
+		cycles:   make([]analysis.CyclicDependency, 0),
 	}
 
-	// Run DFS from each unvisited node
 	for nodeID := range b.depGraph.Nodes {
-		if !visited[nodeID] {
-			dfs(nodeID)
+		if !state.visited[nodeID] {
+			b.dfsForCycles(nodeID, state)
 		}
 	}
 
-	return cycles, nil
+	return state.cycles, nil
 }
 
 // GetFileDependencies returns files that a file depends on

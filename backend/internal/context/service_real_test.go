@@ -27,7 +27,7 @@ func TestContextService_RealFileReader_GoApp(t *testing.T) {
 	logger := &IntegrationMockLogger{}
 	tokenCounter := &IntegrationMockTokenCounter{}
 	eventBus := &IntegrationMockEventBus{}
-	
+
 	// Use REAL file reader
 	realFileReader := filereader.NewSecureFileReader(logger)
 

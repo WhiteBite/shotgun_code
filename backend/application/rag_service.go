@@ -11,9 +11,9 @@ import (
 
 // RAGServiceImpl implements RAGService for Retrieval Augmented Generation
 type RAGServiceImpl struct {
-	semanticSearch domain.SemanticSearchService
+	semanticSearch    domain.SemanticSearchService
 	embeddingProvider domain.EmbeddingProvider
-	log domain.Logger
+	log               domain.Logger
 }
 
 // NewRAGService creates a new RAG service
@@ -32,7 +32,7 @@ func NewRAGService(
 // RetrieveContext retrieves relevant context for a query
 func (r *RAGServiceImpl) RetrieveContext(ctx context.Context, query string, projectRoot string, maxTokens int) ([]domain.CodeChunk, error) {
 	r.log.Info(fmt.Sprintf("RAG: Retrieving context for query, maxTokens=%d", maxTokens))
-	
+
 	// Use hybrid search for best results
 	searchReq := domain.SemanticSearchRequest{
 		Query:       query,
@@ -41,33 +41,33 @@ func (r *RAGServiceImpl) RetrieveContext(ctx context.Context, query string, proj
 		MinScore:    0.3,
 		SearchType:  domain.SearchTypeHybrid,
 	}
-	
+
 	results, err := r.semanticSearch.Search(ctx, searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
-	
+
 	// Select chunks that fit within token budget
-	var selectedChunks []domain.CodeChunk
+	selectedChunks := make([]domain.CodeChunk, 0, len(results.Results))
 	totalTokens := 0
-	
+
 	for _, result := range results.Results {
 		chunkTokens := result.Chunk.TokenCount
 		if chunkTokens == 0 {
 			chunkTokens = len(result.Chunk.Content) / 4
 		}
-		
+
 		if totalTokens+chunkTokens > maxTokens {
 			// Try to fit smaller chunks
 			continue
 		}
-		
+
 		selectedChunks = append(selectedChunks, result.Chunk)
 		totalTokens += chunkTokens
 	}
-	
+
 	r.log.Info(fmt.Sprintf("RAG: Selected %d chunks with %d tokens", len(selectedChunks), totalTokens))
-	
+
 	// Sort by file path and line number for better readability
 	sort.Slice(selectedChunks, func(i, j int) bool {
 		if selectedChunks[i].FilePath != selectedChunks[j].FilePath {
@@ -75,14 +75,14 @@ func (r *RAGServiceImpl) RetrieveContext(ctx context.Context, query string, proj
 		}
 		return selectedChunks[i].StartLine < selectedChunks[j].StartLine
 	})
-	
+
 	return selectedChunks, nil
 }
 
 // RetrieveAndRank retrieves and re-ranks results using cross-encoder style scoring
 func (r *RAGServiceImpl) RetrieveAndRank(ctx context.Context, query string, projectRoot string, topK int) ([]domain.SemanticSearchResult, error) {
 	r.log.Info(fmt.Sprintf("RAG: Retrieve and rank, topK=%d", topK))
-	
+
 	// First stage: retrieve candidates with semantic search
 	searchReq := domain.SemanticSearchRequest{
 		Query:       query,
@@ -91,122 +91,125 @@ func (r *RAGServiceImpl) RetrieveAndRank(ctx context.Context, query string, proj
 		MinScore:    0.2,
 		SearchType:  domain.SearchTypeSemantic,
 	}
-	
+
 	results, err := r.semanticSearch.Search(ctx, searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
-	
+
 	if len(results.Results) == 0 {
 		return []domain.SemanticSearchResult{}, nil
 	}
-	
+
 	// Second stage: re-rank using additional signals
 	rerankedResults := r.rerank(query, results.Results)
-	
+
 	// Return top K
 	if len(rerankedResults) > topK {
 		rerankedResults = rerankedResults[:topK]
 	}
-	
+
 	return rerankedResults, nil
+}
+
+// calcSymbolBoost calculates boost for symbol name matches
+func calcSymbolBoost(symbolName string, queryTerms []string) float32 {
+	if symbolName == "" {
+		return 0
+	}
+	symbolLower := strings.ToLower(symbolName)
+	var boost float32
+	for _, term := range queryTerms {
+		if strings.Contains(symbolLower, term) {
+			boost += 0.15
+		}
+	}
+	return boost
+}
+
+// calcContentBoost calculates boost for content matches
+func calcContentBoost(content string, queryTerms []string) float32 {
+	if len(queryTerms) == 0 {
+		return 0
+	}
+	contentLower := strings.ToLower(content)
+	matchCount := 0
+	for _, term := range queryTerms {
+		if strings.Contains(contentLower, term) {
+			matchCount++
+		}
+	}
+	return float32(matchCount) / float32(len(queryTerms)) * 0.1
+}
+
+// calcChunkTypeBoost returns boost based on chunk type
+func calcChunkTypeBoost(chunkType domain.ChunkType) float32 {
+	if chunkType == domain.ChunkTypeFunction || chunkType == domain.ChunkTypeMethod {
+		return 0.05
+	}
+	return 0
 }
 
 // rerank re-ranks results using multiple signals
 func (r *RAGServiceImpl) rerank(query string, results []domain.SemanticSearchResult) []domain.SemanticSearchResult {
-	queryLower := strings.ToLower(query)
-	queryTerms := strings.Fields(queryLower)
-	
+	queryTerms := strings.Fields(strings.ToLower(query))
+
 	for i := range results {
-		result := &results[i]
-		
-		// Base score from semantic similarity
-		score := result.Score
-		
-		// Boost for exact term matches in symbol name
-		if result.Chunk.SymbolName != "" {
-			symbolLower := strings.ToLower(result.Chunk.SymbolName)
-			for _, term := range queryTerms {
-				if strings.Contains(symbolLower, term) {
-					score += 0.15
-				}
-			}
-		}
-		
-		// Boost for term matches in content
-		contentLower := strings.ToLower(result.Chunk.Content)
-		matchCount := 0
-		for _, term := range queryTerms {
-			if strings.Contains(contentLower, term) {
-				matchCount++
-			}
-		}
-		if len(queryTerms) > 0 {
-			score += float32(matchCount) / float32(len(queryTerms)) * 0.1
-		}
-		
-		// Boost for functions/methods (usually more relevant)
-		if result.Chunk.ChunkType == domain.ChunkTypeFunction || 
-		   result.Chunk.ChunkType == domain.ChunkTypeMethod {
-			score += 0.05
-		}
-		
-		// Slight penalty for very large chunks (might be less focused)
-		if result.Chunk.TokenCount > 400 {
+		chunk := &results[i].Chunk
+		score := results[i].Score
+		score += calcSymbolBoost(chunk.SymbolName, queryTerms)
+		score += calcContentBoost(chunk.Content, queryTerms)
+		score += calcChunkTypeBoost(chunk.ChunkType)
+		if chunk.TokenCount > 400 {
 			score -= 0.02
 		}
-		
-		result.Score = score
+		results[i].Score = score
 	}
-	
-	// Sort by new score
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
-	})
-	
+
+	sort.Slice(results, func(i, j int) bool { return results[i].Score > results[j].Score })
 	return results
 }
 
 // HybridSearch performs hybrid keyword + semantic search with advanced merging
 func (r *RAGServiceImpl) HybridSearch(ctx context.Context, req domain.SemanticSearchRequest) (*domain.SemanticSearchResponse, error) {
 	startTime := time.Now()
-	
+
 	r.log.Info(fmt.Sprintf("RAG: Hybrid search for '%s'", truncateForLog(req.Query, 50)))
-	
+
 	// Perform semantic search
 	semanticReq := req
 	semanticReq.SearchType = domain.SearchTypeSemantic
 	semanticReq.TopK = req.TopK * 2
-	
+
 	semanticResults, err := r.semanticSearch.Search(ctx, semanticReq)
 	if err != nil {
 		return nil, fmt.Errorf("semantic search failed: %w", err)
 	}
-	
+
 	// Perform keyword search
 	keywordReq := req
 	keywordReq.SearchType = domain.SearchTypeKeyword
 	keywordReq.TopK = req.TopK
-	
+
 	keywordResults, err := r.semanticSearch.Search(ctx, keywordReq)
 	if err != nil {
 		// Keyword search failure is not critical
 		r.log.Warning(fmt.Sprintf("Keyword search failed: %v", err))
 		keywordResults = &domain.SemanticSearchResponse{Results: []domain.SemanticSearchResult{}}
 	}
-	
+
 	// Reciprocal Rank Fusion (RRF) for merging results
 	k := 60 // RRF constant
 	scores := make(map[string]float32)
 	chunks := make(map[string]domain.CodeChunk)
-	
+
 	// Add semantic results
 	for rank, result := range semanticResults.Results {
 		key := chunkKey(result.Chunk)
 		scores[key] += 1.0 / float32(k+rank+1)
 		chunks[key] = result.Chunk
 	}
-	
+
 	// Add keyword results
 	for rank, result := range keywordResults.Results {
 		key := chunkKey(result.Chunk)
@@ -215,29 +218,29 @@ func (r *RAGServiceImpl) HybridSearch(ctx context.Context, req domain.SemanticSe
 			chunks[key] = result.Chunk
 		}
 	}
-	
+
 	// Convert to results
-	var mergedResults []domain.SemanticSearchResult
+	mergedResults := make([]domain.SemanticSearchResult, 0, len(scores))
 	for key, score := range scores {
 		mergedResults = append(mergedResults, domain.SemanticSearchResult{
 			Chunk: chunks[key],
 			Score: score,
 		})
 	}
-	
+
 	// Sort by RRF score
 	sort.Slice(mergedResults, func(i, j int) bool {
 		return mergedResults[i].Score > mergedResults[j].Score
 	})
-	
+
 	// Apply re-ranking
 	mergedResults = r.rerank(req.Query, mergedResults)
-	
+
 	// Limit to topK
 	if len(mergedResults) > req.TopK {
 		mergedResults = mergedResults[:req.TopK]
 	}
-	
+
 	return &domain.SemanticSearchResponse{
 		Results:      mergedResults,
 		TotalResults: len(mergedResults),
@@ -251,10 +254,10 @@ func (r *RAGServiceImpl) BuildContextPrompt(chunks []domain.CodeChunk) string {
 	if len(chunks) == 0 {
 		return ""
 	}
-	
+
 	var sb strings.Builder
 	sb.WriteString("## Relevant Code Context\n\n")
-	
+
 	currentFile := ""
 	for _, chunk := range chunks {
 		if chunk.FilePath != currentFile {
@@ -264,21 +267,21 @@ func (r *RAGServiceImpl) BuildContextPrompt(chunks []domain.CodeChunk) string {
 			sb.WriteString(fmt.Sprintf("### File: %s\n", chunk.FilePath))
 			currentFile = chunk.FilePath
 		}
-		
+
 		if chunk.SymbolName != "" {
-			sb.WriteString(fmt.Sprintf("\n#### %s %s (lines %d-%d)\n", 
+			sb.WriteString(fmt.Sprintf("\n#### %s %s (lines %d-%d)\n",
 				chunk.SymbolKind, chunk.SymbolName, chunk.StartLine, chunk.EndLine))
 		} else {
 			sb.WriteString(fmt.Sprintf("\n#### Lines %d-%d\n", chunk.StartLine, chunk.EndLine))
 		}
-		
+
 		sb.WriteString("```")
 		sb.WriteString(chunk.Language)
 		sb.WriteString("\n")
 		sb.WriteString(chunk.Content)
 		sb.WriteString("\n```\n")
 	}
-	
+
 	return sb.String()
 }
 

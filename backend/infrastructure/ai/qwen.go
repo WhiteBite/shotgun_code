@@ -15,6 +15,10 @@ import (
 const (
 	// QwenMaxContextTokens is the maximum context window for qwen-coder-plus (1M tokens)
 	QwenMaxContextTokens = 1000000
+
+	// Qwen model names
+	qwenCoderPlusLatest  = "qwen-coder-plus-latest"
+	qwenCoderTurboLatest = "qwen-coder-turbo-latest"
 )
 
 // QwenProviderImpl implements domain.AIProvider for Alibaba Qwen models
@@ -52,11 +56,11 @@ func (p *QwenProviderImpl) ListModels(ctx context.Context) ([]string, error) {
 		"qwen-coder-plus",         // 1M context
 		"qwen-coder-turbo-latest", // Faster, smaller context
 		"qwen-coder-turbo",
-		"qwen-plus-latest",  // General purpose with good coding
+		"qwen-plus-latest", // General purpose with good coding
 		"qwen-plus",
 		"qwen-turbo-latest", // Fast general purpose
 		"qwen-turbo",
-		"qwen-max",          // Most capable general model
+		"qwen-max", // Most capable general model
 		"qwen-max-latest",
 	}
 
@@ -113,7 +117,7 @@ func (p *QwenProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (
 	resp, err := p.client.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("Qwen API request failed: %v", err))
-		if domainErr := common.HandleOpenAIError(err); domainErr != err {
+		if domainErr := common.HandleOpenAIError(err); !errors.Is(domainErr, err) {
 			return domain.AIResponse{}, domainErr
 		}
 		return domain.AIResponse{}, err
@@ -177,47 +181,7 @@ func (p *QwenProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequ
 		return domainErr
 	}
 	defer stream.Close()
-
-	totalTokens := 0
-	for {
-		response, err := stream.Recv()
-		if errors.Is(err, context.Canceled) {
-			onChunk(domain.StreamChunk{Done: true, Error: "Request cancelled"})
-			return err
-		}
-		if err != nil {
-			// Check for stream end
-			if err.Error() == "EOF" {
-				onChunk(domain.StreamChunk{Done: true, TokensUsed: totalTokens, FinishReason: "stop"})
-				return nil
-			}
-			p.log.Error(fmt.Sprintf("Stream error: %v", err))
-			onChunk(domain.StreamChunk{Done: true, Error: err.Error()})
-			return err
-		}
-
-		if len(response.Choices) > 0 {
-			content := response.Choices[0].Delta.Content
-			finishReason := string(response.Choices[0].FinishReason)
-
-			if content != "" {
-				totalTokens += len(content) / 4 // Approximate token count
-				onChunk(domain.StreamChunk{
-					Content: content,
-					Done:    false,
-				})
-			}
-
-			if finishReason == "stop" || finishReason == "length" {
-				onChunk(domain.StreamChunk{
-					Done:         true,
-					TokensUsed:   totalTokens,
-					FinishReason: finishReason,
-				})
-				return nil
-			}
-		}
-	}
+	return common.StreamProcessor(stream, onChunk, p.log)
 }
 
 // GetProviderInfo returns information about the Qwen provider
@@ -256,10 +220,10 @@ func (p *QwenProviderImpl) GetPricing(model string) domain.PricingInfo {
 
 	// Pricing per 1K tokens (approximate, check official docs)
 	switch model {
-	case "qwen-coder-plus-latest", "qwen-coder-plus":
+	case qwenCoderPlusLatest, "qwen-coder-plus":
 		pricing.InputTokensPer1K = 0.004
 		pricing.OutputTokensPer1K = 0.012
-	case "qwen-coder-turbo-latest", "qwen-coder-turbo":
+	case qwenCoderTurboLatest, "qwen-coder-turbo":
 		pricing.InputTokensPer1K = 0.002
 		pricing.OutputTokensPer1K = 0.006
 	case "qwen-plus-latest", "qwen-plus":

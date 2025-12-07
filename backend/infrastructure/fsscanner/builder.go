@@ -20,7 +20,7 @@ type fileTreeBuilder struct {
 	giCache     map[string]*gitignore.GitIgnore // per-project .gitignore cache
 	customCache *gitignore.GitIgnore            // compiled custom rules
 	customHash  string                          // hash of custom rules content for cache invalidation
-	
+
 	// Cache for file trees with timestamps for invalidation
 	treeCache        map[string]*cachedTree
 	cacheAccessTimes map[string]time.Time
@@ -54,88 +54,105 @@ func New(settingsRepo domain.SettingsRepository, log domain.Logger) domain.TreeB
 }
 
 func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
-	// Check if we have a cached tree for this directory
 	if cached := b.getCachedTree(dirPath); cached != nil {
 		b.log.Debug("Using cached tree for: " + dirPath)
 		return cached, nil
 	}
 
-	var gi *gitignore.GitIgnore
-	var ci *gitignore.GitIgnore
+	gi, ci := b.getIgnoreMatchers(dirPath, useGitignore, useCustomIgnore)
+	nodesMap := make(map[string]*domain.FileNode)
+	root := b.createRootNode(dirPath)
+	nodesMap[dirPath] = root
 
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		return b.processEntry(path, d, err, dirPath, gi, ci, nodesMap)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	b.sortChildren(nodesMap)
+	result := []*domain.FileNode{root}
+	b.setCachedTree(dirPath, result)
+	return result, nil
+}
+
+// getIgnoreMatchers returns gitignore and custom ignore matchers
+func (b *fileTreeBuilder) getIgnoreMatchers(dirPath string, useGitignore, useCustomIgnore bool) (*gitignore.GitIgnore, *gitignore.GitIgnore) {
+	var gi, ci *gitignore.GitIgnore
 	if useGitignore {
 		gi = b.getGitignore(dirPath)
 	}
 	if useCustomIgnore {
 		ci = b.getCustomIgnore()
 	}
+	return gi, ci
+}
 
-	nodesMap := make(map[string]*domain.FileNode)
-
-	root := &domain.FileNode{
-		Name:     filepath.Base(dirPath),
-		Path:     dirPath,
-		RelPath:  ".",
-		IsDir:    true,
-		Children: []*domain.FileNode{},
+// createRootNode creates the root node for the tree
+func (b *fileTreeBuilder) createRootNode(dirPath string) *domain.FileNode {
+	return &domain.FileNode{
+		Name: filepath.Base(dirPath), Path: dirPath, RelPath: ".",
+		IsDir: true, Children: []*domain.FileNode{},
 	}
-	nodesMap[dirPath] = root
+}
 
-	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+// processEntry processes a single directory entry during walk
+func (b *fileTreeBuilder) processEntry(path string, d fs.DirEntry, err error, dirPath string, gi, ci *gitignore.GitIgnore, nodesMap map[string]*domain.FileNode) error {
 	if err != nil {
-			return err
-		}
-		if path == dirPath {
-			return nil
+		return err
 	}
-		relPath, _ := filepath.Rel(dirPath, path)
-		matchPath := relPath
-		if d.IsDir() && !strings.HasSuffix(matchPath, string(filepath.Separator)) {
-			matchPath += string(filepath.Separator)
-		}
-
-		isGi := gi != nil && gi.MatchesPath(matchPath)
-		isCi := ci != nil && ci.MatchesPath(matchPath)
-
-		if d.IsDir() && (isGi || isCi) {
-			return fs.SkipDir
-		}
-
-		// Пропускаем файлы, которые должны игнорироваться
-		if !d.IsDir() && (isGi || isCi) {
-			return nil
-	}
-
-		var fsize int64
-		if !d.IsDir() {
-			if info, e := d.Info(); e == nil {
-				fsize = info.Size()
-			}
-		}
-
-		node := &domain.FileNode{
-			Name:            d.Name(),
-			Path:            path,
-			RelPath:         relPath,
-			IsDir:           d.IsDir(),
-			IsGitignored:    isGi,
-			IsCustomIgnored: isCi,
-			IsIgnored:       isGi || isCi, // Вычисляем IsIgnored
-			Children:        []*domain.FileNode{},
-			Size:            fsize,
-		}
-		nodesMap[path] = node
-
-		parent := filepath.Dir(path)
-		if p, ok := nodesMap[parent]; ok {
-			p.Children = append(p.Children, node)
-		}
+	if path == dirPath {
 		return nil
-	})
-	if err != nil {
-	return nil, err
 	}
 
+	relPath, _ := filepath.Rel(dirPath, path)
+	isGi, isCi := b.checkIgnored(relPath, d.IsDir(), gi, ci)
+
+	if d.IsDir() && (isGi || isCi) {
+		return fs.SkipDir
+	}
+	if !d.IsDir() && (isGi || isCi) {
+		return nil
+	}
+
+	node := b.createFileNode(path, relPath, d, isGi, isCi)
+	nodesMap[path] = node
+
+	if p, ok := nodesMap[filepath.Dir(path)]; ok {
+		p.Children = append(p.Children, node)
+	}
+	return nil
+}
+
+// checkIgnored checks if path matches gitignore or custom ignore
+func (b *fileTreeBuilder) checkIgnored(relPath string, isDir bool, gi, ci *gitignore.GitIgnore) (bool, bool) {
+	matchPath := relPath
+	if isDir && !strings.HasSuffix(matchPath, string(filepath.Separator)) {
+		matchPath += string(filepath.Separator)
+	}
+	isGi := gi != nil && gi.MatchesPath(matchPath)
+	isCi := ci != nil && ci.MatchesPath(matchPath)
+	return isGi, isCi
+}
+
+// createFileNode creates a FileNode from directory entry
+func (b *fileTreeBuilder) createFileNode(path, relPath string, d fs.DirEntry, isGi, isCi bool) *domain.FileNode {
+	var fsize int64
+	if !d.IsDir() {
+		if info, e := d.Info(); e == nil {
+			fsize = info.Size()
+		}
+	}
+	return &domain.FileNode{
+		Name: d.Name(), Path: path, RelPath: relPath, IsDir: d.IsDir(),
+		IsGitignored: isGi, IsCustomIgnored: isCi, IsIgnored: isGi || isCi,
+		Children: []*domain.FileNode{}, Size: fsize,
+	}
+}
+
+// sortChildren sorts children of all nodes
+func (b *fileTreeBuilder) sortChildren(nodesMap map[string]*domain.FileNode) {
 	for _, n := range nodesMap {
 		sort.Slice(n.Children, func(i, j int) bool {
 			if n.Children[i].IsDir != n.Children[j].IsDir {
@@ -144,12 +161,6 @@ func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 			return strings.ToLower(n.Children[i].Name) < strings.ToLower(n.Children[j].Name)
 		})
 	}
-
-	// Cache the result
-	result := []*domain.FileNode{root}
-	b.setCachedTree(dirPath, result)
-
-	return result, nil
 }
 
 // getCachedTree retrieves a cached tree if it's still valid
@@ -192,7 +203,7 @@ func (b *fileTreeBuilder) getCachedTree(dirPath string) []*domain.FileNode {
 	}
 	b.cacheMisses++
 	b.cacheMutex.Unlock()
-	
+
 	return nil
 }
 
@@ -229,58 +240,63 @@ func (b *fileTreeBuilder) estimateTreeSize(nodes []*domain.FileNode) int64 {
 // ВАЖНО: должен вызываться только под b.cacheMutex.Lock()
 func (b *fileTreeBuilder) evictOldestCacheEntry(newTreeSize int64) {
 	maxSize := int64(maxTreeCacheSizeMB * 1024 * 1024)
-	
-	for len(b.treeCache) >= maxTreeCacheEntries || (b.cacheSize+newTreeSize) > maxSize {
-		if len(b.treeCache) == 0 {
-			break
-		}
-		
-		// Находим самую старую запись
-		var oldestKey string
-		var oldestTime time.Time = time.Now()
-		
-		for key, accessTime := range b.cacheAccessTimes {
-			// Проверяем, что ключ существует в обоих map
-			if _, exists := b.treeCache[key]; !exists {
-				// Очищаем мусор из cacheAccessTimes
-				delete(b.cacheAccessTimes, key)
-				continue
-			}
-			
-			if accessTime.Before(oldestTime) {
-				oldestTime = accessTime
-				oldestKey = key
-			}
-		}
-		
-		if oldestKey == "" {
-			// Если не нашли ключ с accessTime, берём любой из treeCache
-			for key := range b.treeCache {
-				oldestKey = key
-				break
-			}
-		}
-		
+
+	for b.needsEviction(newTreeSize, maxSize) {
+		oldestKey := b.findOldestCacheKey()
 		if oldestKey == "" {
 			break
 		}
-		
-		// Удаляем старую запись
-		if cached, exists := b.treeCache[oldestKey]; exists {
-			b.cacheSize -= cached.size
-		}
-		delete(b.treeCache, oldestKey)
-		delete(b.cacheAccessTimes, oldestKey)
-		
-		b.log.Debug("Evicted file tree from cache: " + oldestKey)
+		b.evictCacheKey(oldestKey)
 	}
+}
+
+// needsEviction checks if cache eviction is needed
+func (b *fileTreeBuilder) needsEviction(newTreeSize, maxSize int64) bool {
+	return len(b.treeCache) > 0 &&
+		(len(b.treeCache) >= maxTreeCacheEntries || (b.cacheSize+newTreeSize) > maxSize)
+}
+
+// findOldestCacheKey finds the oldest cache entry key
+func (b *fileTreeBuilder) findOldestCacheKey() string {
+	var oldestKey string
+	oldestTime := time.Now()
+
+	// Clean up orphaned access times and find oldest
+	for key, accessTime := range b.cacheAccessTimes {
+		if _, exists := b.treeCache[key]; !exists {
+			delete(b.cacheAccessTimes, key)
+			continue
+		}
+		if accessTime.Before(oldestTime) {
+			oldestTime = accessTime
+			oldestKey = key
+		}
+	}
+
+	// Fallback: pick any key from treeCache
+	if oldestKey == "" {
+		for key := range b.treeCache {
+			return key
+		}
+	}
+	return oldestKey
+}
+
+// evictCacheKey removes a specific key from cache
+func (b *fileTreeBuilder) evictCacheKey(key string) {
+	if cached, exists := b.treeCache[key]; exists {
+		b.cacheSize -= cached.size
+	}
+	delete(b.treeCache, key)
+	delete(b.cacheAccessTimes, key)
+	b.log.Debug("Evicted file tree from cache: " + key)
 }
 
 // GetCacheStats возвращает статистику кэша
 func (b *fileTreeBuilder) GetCacheStats() map[string]interface{} {
 	b.cacheMutex.RLock()
 	defer b.cacheMutex.RUnlock()
-	
+
 	return map[string]interface{}{
 		"cached_trees":  len(b.treeCache),
 		"cache_size_mb": b.cacheSize / (1024 * 1024),
@@ -293,7 +309,7 @@ func (b *fileTreeBuilder) GetCacheStats() map[string]interface{} {
 func (b *fileTreeBuilder) InvalidateCache() {
 	b.cacheMutex.Lock()
 	defer b.cacheMutex.Unlock()
-	
+
 	b.treeCache = make(map[string]*cachedTree)
 	b.cacheAccessTimes = make(map[string]time.Time)
 	b.cacheSize = 0
@@ -305,7 +321,7 @@ func (b *fileTreeBuilder) InvalidateCache() {
 func (b *fileTreeBuilder) InvalidateCacheForPath(path string) {
 	b.cacheMutex.Lock()
 	defer b.cacheMutex.Unlock()
-	
+
 	if cached, exists := b.treeCache[path]; exists {
 		b.cacheSize -= cached.size
 	}
@@ -323,7 +339,7 @@ func (b *fileTreeBuilder) getGitignore(root string) *gitignore.GitIgnore {
 
 	ig, err := gitignore.CompileIgnoreFile(filepath.Join(root, ".gitignore"))
 	if err != nil {
-	return nil
+		return nil
 	}
 
 	b.mu.Lock()

@@ -127,6 +127,16 @@ type PipelinePolicy struct {
 	Timeout        time.Duration `json:"timeout"`
 }
 
+// getDependsOn determines the dependency for a step based on enabled policies
+func getDependsOn(taskID string, stepID int, policy *PipelinePolicy, checkOrder []bool) []string {
+	for _, enabled := range checkOrder {
+		if enabled {
+			return []string{fmt.Sprintf("%s-step-%d", taskID, stepID-1)}
+		}
+	}
+	return []string{fmt.Sprintf("%s-step-%d", taskID, 1)}
+}
+
 // CreatePipeline создает пайплайн для задачи
 func (r *RouterPlannerService) CreatePipeline(ctx context.Context, task domain.Task, policy *PipelinePolicy) (*TaskPipeline, error) {
 	r.log.Info(fmt.Sprintf("Creating pipeline for task: %s", task.ID))
@@ -247,229 +257,80 @@ func (r *RouterPlannerService) determinePolicy(task domain.Task) *PipelinePolicy
 	return policy
 }
 
+// stepBuilder helps build pipeline steps
+type stepBuilder struct {
+	taskID  string
+	stepID  int
+	steps   []*TaskPipelineStep
+	prevDep string
+}
+
+func newStepBuilder(taskID string) *stepBuilder {
+	return &stepBuilder{taskID: taskID, stepID: 1, steps: make([]*TaskPipelineStep, 0)}
+}
+
+func (sb *stepBuilder) addStep(name string, stepType TaskPipelineStepType, priority int, config map[string]interface{}) {
+	dependsOn := []string{}
+	if sb.prevDep != "" {
+		dependsOn = []string{sb.prevDep}
+	}
+	step := &TaskPipelineStep{
+		ID: fmt.Sprintf("%s-step-%d", sb.taskID, sb.stepID), Name: name, Type: stepType,
+		Status: StepStatusPending, Priority: priority, DependsOn: dependsOn, Config: config,
+	}
+	sb.steps = append(sb.steps, step)
+	sb.prevDep = step.ID
+	sb.stepID++
+}
+
 // createPipelineSteps создает шаги пайплайна
 func (r *RouterPlannerService) createPipelineSteps(task domain.Task, policy *PipelinePolicy) []*TaskPipelineStep {
-	var steps []*TaskPipelineStep
-	stepID := 1
+	sb := newStepBuilder(task.ID)
 
-	// Retrieve step
 	if policy.EnableRetrieve {
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Retrieve Context",
-			Type:      StepTypeRetrieve,
-			Status:    StepStatusPending,
-			Priority:  1,
-			DependsOn: []string{},
-			Config: map[string]interface{}{
-				"task_id":      task.ID,
-				"step_file":    task.StepFile,
-				"budgets":      task.Budgets,
-				"dependencies": task.DependsOn,
-			},
+		sb.addStep("Retrieve Context", StepTypeRetrieve, 1, map[string]interface{}{
+			"task_id": task.ID, "step_file": task.StepFile, "budgets": task.Budgets, "dependencies": task.DependsOn,
 		})
-		stepID++
 	}
-
-	// AST Synthesis step
 	if policy.EnableASTSynth {
-		dependsOn := []string{}
-		if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "AST Synthesis",
-			Type:      StepTypeASTSynth,
-			Status:    StepStatusPending,
-			Priority:  2,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":      task.ID,
-				"symbol_graph": true,
-				"context_pack": true,
-			},
+		sb.addStep("AST Synthesis", StepTypeASTSynth, 2, map[string]interface{}{
+			"task_id": task.ID, "symbol_graph": true, "context_pack": true,
 		})
-		stepID++
 	}
-
-	// Compile step
 	if policy.EnableCompile {
-		dependsOn := []string{}
-		if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Compile",
-			Type:      StepTypeCompile,
-			Status:    StepStatusPending,
-			Priority:  3,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":      task.ID,
-				"project_path": task.Metadata["project_path"], // Добавляем project_path
-				"language":     "go",
-				"build_mode":   "debug",
-			},
+		sb.addStep("Compile", StepTypeCompile, 3, map[string]interface{}{
+			"task_id": task.ID, "project_path": task.Metadata["project_path"], "language": "go", "build_mode": "debug",
 		})
-		stepID++
 	}
-
-	// Test step
 	if policy.EnableTest {
-		dependsOn := []string{}
-		if policy.EnableCompile {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Test",
-			Type:      StepTypeTest,
-			Status:    StepStatusPending,
-			Priority:  4,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":      task.ID,
-				"project_path": task.Metadata["project_path"],
-				"test_mode":    "targeted",
-				"coverage":     true,
-			},
+		sb.addStep("Test", StepTypeTest, 4, map[string]interface{}{
+			"task_id": task.ID, "project_path": task.Metadata["project_path"], "test_mode": "targeted", "coverage": true,
 		})
-		stepID++
 	}
-
-	// Static Analysis step
 	if policy.EnableStatic {
-		dependsOn := []string{}
-		if policy.EnableTest {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableCompile {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Static Analysis",
-			Type:      StepTypeStatic,
-			Status:    StepStatusPending,
-			Priority:  5,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":       task.ID,
-				"project_path":  task.Metadata["project_path"],
-				"analyzers":     []string{"staticcheck", "go vet", "eslint"},
-				"fail_on_error": false,
-			},
+		sb.addStep("Static Analysis", StepTypeStatic, 5, map[string]interface{}{
+			"task_id": task.ID, "project_path": task.Metadata["project_path"],
+			"analyzers": []string{"staticcheck", "go vet", "eslint"}, "fail_on_error": false,
 		})
-		stepID++
 	}
-
-	// Format step
 	if policy.EnableFormat {
-		dependsOn := []string{}
-		if policy.EnableStatic {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableTest {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableCompile {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Format",
-			Type:      StepTypeFormat,
-			Status:    StepStatusPending,
-			Priority:  6,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":    task.ID,
-				"formatters": []string{"gofmt", "goimports", "prettier"},
-			},
+		sb.addStep("Format", StepTypeFormat, 6, map[string]interface{}{
+			"task_id": task.ID, "formatters": []string{"gofmt", "goimports", "prettier"},
 		})
-		stepID++
 	}
-
-	// Validate step
 	if policy.EnableValidate {
-		dependsOn := []string{}
-		if policy.EnableFormat {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableStatic {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableTest {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableCompile {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Validate",
-			Type:      StepTypeValidate,
-			Status:    StepStatusPending,
-			Priority:  7,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":          task.ID,
-				"validation_rules": []string{"syntax", "semantics", "policy"},
-			},
+		sb.addStep("Validate", StepTypeValidate, 7, map[string]interface{}{
+			"task_id": task.ID, "validation_rules": []string{"syntax", "semantics", "policy"},
 		})
-		stepID++
 	}
-
-	// Repair step (если включен и есть ошибки)
 	if policy.EnableRepair {
-		dependsOn := []string{}
-		if policy.EnableValidate {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableFormat {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableStatic {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableTest {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableCompile {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableASTSynth {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, stepID-1))
-		} else if policy.EnableRetrieve {
-			dependsOn = append(dependsOn, fmt.Sprintf("%s-step-%d", task.ID, 1))
-		}
-		steps = append(steps, &TaskPipelineStep{
-			ID:        fmt.Sprintf("%s-step-%d", task.ID, stepID),
-			Name:      "Repair",
-			Type:      StepTypeRepair,
-			Status:    StepStatusPending,
-			Priority:  8,
-			DependsOn: dependsOn,
-			Config: map[string]interface{}{
-				"task_id":           task.ID,
-				"project_path":      task.Metadata["project_path"],
-				"repair_strategies": []string{"auto_fix", "suggestions", "rollback"},
-				"max_attempts":      policy.MaxRetries,
-				// error_output будет добавлен динамически во время выполнения
-			},
+		sb.addStep("Repair", StepTypeRepair, 8, map[string]interface{}{
+			"task_id": task.ID, "project_path": task.Metadata["project_path"],
+			"repair_strategies": []string{"auto_fix", "suggestions", "rollback"}, "max_attempts": policy.MaxRetries,
 		})
 	}
 
-	return steps
+	return sb.steps
 }
 
 // sortPipelineSteps сортирует шаги по приоритету и зависимостям
@@ -645,7 +506,7 @@ func (r *RouterPlannerService) executeTestStep(ctx context.Context, step *TaskPi
 
 	// Агрегируем результаты
 	success := true
-	var messages []string
+	messages := make([]string, 0, len(results))
 	totalDuration := 0.0
 	for _, res := range results {
 		if !res.Success {

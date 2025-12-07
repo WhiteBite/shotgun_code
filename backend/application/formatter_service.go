@@ -33,9 +33,9 @@ func (s *FormatterService) FormatProject(ctx context.Context, projectPath, langu
 	var err error
 
 	switch strings.ToLower(language) {
-	case "go":
+	case langGo:
 		result, err = s.formatGoProject(ctx, projectPath)
-	case "typescript", "ts", "javascript", "js":
+	case langTypeScript, "ts", langJavaScript, "js":
 		result, err = s.formatTypeScriptProject(ctx, projectPath)
 	case "python", "py":
 		result, err = s.formatPythonProject(ctx, projectPath)

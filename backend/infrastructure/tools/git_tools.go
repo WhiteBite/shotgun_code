@@ -244,8 +244,60 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-
 // Phase 5: Git-Aware Context Tools
+
+// runGitDiff executes git diff command with fallback to master
+func runGitDiff(projectRoot string, cmdArgs []string, base, compare string) ([]byte, error) {
+	cmd := exec.Command("git", cmdArgs...)
+	cmd.Dir = projectRoot
+	output, err := cmd.Output()
+	if err != nil && base == "main" {
+		cmdArgs[2] = "master..." + compare
+		cmd = exec.Command("git", cmdArgs...)
+		cmd.Dir = projectRoot
+		output, err = cmd.Output()
+	}
+	return output, err
+}
+
+// categorizeChanges categorizes file changes by status
+func categorizeChanges(output []byte) (added, modified, deleted []string) {
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if len(line) < 2 {
+			continue
+		}
+		file := strings.TrimSpace(line[1:])
+		switch line[0] {
+		case 'A':
+			added = append(added, file)
+		case 'M':
+			modified = append(modified, file)
+		case 'D':
+			deleted = append(deleted, file)
+		}
+	}
+	return
+}
+
+// formatDiffResult formats the diff result as a string
+func formatDiffResult(base, compare string, added, modified, deleted []string) string {
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Changes between %s and %s:\n", base, compare))
+
+	writeSection := func(title string, prefix string, files []string) {
+		if len(files) > 0 {
+			result.WriteString(fmt.Sprintf("\n%s (%d):\n", title, len(files)))
+			for _, f := range files {
+				result.WriteString("  " + prefix + " " + f + "\n")
+			}
+		}
+	}
+	writeSection("Added", "+", added)
+	writeSection("Modified", "M", modified)
+	writeSection("Deleted", "-", deleted)
+	return result.String()
+}
 
 // gitDiffBranches shows diff between two branches
 func (e *Executor) gitDiffBranches(args map[string]any, projectRoot string) (string, error) {
@@ -260,75 +312,22 @@ func (e *Executor) gitDiffBranches(args map[string]any, projectRoot string) (str
 		compare = "HEAD"
 	}
 
-	// Get list of changed files
 	cmdArgs := []string{"diff", "--name-status", base + "..." + compare}
 	if path != "" {
 		cmdArgs = append(cmdArgs, "--", path)
 	}
 
-	cmd := exec.Command("git", cmdArgs...)
-	cmd.Dir = projectRoot
-	output, err := cmd.Output()
+	output, err := runGitDiff(projectRoot, cmdArgs, base, compare)
 	if err != nil {
-		// Try with master instead of main
-		if base == "main" {
-			cmdArgs[2] = "master..." + compare
-			cmd = exec.Command("git", cmdArgs...)
-			cmd.Dir = projectRoot
-			output, err = cmd.Output()
-		}
-		if err != nil {
-			return "", fmt.Errorf("git diff failed: %w", err)
-		}
+		return "", fmt.Errorf("git diff failed: %w", err)
 	}
 
 	if len(output) == 0 {
 		return fmt.Sprintf("No differences between %s and %s", base, compare), nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	var added, modified, deleted []string
-
-	for _, line := range lines {
-		if len(line) < 2 {
-			continue
-		}
-		status := line[0]
-		file := strings.TrimSpace(line[1:])
-
-		switch status {
-		case 'A':
-			added = append(added, file)
-		case 'M':
-			modified = append(modified, file)
-		case 'D':
-			deleted = append(deleted, file)
-		}
-	}
-
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Changes between %s and %s:\n", base, compare))
-
-	if len(added) > 0 {
-		result.WriteString(fmt.Sprintf("\nAdded (%d):\n", len(added)))
-		for _, f := range added {
-			result.WriteString("  + " + f + "\n")
-		}
-	}
-	if len(modified) > 0 {
-		result.WriteString(fmt.Sprintf("\nModified (%d):\n", len(modified)))
-		for _, f := range modified {
-			result.WriteString("  M " + f + "\n")
-		}
-	}
-	if len(deleted) > 0 {
-		result.WriteString(fmt.Sprintf("\nDeleted (%d):\n", len(deleted)))
-		for _, f := range deleted {
-			result.WriteString("  - " + f + "\n")
-		}
-	}
-
-	return result.String(), nil
+	added, modified, deleted := categorizeChanges(output)
+	return formatDiffResult(base, compare, added, modified, deleted), nil
 }
 
 // gitSearchCommits searches commits by message pattern
@@ -425,7 +424,7 @@ func (e *Executor) gitChangedFiles(args map[string]any, projectRoot string) (str
 		file  string
 		count int
 	}
-	var sorted []fileCount
+	sorted := make([]fileCount, 0, len(fileCounts))
 	for f, c := range fileCounts {
 		sorted = append(sorted, fileCount{f, c})
 	}
@@ -487,7 +486,6 @@ func (e *Executor) gitFileHistory(args map[string]any, projectRoot string) (stri
 	return result.String(), nil
 }
 
-
 // gitCoChanged returns files that are often changed together with the given file
 func (e *Executor) gitCoChanged(args map[string]any, projectRoot string) (string, error) {
 	path, _ := args["path"].(string)
@@ -539,7 +537,7 @@ func (e *Executor) gitCoChanged(args map[string]any, projectRoot string) (string
 		path  string
 		count int
 	}
-	var sorted []fileCount
+	sorted := make([]fileCount, 0, len(fileCounts))
 	for p, c := range fileCounts {
 		sorted = append(sorted, fileCount{p, c})
 	}
@@ -569,74 +567,122 @@ func (e *Executor) gitSuggestContext(args map[string]any, projectRoot string) (s
 		limit = int(l)
 	}
 
-	var currentFiles []string
-	for _, f := range filesArg {
-		if s, ok := f.(string); ok {
-			currentFiles = append(currentFiles, s)
-		}
-	}
-
+	currentFiles := e.extractStringSlice(filesArg)
 	suggestions := make(map[string]int)
 
-	// 1. Co-changed files
-	for _, file := range currentFiles {
-		cmd := exec.Command("git", "log", "--format=%H", "-n", "30", "--", file)
-		cmd.Dir = projectRoot
-		output, err := cmd.Output()
-		if err != nil {
-			continue
-		}
-
-		commits := strings.Split(strings.TrimSpace(string(output)), "\n")
-		for _, commit := range commits {
-			if commit == "" {
-				continue
-			}
-			cmd = exec.Command("git", "show", "--name-only", "--format=", commit)
-			cmd.Dir = projectRoot
-			out, _ := cmd.Output()
-			for _, f := range strings.Split(string(out), "\n") {
-				f = strings.TrimSpace(f)
-				if f != "" && f != file {
-					suggestions[f] += 2
-				}
-			}
-		}
-	}
-
-	// 2. Search by task keywords
-	if task != "" {
-		words := strings.Fields(task)
-		for _, word := range words {
-			if len(word) > 3 {
-				cmd := exec.Command("git", "log", "--grep="+word, "-i", "--name-only", "--format=", "-n", "10")
-				cmd.Dir = projectRoot
-				output, _ := cmd.Output()
-				for _, f := range strings.Split(string(output), "\n") {
-					f = strings.TrimSpace(f)
-					if f != "" {
-						suggestions[f]++
-					}
-				}
-			}
-		}
-	}
-
-	// Remove current files
-	for _, f := range currentFiles {
-		delete(suggestions, f)
-	}
+	e.collectCoChangedSuggestions(currentFiles, projectRoot, suggestions)
+	e.collectTaskKeywordSuggestions(task, projectRoot, suggestions)
+	e.removeCurrentFiles(currentFiles, suggestions)
 
 	if len(suggestions) == 0 {
 		return "No additional files suggested", nil
 	}
 
-	// Sort
+	return e.formatSuggestions(suggestions, limit), nil
+}
+
+// extractStringSlice converts []any to []string
+func (e *Executor) extractStringSlice(filesArg []any) []string {
+	var result []string
+	for _, f := range filesArg {
+		if s, ok := f.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// collectCoChangedSuggestions finds files that are often changed together
+func (e *Executor) collectCoChangedSuggestions(currentFiles []string, projectRoot string, suggestions map[string]int) {
+	for _, file := range currentFiles {
+		commits := e.getFileCommits(file, projectRoot, 30)
+		for _, commit := range commits {
+			files := e.getCommitFiles(commit, projectRoot)
+			for _, f := range files {
+				if f != file {
+					suggestions[f] += 2
+				}
+			}
+		}
+	}
+}
+
+// getFileCommits returns commit hashes for a file
+func (e *Executor) getFileCommits(file, projectRoot string, limit int) []string {
+	// #nosec G204 - file path is from internal git operations
+	cmd := exec.Command("git", "log", "--format=%H", "-n", fmt.Sprintf("%d", limit), "--", file)
+	cmd.Dir = projectRoot
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var commits []string
+	for _, c := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if c != "" {
+			commits = append(commits, c)
+		}
+	}
+	return commits
+}
+
+// getCommitFiles returns files changed in a commit
+func (e *Executor) getCommitFiles(commit, projectRoot string) []string {
+	// #nosec G204 - commit hash is validated before use
+	cmd := exec.Command("git", "show", "--name-only", "--format=", commit)
+	cmd.Dir = projectRoot
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for _, f := range strings.Split(string(out), "\n") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+// collectTaskKeywordSuggestions searches commits by task keywords
+func (e *Executor) collectTaskKeywordSuggestions(task, projectRoot string, suggestions map[string]int) {
+	if task == "" {
+		return
+	}
+	for _, word := range strings.Fields(task) {
+		if len(word) > 3 {
+			e.searchCommitsByKeyword(word, projectRoot, suggestions)
+		}
+	}
+}
+
+// searchCommitsByKeyword searches commits containing a keyword
+func (e *Executor) searchCommitsByKeyword(word, projectRoot string, suggestions map[string]int) {
+	cmd := exec.Command("git", "log", "--grep="+word, "-i", "--name-only", "--format=", "-n", "10") //nolint:gosec // Git command
+	cmd.Dir = projectRoot
+	output, _ := cmd.Output()
+	for _, f := range strings.Split(string(output), "\n") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			suggestions[f]++
+		}
+	}
+}
+
+// removeCurrentFiles removes already included files from suggestions
+func (e *Executor) removeCurrentFiles(currentFiles []string, suggestions map[string]int) {
+	for _, f := range currentFiles {
+		delete(suggestions, f)
+	}
+}
+
+// formatSuggestions formats the suggestions map as a string
+func (e *Executor) formatSuggestions(suggestions map[string]int, limit int) string {
 	type suggestion struct {
 		path  string
 		score int
 	}
-	var sorted []suggestion
+	sorted := make([]suggestion, 0, len(suggestions))
 	for p, s := range suggestions {
 		sorted = append(sorted, suggestion{p, s})
 	}
@@ -646,13 +692,11 @@ func (e *Executor) gitSuggestContext(args map[string]any, projectRoot string) (s
 
 	var result strings.Builder
 	result.WriteString("Suggested files to include in context:\n\n")
-
 	for i, s := range sorted {
 		if i >= limit {
 			break
 		}
 		result.WriteString(fmt.Sprintf("  %s (score: %d)\n", s.path, s.score))
 	}
-
-	return result.String(), nil
+	return result.String()
 }

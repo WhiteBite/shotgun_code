@@ -50,10 +50,10 @@ func (r *FileSystemTaskflowRepository) LoadStatuses() (map[string]domain.TaskSta
 
 // SaveStatuses saves task statuses to file
 func (r *FileSystemTaskflowRepository) SaveStatuses(statuses map[string]domain.TaskState) error {
-	var tasks []struct {
+	tasks := make([]struct {
 		ID    string `json:"id"`
 		State string `json:"state"`
-	}
+	}, 0, len(statuses))
 
 	for taskID, state := range statuses {
 		tasks = append(tasks, struct {
@@ -82,9 +82,9 @@ func (r *FileSystemTaskflowRepository) SaveStatuses(statuses map[string]domain.T
 
 	// Create directory if needed
 	dir := filepath.Dir(r.statusPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(r.statusPath, data, 0644)
+	return os.WriteFile(r.statusPath, data, 0o600)
 }

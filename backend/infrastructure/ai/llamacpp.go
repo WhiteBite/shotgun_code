@@ -298,8 +298,8 @@ func (c *LlamaCppClient) makeRequest(ctx context.Context, request LlamaCppReques
 	return &response, nil
 }
 
-// makeStreamRequest выполняет потоковый HTTP запрос к llama.cpp server
-func (c *LlamaCppClient) makeStreamRequest(ctx context.Context, request LlamaCppRequest) (<-chan string, error) {
+// createStreamHTTPRequest creates HTTP request for streaming
+func (c *LlamaCppClient) createStreamHTTPRequest(ctx context.Context, request LlamaCppRequest) (*http.Response, error) {
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -309,7 +309,6 @@ func (c *LlamaCppClient) makeStreamRequest(ctx context.Context, request LlamaCpp
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-
 	req.Header.Set("Content-Type", "application/json")
 
 	c.log.Info(fmt.Sprintf("Making stream request to llama.cpp server: %s", c.baseURL))
@@ -324,38 +323,44 @@ func (c *LlamaCppClient) makeStreamRequest(ctx context.Context, request LlamaCpp
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("llama.cpp server returned status %d: %s", resp.StatusCode, string(body))
 	}
+	return resp, nil
+}
 
-	// Создаем канал для потоковой передачи
-	chunkChan := make(chan string, 100)
+// streamResponseReader reads stream responses and sends to channel
+func (c *LlamaCppClient) streamResponseReader(ctx context.Context, resp *http.Response, chunkChan chan<- string) {
+	defer resp.Body.Close()
+	defer close(chunkChan)
 
-	go func() {
-		defer resp.Body.Close()
-		defer close(chunkChan)
-
-		decoder := json.NewDecoder(resp.Body)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				var streamResp LlamaCppStreamResponse
-				if err := decoder.Decode(&streamResp); err != nil {
-					if err == io.EOF {
-						return
-					}
+	decoder := json.NewDecoder(resp.Body)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			var streamResp LlamaCppStreamResponse
+			if err := decoder.Decode(&streamResp); err != nil {
+				if err != io.EOF {
 					c.log.Error(fmt.Sprintf("Failed to decode stream response: %v", err))
-					return
 				}
-
-				chunkChan <- streamResp.Content
-
-				if streamResp.Stop {
-					return
-				}
+				return
+			}
+			chunkChan <- streamResp.Content
+			if streamResp.Stop {
+				return
 			}
 		}
-	}()
+	}
+}
 
+// makeStreamRequest выполняет потоковый HTTP запрос к llama.cpp server
+func (c *LlamaCppClient) makeStreamRequest(ctx context.Context, request LlamaCppRequest) (<-chan string, error) {
+	resp, err := c.createStreamHTTPRequest(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	chunkChan := make(chan string, 100)
+	go c.streamResponseReader(ctx, resp, chunkChan)
 	return chunkChan, nil
 }
 

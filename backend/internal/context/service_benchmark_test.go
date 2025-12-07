@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testProjectPath = "/test/project"
+
 // Mock implementations for benchmarking
 type mockFileReader struct {
 	delayMs int
@@ -75,7 +77,7 @@ func BenchmarkService_BuildContext_Small(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{"src/main.go"}
 	options := &BuildOptions{
 		MaxTokens:   10000,
@@ -109,7 +111,7 @@ func BenchmarkService_BuildContext_Medium(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{
 		"src/main.go",
 		"src/util.go",
@@ -155,7 +157,7 @@ func BenchmarkService_BuildContext_Large(b *testing.B) {
 		includedPaths[i] = "src/file" + string(rune(i+'0')) + ".go"
 	}
 
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	options := &BuildOptions{
 		MaxTokens:   10000,
 		MaxMemoryMB: 100,
@@ -188,7 +190,7 @@ func BenchmarkService_CreateStream(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{
 		"src/main.go",
 		"src/util.go",
@@ -224,7 +226,7 @@ func BenchmarkService_GetContextLines(b *testing.B) {
 	service.contextDir = tempDir
 
 	// Create a stream first
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{"src/test.go"}
 
 	// Create service with our test content
@@ -292,7 +294,7 @@ func BenchmarkMemoryUsage_ContextBuilding(b *testing.B) {
 	runtime.ReadMemStats(&m)
 	startAllocs := m.TotalAlloc
 
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{"src/main.go"}
 	options := &BuildOptions{
 		MaxTokens:   10000,

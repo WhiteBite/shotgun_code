@@ -14,6 +14,13 @@ import (
 	"time"
 )
 
+// Operation constants
+const (
+	opAdded    = "added"
+	opModified = "modified"
+	opDeleted  = "deleted"
+)
+
 // DiffEngineImpl реализует DiffEngine
 type DiffEngineImpl struct {
 	log        domain.Logger
@@ -125,15 +132,15 @@ func (e *DiffEngineImpl) GenerateDiffFromResults(ctx context.Context, results []
 func (e *DiffEngineImpl) GenerateDiffFromEdits(ctx context.Context, edits *domain.EditsJSON, format domain.DiffFormat) (*domain.DiffResult, error) {
 	e.log.Info(fmt.Sprintf("Generating diff from %d edits", len(edits.Edits)))
 
-	var entries []*domain.DiffEntry
+	entries := make([]*domain.DiffEntry, 0, len(edits.Edits))
 
 	for _, edit := range edits.Edits {
-		operation := "modified"
+		operation := opModified
 		switch edit.Op {
 		case "create":
-			operation = "added"
+			operation = opAdded
 		case "delete":
-			operation = "deleted"
+			operation = opDeleted
 		}
 
 		entry := &domain.DiffEntry{
@@ -561,14 +568,14 @@ func (e *DiffEngineImpl) countOperation(entries []*domain.DiffEntry, operation s
 func (e *DiffEngineImpl) saveEnrichedReport(ctx context.Context, diff *domain.DiffResult) error {
 	// Создаем директорию reports/ux если не существует
 	reportsDir := "reports/ux"
-	if err := os.MkdirAll(reportsDir, 0755); err != nil {
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create reports directory: %w", err)
 	}
 
 	// Сохраняем текстовый отчет
 	txtPath := filepath.Join(reportsDir, "derived-diff.txt")
 	txtContent := e.generateTextReport(diff)
-	if err := os.WriteFile(txtPath, []byte(txtContent), 0644); err != nil {
+	if err := os.WriteFile(txtPath, []byte(txtContent), 0o600); err != nil {
 		return fmt.Errorf("failed to write text report: %w", err)
 	}
 
@@ -578,7 +585,7 @@ func (e *DiffEngineImpl) saveEnrichedReport(ctx context.Context, diff *domain.Di
 	if err != nil {
 		return fmt.Errorf("failed to generate JSON report: %w", err)
 	}
-	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(jsonPath, jsonData, 0o600); err != nil {
 		return fmt.Errorf("failed to write JSON report: %w", err)
 	}
 
@@ -702,7 +709,7 @@ func (e *DiffEngineImpl) generateDiffID(beforePath, afterPath string) string {
 
 // generateDiffIDFromResults генерирует ID для diff из результатов
 func (e *DiffEngineImpl) generateDiffIDFromResults(results []*domain.ApplyResult) string {
-	var paths []string
+	paths := make([]string, 0, len(results))
 	for _, result := range results {
 		paths = append(paths, result.Path)
 	}
@@ -714,7 +721,7 @@ func (e *DiffEngineImpl) generateDiffIDFromResults(results []*domain.ApplyResult
 
 // generateDiffIDFromEdits генерирует ID для diff из правок
 func (e *DiffEngineImpl) generateDiffIDFromEdits(edits *domain.EditsJSON) string {
-	var paths []string
+	paths := make([]string, 0, len(edits.Edits))
 	for _, edit := range edits.Edits {
 		paths = append(paths, edit.Path)
 	}

@@ -45,13 +45,13 @@ type TaskRequest struct {
 
 // TaskResponse contains the result of task execution
 type TaskResponse struct {
-	Content         string            `json:"content"`         // Generated response
-	Model           string            `json:"model"`           // Model used
-	TokensUsed      int               `json:"tokensUsed"`      // Tokens consumed
-	ProcessingTime  time.Duration     `json:"processingTime"`  // Time taken
-	ContextSummary  ContextSummaryDTO `json:"contextSummary"`  // Summary of context used
-	Success         bool              `json:"success"`
-	Error           string            `json:"error,omitempty"`
+	Content        string            `json:"content"`        // Generated response
+	Model          string            `json:"model"`          // Model used
+	TokensUsed     int               `json:"tokensUsed"`     // Tokens consumed
+	ProcessingTime time.Duration     `json:"processingTime"` // Time taken
+	ContextSummary ContextSummaryDTO `json:"contextSummary"` // Summary of context used
+	Success        bool              `json:"success"`
+	Error          string            `json:"error,omitempty"`
 }
 
 // ContextSummaryDTO provides info about the context sent to the model
@@ -213,10 +213,10 @@ func (s *QwenTaskService) buildUserPrompt(req TaskRequest, smartContext *SmartCo
 	// Add call stack info if available
 	if smartContext.CallStack != nil && smartContext.CallStack.RootSymbol != nil {
 		builder.WriteString("## Call Stack Analysis\n")
-		builder.WriteString(fmt.Sprintf("Root symbol: %s (%s)\n", 
-			smartContext.CallStack.RootSymbol.Name, 
+		builder.WriteString(fmt.Sprintf("Root symbol: %s (%s)\n",
+			smartContext.CallStack.RootSymbol.Name,
 			smartContext.CallStack.RootSymbol.Type))
-		
+
 		if len(smartContext.CallStack.Callers) > 0 {
 			builder.WriteString("Called by: ")
 			callerNames := make([]string, 0, len(smartContext.CallStack.Callers))
@@ -226,7 +226,7 @@ func (s *QwenTaskService) buildUserPrompt(req TaskRequest, smartContext *SmartCo
 			builder.WriteString(strings.Join(callerNames, ", "))
 			builder.WriteString("\n")
 		}
-		
+
 		if len(smartContext.CallStack.Callees) > 0 {
 			builder.WriteString("Calls: ")
 			calleeNames := make([]string, 0, len(smartContext.CallStack.Callees))
@@ -270,13 +270,13 @@ func (s *QwenTaskService) getFilePaths(files []ContextFile) []string {
 // getLanguageFromPath returns the language identifier for syntax highlighting
 func getLanguageFromPath(path string) string {
 	if strings.HasSuffix(path, ".go") {
-		return "go"
+		return langGo
 	}
 	if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx") {
-		return "typescript"
+		return langTypeScript
 	}
 	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".jsx") {
-		return "javascript"
+		return langJavaScript
 	}
 	if strings.HasSuffix(path, ".py") {
 		return "python"

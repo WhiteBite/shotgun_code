@@ -13,14 +13,14 @@ import (
 
 // RepairServiceImpl реализует RepairService
 type RepairServiceImpl struct {
-	log          domain.Logger
+	log           domain.Logger
 	commandRunner domain.CommandRunner
 }
 
 // NewRepairService создает новый сервис repair
 func NewRepairService(log domain.Logger, commandRunner domain.CommandRunner) domain.RepairService {
 	return &RepairServiceImpl{
-		log:          log,
+		log:           log,
 		commandRunner: commandRunner,
 	}
 }
@@ -245,9 +245,9 @@ func (s *RepairServiceImpl) verifyRepair(ctx context.Context, projectPath, langu
 	var err error
 
 	switch language {
-	case "go":
+	case langGo:
 		output, err = s.commandRunner.RunCommandInDir(ctx, projectPath, "go", "build", "./...")
-	case "typescript", "javascript":
+	case langTypeScript, langJavaScript:
 		output, err = s.commandRunner.RunCommandInDir(ctx, projectPath, "npx", "tsc", "--noEmit")
 	default:
 		return false, "unsupported language for verification"

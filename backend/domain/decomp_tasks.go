@@ -33,12 +33,12 @@ type DecompTask struct {
 
 // DecompTaskPlan represents a complete task decomposition
 type DecompTaskPlan struct {
-	ID          string             `json:"id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Tasks       []*DecompTask      `json:"tasks"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	Status      DecompTaskStatus   `json:"status"`
+	ID          string           `json:"id"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Tasks       []*DecompTask    `json:"tasks"`
+	CreatedAt   time.Time        `json:"createdAt"`
+	Status      DecompTaskStatus `json:"status"`
 }
 
 // DecompTaskManager interface for task decomposition

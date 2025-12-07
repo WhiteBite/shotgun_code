@@ -8,23 +8,23 @@ import (
 
 // ValidationConfig allows customizing validation rules per provider
 type ValidationConfig struct {
-	RequireModel       bool
-	RequireUserPrompt  bool
+	RequireModel        bool
+	RequireUserPrompt   bool
 	RequireSystemPrompt bool
-	MinTemperature     float64
-	MaxTemperature     float64
-	MinMaxTokens       int
+	MinTemperature      float64
+	MaxTemperature      float64
+	MinMaxTokens        int
 }
 
 // DefaultValidationConfig returns standard validation config
 func DefaultValidationConfig() ValidationConfig {
 	return ValidationConfig{
-		RequireModel:       true,
-		RequireUserPrompt:  true,
+		RequireModel:        true,
+		RequireUserPrompt:   true,
 		RequireSystemPrompt: false,
-		MinTemperature:     0,
-		MaxTemperature:     2,
-		MinMaxTokens:       1,
+		MinTemperature:      0,
+		MaxTemperature:      2,
+		MinMaxTokens:        1,
 	}
 }
 

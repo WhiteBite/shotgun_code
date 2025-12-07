@@ -298,36 +298,55 @@ func (a *CallStackAnalyzer) findCallees(
 	return callees
 }
 
+// buildNodeIDIndex creates a map of node ID to node for fast lookup
+func buildNodeIDIndex(graph *domain.SymbolGraph) map[string]*domain.SymbolNode {
+	index := make(map[string]*domain.SymbolNode, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		index[node.ID] = node
+	}
+	return index
+}
+
+// findEdgeDependencies finds dependencies from edges
+func findEdgeDependencies(symbol *domain.SymbolNode, graph *domain.SymbolGraph, nodeIndex map[string]*domain.SymbolNode, seen map[string]bool) []*domain.SymbolNode {
+	var deps []*domain.SymbolNode
+	for _, edge := range graph.Edges {
+		if edge.From != symbol.ID || (edge.Type != domain.EdgeTypeReferences && edge.Type != domain.EdgeTypeUses) {
+			continue
+		}
+		if seen[edge.To] {
+			continue
+		}
+		if node, ok := nodeIndex[edge.To]; ok {
+			seen[edge.To] = true
+			deps = append(deps, node)
+		}
+	}
+	return deps
+}
+
+// findPackageTypeDependencies finds types in the same package
+func findPackageTypeDependencies(symbol *domain.SymbolNode, graph *domain.SymbolGraph, seen map[string]bool) []*domain.SymbolNode {
+	var deps []*domain.SymbolNode
+	for _, node := range graph.Nodes {
+		if node.Package != symbol.Package || seen[node.ID] {
+			continue
+		}
+		if node.Type == domain.SymbolTypeStruct || node.Type == domain.SymbolTypeInterface {
+			seen[node.ID] = true
+			deps = append(deps, node)
+		}
+	}
+	return deps
+}
+
 // findDependencies finds type dependencies for a symbol
 func (a *CallStackAnalyzer) findDependencies(symbol *domain.SymbolNode, graph *domain.SymbolGraph) []*domain.SymbolNode {
-	deps := make([]*domain.SymbolNode, 0)
 	seen := make(map[string]bool)
+	nodeIndex := buildNodeIDIndex(graph)
 
-	// Find edges where this symbol references types
-	for _, edge := range graph.Edges {
-		if edge.From == symbol.ID && (edge.Type == domain.EdgeTypeReferences || edge.Type == domain.EdgeTypeUses) {
-			if !seen[edge.To] {
-				seen[edge.To] = true
-				for _, node := range graph.Nodes {
-					if node.ID == edge.To {
-						deps = append(deps, node)
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Also find types in the same package that might be used
-	for _, node := range graph.Nodes {
-		if node.Package == symbol.Package &&
-			(node.Type == domain.SymbolTypeStruct || node.Type == domain.SymbolTypeInterface) &&
-			!seen[node.ID] {
-			deps = append(deps, node)
-			seen[node.ID] = true
-		}
-	}
-
+	deps := findEdgeDependencies(symbol, graph, nodeIndex, seen)
+	deps = append(deps, findPackageTypeDependencies(symbol, graph, seen)...)
 	return deps
 }
 

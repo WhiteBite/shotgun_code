@@ -36,7 +36,7 @@ func NewContextHandler(
 }
 
 // BuildContext builds a context and returns a summary (prevents OOM)
-func (h *ContextHandler) BuildContext(ctx context.Context, projectPath string, includedPaths []string, optionsJson string) (string, error) {
+func (h *ContextHandler) BuildContext(ctx context.Context, projectPath string, includedPaths []string, optionsJSON string) (string, error) {
 	if h.contextService == nil {
 		return "", fmt.Errorf("context service not available")
 	}
@@ -46,8 +46,8 @@ func (h *ContextHandler) BuildContext(ctx context.Context, projectPath string, i
 	atomic.AddInt64(&h.totalBuilds, 1)
 
 	var options domain.ContextBuildOptions
-	if optionsJson != "" {
-		if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+	if optionsJSON != "" {
+		if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
 			return "", fmt.Errorf("failed to parse options JSON: %w", err)
 		}
 	}
@@ -65,12 +65,12 @@ func (h *ContextHandler) BuildContext(ctx context.Context, projectPath string, i
 		return "", err
 	}
 
-	contextJson, err := json.Marshal(summary)
+	contextJSON, err := json.Marshal(summary)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal context summary: %w", err)
 	}
 
-	return string(contextJson), nil
+	return string(contextJSON), nil
 }
 
 // GetContextContent returns paginated context content (memory-safe)
@@ -88,12 +88,12 @@ func (h *ContextHandler) GetContextContent(ctx context.Context, contextID string
 		return "", err
 	}
 
-	chunkJson, err := json.Marshal(chunk)
+	chunkJSON, err := json.Marshal(chunk)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal context chunk: %w", err)
 	}
 
-	return string(chunkJson), nil
+	return string(chunkJSON), nil
 }
 
 // GetFullContextContent returns full context content as string
@@ -122,12 +122,12 @@ func (h *ContextHandler) GetContext(ctx context.Context, contextID string) (stri
 		return "", err
 	}
 
-	contextJson, err := json.Marshal(summary)
+	contextJSON, err := json.Marshal(summary)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal context summary: %w", err)
 	}
 
-	return string(contextJson), nil
+	return string(contextJSON), nil
 }
 
 // GetProjectContexts lists all contexts for a project
@@ -141,12 +141,12 @@ func (h *ContextHandler) GetProjectContexts(ctx context.Context, projectPath str
 		return "", err
 	}
 
-	contextsJson, err := json.Marshal(summaries)
+	contextsJSON, err := json.Marshal(summaries)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal context summaries: %w", err)
 	}
 
-	return string(contextsJson), nil
+	return string(contextsJSON), nil
 }
 
 // DeleteContext removes a context
@@ -174,17 +174,17 @@ func (h *ContextHandler) GetContextLines(ctx context.Context, contextID string, 
 		return "", err
 	}
 
-	chunkJson, err := json.Marshal(chunk)
+	chunkJSON, err := json.Marshal(chunk)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal context chunk: %w", err)
 	}
 
-	return string(chunkJson), nil
+	return string(chunkJSON), nil
 }
 
 // CreateStreamingContext creates a streaming context (delegates to BuildContext)
-func (h *ContextHandler) CreateStreamingContext(ctx context.Context, projectPath string, includedPaths []string, optionsJson string) (string, error) {
-	return h.BuildContext(ctx, projectPath, includedPaths, optionsJson)
+func (h *ContextHandler) CreateStreamingContext(ctx context.Context, projectPath string, includedPaths []string, optionsJSON string) (string, error) {
+	return h.BuildContext(ctx, projectPath, includedPaths, optionsJSON)
 }
 
 // GetStreamingContext returns context summary for streaming compatibility

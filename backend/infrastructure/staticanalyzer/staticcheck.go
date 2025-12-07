@@ -97,7 +97,7 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 	}
 
 	// Генерируем сводку
-	result.Summary = a.generateSummary(issues)
+	result.Summary = generateSummary(issues)
 
 	a.log.Info(fmt.Sprintf("Staticcheck analysis completed in %.2fs, found %d issues", duration, len(issues)))
 	return result, nil
@@ -152,10 +152,9 @@ func (a *StaticcheckAnalyzer) hasGoFilePaths(projectPath string) bool {
 
 // parseStaticcheckOutput парсит JSON вывод staticcheck
 func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
-
 	// staticcheck может выводить несколько JSON объектов, разделенных новой строкой
 	lines := strings.Split(string(output), "\n")
+	issues := make([]*domain.StaticIssue, 0, len(lines))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -205,14 +204,14 @@ func (a *StaticcheckAnalyzer) parseStaticcheckOutput(output []byte) ([]*domain.S
 // convertSeverity конвертирует severity staticcheck в общий формат
 func (a *StaticcheckAnalyzer) convertSeverity(staticcheckSeverity string) string {
 	switch strings.ToLower(staticcheckSeverity) {
-	case "error":
-		return "error"
-	case "warning":
-		return "warning"
-	case "info":
-		return "info"
+	case severityError:
+		return severityError
+	case severityWarning:
+		return severityWarning
+	case severityInfo:
+		return severityInfo
 	default:
-		return "warning" // По умолчанию считаем warning
+		return severityWarning // По умолчанию считаем warning
 	}
 }
 
@@ -227,45 +226,5 @@ func (a *StaticcheckAnalyzer) getCategory(code string) string {
 	} else if strings.HasPrefix(code, "QF") {
 		return "quickfix"
 	}
-	return "other"
-}
-
-// generateSummary генерирует сводку анализа
-func (a *StaticcheckAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
-	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
-	}
-
-	filesWithIssues := make(map[string]bool)
-
-	for _, issue := range issues {
-		// Подсчитываем по severity
-		summary.SeverityBreakdown[issue.Severity]++
-
-		// Подсчитываем по категориям
-		summary.CategoryBreakdown[issue.Category]++
-
-		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
-
-		// Подсчитываем по типам
-		switch issue.Severity {
-		case "error":
-			summary.ErrorCount++
-		case "warning":
-			summary.WarningCount++
-		case "info":
-			summary.InfoCount++
-		case "hint":
-			summary.HintCount++
-		}
-	}
-
-	summary.FilesWithIssues = len(filesWithIssues)
-
-	return summary
+	return severityOther
 }

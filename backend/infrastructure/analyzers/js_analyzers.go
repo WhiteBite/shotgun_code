@@ -23,85 +23,79 @@ func stripCommentsAndStrings(code string) string {
 	return result.String()
 }
 
-// processLineForComments processes a single line, removing comments and strings
-func processLineForComments(line string, inBlockComment *bool) string {
-	var result strings.Builder
-	i := 0
-	inString := false
-	stringChar := byte(0)
-
-	for i < len(line) {
-		// Handle block comment continuation
-		if *inBlockComment {
-			if i+1 < len(line) && line[i] == '*' && line[i+1] == '/' {
-				*inBlockComment = false
-				i += 2
-				continue
-			}
-			i++
-			continue
-		}
-
-		// Handle string literals
-		if inString {
-			if line[i] == '\\' && i+1 < len(line) {
-				// Skip escaped character
-				i += 2
-				continue
-			}
-			if line[i] == stringChar {
-				inString = false
-				result.WriteByte(line[i])
-			}
-			i++
-			continue
-		}
-
-		// Check for string start
-		if line[i] == '"' || line[i] == '\'' || line[i] == '`' {
-			inString = true
-			stringChar = line[i]
-			result.WriteByte(line[i])
-			i++
-			continue
-		}
-
-		// Check for line comment
-		if i+1 < len(line) && line[i] == '/' && line[i+1] == '/' {
-			// Rest of line is comment
-			break
-		}
-
-		// Check for block comment start
-		if i+1 < len(line) && line[i] == '/' && line[i+1] == '*' {
-			*inBlockComment = true
-			i += 2
-			continue
-		}
-
-		result.WriteByte(line[i])
-		i++
+// handleBlockComment handles block comment state
+func handleBlockComment(line string, i int, inBlockComment *bool) int {
+	if i+1 < len(line) && line[i] == '*' && line[i+1] == '/' {
+		*inBlockComment = false
+		return i + 2
 	}
-
-	return result.String()
+	return i + 1
 }
 
-// getLineMapping creates a mapping from stripped line numbers to original line numbers
-func getLineMapping(original, stripped string) map[int]int {
-	origLines := strings.Split(original, "\n")
-	strippedLines := strings.Split(stripped, "\n")
-	mapping := make(map[int]int)
+// handleStringChar handles string literal state
+func handleStringChar(line string, i int, stringChar byte, inString *bool) (int, bool) {
+	if line[i] == '\\' && i+1 < len(line) {
+		return i + 2, false
+	}
+	if line[i] == stringChar {
+		*inString = false
+		return i + 1, true
+	}
+	return i + 1, false
+}
 
-	strippedIdx := 0
-	for origIdx := 0; origIdx < len(origLines) && strippedIdx < len(strippedLines); origIdx++ {
-		// Simple heuristic: match by non-empty content
-		if strings.TrimSpace(strippedLines[strippedIdx]) != "" {
-			mapping[strippedIdx+1] = origIdx + 1
+// processLineForComments processes a single line, removing comments and strings
+func processLineForComments(line string, inBlockComment *bool) string {
+	result := make([]byte, 0, len(line))
+	lineLen := len(line)
+	inString := false
+	var stringChar byte
+
+	for i := 0; i < lineLen; {
+		ch := line[i]
+
+		if *inBlockComment {
+			i = handleBlockComment(line, i, inBlockComment)
+			continue
 		}
-		strippedIdx++
+
+		if inString {
+			newI, emit := handleStringChar(line, i, stringChar, &inString)
+			if emit {
+				result = append(result, ch)
+			}
+			i = newI
+			continue
+		}
+
+		nextCh := byte(0)
+		if i+1 < lineLen {
+			nextCh = line[i+1]
+		}
+
+		switch ch {
+		case '"', '\'', '`':
+			inString, stringChar = true, ch
+			result = append(result, ch)
+			i++
+		case '/':
+			if nextCh == '/' {
+				return string(result)
+			}
+			if nextCh == '*' {
+				*inBlockComment = true
+				i += 2
+			} else {
+				result = append(result, ch)
+				i++
+			}
+		default:
+			result = append(result, ch)
+			i++
+		}
 	}
 
-	return mapping
+	return string(result)
 }
 
 // TypeScriptAnalyzer analyzes TypeScript files
@@ -131,84 +125,79 @@ func (a *TypeScriptAnalyzer) CanAnalyze(filePath string) bool {
 	return strings.HasSuffix(filePath, ".ts") || strings.HasSuffix(filePath, ".tsx")
 }
 
+// symbolExtractContext holds context for symbol extraction
+type symbolExtractContext struct {
+	text          string
+	content       []byte
+	lines         []string
+	strippedLines []string
+	filePath      string
+	language      string
+}
+
+// isValidMatch checks if a match position is in actual code (not comment/string)
+func (ctx *symbolExtractContext) isValidMatch(matchStart int) bool {
+	lineNum := countLines(ctx.content[:matchStart])
+	if lineNum > 0 && lineNum <= len(ctx.strippedLines) && lineNum <= len(ctx.lines) {
+		strippedLine := strings.TrimSpace(ctx.strippedLines[lineNum-1])
+		originalLine := strings.TrimSpace(ctx.lines[lineNum-1])
+		if len(strippedLine) == 0 && len(originalLine) > 0 {
+			return false
+		}
+		if len(originalLine) > 0 && len(strippedLine) < len(originalLine)/3 {
+			return false
+		}
+	}
+	return true
+}
+
+// extractSymbolsWithRegex extracts symbols using a regex pattern
+func (ctx *symbolExtractContext) extractSymbolsWithRegex(re *regexp.Regexp, kind analysis.SymbolKind, nameIdx int, useBlockEnd bool) []analysis.Symbol {
+	matches := re.FindAllStringSubmatchIndex(ctx.text, -1)
+	symbols := make([]analysis.Symbol, 0, len(matches))
+	for _, match := range matches {
+		if !ctx.isValidMatch(match[0]) {
+			continue
+		}
+		line := countLines(ctx.content[:match[0]])
+		name := ctx.text[match[nameIdx]:match[nameIdx+1]]
+		var endLine int
+		if useBlockEnd {
+			endLine = findBlockEndLine(ctx.lines, line-1)
+		} else {
+			endLine = findTypeEndLine(ctx.lines, line-1)
+		}
+		symbols = append(symbols, analysis.Symbol{
+			Name: name, Kind: kind, Language: ctx.language,
+			FilePath: ctx.filePath, StartLine: line, EndLine: endLine,
+		})
+	}
+	return symbols
+}
+
 func (a *TypeScriptAnalyzer) ExtractSymbols(ctx context.Context, filePath string, content []byte) ([]analysis.Symbol, error) {
-	var symbols []analysis.Symbol
 	text := string(content)
-	lines := strings.Split(text, "\n")
-
-	// Strip comments and strings to avoid false positives
 	strippedText := stripCommentsAndStrings(text)
-	strippedLines := strings.Split(strippedText, "\n")
 
-	// Helper to check if a match position is in actual code (not comment/string)
-	isValidMatch := func(matchStart int) bool {
-		lineNum := countLines(content[:matchStart])
-		if lineNum > 0 && lineNum <= len(strippedLines) && lineNum <= len(lines) {
-			strippedLine := strings.TrimSpace(strippedLines[lineNum-1])
-			originalLine := strings.TrimSpace(lines[lineNum-1])
-			// If stripped line is empty but original is not, the match is in a comment/string
-			if len(strippedLine) == 0 && len(originalLine) > 0 {
-				return false
-			}
-			// If stripped line is significantly shorter, the match might be in a comment
-			if len(originalLine) > 0 && len(strippedLine) < len(originalLine)/3 {
-				return false
-			}
-		}
-		return true
+	extractCtx := &symbolExtractContext{
+		text: text, content: content, lines: strings.Split(text, "\n"),
+		strippedLines: strings.Split(strippedText, "\n"), filePath: filePath, language: "typescript",
 	}
 
-	for _, match := range a.classRe.FindAllStringSubmatchIndex(text, -1) {
-		if !isValidMatch(match[0]) {
-			continue
-		}
-		line := countLines(content[:match[0]])
-		name := text[match[6]:match[7]]
-		endLine := findBlockEndLine(lines, line-1)
-		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindClass, Language: "typescript", FilePath: filePath, StartLine: line, EndLine: endLine})
-	}
-	for _, match := range a.interfaceRe.FindAllStringSubmatchIndex(text, -1) {
-		if !isValidMatch(match[0]) {
-			continue
-		}
-		line := countLines(content[:match[0]])
-		name := text[match[4]:match[5]]
-		endLine := findBlockEndLine(lines, line-1)
-		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindInterface, Language: "typescript", FilePath: filePath, StartLine: line, EndLine: endLine})
-	}
-	for _, match := range a.typeRe.FindAllStringSubmatchIndex(text, -1) {
-		if !isValidMatch(match[0]) {
-			continue
-		}
-		line := countLines(content[:match[0]])
-		name := text[match[4]:match[5]]
-		endLine := findTypeEndLine(lines, line-1)
-		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindType, Language: "typescript", FilePath: filePath, StartLine: line, EndLine: endLine})
-	}
-	for _, match := range a.functionRe.FindAllStringSubmatchIndex(text, -1) {
-		if !isValidMatch(match[0]) {
-			continue
-		}
-		line := countLines(content[:match[0]])
-		name := text[match[6]:match[7]]
-		endLine := findBlockEndLine(lines, line-1)
-		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindFunction, Language: "typescript", FilePath: filePath, StartLine: line, EndLine: endLine})
-	}
-	for _, match := range a.enumRe.FindAllStringSubmatchIndex(text, -1) {
-		if !isValidMatch(match[0]) {
-			continue
-		}
-		line := countLines(content[:match[0]])
-		name := text[match[4]:match[5]]
-		endLine := findBlockEndLine(lines, line-1)
-		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindEnum, Language: "typescript", FilePath: filePath, StartLine: line, EndLine: endLine})
-	}
+	symbols := make([]analysis.Symbol, 0, 32)
+	symbols = append(symbols, extractCtx.extractSymbolsWithRegex(a.classRe, analysis.KindClass, 6, true)...)
+	symbols = append(symbols, extractCtx.extractSymbolsWithRegex(a.interfaceRe, analysis.KindInterface, 4, true)...)
+	symbols = append(symbols, extractCtx.extractSymbolsWithRegex(a.typeRe, analysis.KindType, 4, false)...)
+	symbols = append(symbols, extractCtx.extractSymbolsWithRegex(a.functionRe, analysis.KindFunction, 6, true)...)
+	symbols = append(symbols, extractCtx.extractSymbolsWithRegex(a.enumRe, analysis.KindEnum, 4, true)...)
+
 	return symbols, nil
 }
 
 func (a *TypeScriptAnalyzer) GetImports(ctx context.Context, filePath string, content []byte) ([]analysis.Import, error) {
-	var imports []analysis.Import
-	for _, match := range a.importRe.FindAllStringSubmatch(string(content), -1) {
+	matches := a.importRe.FindAllStringSubmatch(string(content), -1)
+	imports := make([]analysis.Import, 0, len(matches))
+	for _, match := range matches {
 		imports = append(imports, analysis.Import{Path: match[1], IsLocal: strings.HasPrefix(match[1], ".")})
 	}
 	return imports, nil
@@ -236,8 +225,10 @@ func (a *JavaScriptAnalyzer) CanAnalyze(filePath string) bool {
 }
 
 func (a *JavaScriptAnalyzer) ExtractSymbols(ctx context.Context, filePath string, content []byte) ([]analysis.Symbol, error) {
-	var symbols []analysis.Symbol
 	text := string(content)
+	classMatches := a.classRe.FindAllStringSubmatchIndex(text, -1)
+	funcMatches := a.functionRe.FindAllStringSubmatchIndex(text, -1)
+	symbols := make([]analysis.Symbol, 0, len(classMatches)+len(funcMatches))
 	lines := strings.Split(text, "\n")
 
 	// Strip comments and strings to avoid false positives
@@ -262,7 +253,7 @@ func (a *JavaScriptAnalyzer) ExtractSymbols(ctx context.Context, filePath string
 		return true
 	}
 
-	for _, match := range a.classRe.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range classMatches {
 		if !isValidMatch(match[0]) {
 			continue
 		}
@@ -271,7 +262,7 @@ func (a *JavaScriptAnalyzer) ExtractSymbols(ctx context.Context, filePath string
 		endLine := findBlockEndLine(lines, line-1)
 		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindClass, Language: "javascript", FilePath: filePath, StartLine: line, EndLine: endLine})
 	}
-	for _, match := range a.functionRe.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range funcMatches {
 		if !isValidMatch(match[0]) {
 			continue
 		}
@@ -284,8 +275,9 @@ func (a *JavaScriptAnalyzer) ExtractSymbols(ctx context.Context, filePath string
 }
 
 func (a *JavaScriptAnalyzer) GetImports(ctx context.Context, filePath string, content []byte) ([]analysis.Import, error) {
-	var imports []analysis.Import
-	for _, match := range a.importRe.FindAllStringSubmatch(string(content), -1) {
+	matches := a.importRe.FindAllStringSubmatch(string(content), -1)
+	imports := make([]analysis.Import, 0, len(matches))
+	for _, match := range matches {
 		imports = append(imports, analysis.Import{Path: match[1], IsLocal: strings.HasPrefix(match[1], ".")})
 	}
 	return imports, nil
@@ -366,73 +358,56 @@ func (a *VueAnalyzer) GetImports(ctx context.Context, filePath string, content [
 	return imports, nil
 }
 
+// Precompiled regexes for export extraction
+var (
+	exportDeclRe    = regexp.MustCompile(`(?m)^[\t ]*export\s+(default\s+)?(async\s+)?(function|class|const|let|var|type|interface|enum)\s+(\w+)`)
+	exportListRe    = regexp.MustCompile(`(?m)^[\t ]*export\s*\{([^}]+)\}`)
+	exportDefaultRe = regexp.MustCompile(`(?m)^[\t ]*export\s+default\s+(\w+)`)
+	reExportRe      = regexp.MustCompile(`(?m)^[\t ]*export\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]`)
+)
+
+// parseExportList parses "name as alias" style export lists
+func parseExportList(listStr string, lineNum int, kind string, fromPath string, isReExport bool) []analysis.Export {
+	parts := strings.Split(listStr, ",")
+	exports := make([]analysis.Export, 0, len(parts))
+	for _, n := range parts {
+		n = strings.TrimSpace(n)
+		parts := strings.Split(n, " as ")
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			continue
+		}
+		exp := analysis.Export{Name: name, Kind: kind, Line: lineNum, IsReExport: isReExport, FromPath: fromPath}
+		if len(parts) > 1 {
+			exp.Alias = strings.TrimSpace(parts[1])
+		}
+		exports = append(exports, exp)
+	}
+	return exports
+}
+
 // GetExports extracts exported symbols from TypeScript files
 func (a *TypeScriptAnalyzer) GetExports(ctx context.Context, filePath string, content []byte) ([]analysis.Export, error) {
-	var exports []analysis.Export
-	text := string(content)
-	lines := strings.Split(text, "\n")
+	lines := strings.Split(string(content), "\n")
+	exports := make([]analysis.Export, 0, len(lines)/10+1)
 
-	// export function/class/const/type/interface
-	exportDeclRe := regexp.MustCompile(`(?m)^[\t ]*export\s+(default\s+)?(async\s+)?(function|class|const|let|var|type|interface|enum)\s+(\w+)`)
 	for i, line := range lines {
+		lineNum := i + 1
+
 		if match := exportDeclRe.FindStringSubmatch(line); match != nil {
-			exports = append(exports, analysis.Export{
-				Name:      match[4],
-				Kind:      match[3],
-				IsDefault: match[1] != "",
-				Line:      i + 1,
-			})
+			exports = append(exports, analysis.Export{Name: match[4], Kind: match[3], IsDefault: match[1] != "", Line: lineNum})
 		}
-	}
 
-	// export { name1, name2 }
-	exportListRe := regexp.MustCompile(`(?m)^[\t ]*export\s*\{([^}]+)\}`)
-	for i, line := range lines {
 		if match := exportListRe.FindStringSubmatch(line); match != nil {
-			names := strings.Split(match[1], ",")
-			for _, n := range names {
-				n = strings.TrimSpace(n)
-				// Handle "name as alias"
-				parts := strings.Split(n, " as ")
-				name := strings.TrimSpace(parts[0])
-				alias := ""
-				if len(parts) > 1 {
-					alias = strings.TrimSpace(parts[1])
-				}
-				if name != "" {
-					exports = append(exports, analysis.Export{Name: name, Alias: alias, Kind: "named", Line: i + 1})
-				}
-			}
+			exports = append(exports, parseExportList(match[1], lineNum, "named", "", false)...)
 		}
-	}
 
-	// export default
-	exportDefaultRe := regexp.MustCompile(`(?m)^[\t ]*export\s+default\s+(\w+)`)
-	for i, line := range lines {
 		if match := exportDefaultRe.FindStringSubmatch(line); match != nil {
-			exports = append(exports, analysis.Export{Name: match[1], Kind: "default", IsDefault: true, Line: i + 1})
+			exports = append(exports, analysis.Export{Name: match[1], Kind: "default", IsDefault: true, Line: lineNum})
 		}
-	}
 
-	// re-exports: export { x } from './module'
-	reExportRe := regexp.MustCompile(`(?m)^[\t ]*export\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]`)
-	for i, line := range lines {
 		if match := reExportRe.FindStringSubmatch(line); match != nil {
-			names := strings.Split(match[1], ",")
-			for _, n := range names {
-				n = strings.TrimSpace(n)
-				parts := strings.Split(n, " as ")
-				name := strings.TrimSpace(parts[0])
-				if name != "" {
-					exports = append(exports, analysis.Export{
-						Name:       name,
-						Kind:       "reexport",
-						IsReExport: true,
-						FromPath:   match[2],
-						Line:       i + 1,
-					})
-				}
-			}
+			exports = append(exports, parseExportList(match[1], lineNum, "reexport", match[2], true)...)
 		}
 	}
 
@@ -475,52 +450,6 @@ func (a *VueAnalyzer) GetFunctionBody(ctx context.Context, filePath string, cont
 	return "", 0, 0, nil
 }
 
-// findBlockEndLine finds the end line of a block (class, function, etc.) by matching braces
-// startLineIdx is 0-based index
-func findBlockEndLine(lines []string, startLineIdx int) int {
-	if startLineIdx < 0 || startLineIdx >= len(lines) {
-		return startLineIdx + 1
-	}
-
-	braceCount := 0
-	started := false
-
-	for i := startLineIdx; i < len(lines); i++ {
-		line := lines[i]
-		for _, ch := range line {
-			if ch == '{' {
-				braceCount++
-				started = true
-			} else if ch == '}' {
-				braceCount--
-			}
-		}
-		if started && braceCount == 0 {
-			return i + 1 // Convert to 1-based line number
-		}
-	}
-
-	// If no closing brace found, estimate based on next empty line or reasonable default
-	for i := startLineIdx + 1; i < len(lines) && i < startLineIdx+100; i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		// Check for next top-level declaration
-		if strings.HasPrefix(trimmed, "export ") || 
-		   strings.HasPrefix(trimmed, "class ") || 
-		   strings.HasPrefix(trimmed, "function ") ||
-		   strings.HasPrefix(trimmed, "interface ") ||
-		   strings.HasPrefix(trimmed, "type ") {
-			return i // Return line before next declaration
-		}
-	}
-
-	// Default: return start + 20 lines or end of file
-	endLine := startLineIdx + 20
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
-	return endLine
-}
-
 // findTypeEndLine finds the end line of a type alias (usually ends with semicolon or next line)
 func findTypeEndLine(lines []string, startLineIdx int) int {
 	if startLineIdx < 0 || startLineIdx >= len(lines) {
@@ -551,44 +480,36 @@ func findTypeEndLine(lines []string, startLineIdx int) int {
 	return startLineIdx + 1
 }
 
-// extractFunctionBody is a helper to extract function body from JS/TS code
-func extractFunctionBody(content []byte, funcName string) (string, int, int, error) {
-	text := string(content)
-	lines := strings.Split(text, "\n")
-
-	// Patterns to find function start
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?m)^[\t ]*(export\s+)?(async\s+)?function\s+` + regexp.QuoteMeta(funcName) + `\s*\(`),
-		regexp.MustCompile(`(?m)^[\t ]*(export\s+)?(const|let|var)\s+` + regexp.QuoteMeta(funcName) + `\s*=\s*(async\s*)?\(`),
-		regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(funcName) + `\s*\([^)]*\)\s*\{`),
-		regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(funcName) + `\s*:\s*(async\s*)?\(`),
+// funcBodyPatterns returns compiled patterns for finding function starts
+func funcBodyPatterns(funcName string) []*regexp.Regexp {
+	quotedName := regexp.QuoteMeta(funcName)
+	return []*regexp.Regexp{
+		regexp.MustCompile(`(?m)^[\t ]*(export\s+)?(async\s+)?function\s+` + quotedName + `\s*\(`),
+		regexp.MustCompile(`(?m)^[\t ]*(export\s+)?(const|let|var)\s+` + quotedName + `\s*=\s*(async\s*)?\(`),
+		regexp.MustCompile(`(?m)^[\t ]*` + quotedName + `\s*\([^)]*\)\s*\{`),
+		regexp.MustCompile(`(?m)^[\t ]*` + quotedName + `\s*:\s*(async\s*)?\(`),
 	}
+}
 
-	startLine := -1
+// findFuncStartLine finds the starting line of a function
+func findFuncStartLine(lines []string, patterns []*regexp.Regexp) int {
 	for i, line := range lines {
 		for _, p := range patterns {
 			if p.MatchString(line) {
-				startLine = i
-				break
+				return i
 			}
 		}
-		if startLine >= 0 {
-			break
-		}
 	}
+	return -1
+}
 
-	if startLine < 0 {
-		return "", 0, 0, nil
-	}
-
-	// Find matching braces
+// findFuncEndLine finds the ending line by matching braces
+func findFuncEndLine(lines []string, startLine int) int {
 	braceCount := 0
 	started := false
-	endLine := startLine
 
 	for i := startLine; i < len(lines); i++ {
-		line := lines[i]
-		for _, ch := range line {
+		for _, ch := range lines[i] {
 			if ch == '{' {
 				braceCount++
 				started = true
@@ -597,17 +518,30 @@ func extractFunctionBody(content []byte, funcName string) (string, int, int, err
 			}
 		}
 		if started && braceCount == 0 {
-			endLine = i
-			break
+			return i
 		}
 	}
+	return startLine
+}
 
-	// Extract body
+// extractFunctionBody is a helper to extract function body from JS/TS code
+func extractFunctionBody(content []byte, funcName string) (string, int, int, error) {
+	lines := strings.Split(string(content), "\n")
+	patterns := funcBodyPatterns(funcName)
+
+	startLine := findFuncStartLine(lines, patterns)
+	if startLine < 0 {
+		return "", 0, 0, nil
+	}
+
+	endLine := findFuncEndLine(lines, startLine)
+
 	var body strings.Builder
+	body.Grow((endLine - startLine + 1) * 80)
 	for i := startLine; i <= endLine && i < len(lines); i++ {
 		body.WriteString(lines[i])
 		if i < endLine {
-			body.WriteString("\n")
+			body.WriteByte('\n')
 		}
 	}
 

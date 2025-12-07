@@ -222,27 +222,79 @@ func (r *RouterLLMService) generatePipelinePrompt(request LLMPipelineRequest) st
 	return prompt.String()
 }
 
+// llmPipelineResponse represents the structure of LLM pipeline response
+type llmPipelineResponse struct {
+	SchemaVersion string `json:"schemaVersion"`
+	Edits         []struct {
+		Kind      string `json:"kind"`
+		Operation struct {
+			Params struct {
+				Policy     map[string]interface{} `json:"policy"`
+				Confidence float64                `json:"confidence"`
+				Reasoning  string                 `json:"reasoning"`
+			} `json:"params"`
+		} `json:"operation"`
+	} `json:"edits"`
+}
+
+// defaultPipelinePolicy returns a default pipeline policy
+func defaultPipelinePolicy() *PipelinePolicy {
+	return &PipelinePolicy{
+		EnableRetrieve: true, EnableASTSynth: true, EnableCompile: false, EnableTest: false,
+		EnableStatic: false, EnableRepair: false, EnableFormat: false, EnableValidate: true,
+		FailFast: true, RetryFailed: true, MaxRetries: 3, ParallelSteps: false, Timeout: 30 * time.Minute,
+	}
+}
+
+// applyPolicyFromMap applies policy values from a map to a PipelinePolicy
+func applyPolicyFromMap(policy *PipelinePolicy, m map[string]interface{}) {
+	if m == nil {
+		return
+	}
+	if v, ok := m["enableRetrieve"].(bool); ok {
+		policy.EnableRetrieve = v
+	}
+	if v, ok := m["enableASTSynth"].(bool); ok {
+		policy.EnableASTSynth = v
+	}
+	if v, ok := m["enableCompile"].(bool); ok {
+		policy.EnableCompile = v
+	}
+	if v, ok := m["enableTest"].(bool); ok {
+		policy.EnableTest = v
+	}
+	if v, ok := m["enableStatic"].(bool); ok {
+		policy.EnableStatic = v
+	}
+	if v, ok := m["enableFormat"].(bool); ok {
+		policy.EnableFormat = v
+	}
+	if v, ok := m["enableValidate"].(bool); ok {
+		policy.EnableValidate = v
+	}
+	if v, ok := m["enableRepair"].(bool); ok {
+		policy.EnableRepair = v
+	}
+	if v, ok := m["failFast"].(bool); ok {
+		policy.FailFast = v
+	}
+	if v, ok := m["retryFailed"].(bool); ok {
+		policy.RetryFailed = v
+	}
+	if v, ok := m["parallelSteps"].(bool); ok {
+		policy.ParallelSteps = v
+	}
+	if v, ok := m["maxRetries"].(float64); ok {
+		policy.MaxRetries = int(v)
+	}
+	if v, ok := m["timeout"].(float64); ok {
+		policy.Timeout = time.Duration(v)
+	}
+}
+
 // parseLLMResponse парсит ответ от LLM
 func (r *RouterLLMService) parseLLMResponse(response []byte) (*PipelinePolicy, float64, string, error) {
-	// Парсим JSON ответ
-	var llmResponse struct {
-		SchemaVersion string `json:"schemaVersion"`
-		Edits         []struct {
-			Kind      string `json:"kind"`
-			Path      string `json:"path"`
-			Language  string `json:"language"`
-			Operation struct {
-				Engine string `json:"engine"`
-				Action string `json:"action"`
-				Params struct {
-					Policy     map[string]interface{} `json:"policy"`
-					Confidence float64                `json:"confidence"`
-					Reasoning  string                 `json:"reasoning"`
-				} `json:"params"`
-			} `json:"operation"`
-		} `json:"edits"`
-	}
-
+	var llmResponse llmPipelineResponse
 	if err := json.Unmarshal(response, &llmResponse); err != nil {
 		return nil, 0, "", fmt.Errorf("failed to unmarshal LLM response: %w", err)
 	}
@@ -256,71 +308,10 @@ func (r *RouterLLMService) parseLLMResponse(response []byte) (*PipelinePolicy, f
 		return nil, 0, "", fmt.Errorf("unexpected edit kind: %s", edit.Kind)
 	}
 
-	// Создаем политику пайплайна
-	policy := &PipelinePolicy{
-		EnableRetrieve: true,
-		EnableASTSynth: true,
-		EnableCompile:  false,
-		EnableTest:     false,
-		EnableStatic:   false,
-		EnableRepair:   false,
-		EnableFormat:   false,
-		EnableValidate: true,
-		FailFast:       true,
-		RetryFailed:    true,
-		MaxRetries:     3,
-		ParallelSteps:  false,
-		Timeout:        30 * time.Minute,
-	}
+	policy := defaultPipelinePolicy()
+	applyPolicyFromMap(policy, edit.Operation.Params.Policy)
 
-	// Применяем политику из LLM ответа
-	if edit.Operation.Params.Policy != nil {
-		llmPolicy := edit.Operation.Params.Policy
-		if enableRetrieve, ok := llmPolicy["enableRetrieve"].(bool); ok {
-			policy.EnableRetrieve = enableRetrieve
-		}
-		if enableASTSynth, ok := llmPolicy["enableASTSynth"].(bool); ok {
-			policy.EnableASTSynth = enableASTSynth
-		}
-		if enableCompile, ok := llmPolicy["enableCompile"].(bool); ok {
-			policy.EnableCompile = enableCompile
-		}
-		if enableTest, ok := llmPolicy["enableTest"].(bool); ok {
-			policy.EnableTest = enableTest
-		}
-		if enableStatic, ok := llmPolicy["enableStatic"].(bool); ok {
-			policy.EnableStatic = enableStatic
-		}
-		if enableFormat, ok := llmPolicy["enableFormat"].(bool); ok {
-			policy.EnableFormat = enableFormat
-		}
-		if enableValidate, ok := llmPolicy["enableValidate"].(bool); ok {
-			policy.EnableValidate = enableValidate
-		}
-		if enableRepair, ok := llmPolicy["enableRepair"].(bool); ok {
-			policy.EnableRepair = enableRepair
-		}
-		if failFast, ok := llmPolicy["failFast"].(bool); ok {
-			policy.FailFast = failFast
-		}
-		if retryFailed, ok := llmPolicy["retryFailed"].(bool); ok {
-			policy.RetryFailed = retryFailed
-		}
-		if parallelSteps, ok := llmPolicy["parallelSteps"].(bool); ok {
-			policy.ParallelSteps = parallelSteps
-		}
-		if maxRetries, ok := llmPolicy["maxRetries"].(float64); ok {
-			policy.MaxRetries = int(maxRetries)
-		}
-		if timeout, ok := llmPolicy["timeout"].(float64); ok {
-			policy.Timeout = time.Duration(timeout)
-		}
-	}
-
-	confidence := edit.Operation.Params.Confidence
-	reasoning := edit.Operation.Params.Reasoning
-
-	return policy, confidence, reasoning, nil
+	return policy, edit.Operation.Params.Confidence, edit.Operation.Params.Reasoning, nil
 }
 
 // ValidatePipelineWithLLM валидирует пайплайн с помощью LLM
@@ -413,24 +404,7 @@ func (r *RouterLLMService) generateValidationPrompt(pipeline *TaskPipeline) stri
 
 // parseValidationResponse парсит ответ валидации от LLM
 func (r *RouterLLMService) parseValidationResponse(response []byte) (*PipelinePolicy, float64, string, error) {
-	// Парсим JSON ответ валидации
-	var validationResponse struct {
-		SchemaVersion string `json:"schemaVersion"`
-		Edits         []struct {
-			Kind      string `json:"kind"`
-			Operation struct {
-				Params struct {
-					IsValid     bool                   `json:"isValid"`
-					Confidence  float64                `json:"confidence"`
-					Reasoning   string                 `json:"reasoning"`
-					Suggestions []string               `json:"suggestions"`
-					Warnings    []string               `json:"warnings"`
-					Policy      map[string]interface{} `json:"policy"`
-				} `json:"params"`
-			} `json:"operation"`
-		} `json:"edits"`
-	}
-
+	var validationResponse llmPipelineResponse
 	if err := json.Unmarshal(response, &validationResponse); err != nil {
 		return nil, 0, "", fmt.Errorf("failed to unmarshal validation response: %w", err)
 	}
@@ -440,58 +414,10 @@ func (r *RouterLLMService) parseValidationResponse(response []byte) (*PipelinePo
 	}
 
 	validation := validationResponse.Edits[0]
-
-	// Создаем политику пайплайна
 	policy := &PipelinePolicy{}
+	applyPolicyFromMap(policy, validation.Operation.Params.Policy)
 
-	// Применяем политику из LLM ответа
-	if validation.Operation.Params.Policy != nil {
-		llmPolicy := validation.Operation.Params.Policy
-		if enableRetrieve, ok := llmPolicy["enableRetrieve"].(bool); ok {
-			policy.EnableRetrieve = enableRetrieve
-		}
-		if enableASTSynth, ok := llmPolicy["enableASTSynth"].(bool); ok {
-			policy.EnableASTSynth = enableASTSynth
-		}
-		if enableCompile, ok := llmPolicy["enableCompile"].(bool); ok {
-			policy.EnableCompile = enableCompile
-		}
-		if enableTest, ok := llmPolicy["enableTest"].(bool); ok {
-			policy.EnableTest = enableTest
-		}
-		if enableStatic, ok := llmPolicy["enableStatic"].(bool); ok {
-			policy.EnableStatic = enableStatic
-		}
-		if enableFormat, ok := llmPolicy["enableFormat"].(bool); ok {
-			policy.EnableFormat = enableFormat
-		}
-		if enableValidate, ok := llmPolicy["enableValidate"].(bool); ok {
-			policy.EnableValidate = enableValidate
-		}
-		if enableRepair, ok := llmPolicy["enableRepair"].(bool); ok {
-			policy.EnableRepair = enableRepair
-		}
-		if failFast, ok := llmPolicy["failFast"].(bool); ok {
-			policy.FailFast = failFast
-		}
-		if retryFailed, ok := llmPolicy["retryFailed"].(bool); ok {
-			policy.RetryFailed = retryFailed
-		}
-		if parallelSteps, ok := llmPolicy["parallelSteps"].(bool); ok {
-			policy.ParallelSteps = parallelSteps
-		}
-		if maxRetries, ok := llmPolicy["maxRetries"].(float64); ok {
-			policy.MaxRetries = int(maxRetries)
-		}
-		if timeout, ok := llmPolicy["timeout"].(float64); ok {
-			policy.Timeout = time.Duration(timeout)
-		}
-	}
-
-	confidence := validation.Operation.Params.Confidence
-	reasoning := validation.Operation.Params.Reasoning
-
-	return policy, confidence, reasoning, nil
+	return policy, validation.Operation.Params.Confidence, validation.Operation.Params.Reasoning, nil
 }
 
 // LoadGBNFGrammar загружает GBNF грамматику из файла

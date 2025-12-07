@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -483,58 +484,80 @@ func (te *ToolExecutorImpl) searchContent(args map[string]any, projectRoot strin
 		return "", fmt.Errorf("pattern is required")
 	}
 
-	regex, err := regexp.Compile("(?i)" + pattern)
-	if err != nil {
-		// Fall back to literal search
-		regex = regexp.MustCompile(regexp.QuoteMeta(pattern))
-	}
-
-	var results []string
-	count := 0
-
-	err = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-
-		// Skip ignored directories
-		if strings.Contains(path, "node_modules") || strings.Contains(path, ".git") {
-			return nil
-		}
-
-		// Check file pattern
-		if filePattern != "" {
-			if matched, _ := filepath.Match(filePattern, info.Name()); !matched {
-				return nil
-			}
-		}
-
-		// Read file
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		relPath, _ := filepath.Rel(projectRoot, path)
-		lines := strings.Split(string(content), "\n")
-
-		for i, line := range lines {
-			if regex.MatchString(line) {
-				results = append(results, fmt.Sprintf("%s:%d: %s", relPath, i+1, strings.TrimSpace(line)))
-				count++
-				if count >= maxResults {
-					return fmt.Errorf("limit reached")
-				}
-			}
-		}
-		return nil
-	})
+	regex := te.compileSearchPattern(pattern)
+	results := te.searchInFiles(projectRoot, filePattern, regex, maxResults)
 
 	if len(results) == 0 {
 		return "No matches found for: " + pattern, nil
 	}
-
 	return fmt.Sprintf("Found %d matches:\n%s", len(results), strings.Join(results, "\n")), nil
+}
+
+// compileSearchPattern compiles a regex pattern with fallback to literal
+func (te *ToolExecutorImpl) compileSearchPattern(pattern string) *regexp.Regexp {
+	regex, err := regexp.Compile("(?i)" + pattern)
+	if err != nil {
+		return regexp.MustCompile(regexp.QuoteMeta(pattern))
+	}
+	return regex
+}
+
+// searchInFiles searches for regex matches in files
+func (te *ToolExecutorImpl) searchInFiles(projectRoot, filePattern string, regex *regexp.Regexp, maxResults int) []string {
+	var results []string
+	count := 0
+
+	_ = filepath.Walk(projectRoot, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() {
+			return nil
+		}
+		if te.shouldSkipPath(path) || !te.matchesFilePattern(info.Name(), filePattern) {
+			return nil
+		}
+
+		matches := te.searchFileContent(path, projectRoot, regex, maxResults-count)
+		results = append(results, matches...)
+		count += len(matches)
+		if count >= maxResults {
+			return fmt.Errorf("limit reached")
+		}
+		return nil
+	})
+	return results
+}
+
+// shouldSkipPath checks if path should be skipped
+func (te *ToolExecutorImpl) shouldSkipPath(path string) bool {
+	return strings.Contains(path, "node_modules") || strings.Contains(path, ".git")
+}
+
+// matchesFilePattern checks if filename matches pattern
+func (te *ToolExecutorImpl) matchesFilePattern(name, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	matched, _ := filepath.Match(pattern, name)
+	return matched
+}
+
+// searchFileContent searches for matches in a single file
+func (te *ToolExecutorImpl) searchFileContent(path, projectRoot string, regex *regexp.Regexp, limit int) []string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	relPath, _ := filepath.Rel(projectRoot, path)
+	var results []string
+	for i, line := range strings.Split(string(content), "\n") {
+		if regex.MatchString(line) {
+			results = append(results, fmt.Sprintf("%s:%d: %s", relPath, i+1, strings.TrimSpace(line)))
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+	return results
 }
 
 // readFile reads file contents
@@ -545,7 +568,7 @@ func (te *ToolExecutorImpl) readFile(args map[string]any, projectRoot string) (s
 	}
 
 	fullPath := filepath.Join(projectRoot, path)
-	
+
 	// Security check - normalize paths before comparison to prevent path traversal
 	absProjectRoot, err := filepath.Abs(projectRoot)
 	if err != nil {
@@ -558,7 +581,7 @@ func (te *ToolExecutorImpl) readFile(args map[string]any, projectRoot string) (s
 	// Clean paths to handle .. and . components
 	absProjectRoot = filepath.Clean(absProjectRoot)
 	absFullPath = filepath.Clean(absFullPath)
-	
+
 	if !strings.HasPrefix(absFullPath, absProjectRoot+string(filepath.Separator)) && absFullPath != absProjectRoot {
 		return "", fmt.Errorf("path traversal not allowed")
 	}
@@ -569,11 +592,11 @@ func (te *ToolExecutorImpl) readFile(args map[string]any, projectRoot string) (s
 	}
 
 	lines := strings.Split(string(content), "\n")
-	
+
 	// Handle line range
 	startLine := 1
 	endLine := len(lines)
-	
+
 	if sl, ok := args["start_line"].(float64); ok && sl > 0 {
 		startLine = int(sl)
 	}
@@ -613,63 +636,75 @@ func (te *ToolExecutorImpl) listDirectory(args map[string]any, projectRoot strin
 	}
 
 	var entries []string
-	
 	if recursive {
-		baseDepth := strings.Count(targetDir, string(os.PathSeparator))
-		
-		filepath.Walk(targetDir, func(p string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			
-			depth := strings.Count(p, string(os.PathSeparator)) - baseDepth
-			if depth > maxDepth {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			
-			relPath, _ := filepath.Rel(projectRoot, p)
-			if relPath == "." {
-				return nil
-			}
-			
-			// Skip ignored
-			if info.IsDir() && (info.Name() == "node_modules" || info.Name() == ".git") {
-				return filepath.SkipDir
-			}
-			
-			prefix := strings.Repeat("  ", depth)
-			if info.IsDir() {
-				entries = append(entries, fmt.Sprintf("%s📁 %s/", prefix, info.Name()))
-			} else {
-				entries = append(entries, fmt.Sprintf("%s📄 %s (%d bytes)", prefix, info.Name(), info.Size()))
-			}
-			
-			return nil
-		})
+		entries = te.listDirectoryRecursive(targetDir, projectRoot, maxDepth)
 	} else {
-		files, err := os.ReadDir(targetDir)
+		var err error
+		entries, err = te.listDirectoryFlat(targetDir)
 		if err != nil {
 			return "", err
-		}
-		
-		for _, f := range files {
-			info, _ := f.Info()
-			if f.IsDir() {
-				entries = append(entries, fmt.Sprintf("📁 %s/", f.Name()))
-			} else if info != nil {
-				entries = append(entries, fmt.Sprintf("📄 %s (%d bytes)", f.Name(), info.Size()))
-			}
 		}
 	}
 
 	if len(entries) == 0 {
 		return "Directory is empty", nil
 	}
-
 	return strings.Join(entries, "\n"), nil
+}
+
+// listDirectoryRecursive lists directory contents recursively
+func (te *ToolExecutorImpl) listDirectoryRecursive(targetDir, projectRoot string, maxDepth int) []string {
+	var entries []string
+	baseDepth := strings.Count(targetDir, string(os.PathSeparator))
+
+	_ = filepath.Walk(targetDir, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		depth := strings.Count(p, string(os.PathSeparator)) - baseDepth
+		if depth > maxDepth {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if relPath, _ := filepath.Rel(projectRoot, p); relPath == "." {
+			return nil
+		}
+		if info.IsDir() && (info.Name() == "node_modules" || info.Name() == ".git") {
+			return filepath.SkipDir
+		}
+		entries = append(entries, te.formatEntry(info, depth))
+		return nil
+	})
+	return entries
+}
+
+// listDirectoryFlat lists directory contents non-recursively
+func (te *ToolExecutorImpl) listDirectoryFlat(targetDir string) ([]string, error) {
+	files, err := os.ReadDir(targetDir)
+	if err != nil {
+		return nil, err
+	}
+	var entries []string
+	for _, f := range files {
+		info, _ := f.Info()
+		if f.IsDir() {
+			entries = append(entries, fmt.Sprintf("📁 %s/", f.Name()))
+		} else if info != nil {
+			entries = append(entries, fmt.Sprintf("📄 %s (%d bytes)", f.Name(), info.Size()))
+		}
+	}
+	return entries, nil
+}
+
+// formatEntry formats a file/directory entry with indentation
+func (te *ToolExecutorImpl) formatEntry(info os.FileInfo, depth int) string {
+	prefix := strings.Repeat("  ", depth)
+	if info.IsDir() {
+		return fmt.Sprintf("%s📁 %s/", prefix, info.Name())
+	}
+	return fmt.Sprintf("%s📄 %s (%d bytes)", prefix, info.Name(), info.Size())
 }
 
 // getFileInfo returns file metadata
@@ -712,68 +747,94 @@ func (te *ToolExecutorImpl) listFunctions(args map[string]any, projectRoot strin
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
-	var functions []string
+	functions := te.extractFunctions(string(content), ext)
 
-	switch ext {
-	case ".go":
-		// Simple regex for Go functions
-		re := regexp.MustCompile(`func\s+(\([^)]+\)\s+)?(\w+)\s*\(`)
-		matches := re.FindAllStringSubmatch(string(content), -1)
-		for _, m := range matches {
-			if len(m) >= 3 {
-				functions = append(functions, m[2])
-			}
-		}
-	case ".ts", ".js", ".tsx", ".jsx":
-		// Simple regex for JS/TS functions
-		patterns := []string{
-			`function\s+(\w+)\s*\(`,           // function name()
-			`(\w+)\s*=\s*(?:async\s+)?function`, // name = function
-			`(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>`, // name = () =>
-			`(?:async\s+)?(\w+)\s*\([^)]*\)\s*{`, // method name() {
-		}
-		for _, p := range patterns {
-			re := regexp.MustCompile(p)
-			matches := re.FindAllStringSubmatch(string(content), -1)
-			for _, m := range matches {
-				if len(m) >= 2 && m[1] != "" {
-					functions = append(functions, m[1])
-				}
-			}
-		}
-	case ".vue":
-		// Extract from <script> section
-		scriptRe := regexp.MustCompile(`<script[^>]*>([\s\S]*?)</script>`)
-		scriptMatch := scriptRe.FindStringSubmatch(string(content))
-		if len(scriptMatch) >= 2 {
-			script := scriptMatch[1]
-			funcRe := regexp.MustCompile(`(?:function|const|let|var)\s+(\w+)`)
-			matches := funcRe.FindAllStringSubmatch(script, -1)
-			for _, m := range matches {
-				if len(m) >= 2 {
-					functions = append(functions, m[1])
-				}
-			}
-		}
-	default:
+	if functions == nil {
 		return "Unsupported file type for function extraction: " + ext, nil
 	}
-
 	if len(functions) == 0 {
 		return "No functions found in " + path, nil
 	}
 
-	// Remove duplicates
-	seen := make(map[string]bool)
-	var unique []string
-	for _, f := range functions {
-		if !seen[f] {
-			seen[f] = true
-			unique = append(unique, f)
+	unique := removeDuplicateFunctions(functions)
+	return fmt.Sprintf("Functions in %s:\n- %s", path, strings.Join(unique, "\n- ")), nil
+}
+
+// extractFunctions extracts function names based on file extension
+func (te *ToolExecutorImpl) extractFunctions(content, ext string) []string {
+	switch ext {
+	case extGo:
+		return te.extractGoFunctions(content)
+	case extTS, extJS, ".tsx", ".jsx":
+		return te.extractJSFunctions(content)
+	case extVue:
+		return te.extractVueFunctions(content)
+	default:
+		return nil
+	}
+}
+
+// extractGoFunctions extracts Go function names
+func (te *ToolExecutorImpl) extractGoFunctions(content string) []string {
+	re := regexp.MustCompile(`func\s+(\([^)]+\)\s+)?(\w+)\s*\(`)
+	matches := re.FindAllStringSubmatch(content, -1)
+	var functions []string
+	for _, m := range matches {
+		if len(m) >= 3 {
+			functions = append(functions, m[2])
 		}
 	}
+	return functions
+}
 
-	return fmt.Sprintf("Functions in %s:\n- %s", path, strings.Join(unique, "\n- ")), nil
+// extractJSFunctions extracts JS/TS function names
+func (te *ToolExecutorImpl) extractJSFunctions(content string) []string {
+	patterns := []string{
+		`function\s+(\w+)\s*\(`,
+		`(\w+)\s*=\s*(?:async\s+)?function`,
+		`(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>`,
+		`(?:async\s+)?(\w+)\s*\([^)]*\)\s*{`,
+	}
+	var functions []string
+	for _, p := range patterns {
+		re := regexp.MustCompile(p)
+		for _, m := range re.FindAllStringSubmatch(content, -1) {
+			if len(m) >= 2 && m[1] != "" {
+				functions = append(functions, m[1])
+			}
+		}
+	}
+	return functions
+}
+
+// extractVueFunctions extracts Vue script function names
+func (te *ToolExecutorImpl) extractVueFunctions(content string) []string {
+	scriptRe := regexp.MustCompile(`<script[^>]*>([\s\S]*?)</script>`)
+	scriptMatch := scriptRe.FindStringSubmatch(content)
+	if len(scriptMatch) < 2 {
+		return []string{}
+	}
+	funcRe := regexp.MustCompile(`(?:function|const|let|var)\s+(\w+)`)
+	var functions []string
+	for _, m := range funcRe.FindAllStringSubmatch(scriptMatch[1], -1) {
+		if len(m) >= 2 {
+			functions = append(functions, m[1])
+		}
+	}
+	return functions
+}
+
+// removeDuplicateFunctions removes duplicate function names
+func removeDuplicateFunctions(items []string) []string {
+	seen := make(map[string]bool)
+	var unique []string
+	for _, item := range items {
+		if !seen[item] {
+			seen[item] = true
+			unique = append(unique, item)
+		}
+	}
+	return unique
 }
 
 // gitStatus returns git status
@@ -790,7 +851,7 @@ func (te *ToolExecutorImpl) gitStatus(projectRoot string) (string, error) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	var result []string
+	result := make([]string, 0, len(lines))
 	for _, line := range lines {
 		if len(line) < 3 {
 			continue
@@ -899,7 +960,7 @@ func (te *ToolExecutorImpl) listSymbols(args map[string]any, projectRoot string)
 		return fmt.Sprintf("No analyzer available for file type: %s", filepath.Ext(path)), nil
 	}
 
-	symbols, err := analyzer.ExtractSymbols(nil, path, content)
+	symbols, err := analyzer.ExtractSymbols(context.Background(), path, content)
 	if err != nil {
 		return "", err
 	}
@@ -920,7 +981,7 @@ func (te *ToolExecutorImpl) listSymbols(args map[string]any, projectRoot string)
 	}
 
 	// Format output
-	var lines []string
+	lines := make([]string, 0, len(symbols)+1)
 	lines = append(lines, fmt.Sprintf("Symbols in %s (%s):", path, analyzer.Language()))
 	for _, s := range symbols {
 		line := fmt.Sprintf("  [%s] %s", s.Kind, s.Name)
@@ -942,7 +1003,6 @@ func (te *ToolExecutorImpl) listSymbols(args map[string]any, projectRoot string)
 // getImports uses language analyzers to extract imports from a file
 func (te *ToolExecutorImpl) getImports(args map[string]any, projectRoot string) (string, error) {
 	path, _ := args["path"].(string)
-
 	if path == "" {
 		return "", fmt.Errorf("path is required")
 	}
@@ -958,7 +1018,7 @@ func (te *ToolExecutorImpl) getImports(args map[string]any, projectRoot string) 
 		return fmt.Sprintf("No analyzer available for file type: %s", filepath.Ext(path)), nil
 	}
 
-	imports, err := analyzer.GetImports(nil, path, content)
+	imports, err := analyzer.GetImports(context.Background(), path, content)
 	if err != nil {
 		return "", err
 	}
@@ -967,50 +1027,54 @@ func (te *ToolExecutorImpl) getImports(args map[string]any, projectRoot string) 
 		return fmt.Sprintf("No imports found in %s", path), nil
 	}
 
-	// Format output
+	localImports, externalImports := te.separateImports(imports)
+	return te.formatImportsOutput(path, localImports, externalImports), nil
+}
+
+// separateImports separates imports into local and external
+func (te *ToolExecutorImpl) separateImports(imports []analysis.Import) ([]analysis.Import, []analysis.Import) {
+	var local, external []analysis.Import
+	for _, imp := range imports {
+		if imp.IsLocal {
+			local = append(local, imp)
+		} else {
+			external = append(external, imp)
+		}
+	}
+	return local, external
+}
+
+// formatImportsOutput formats imports for display
+func (te *ToolExecutorImpl) formatImportsOutput(path string, local, external []analysis.Import) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Imports in %s:", path))
 
-	var localImports, externalImports []analysis.Import
-	for _, imp := range imports {
-		if imp.IsLocal {
-			localImports = append(localImports, imp)
-		} else {
-			externalImports = append(externalImports, imp)
-		}
-	}
-
-	if len(localImports) > 0 {
+	if len(local) > 0 {
 		lines = append(lines, "\nLocal imports:")
-		for _, imp := range localImports {
-			line := "  " + imp.Path
-			if imp.Alias != "" {
-				line += " as " + imp.Alias
-			}
-			if len(imp.Names) > 0 {
-				line += " { " + strings.Join(imp.Names, ", ") + " }"
-			}
-			lines = append(lines, line)
-		}
+		lines = append(lines, te.formatImportLines(local)...)
 	}
-
-	if len(externalImports) > 0 {
+	if len(external) > 0 {
 		lines = append(lines, "\nExternal imports:")
-		for _, imp := range externalImports {
-			line := "  " + imp.Path
-			if imp.Alias != "" {
-				line += " as " + imp.Alias
-			}
-			if len(imp.Names) > 0 {
-				line += " { " + strings.Join(imp.Names, ", ") + " }"
-			}
-			lines = append(lines, line)
-		}
+		lines = append(lines, te.formatImportLines(external)...)
 	}
-
-	return strings.Join(lines, "\n"), nil
+	return strings.Join(lines, "\n")
 }
 
+// formatImportLines formats a slice of imports as lines
+func (te *ToolExecutorImpl) formatImportLines(imports []analysis.Import) []string {
+	lines := make([]string, 0, len(imports))
+	for _, imp := range imports {
+		line := "  " + imp.Path
+		if imp.Alias != "" {
+			line += " as " + imp.Alias
+		}
+		if len(imp.Names) > 0 {
+			line += " { " + strings.Join(imp.Names, ", ") + " }"
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
 
 // searchSymbols searches for symbols across the project
 func (te *ToolExecutorImpl) searchSymbols(args map[string]any, projectRoot string) (string, error) {
@@ -1024,7 +1088,7 @@ func (te *ToolExecutorImpl) searchSymbols(args map[string]any, projectRoot strin
 	// Ensure index is built
 	if !te.symbolIndex.IsIndexed() {
 		te.logger.Info("Building symbol index...")
-		if err := te.symbolIndex.IndexProject(nil, projectRoot); err != nil {
+		if err := te.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
 			return "", fmt.Errorf("failed to build index: %w", err)
 		}
 		stats := te.symbolIndex.Stats()
@@ -1055,7 +1119,7 @@ func (te *ToolExecutorImpl) searchSymbols(args map[string]any, projectRoot strin
 	}
 
 	// Format output
-	var lines []string
+	lines := make([]string, 0, len(results)+1)
 	lines = append(lines, fmt.Sprintf("Found %d symbols matching '%s':", len(results), query))
 	for _, s := range results {
 		line := fmt.Sprintf("  [%s] %s", s.Kind, s.Name)
@@ -1083,7 +1147,7 @@ func (te *ToolExecutorImpl) findDefinition(args map[string]any, projectRoot stri
 	// Ensure index is built
 	if !te.symbolIndex.IsIndexed() {
 		te.logger.Info("Building symbol index...")
-		if err := te.symbolIndex.IndexProject(nil, projectRoot); err != nil {
+		if err := te.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
 			return "", fmt.Errorf("failed to build index: %w", err)
 		}
 	}
@@ -1147,13 +1211,13 @@ func (te *ToolExecutorImpl) findReferences(args map[string]any, projectRoot stri
 
 	// Use ReferenceFinder
 	refFinder := analyzers.NewReferenceFinder(te.registry)
-	
+
 	var kind analysis.SymbolKind
 	if kindFilter != "" {
 		kind = analysis.SymbolKind(kindFilter)
 	}
 
-	refs, err := refFinder.FindReferences(nil, projectRoot, name, kind)
+	refs, err := refFinder.FindReferences(context.Background(), projectRoot, name, kind)
 	if err != nil {
 		return "", fmt.Errorf("failed to find references: %w", err)
 	}
@@ -1185,7 +1249,7 @@ func (te *ToolExecutorImpl) findReferences(args map[string]any, projectRoot stri
 		}
 	}
 
-	result.WriteString(fmt.Sprintf("Found %d references to '%s' (%d definitions, %d usages):\n\n", 
+	result.WriteString(fmt.Sprintf("Found %d references to '%s' (%d definitions, %d usages):\n\n",
 		len(refs), name, defCount, usageCount))
 
 	for _, ref := range refs {

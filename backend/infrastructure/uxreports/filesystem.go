@@ -39,7 +39,7 @@ func (r *FileSystemUXReportRepository) LoadReport(reportID string) (*domain.UXRe
 // SaveReport saves a UX report
 func (r *FileSystemUXReportRepository) SaveReport(report *domain.UXReport) error {
 	// Create directory if needed
-	if err := os.MkdirAll(r.reportsDir, 0755); err != nil {
+	if err := os.MkdirAll(r.reportsDir, 0o755); err != nil {
 		return err
 	}
 
@@ -49,13 +49,13 @@ func (r *FileSystemUXReportRepository) SaveReport(report *domain.UXReport) error
 		return err
 	}
 
-	return os.WriteFile(reportPath, data, 0644)
+	return os.WriteFile(reportPath, data, 0o600)
 }
 
 // ListReports returns all UX reports of a specific type
 func (r *FileSystemUXReportRepository) ListReports(reportType domain.UXReportType) ([]*domain.UXReport, error) {
 	// Create directory if needed
-	if err := os.MkdirAll(r.reportsDir, 0755); err != nil {
+	if err := os.MkdirAll(r.reportsDir, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +64,7 @@ func (r *FileSystemUXReportRepository) ListReports(reportType domain.UXReportTyp
 		return nil, err
 	}
 
-	var reports []*domain.UXReport
+	reports := make([]*domain.UXReport, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue

@@ -250,7 +250,7 @@ func (s *TaskProtocolConfigService) createDefaultDomainConfig() *domain.TaskProt
 func (s *TaskProtocolConfigService) createDefaultConfiguration(configPath string) error {
 	// Ensure directory exists
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -282,7 +282,7 @@ task_protocol:
 `
 
 	// Write to file
-	return s.fileSystem.WriteFile(configPath, []byte(defaultContent), 0644)
+	return s.fileSystem.WriteFile(configPath, []byte(defaultContent), 0o644)
 }
 
 func (s *TaskProtocolConfigService) fileExists(filename string) bool {

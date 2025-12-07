@@ -155,7 +155,7 @@ func TestTokenEstimation_SimpleAlgorithm(t *testing.T) {
 			assert.Equal(t, tc.expected, estimated)
 
 			// Validate token count is reasonable
-			if len(tc.content) > 0 {
+			if tc.content != "" {
 				assert.Greater(t, estimated, -1) // Should be >= 0
 			}
 		})

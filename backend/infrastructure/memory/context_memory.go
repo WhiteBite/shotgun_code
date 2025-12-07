@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // SQLite driver
 )
 
 // ContextMemoryImpl implements domain.ContextMemory interface
@@ -22,9 +22,32 @@ type ContextMemoryImpl struct {
 // Ensure ContextMemoryImpl implements domain.ContextMemory
 var _ domain.ContextMemory = (*ContextMemoryImpl)(nil)
 
+// scanContextRows scans rows into ConversationContext slice
+func scanContextRows(rows *sql.Rows) ([]*domain.ConversationContext, error) {
+	var contexts []*domain.ConversationContext
+	for rows.Next() {
+		var ctx domain.ConversationContext
+		var filesJSON, symbolsJSON string
+		var lastAccessed, createdAt int64
+
+		if err := rows.Scan(&ctx.ID, &ctx.ProjectRoot, &ctx.Topic, &filesJSON, &symbolsJSON,
+			&ctx.Summary, &lastAccessed, &createdAt, &ctx.MessageCount); err != nil {
+			continue
+		}
+
+		_ = json.Unmarshal([]byte(filesJSON), &ctx.Files)
+		_ = json.Unmarshal([]byte(symbolsJSON), &ctx.Symbols)
+		ctx.LastAccessed = time.Unix(lastAccessed, 0)
+		ctx.CreatedAt = time.Unix(createdAt, 0)
+
+		contexts = append(contexts, &ctx)
+	}
+	return contexts, nil
+}
+
 // NewContextMemory creates a new context memory store
 func NewContextMemory(cacheDir string) (*ContextMemoryImpl, error) {
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +105,6 @@ func (cm *ContextMemoryImpl) initDB() error {
 	return err
 }
 
-
 // SaveContext saves or updates a conversation context
 func (cm *ContextMemoryImpl) SaveContext(ctx *domain.ConversationContext) error {
 	cm.mu.Lock()
@@ -120,13 +142,13 @@ func (cm *ContextMemoryImpl) GetContext(id string) (*domain.ConversationContext,
 		return nil, err
 	}
 
-	json.Unmarshal([]byte(filesJSON), &ctx.Files)
-	json.Unmarshal([]byte(symbolsJSON), &ctx.Symbols)
+	_ = json.Unmarshal([]byte(filesJSON), &ctx.Files)
+	_ = json.Unmarshal([]byte(symbolsJSON), &ctx.Symbols)
 	ctx.LastAccessed = time.Unix(lastAccessed, 0)
 	ctx.CreatedAt = time.Unix(createdAt, 0)
 
 	// Update last accessed
-	cm.db.Exec("UPDATE contexts SET last_accessed = ? WHERE id = ?", time.Now().Unix(), id)
+	_, _ = cm.db.Exec("UPDATE contexts SET last_accessed = ? WHERE id = ?", time.Now().Unix(), id)
 
 	return &ctx, nil
 }
@@ -149,24 +171,7 @@ func (cm *ContextMemoryImpl) FindContextByTopic(projectRoot, topic string) ([]*d
 	}
 	defer rows.Close()
 
-	var contexts []*domain.ConversationContext
-	for rows.Next() {
-		var ctx domain.ConversationContext
-		var filesJSON, symbolsJSON string
-		var lastAccessed, createdAt int64
-
-		rows.Scan(&ctx.ID, &ctx.ProjectRoot, &ctx.Topic, &filesJSON, &symbolsJSON,
-			&ctx.Summary, &lastAccessed, &createdAt, &ctx.MessageCount)
-
-		json.Unmarshal([]byte(filesJSON), &ctx.Files)
-		json.Unmarshal([]byte(symbolsJSON), &ctx.Symbols)
-		ctx.LastAccessed = time.Unix(lastAccessed, 0)
-		ctx.CreatedAt = time.Unix(createdAt, 0)
-
-		contexts = append(contexts, &ctx)
-	}
-
-	return contexts, nil
+	return scanContextRows(rows)
 }
 
 // GetRecentContexts returns recent contexts for a project
@@ -191,24 +196,7 @@ func (cm *ContextMemoryImpl) GetRecentContexts(projectRoot string, limit int) ([
 	}
 	defer rows.Close()
 
-	var contexts []*domain.ConversationContext
-	for rows.Next() {
-		var ctx domain.ConversationContext
-		var filesJSON, symbolsJSON string
-		var lastAccessed, createdAt int64
-
-		rows.Scan(&ctx.ID, &ctx.ProjectRoot, &ctx.Topic, &filesJSON, &symbolsJSON,
-			&ctx.Summary, &lastAccessed, &createdAt, &ctx.MessageCount)
-
-		json.Unmarshal([]byte(filesJSON), &ctx.Files)
-		json.Unmarshal([]byte(symbolsJSON), &ctx.Symbols)
-		ctx.LastAccessed = time.Unix(lastAccessed, 0)
-		ctx.CreatedAt = time.Unix(createdAt, 0)
-
-		contexts = append(contexts, &ctx)
-	}
-
-	return contexts, nil
+	return scanContextRows(rows)
 }
 
 // SetPreference saves a user preference
@@ -248,7 +236,9 @@ func (cm *ContextMemoryImpl) GetAllPreferences() (map[string]string, error) {
 	prefs := make(map[string]string)
 	for rows.Next() {
 		var key, value string
-		rows.Scan(&key, &value)
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
 		prefs[key] = value
 	}
 

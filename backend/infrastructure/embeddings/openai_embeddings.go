@@ -20,9 +20,9 @@ func NewOpenAIEmbeddingProvider(apiKey string, model domain.EmbeddingModel, log 
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
-	
+
 	client := openai.NewClient(apiKey)
-	
+
 	return &OpenAIEmbeddingProvider{
 		client: client,
 		model:  model,
@@ -35,17 +35,17 @@ func (p *OpenAIEmbeddingProvider) GenerateEmbeddings(ctx context.Context, req do
 	if err := p.ValidateRequest(req); err != nil {
 		return nil, err
 	}
-	
+
 	model := req.Model
 	if model == "" {
 		model = p.model
 	}
-	
+
 	// Map domain model to OpenAI model
 	openaiModel := mapToOpenAIModel(model)
-	
+
 	p.log.Info(fmt.Sprintf("Generating embeddings for %d texts using model %s", len(req.Texts), openaiModel))
-	
+
 	// OpenAI supports batch embedding
 	resp, err := p.client.CreateEmbeddings(ctx, openai.EmbeddingRequest{
 		Input: req.Texts,
@@ -55,15 +55,15 @@ func (p *OpenAIEmbeddingProvider) GenerateEmbeddings(ctx context.Context, req do
 		p.log.Error(fmt.Sprintf("Failed to generate embeddings: %v", err))
 		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
 	}
-	
+
 	// Convert response
 	embeddings := make([]domain.EmbeddingVector, len(resp.Data))
 	for i, data := range resp.Data {
 		embeddings[i] = data.Embedding
 	}
-	
+
 	p.log.Info(fmt.Sprintf("Generated %d embeddings, tokens used: %d", len(embeddings), resp.Usage.TotalTokens))
-	
+
 	return &domain.EmbeddingResponse{
 		Embeddings: embeddings,
 		Model:      model,
@@ -86,19 +86,19 @@ func (p *OpenAIEmbeddingProvider) ValidateRequest(req domain.EmbeddingRequest) e
 	if len(req.Texts) == 0 {
 		return fmt.Errorf("at least one text is required")
 	}
-	
+
 	// OpenAI has a limit on batch size
 	if len(req.Texts) > 2048 {
 		return fmt.Errorf("batch size exceeds maximum of 2048")
 	}
-	
+
 	// Check for empty texts
 	for i, text := range req.Texts {
 		if text == "" {
 			return fmt.Errorf("text at index %d is empty", i)
 		}
 	}
-	
+
 	return nil
 }
 

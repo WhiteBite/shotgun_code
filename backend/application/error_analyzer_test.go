@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testMainGoContent = "package main\n\nfunc main() {}"
+
 // TestErrorAnalyzer_AnalyzeError tests error analysis functionality
 func TestErrorAnalyzer_AnalyzeError(t *testing.T) {
 	tests := []struct {
@@ -239,7 +241,7 @@ func TestCorrectionEngine_ApplyCorrection(t *testing.T) {
 				Description: "Fix import statement",
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.ReadFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = testMainGoContent
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				// Import fix is a placeholder - returns false when no changes made
@@ -291,7 +293,7 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 				},
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.ReadFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = testMainGoContent
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return result.Success &&
@@ -313,7 +315,7 @@ func TestCorrectionEngine_ApplyCorrections(t *testing.T) {
 				},
 			},
 			mockSetup: func(mock *MockFileSystemProvider) {
-				mock.ReadFileContent = "package main\n\nfunc main() {}"
+				mock.ReadFileContent = testMainGoContent
 			},
 			expected: func(result *domain.CorrectionResult) bool {
 				return !result.Success // Should fail due to unsupported action

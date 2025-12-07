@@ -107,7 +107,7 @@ func (a *RuffAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyze
 	}
 
 	// Генерируем сводку
-	result.Summary = a.generateSummary(issues)
+	result.Summary = generateSummary(issues)
 
 	a.log.Info(fmt.Sprintf("Ruff analysis completed in %.2fs, found %d issues", duration, len(issues)))
 	return result, nil
@@ -178,109 +178,75 @@ func (a *RuffAnalyzer) hasPythonFilePaths(projectPath string) bool {
 
 // parseRuffOutput парсит JSON вывод Ruff
 func (a *RuffAnalyzer) parseRuffOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
-
-	// Ruff выводит JSON в формате:
-	// [{"code": "E501", "message": "line too long", "location": {"row": 1, "column": 80}, "end_location": {"row": 1, "column": 120}, "filename": "test.py"}]
-
-	// Простой парсинг JSON (в реальной реализации нужно использовать encoding/json)
-	outputStr := string(output)
-	lines := strings.Split(outputStr, "\n")
+	lines := strings.Split(string(output), "\n")
+	issues := make([]*domain.StaticIssue, 0, len(lines))
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.Contains(line, "\"code\"") {
-			continue
+		if issue := a.parseRuffLine(strings.TrimSpace(line)); issue != nil {
+			issues = append(issues, issue)
 		}
+	}
+	return issues, nil
+}
 
-		// Извлекаем код ошибки
-		codeStart := strings.Index(line, "\"code\": \"")
-		if codeStart == -1 {
-			continue
-		}
-		codeStart += 9
-		codeEnd := strings.Index(line[codeStart:], "\"")
-		if codeEnd == -1 {
-			continue
-		}
-		code := line[codeStart : codeStart+codeEnd]
-
-		// Извлекаем сообщение
-		messageStart := strings.Index(line, "\"message\": \"")
-		if messageStart == -1 {
-			continue
-		}
-		messageStart += 12
-		messageEnd := strings.Index(line[messageStart:], "\"")
-		if messageEnd == -1 {
-			continue
-		}
-		message := line[messageStart : messageStart+messageEnd]
-
-		// Извлекаем файл
-		filenameStart := strings.Index(line, "\"filename\": \"")
-		if filenameStart == -1 {
-			continue
-		}
-		filenameStart += 13
-		filenameEnd := strings.Index(line[filenameStart:], "\"")
-		if filenameEnd == -1 {
-			continue
-		}
-		filename := line[filenameStart : filenameStart+filenameEnd]
-
-		// Извлекаем строку
-		rowStart := strings.Index(line, "\"row\": ")
-		if rowStart == -1 {
-			continue
-		}
-		rowStart += 7
-		rowEnd := strings.Index(line[rowStart:], ",")
-		if rowEnd == -1 {
-			continue
-		}
-		row := 0
-		if _, scanErr := fmt.Sscanf(line[rowStart:rowStart+rowEnd], "%d", &row); scanErr != nil {
-			a.log.Warning(fmt.Sprintf("Failed to parse Ruff diagnostic row: %v", scanErr))
-			continue
-		}
-
-		// Извлекаем колонку
-		columnStart := strings.Index(line, "\"column\": ")
-		if columnStart == -1 {
-			continue
-		}
-		columnStart += 11
-		columnEnd := strings.Index(line[columnStart:], ",")
-		if columnEnd == -1 {
-			continue
-		}
-		column := 0
-		if _, scanErr := fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &column); scanErr != nil {
-			a.log.Warning(fmt.Sprintf("Failed to parse Ruff diagnostic column: %v", scanErr))
-			continue
-		}
-
-		// Определяем severity
-		severity := "warning"
-		if strings.HasPrefix(code, "E") {
-			severity = "error"
-		}
-
-		issue := &domain.StaticIssue{
-			File:     filename,
-			Line:     row,
-			Column:   column,
-			Severity: severity,
-			Message:  message,
-			Code:     code,
-			Category: a.getCategory(code),
-		}
-
-		issues = append(issues, issue)
+// parseRuffLine parses a single Ruff output line
+func (a *RuffAnalyzer) parseRuffLine(line string) *domain.StaticIssue {
+	if line == "" || !strings.Contains(line, "\"code\"") {
+		return nil
 	}
 
-	return issues, nil
+	code := extractJSONString(line, "\"code\": \"")
+	message := extractJSONString(line, "\"message\": \"")
+	filename := extractJSONString(line, "\"filename\": \"")
+	row := extractJSONInt(line, "\"row\": ")
+	column := extractJSONInt(line, "\"column\": ")
+
+	if code == "" || filename == "" {
+		return nil
+	}
+
+	severity := "warning"
+	if strings.HasPrefix(code, "E") {
+		severity = "error"
+	}
+
+	return &domain.StaticIssue{
+		File: filename, Line: row, Column: column,
+		Severity: severity, Message: message, Code: code, Category: a.getCategory(code),
+	}
+}
+
+// extractJSONString extracts a string value from JSON-like line
+func extractJSONString(line, prefix string) string {
+	start := strings.Index(line, prefix)
+	if start == -1 {
+		return ""
+	}
+	start += len(prefix)
+	end := strings.Index(line[start:], "\"")
+	if end == -1 {
+		return ""
+	}
+	return line[start : start+end]
+}
+
+// extractJSONInt extracts an int value from JSON-like line
+func extractJSONInt(line, prefix string) int {
+	start := strings.Index(line, prefix)
+	if start == -1 {
+		return 0
+	}
+	start += len(prefix)
+	end := strings.Index(line[start:], ",")
+	if end == -1 {
+		end = strings.Index(line[start:], "}")
+	}
+	if end == -1 {
+		return 0
+	}
+	var val int
+	_, _ = fmt.Sscanf(line[start:start+end], "%d", &val)
+	return val
 }
 
 // getCategory определяет категорию проблемы по коду
@@ -298,45 +264,5 @@ func (a *RuffAnalyzer) getCategory(code string) string {
 	} else if strings.HasPrefix(code, "UP") {
 		return "pyupgrade"
 	}
-	return "other"
-}
-
-// generateSummary генерирует сводку анализа
-func (a *RuffAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
-	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
-	}
-
-	filesWithIssues := make(map[string]bool)
-
-	for _, issue := range issues {
-		// Подсчитываем по severity
-		summary.SeverityBreakdown[issue.Severity]++
-
-		// Подсчитываем по категориям
-		summary.CategoryBreakdown[issue.Category]++
-
-		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
-
-		// Подсчитываем по типам
-		switch issue.Severity {
-		case "error":
-			summary.ErrorCount++
-		case "warning":
-			summary.WarningCount++
-		case "info":
-			summary.InfoCount++
-		case "hint":
-			summary.HintCount++
-		}
-	}
-
-	summary.FilesWithIssues = len(filesWithIssues)
-
-	return summary
+	return severityOther
 }

@@ -30,13 +30,13 @@ func (ls *LazyService[T]) Get(ctx context.Context) (T, error) {
 	if ls.initialized {
 		service := ls.service
 		ls.mu.RUnlock()
-		
+
 		// Update access tracking
 		ls.mu.Lock()
 		ls.lastAccessed = time.Now()
 		ls.accessCount++
 		ls.mu.Unlock()
-		
+
 		return service, nil
 	}
 	ls.mu.RUnlock()
@@ -63,13 +63,13 @@ func (ls *LazyService[T]) Get(ctx context.Context) (T, error) {
 	ls.initTime = time.Now()
 	ls.lastAccessed = time.Now()
 	ls.accessCount = 1
-	
+
 	initDuration := time.Since(startTime)
 	if initDuration > 100*time.Millisecond {
 		// Log slow initializations
 		println("Lazy service initialized in", initDuration.String())
 	}
-	
+
 	return service, nil
 }
 
@@ -95,18 +95,18 @@ func (ls *LazyService[T]) Reset() {
 func (ls *LazyService[T]) GetStats() map[string]interface{} {
 	ls.mu.RLock()
 	defer ls.mu.RUnlock()
-	
+
 	stats := map[string]interface{}{
 		"initialized":  ls.initialized,
 		"access_count": ls.accessCount,
 	}
-	
+
 	if ls.initialized {
 		stats["init_time"] = ls.initTime
 		stats["last_accessed"] = ls.lastAccessed
 		stats["idle_duration"] = time.Since(ls.lastAccessed).String()
 	}
-	
+
 	return stats
 }
 
@@ -114,11 +114,11 @@ func (ls *LazyService[T]) GetStats() map[string]interface{} {
 func (ls *LazyService[T]) ShouldUnload(idleThreshold time.Duration) bool {
 	ls.mu.RLock()
 	defer ls.mu.RUnlock()
-	
+
 	if !ls.initialized {
 		return false
 	}
-	
+
 	return time.Since(ls.lastAccessed) > idleThreshold
 }
 
@@ -146,7 +146,7 @@ func (m *LazyServiceManager) Register(name string, service interface{}) {
 func (m *LazyServiceManager) GetInitializationStats() map[string]interface{} {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	stats := make(map[string]interface{})
 	for name, svc := range m.services {
 		// Try to get stats if the service supports it
@@ -154,7 +154,7 @@ func (m *LazyServiceManager) GetInitializationStats() map[string]interface{} {
 			stats[name] = statsGetter.GetStats()
 		}
 	}
-	
+
 	return stats
 }
 
@@ -162,7 +162,7 @@ func (m *LazyServiceManager) GetInitializationStats() map[string]interface{} {
 func (m *LazyServiceManager) UnloadUnusedServices(idleTime time.Duration) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	unloaded := 0
 	for name, svc := range m.services {
 		// Try to unload if the service supports it
@@ -176,6 +176,6 @@ func (m *LazyServiceManager) UnloadUnusedServices(idleTime time.Duration) int {
 			}
 		}
 	}
-	
+
 	return unloaded
 }

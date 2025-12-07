@@ -98,7 +98,7 @@ func helper() {
 	}
 
 	chunks := chunker.ChunkFile("main.go", content, symbols)
-	
+
 	// Should have chunks (may include remaining lines chunk too)
 	if len(chunks) == 0 {
 		t.Error("expected at least one chunk")
@@ -123,7 +123,7 @@ func helper() {
 
 func TestEstimateTokens(t *testing.T) {
 	tests := []struct {
-		text     string
+		text      string
 		minTokens int
 		maxTokens int
 	}{
@@ -136,7 +136,7 @@ func TestEstimateTokens(t *testing.T) {
 	for _, tt := range tests {
 		tokens := estimateTokens(tt.text)
 		if tokens < tt.minTokens || tokens > tt.maxTokens {
-			t.Errorf("estimateTokens(%q) = %d, expected between %d and %d", 
+			t.Errorf("estimateTokens(%q) = %d, expected between %d and %d",
 				tt.text, tokens, tt.minTokens, tt.maxTokens)
 		}
 	}

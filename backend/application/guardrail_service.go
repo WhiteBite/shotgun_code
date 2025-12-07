@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+// Task type constants for ephemeral mode
+const (
+	taskTypeScaffold = "scaffold"
+	taskTypeDepsFix  = "deps_fix"
+)
+
 // GuardrailServiceImpl реализует GuardrailService
 type GuardrailServiceImpl struct {
 	log              domain.Logger
@@ -60,76 +66,89 @@ func (s *GuardrailServiceImpl) ValidatePath(path string) ([]domain.GuardrailViol
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var violations []domain.GuardrailViolation
+	s.checkEphemeralExpiry()
 
-	// Проверяем ephemeral mode для критических путей
+	if s.ephemeralMode && s.isCriticalPath(path) {
+		s.log.Info(fmt.Sprintf("Critical path %s allowed in ephemeral mode", path))
+		return nil, nil
+	}
+
+	var violations []domain.GuardrailViolation
+	violations = append(violations, s.validateWithOPA(path)...)
+	policyViolations, err := s.validateWithPolicies(path)
+	if err != nil {
+		return append(violations, policyViolations...), err
+	}
+	return append(violations, policyViolations...), nil
+}
+
+// checkEphemeralExpiry checks and disables expired ephemeral mode
+func (s *GuardrailServiceImpl) checkEphemeralExpiry() {
 	if s.ephemeralMode && s.isEphemeralExpired() {
 		s.disableEphemeralMode()
 	}
+}
 
-	// Проверяем, разрешен ли путь в ephemeral mode
-	if s.ephemeralMode && s.isCriticalPath(path) {
-		s.log.Info(fmt.Sprintf("Critical path %s allowed in ephemeral mode", path))
-		return violations, nil
+// validateWithOPA validates path using OPA service
+func (s *GuardrailServiceImpl) validateWithOPA(path string) []domain.GuardrailViolation {
+	if s.opaService == nil {
+		return nil
+	}
+	opaResult, err := s.opaService.ValidatePath(path)
+	if err != nil {
+		s.log.Warning(fmt.Sprintf("OPA validation failed: %v", err))
+		return nil
+	}
+	if opaResult.Valid {
+		return nil
 	}
 
-	// Дополнительная валидация через OPA политики
-	if s.opaService != nil {
-		opaResult, err := s.opaService.ValidatePath(path)
-		if err != nil {
-			s.log.Warning(fmt.Sprintf("OPA validation failed: %v", err))
-		} else if !opaResult.Valid {
-			for _, violation := range opaResult.Violations {
-				guardrailViolation := domain.GuardrailViolation{
-					PolicyID:  "opa-policy",
-					RuleID:    violation.Type,
-					Severity:  domain.GuardrailSeverityBlock,
-					Message:   violation.Message,
-					FilePath:  path,
-					Timestamp: time.Now(),
-					Context: map[string]interface{}{
-						"opa_violation":  true,
-						"violation_type": violation.Type,
-					},
-				}
-				violations = append(violations, guardrailViolation)
-			}
-		}
+	violations := make([]domain.GuardrailViolation, 0, len(opaResult.Violations))
+	for _, v := range opaResult.Violations {
+		violations = append(violations, domain.GuardrailViolation{
+			PolicyID: "opa-policy", RuleID: v.Type, Severity: domain.GuardrailSeverityBlock,
+			Message: v.Message, FilePath: path, Timestamp: time.Now(),
+			Context: map[string]interface{}{"opa_violation": true, "violation_type": v.Type},
+		})
 	}
+	return violations
+}
 
+// validateWithPolicies validates path against configured policies
+func (s *GuardrailServiceImpl) validateWithPolicies(path string) ([]domain.GuardrailViolation, error) {
+	violations := make([]domain.GuardrailViolation, 0, len(s.policies))
 	for _, policy := range s.policies {
-		if !policy.Enabled {
+		if !policy.Enabled || policy.Type != domain.GuardrailTypeForbiddenPath {
 			continue
 		}
-
-		if policy.Type == domain.GuardrailTypeForbiddenPath {
-			for _, rule := range policy.Rules {
-				if s.matchesPath(path, rule.Pattern) {
-					violation := domain.GuardrailViolation{
-						PolicyID:  policy.ID,
-						RuleID:    rule.ID,
-						Severity:  policy.Severity,
-						Message:   rule.Message,
-						FilePath:  path,
-						Timestamp: time.Now(),
-						Context: map[string]interface{}{
-							"pattern":       rule.Pattern,
-							"ephemeralMode": s.ephemeralMode,
-							"failClosed":    s.config.FailClosed,
-						},
-					}
-					violations = append(violations, violation)
-
-					// При fail-closed поведении блокируем сразу
-					if s.config.FailClosed && policy.Severity == domain.GuardrailSeverityBlock {
-						s.log.Error(fmt.Sprintf("Guardrail violation blocked: %s - %s", path, rule.Message))
-						return violations, fmt.Errorf("guardrail violation: %s", rule.Message)
-					}
-				}
-			}
+		v, err := s.checkPolicyRules(path, policy)
+		violations = append(violations, v...)
+		if err != nil {
+			return violations, err
 		}
 	}
+	return violations, nil
+}
 
+// checkPolicyRules checks path against policy rules
+func (s *GuardrailServiceImpl) checkPolicyRules(path string, policy domain.GuardrailPolicy) ([]domain.GuardrailViolation, error) {
+	violations := make([]domain.GuardrailViolation, 0, len(policy.Rules))
+	for _, rule := range policy.Rules {
+		if !s.matchesPath(path, rule.Pattern) {
+			continue
+		}
+		violation := domain.GuardrailViolation{
+			PolicyID: policy.ID, RuleID: rule.ID, Severity: policy.Severity,
+			Message: rule.Message, FilePath: path, Timestamp: time.Now(),
+			Context: map[string]interface{}{"pattern": rule.Pattern, "ephemeralMode": s.ephemeralMode, "failClosed": s.config.FailClosed},
+		}
+		violations = append(violations, violation)
+
+		if s.config.FailClosed && policy.Severity == domain.GuardrailSeverityBlock {
+			s.log.Error(fmt.Sprintf("Guardrail violation blocked: %s - %s", path, rule.Message))
+			return violations, fmt.Errorf("guardrail violation: %s", rule.Message)
+		}
+	}
 	return violations, nil
 }
 
@@ -241,13 +260,13 @@ func (s *GuardrailServiceImpl) EnableEphemeralMode(taskID string, taskType strin
 	if s.taskTypeProvider == nil {
 		s.log.Warning("TaskTypeProvider not initialized - ephemeral mode validation skipped")
 		// Fallback: allow only if explicitly scaffold/deps_fix
-		if taskType != "scaffold" && taskType != "deps_fix" {
+		if taskType != taskTypeScaffold && taskType != taskTypeDepsFix {
 			return fmt.Errorf("ephemeral mode only allowed for scaffold/deps_fix tasks")
 		}
 	}
 
 	// Проверяем, что это задача scaffold или deps_fix
-	if taskType != "scaffold" && taskType != "deps_fix" {
+	if taskType != taskTypeScaffold && taskType != taskTypeDepsFix {
 		return fmt.Errorf("ephemeral mode only allowed for scaffold/deps_fix tasks")
 	}
 

@@ -45,7 +45,7 @@ func TestService_BuildContext_EmptyContentDueToPathTraversal(t *testing.T) {
 	// - All files are filtered out by path validation
 	// - ReadContents returns empty map (no files)
 	projectPath := filepath.Join(tempDir, "project")
-	err = os.MkdirAll(projectPath, 0755)
+	err = os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 
 	// Files that would trigger path traversal warnings
@@ -77,8 +77,8 @@ func TestService_BuildContext_EmptyContentDueToPathTraversal(t *testing.T) {
 	// Build context
 	ctx := context.Background()
 	result, err := svc.BuildContext(ctx, projectPath, requestedFiles, &BuildOptions{
-		MaxTokens:      1000,
-		StripComments:  false,
+		MaxTokens:       1000,
+		StripComments:   false,
 		IncludeManifest: false,
 	})
 
@@ -147,7 +147,7 @@ func TestService_BuildContext_PartialContentDueToPathTraversal(t *testing.T) {
 	mockBus.On("Emit", mock.Anything, mock.Anything).Maybe()
 
 	projectPath := filepath.Join(tempDir, "project")
-	err = os.MkdirAll(projectPath, 0755)
+	err = os.MkdirAll(projectPath, 0o755)
 	assert.NoError(t, err)
 
 	// Request 10 files, but only 3 are valid
@@ -177,8 +177,8 @@ func TestService_BuildContext_PartialContentDueToPathTraversal(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := svc.BuildContext(ctx, projectPath, requestedFiles, &BuildOptions{
-		MaxTokens:      1000,
-		StripComments:  false,
+		MaxTokens:       1000,
+		StripComments:   false,
 		IncludeManifest: false,
 	})
 

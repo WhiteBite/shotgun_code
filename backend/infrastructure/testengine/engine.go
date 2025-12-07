@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+// Test type constants
+const (
+	testTypeUnit = "unit"
+)
+
 /*
 Targeted Tests Strategy Documentation
 
@@ -108,6 +113,49 @@ func (e *TestEngineImpl) RunTests(ctx context.Context, config *domain.TestConfig
 	return results, nil
 }
 
+// collectTargetedTests collects tests for affected files
+func (e *TestEngineImpl) collectTargetedTests(ctx context.Context, config *domain.TestConfig, affectedGraph *domain.AffectedGraph, analyzer domain.TestAnalyzer) ([]string, map[string]bool) {
+	var targetTests []string
+	testSet := make(map[string]bool)
+
+	for _, file := range affectedGraph.AffectedFiles {
+		tests, err := analyzer.FindTestsForFile(ctx, file, config.ProjectPath)
+		if err != nil {
+			e.log.Warning(fmt.Sprintf("Failed to find tests for file %s: %v", file, err))
+			continue
+		}
+		for _, test := range tests {
+			if !testSet[test] {
+				targetTests = append(targetTests, test)
+				testSet[test] = true
+			}
+		}
+	}
+	return targetTests, testSet
+}
+
+// addSmokeTests adds smoke tests to the beginning of test list
+func (e *TestEngineImpl) addSmokeTests(ctx context.Context, config *domain.TestConfig, targetTests []string, testSet map[string]bool) []string {
+	if config.Scope != domain.TestScopeAffectedSmoke && config.Scope != domain.TestScopeSmoke {
+		return targetTests
+	}
+
+	smokeTests, err := e.findSmokeTests(ctx, config.ProjectPath, config.Language)
+	if err != nil {
+		e.log.Warning(fmt.Sprintf("Failed to find smoke tests: %v", err))
+		return targetTests
+	}
+
+	e.log.Info(fmt.Sprintf("Found %d smoke tests", len(smokeTests)))
+	for _, test := range smokeTests {
+		if !testSet[test] {
+			targetTests = append([]string{test}, targetTests...)
+			testSet[test] = true
+		}
+	}
+	return targetTests
+}
+
 // RunTargetedTests выполняет целевые тесты для затронутых файлов
 func (e *TestEngineImpl) RunTargetedTests(ctx context.Context, config *domain.TestConfig, affectedGraph *domain.AffectedGraph) ([]*domain.TestResult, error) {
 	e.log.Info(fmt.Sprintf("Running targeted tests for %d affected files", len(affectedGraph.AffectedFiles)))
@@ -123,41 +171,8 @@ func (e *TestEngineImpl) RunTargetedTests(ctx context.Context, config *domain.Te
 		return e.RunTests(ctx, config)
 	}
 
-	// Находим тесты для затронутых файлов
-	var targetTests []string
-	testSet := make(map[string]bool)
-
-	for _, file := range affectedGraph.AffectedFiles {
-		tests, err := analyzer.FindTestsForFile(ctx, file, config.ProjectPath)
-		if err != nil {
-			e.log.Warning(fmt.Sprintf("Failed to find tests for file %s: %v", file, err))
-			continue
-		}
-
-		for _, test := range tests {
-			if !testSet[test] {
-				targetTests = append(targetTests, test)
-				testSet[test] = true
-			}
-		}
-	}
-
-	// Если scope включает smoke тесты, добавляем их с приоритетом
-	if config.Scope == domain.TestScopeAffectedSmoke || config.Scope == domain.TestScopeSmoke {
-		smokeTests, err := e.findSmokeTests(ctx, config.ProjectPath, config.Language)
-		if err != nil {
-			e.log.Warning(fmt.Sprintf("Failed to find smoke tests: %v", err))
-		} else {
-			e.log.Info(fmt.Sprintf("Found %d smoke tests", len(smokeTests)))
-			for _, test := range smokeTests {
-				if !testSet[test] {
-					// Добавляем smoke тесты в начало списка для приоритетного выполнения
-					targetTests = append([]string{test}, targetTests...)
-					testSet[test] = true
-				}
-			}
-		}
-	}
+	targetTests, testSet := e.collectTargetedTests(ctx, config, affectedGraph, analyzer)
+	targetTests = e.addSmokeTests(ctx, config, targetTests, testSet)
 
 	if len(targetTests) == 0 {
 		e.log.Warning("No targeted tests found, running all tests")
@@ -166,17 +181,12 @@ func (e *TestEngineImpl) RunTargetedTests(ctx context.Context, config *domain.Te
 
 	e.log.Info(fmt.Sprintf("Found %d targeted tests", len(targetTests)))
 
-	// Запускаем целевые тесты
-	var results []*domain.TestResult
+	results := make([]*domain.TestResult, 0, len(targetTests))
 	for _, testPath := range targetTests {
 		result, err := runner.RunTest(ctx, testPath, config)
 		if err != nil {
 			e.log.Warning(fmt.Sprintf("Failed to run test %s: %v", testPath, err))
-			result = &domain.TestResult{
-				Success:  false,
-				TestPath: testPath,
-				Error:    err.Error(),
-			}
+			result = &domain.TestResult{Success: false, TestPath: testPath, Error: err.Error()}
 		}
 		results = append(results, result)
 	}
@@ -260,7 +270,7 @@ func (e *TestEngineImpl) BuildAffectedGraph(ctx context.Context, changedFiles []
 	}
 
 	// Конвертируем map в slice
-	var affectedFilesList []string
+	affectedFilesList := make([]string, 0, len(affectedFiles))
 	for file := range affectedFiles {
 		affectedFilesList = append(affectedFilesList, file)
 	}
@@ -300,7 +310,7 @@ func (e *TestEngineImpl) GetTestCoverage(ctx context.Context, testPath string) (
 
 // GetSupportedLanguages возвращает поддерживаемые языки
 func (e *TestEngineImpl) GetSupportedLanguages() []string {
-	var languages []string
+	languages := make([]string, 0, len(e.testRunners))
 	for lang := range e.testRunners {
 		languages = append(languages, lang)
 	}
@@ -320,7 +330,7 @@ func (e *TestEngineImpl) filterTestsByScope(tests []*domain.TestInfo, scope doma
 				filtered = append(filtered, test)
 			}
 		case domain.TestScopeUnit:
-			if test.Type == "unit" {
+			if test.Type == testTypeUnit {
 				filtered = append(filtered, test)
 			}
 		case domain.TestScopeIntegration:
@@ -368,31 +378,42 @@ func (e *TestEngineImpl) findSmokeTests(ctx context.Context, projectPath, langua
 	return smokeTests, nil
 }
 
+// buildNodeIndex creates a map of node ID to node for fast lookup
+func buildNodeIndex(graph *domain.SymbolGraph) map[string]*domain.SymbolNode {
+	index := make(map[string]*domain.SymbolNode, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		index[node.ID] = node
+	}
+	return index
+}
+
 // findFileDependencies находит зависимости файла через граф символов
 func (e *TestEngineImpl) findFileDependencies(filePath string, graph *domain.SymbolGraph) ([]string, error) {
-	var dependencies []string
 	dependencySet := make(map[string]bool)
+	nodeIndex := buildNodeIndex(graph)
 
-	// Находим символы в файле
+	// Collect node IDs for this file
+	fileNodeIDs := make(map[string]bool)
 	for _, node := range graph.Nodes {
 		if node.Path == filePath {
-			// Находим зависимости этого символа
-			for _, edge := range graph.Edges {
-				if edge.From == node.ID {
-					// Находим узел, на который ссылается edge
-					for _, targetNode := range graph.Nodes {
-						if targetNode.ID == edge.To && targetNode.Path != filePath {
-							if !dependencySet[targetNode.Path] {
-								dependencies = append(dependencies, targetNode.Path)
-								dependencySet[targetNode.Path] = true
-							}
-						}
-					}
-				}
-			}
+			fileNodeIDs[node.ID] = true
 		}
 	}
 
+	// Find dependencies via edges
+	for _, edge := range graph.Edges {
+		if !fileNodeIDs[edge.From] {
+			continue
+		}
+		if targetNode, ok := nodeIndex[edge.To]; ok && targetNode.Path != filePath {
+			dependencySet[targetNode.Path] = true
+		}
+	}
+
+	dependencies := make([]string, 0, len(dependencySet))
+	for dep := range dependencySet {
+		dependencies = append(dependencies, dep)
+	}
 	return dependencies, nil
 }
 
@@ -439,7 +460,7 @@ func (e *TestEngineImpl) findIndirectDependencies(directDeps []string, symbolGra
 	findDepsRecursive(directDeps, 1)
 
 	// Конвертируем в слайс
-	var result []string
+	result := make([]string, 0, len(indirectDeps))
 	for dep := range indirectDeps {
 		result = append(result, dep)
 	}

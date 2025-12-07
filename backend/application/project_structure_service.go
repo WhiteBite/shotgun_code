@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/projectstructure"
+	"strings"
 )
 
 // ProjectStructureService provides project structure analysis
@@ -67,6 +68,91 @@ func (s *ProjectStructureService) GetStructureJSON(projectPath string) (string, 
 	return string(jsonBytes), nil
 }
 
+// formatArchitectureSummary formats architecture info into summary string
+func formatArchitectureSummary(sb *strings.Builder, arch *domain.ArchitectureInfo) {
+	sb.WriteString(fmt.Sprintf("Architecture: %s (%.0f%% confidence)\n", arch.Type, arch.Confidence*100))
+	sb.WriteString(fmt.Sprintf("Description: %s\n", arch.Description))
+
+	if len(arch.Indicators) > 0 {
+		sb.WriteString("Indicators:\n")
+		for _, ind := range arch.Indicators {
+			sb.WriteString(fmt.Sprintf("  - %s\n", ind))
+		}
+	}
+
+	if len(arch.Layers) > 0 {
+		sb.WriteString("\nArchitectural Layers:\n")
+		for _, layer := range arch.Layers {
+			sb.WriteString(fmt.Sprintf("  [%s] %s\n", layer.Name, layer.Path))
+			if layer.Description != "" {
+				sb.WriteString(fmt.Sprintf("    %s\n", layer.Description))
+			}
+			if len(layer.Dependencies) > 0 {
+				sb.WriteString(fmt.Sprintf("    Dependencies: %v\n", layer.Dependencies))
+			}
+		}
+	}
+	sb.WriteString("\n")
+}
+
+// formatLanguagesSummary formats languages info into summary string
+func formatLanguagesSummary(sb *strings.Builder, languages []domain.LanguageInfo) {
+	sb.WriteString("Languages:\n")
+	for _, lang := range languages {
+		primary := ""
+		if lang.Primary {
+			primary = " (primary)"
+		}
+		sb.WriteString(fmt.Sprintf("  - %s: %d files (%.1f%%)%s\n", lang.Name, lang.FileCount, lang.Percentage, primary))
+	}
+	sb.WriteString("\n")
+}
+
+// formatFrameworksSummary formats frameworks info into summary string
+func formatFrameworksSummary(sb *strings.Builder, frameworks []domain.FrameworkInfo) {
+	sb.WriteString("Frameworks:\n")
+	for _, fw := range frameworks {
+		version := ""
+		if fw.Version != "" {
+			version = " v" + fw.Version
+		}
+		sb.WriteString(fmt.Sprintf("  - %s%s (%s, %s)\n", fw.Name, version, fw.Category, fw.Language))
+		if len(fw.BestPractices) > 0 {
+			sb.WriteString("    Best Practices:\n")
+			for _, bp := range fw.BestPractices[:min(3, len(fw.BestPractices))] {
+				sb.WriteString(fmt.Sprintf("      • %s\n", bp))
+			}
+		}
+	}
+	sb.WriteString("\n")
+}
+
+// formatBuildSystemsSummary formats build systems info into summary string
+func formatBuildSystemsSummary(sb *strings.Builder, buildSystems []domain.BuildSystemInfo) {
+	sb.WriteString("Build Systems:\n")
+	for _, bs := range buildSystems {
+		sb.WriteString(fmt.Sprintf("  - %s (%s)\n", bs.Name, bs.ConfigFile))
+		if len(bs.Scripts) > 0 {
+			sb.WriteString(fmt.Sprintf("    Scripts: %v\n", bs.Scripts[:min(5, len(bs.Scripts))]))
+		}
+	}
+	sb.WriteString("\n")
+}
+
+// formatConventionsSummary formats conventions info into summary string
+func formatConventionsSummary(sb *strings.Builder, conv *domain.ConventionInfo) {
+	sb.WriteString("Conventions:\n")
+	sb.WriteString(fmt.Sprintf("  Naming Style: %s\n", conv.NamingStyle))
+	sb.WriteString(fmt.Sprintf("  Folder Structure: %s\n", conv.FolderStructure))
+	if conv.TestConventions.Framework != "" {
+		sb.WriteString(fmt.Sprintf("  Test Framework: %s\n", conv.TestConventions.Framework))
+		sb.WriteString(fmt.Sprintf("  Test Location: %s\n", conv.TestConventions.Location))
+	}
+	if conv.CodeStyle.ConfigFile != "" {
+		sb.WriteString(fmt.Sprintf("  Code Style Config: %s\n", conv.CodeStyle.ConfigFile))
+	}
+}
+
 // GetArchitectureSummary returns a human-readable architecture summary
 func (s *ProjectStructureService) GetArchitectureSummary(projectPath string) (string, error) {
 	structure, err := s.DetectStructure(projectPath)
@@ -74,106 +160,27 @@ func (s *ProjectStructureService) GetArchitectureSummary(projectPath string) (st
 		return "", err
 	}
 
-	summary := fmt.Sprintf("Project Structure Analysis\n")
-	summary += fmt.Sprintf("==========================\n\n")
+	var sb strings.Builder
+	sb.Grow(2048) // Pre-allocate for performance
 
-	// Project type
-	summary += fmt.Sprintf("Project Type: %s\n", structure.ProjectType)
-	summary += fmt.Sprintf("Confidence: %.0f%%\n\n", structure.Confidence*100)
+	sb.WriteString("Project Structure Analysis\n==========================\n\n")
+	sb.WriteString(fmt.Sprintf("Project Type: %s\nConfidence: %.0f%%\n\n", structure.ProjectType, structure.Confidence*100))
 
-	// Architecture
 	if structure.Architecture != nil {
-		summary += fmt.Sprintf("Architecture: %s (%.0f%% confidence)\n", 
-			structure.Architecture.Type, structure.Architecture.Confidence*100)
-		summary += fmt.Sprintf("Description: %s\n", structure.Architecture.Description)
-		
-		if len(structure.Architecture.Indicators) > 0 {
-			summary += "Indicators:\n"
-			for _, ind := range structure.Architecture.Indicators {
-				summary += fmt.Sprintf("  - %s\n", ind)
-			}
-		}
-
-		if len(structure.Architecture.Layers) > 0 {
-			summary += "\nArchitectural Layers:\n"
-			for _, layer := range structure.Architecture.Layers {
-				summary += fmt.Sprintf("  [%s] %s\n", layer.Name, layer.Path)
-				if layer.Description != "" {
-					summary += fmt.Sprintf("    %s\n", layer.Description)
-				}
-				if len(layer.Dependencies) > 0 {
-					summary += fmt.Sprintf("    Dependencies: %v\n", layer.Dependencies)
-				}
-			}
-		}
-		summary += "\n"
+		formatArchitectureSummary(&sb, structure.Architecture)
 	}
-
-	// Languages
 	if len(structure.Languages) > 0 {
-		summary += "Languages:\n"
-		for _, lang := range structure.Languages {
-			primary := ""
-			if lang.Primary {
-				primary = " (primary)"
-			}
-			summary += fmt.Sprintf("  - %s: %d files (%.1f%%)%s\n", 
-				lang.Name, lang.FileCount, lang.Percentage, primary)
-		}
-		summary += "\n"
+		formatLanguagesSummary(&sb, structure.Languages)
 	}
-
-	// Frameworks
 	if len(structure.Frameworks) > 0 {
-		summary += "Frameworks:\n"
-		for _, fw := range structure.Frameworks {
-			version := ""
-			if fw.Version != "" {
-				version = " v" + fw.Version
-			}
-			summary += fmt.Sprintf("  - %s%s (%s, %s)\n", fw.Name, version, fw.Category, fw.Language)
-			if len(fw.BestPractices) > 0 {
-				summary += "    Best Practices:\n"
-				for _, bp := range fw.BestPractices[:min(3, len(fw.BestPractices))] {
-					summary += fmt.Sprintf("      • %s\n", bp)
-				}
-			}
-		}
-		summary += "\n"
+		formatFrameworksSummary(&sb, structure.Frameworks)
 	}
-
-	// Build Systems
 	if len(structure.BuildSystems) > 0 {
-		summary += "Build Systems:\n"
-		for _, bs := range structure.BuildSystems {
-			summary += fmt.Sprintf("  - %s (%s)\n", bs.Name, bs.ConfigFile)
-			if len(bs.Scripts) > 0 {
-				summary += fmt.Sprintf("    Scripts: %v\n", bs.Scripts[:min(5, len(bs.Scripts))])
-			}
-		}
-		summary += "\n"
+		formatBuildSystemsSummary(&sb, structure.BuildSystems)
 	}
-
-	// Conventions
 	if structure.Conventions != nil {
-		summary += "Conventions:\n"
-		summary += fmt.Sprintf("  Naming Style: %s\n", structure.Conventions.NamingStyle)
-		summary += fmt.Sprintf("  Folder Structure: %s\n", structure.Conventions.FolderStructure)
-		if structure.Conventions.TestConventions.Framework != "" {
-			summary += fmt.Sprintf("  Test Framework: %s\n", structure.Conventions.TestConventions.Framework)
-			summary += fmt.Sprintf("  Test Location: %s\n", structure.Conventions.TestConventions.Location)
-		}
-		if structure.Conventions.CodeStyle.ConfigFile != "" {
-			summary += fmt.Sprintf("  Code Style Config: %s\n", structure.Conventions.CodeStyle.ConfigFile)
-		}
+		formatConventionsSummary(&sb, structure.Conventions)
 	}
 
-	return summary, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	return sb.String(), nil
 }

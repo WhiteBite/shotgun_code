@@ -23,7 +23,7 @@ func NewReportFileSystemRepository(logger domain.Logger) (*ReportFileSystemRepos
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	reportDir := filepath.Join(homeDir, ".shotgun-code", "reports")
-	if err := os.MkdirAll(reportDir, 0755); err != nil {
+	if err := os.MkdirAll(reportDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create report directory: %w", err)
 	}
 
@@ -60,7 +60,7 @@ func (r *ReportFileSystemRepository) ListReports(ctx context.Context, reportType
 		return nil, fmt.Errorf("failed to read report directory: %w", err)
 	}
 
-	var reports []*domain.GenericReport
+	reports := make([]*domain.GenericReport, 0, len(entries))
 
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
@@ -93,7 +93,7 @@ func (r *ReportFileSystemRepository) SaveReport(ctx context.Context, report *dom
 	}
 
 	reportPath := filepath.Join(r.reportDir, report.Id+".json")
-	if err := os.WriteFile(reportPath, data, 0644); err != nil {
+	if err := os.WriteFile(reportPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write report file: %w", err)
 	}
 

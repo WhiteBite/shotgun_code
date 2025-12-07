@@ -91,7 +91,7 @@ func (p *GeminiProviderImpl) Generate(ctx context.Context, req domain.AIRequest)
 		model.Temperature = &temp
 	}
 	if req.MaxTokens > 0 {
-		maxTokens := int32(req.MaxTokens)
+		maxTokens := int32(req.MaxTokens) //nolint:gosec // MaxTokens is always positive and within int32 range
 		model.MaxOutputTokens = &maxTokens
 	}
 	if req.TopP > 0 {
@@ -193,7 +193,7 @@ func (p *GeminiProviderImpl) GenerateStream(ctx context.Context, req domain.AIRe
 		model.Temperature = &temp
 	}
 	if req.MaxTokens > 0 {
-		maxTokens := int32(req.MaxTokens)
+		maxTokens := int32(req.MaxTokens) //nolint:gosec // MaxTokens is always positive and within int32 range
 		model.MaxOutputTokens = &maxTokens
 	}
 	if req.TopP > 0 {

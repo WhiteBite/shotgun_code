@@ -245,10 +245,10 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		c.ContextSplitter,
 		pdfGen,
 		arch,
-		&OSTempFileProvider{},  // Temp file provider
-		&FilePathProvider{},    // Path provider
-		&OSFileSystemWriter{},  // File system writer
-		fileStatProvider,       // File stat provider
+		&OSTempFileProvider{}, // Temp file provider
+		&FilePathProvider{},   // Path provider
+		&OSFileSystemWriter{}, // File system writer
+		fileStatProvider,      // File stat provider
 	)
 
 	return c, nil

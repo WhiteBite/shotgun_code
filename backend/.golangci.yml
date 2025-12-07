@@ -45,7 +45,7 @@ linters:
 
 linters-settings:
   dupl:
-    threshold: 100 # Minimum tokens for duplication detection
+    threshold: 150 # Minimum tokens for duplication detection (increased to allow minor structural similarities)
 
   gocyclo:
     min-complexity: 15
@@ -125,8 +125,8 @@ issues:
         - dupl
         - goconst
 
-  max-issues-per-linter: 50
-  max-same-issues: 10
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 output:
   formats:

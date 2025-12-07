@@ -8,6 +8,48 @@ import (
 	"time"
 )
 
+// Severity level constants
+const (
+	severityError   = "error"
+	severityWarning = "warning"
+	severityInfo    = "info"
+	severityHint    = "hint"
+	severityOther   = "other"
+)
+
+// generateSummary создает сводку анализа из списка issues (общая функция для всех анализаторов)
+func generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
+	summary := &domain.StaticAnalysisSummary{
+		TotalIssues:       len(issues),
+		SeverityBreakdown: make(map[string]int),
+		CategoryBreakdown: make(map[string]int),
+		FilesAnalyzed:     0,
+		FilesWithIssues:   0,
+	}
+
+	filesWithIssues := make(map[string]bool)
+
+	for _, issue := range issues {
+		summary.SeverityBreakdown[issue.Severity]++
+		summary.CategoryBreakdown[issue.Category]++
+		filesWithIssues[issue.File] = true
+
+		switch issue.Severity {
+		case severityError:
+			summary.ErrorCount++
+		case severityWarning:
+			summary.WarningCount++
+		case severityInfo:
+			summary.InfoCount++
+		case severityHint:
+			summary.HintCount++
+		}
+	}
+
+	summary.FilesWithIssues = len(filesWithIssues)
+	return summary
+}
+
 // StaticAnalyzerEngineImpl реализует StaticAnalyzerEngine
 type StaticAnalyzerEngineImpl struct {
 	log         domain.Logger
@@ -126,7 +168,7 @@ func (e *StaticAnalyzerEngineImpl) AnalyzeFile(ctx context.Context, filePath str
 
 // GetSupportedAnalyzers возвращает поддерживаемые анализаторы
 func (e *StaticAnalyzerEngineImpl) GetSupportedAnalyzers() []domain.StaticAnalyzerType {
-	var analyzers []domain.StaticAnalyzerType
+	analyzers := make([]domain.StaticAnalyzerType, 0, len(e.analyzers))
 	for analyzerType := range e.analyzers {
 		analyzers = append(analyzers, domain.StaticAnalyzerType(analyzerType))
 	}
@@ -176,7 +218,7 @@ func (e *StaticAnalyzerEngineImpl) GenerateReport(results map[string]*domain.Sta
 
 				// Добавляем критические проблемы (ошибки)
 				for _, issue := range result.Issues {
-					if issue.Severity == "error" {
+					if issue.Severity == severityError {
 						criticalIssues = append(criticalIssues, issue)
 					}
 				}

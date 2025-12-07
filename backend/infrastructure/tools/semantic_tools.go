@@ -157,17 +157,17 @@ func (t *SemanticTools) executeSemanticSearch(ctx context.Context, call domain.T
 	if query == "" {
 		return domain.ToolResult{ToolCallID: call.ID, Error: "query is required"}
 	}
-	
+
 	topK := 10
 	if v, ok := call.Arguments["top_k"]; ok {
 		topK = toInt(v, 10)
 	}
-	
+
 	minScore := float32(0.5)
 	if v, ok := call.Arguments["min_score"]; ok {
 		minScore = float32(toFloat(v, 0.5))
 	}
-	
+
 	searchType := domain.SearchTypeHybrid
 	if v, ok := call.Arguments["search_type"].(string); ok {
 		switch v {
@@ -177,7 +177,7 @@ func (t *SemanticTools) executeSemanticSearch(ctx context.Context, call domain.T
 			searchType = domain.SearchTypeKeyword
 		}
 	}
-	
+
 	var languages []string
 	if v, ok := call.Arguments["languages"].([]interface{}); ok {
 		for _, lang := range v {
@@ -186,7 +186,7 @@ func (t *SemanticTools) executeSemanticSearch(ctx context.Context, call domain.T
 			}
 		}
 	}
-	
+
 	req := domain.SemanticSearchRequest{
 		Query:       query,
 		ProjectRoot: projectRoot,
@@ -194,19 +194,19 @@ func (t *SemanticTools) executeSemanticSearch(ctx context.Context, call domain.T
 		MinScore:    minScore,
 		SearchType:  searchType,
 	}
-	
+
 	if len(languages) > 0 {
 		req.Filters = &domain.SearchFilters{Languages: languages}
 	}
-	
+
 	results, err := t.semanticSearch.Search(ctx, req)
 	if err != nil {
 		return domain.ToolResult{ToolCallID: call.ID, Error: err.Error()}
 	}
-	
+
 	// Format results
 	output := formatSearchResults(results)
-	
+
 	return domain.ToolResult{
 		ToolCallID: call.ID,
 		Content:    output,
@@ -218,11 +218,11 @@ func (t *SemanticTools) executeFindSimilar(ctx context.Context, call domain.Tool
 	startLine := toInt(call.Arguments["start_line"], 0)
 	endLine := toInt(call.Arguments["end_line"], 0)
 	topK := toInt(call.Arguments["top_k"], 5)
-	
+
 	if filePath == "" || startLine == 0 || endLine == 0 {
 		return domain.ToolResult{ToolCallID: call.ID, Error: "file_path, start_line, and end_line are required"}
 	}
-	
+
 	req := domain.SimilarCodeRequest{
 		FilePath:    filePath,
 		StartLine:   startLine,
@@ -231,14 +231,14 @@ func (t *SemanticTools) executeFindSimilar(ctx context.Context, call domain.Tool
 		MinScore:    0.5,
 		ExcludeSelf: true,
 	}
-	
+
 	results, err := t.semanticSearch.FindSimilar(ctx, req)
 	if err != nil {
 		return domain.ToolResult{ToolCallID: call.ID, Error: err.Error()}
 	}
-	
+
 	output := formatSearchResults(results)
-	
+
 	return domain.ToolResult{
 		ToolCallID: call.ID,
 		Content:    output,
@@ -250,17 +250,17 @@ func (t *SemanticTools) executeGetContext(ctx context.Context, call domain.ToolC
 	if query == "" {
 		return domain.ToolResult{ToolCallID: call.ID, Error: "query is required"}
 	}
-	
+
 	maxTokens := toInt(call.Arguments["max_tokens"], 4000)
-	
+
 	chunks, err := t.ragService.RetrieveContext(ctx, query, projectRoot, maxTokens)
 	if err != nil {
 		return domain.ToolResult{ToolCallID: call.ID, Error: err.Error()}
 	}
-	
+
 	// Format as context
 	output := formatContextChunks(chunks)
-	
+
 	return domain.ToolResult{
 		ToolCallID: call.ID,
 		Content:    output,
@@ -269,19 +269,19 @@ func (t *SemanticTools) executeGetContext(ctx context.Context, call domain.ToolC
 
 func (t *SemanticTools) executeIndexProject(ctx context.Context, call domain.ToolCall, projectRoot string) domain.ToolResult {
 	t.log.Info("Starting project indexing via tool call")
-	
+
 	// Run indexing in background
 	go func() {
 		indexCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
-		
+
 		if err := t.semanticSearch.IndexProject(indexCtx, projectRoot); err != nil {
 			t.log.Error(fmt.Sprintf("Indexing failed: %v", err))
 		} else {
 			t.log.Info("Indexing completed successfully")
 		}
 	}()
-	
+
 	return domain.ToolResult{
 		ToolCallID: call.ID,
 		Content:    "Project indexing started in background. This may take a few minutes depending on project size.",
@@ -293,7 +293,7 @@ func (t *SemanticTools) executeGetStats(ctx context.Context, call domain.ToolCal
 	if err != nil {
 		return domain.ToolResult{ToolCallID: call.ID, Error: err.Error()}
 	}
-	
+
 	output := fmt.Sprintf(`Semantic Search Index Statistics:
 - Total chunks: %d
 - Total files: %d
@@ -310,7 +310,7 @@ func (t *SemanticTools) executeGetStats(ctx context.Context, call domain.ToolCal
 		stats.LastUpdated.Format(time.RFC3339),
 		stats.TotalChunks > 0,
 	)
-	
+
 	return domain.ToolResult{
 		ToolCallID: call.ID,
 		Content:    output,
@@ -323,23 +323,23 @@ func formatSearchResults(results *domain.SemanticSearchResponse) string {
 	if results == nil || len(results.Results) == 0 {
 		return "No results found. The project may not be indexed yet. Use 'index_project' tool to index it."
 	}
-	
+
 	var sb stringBuilder
 	sb.WriteString(fmt.Sprintf("Found %d results (query time: %v):\n\n", results.TotalResults, results.QueryTime))
-	
+
 	for i, r := range results.Results {
 		sb.WriteString(fmt.Sprintf("### Result %d (score: %.3f)\n", i+1, r.Score))
 		sb.WriteString(fmt.Sprintf("File: %s (lines %d-%d)\n", r.Chunk.FilePath, r.Chunk.StartLine, r.Chunk.EndLine))
-		
+
 		if r.Chunk.SymbolName != "" {
 			sb.WriteString(fmt.Sprintf("Symbol: %s %s\n", r.Chunk.SymbolKind, r.Chunk.SymbolName))
 		}
-		
+
 		sb.WriteString(fmt.Sprintf("Language: %s\n", r.Chunk.Language))
 		sb.WriteString("```")
 		sb.WriteString(r.Chunk.Language)
 		sb.WriteString("\n")
-		
+
 		// Truncate very long content
 		content := r.Chunk.Content
 		if len(content) > 1000 {
@@ -348,7 +348,7 @@ func formatSearchResults(results *domain.SemanticSearchResponse) string {
 		sb.WriteString(content)
 		sb.WriteString("\n```\n\n")
 	}
-	
+
 	return sb.String()
 }
 
@@ -356,31 +356,31 @@ func formatContextChunks(chunks []domain.CodeChunk) string {
 	if len(chunks) == 0 {
 		return "No relevant context found."
 	}
-	
+
 	var sb stringBuilder
 	sb.WriteString(fmt.Sprintf("Retrieved %d relevant code chunks:\n\n", len(chunks)))
-	
+
 	currentFile := ""
 	for _, chunk := range chunks {
 		if chunk.FilePath != currentFile {
 			sb.WriteString(fmt.Sprintf("\n## File: %s\n", chunk.FilePath))
 			currentFile = chunk.FilePath
 		}
-		
+
 		if chunk.SymbolName != "" {
-			sb.WriteString(fmt.Sprintf("\n### %s %s (lines %d-%d)\n", 
+			sb.WriteString(fmt.Sprintf("\n### %s %s (lines %d-%d)\n",
 				chunk.SymbolKind, chunk.SymbolName, chunk.StartLine, chunk.EndLine))
 		} else {
 			sb.WriteString(fmt.Sprintf("\n### Lines %d-%d\n", chunk.StartLine, chunk.EndLine))
 		}
-		
+
 		sb.WriteString("```")
 		sb.WriteString(chunk.Language)
 		sb.WriteString("\n")
 		sb.WriteString(chunk.Content)
 		sb.WriteString("\n```\n")
 	}
-	
+
 	return sb.String()
 }
 

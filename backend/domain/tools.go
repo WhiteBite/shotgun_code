@@ -2,16 +2,16 @@ package domain
 
 // Tool represents a tool that AI can call
 type Tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  ToolParameters  `json:"parameters"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  ToolParameters `json:"parameters"`
 }
 
 // ToolParameters defines the JSON schema for tool parameters
 type ToolParameters struct {
-	Type       string                    `json:"type"`
-	Properties map[string]ToolProperty   `json:"properties"`
-	Required   []string                  `json:"required,omitempty"`
+	Type       string                  `json:"type"`
+	Properties map[string]ToolProperty `json:"properties"`
+	Required   []string                `json:"required,omitempty"`
 }
 
 // ToolProperty defines a single parameter property
@@ -40,7 +40,7 @@ type ToolResult struct {
 type ToolExecutor interface {
 	// GetAvailableTools returns all available tools
 	GetAvailableTools() []Tool
-	
+
 	// ExecuteTool executes a tool and returns the result
 	ExecuteTool(call ToolCall, projectRoot string) ToolResult
 }

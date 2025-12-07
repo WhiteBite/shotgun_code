@@ -55,7 +55,7 @@ func (s *SyftGenerator) GenerateSBOM(ctx context.Context, projectPath string, fo
 	outputPath := filepath.Join(projectPath, fmt.Sprintf("sbom.%s", fileExt))
 
 	// Запускаем Syft
-	cmd := exec.CommandContext(ctx, "syft", projectPath, "-o", string(format), "-f", outputPath)
+	cmd := exec.CommandContext(ctx, "syft", projectPath, "-o", string(format), "-f", outputPath) //nolint:gosec // External tool command
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -106,7 +106,7 @@ func (s *SyftGenerator) ValidateSBOM(ctx context.Context, sbomPath string, forma
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("syft validation failed: %v, output: %s", err, string(output))
+		return fmt.Errorf("syft validation failed: %w, output: %s", err, string(output))
 	}
 
 	return nil

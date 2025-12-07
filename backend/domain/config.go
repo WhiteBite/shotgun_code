@@ -179,7 +179,7 @@ func LoadConfig(configPath string) (*Config, error) {
 // SaveConfig saves configuration to file
 func SaveConfig(config *Config, configPath string) error {
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
@@ -188,7 +188,7 @@ func SaveConfig(config *Config, configPath string) error {
 		return err
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, 0o600)
 }
 
 // LoadProjectConfig loads config from project's .shotgun directory

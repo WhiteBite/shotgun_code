@@ -33,18 +33,21 @@ func (a *DartAnalyzer) CanAnalyze(filePath string) bool {
 }
 
 func (a *DartAnalyzer) ExtractSymbols(ctx context.Context, filePath string, content []byte) ([]analysis.Symbol, error) {
-	var symbols []analysis.Symbol
 	text := string(content)
+	widgetMatches := a.widgetRe.FindAllStringSubmatchIndex(text, -1)
+	classMatches := a.classRe.FindAllStringSubmatchIndex(text, -1)
+	enumMatches := a.enumRe.FindAllStringSubmatchIndex(text, -1)
+	symbols := make([]analysis.Symbol, 0, len(widgetMatches)+len(classMatches)+len(enumMatches))
 	lines := strings.Split(text, "\n")
 
 	// Widgets first
 	widgetNames := make(map[string]bool)
-	for _, match := range a.widgetRe.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range widgetMatches {
 		line := countLines(content[:match[0]])
 		name := text[match[2]:match[3]]
 		widgetType := text[match[4]:match[5]]
 		widgetNames[name] = true
-		endLine := findDartBlockEndLine(lines, line-1)
+		endLine := findBlockEndLine(lines, line-1)
 		symbols = append(symbols, analysis.Symbol{
 			Name:      name,
 			Kind:      analysis.KindWidget,
@@ -57,61 +60,31 @@ func (a *DartAnalyzer) ExtractSymbols(ctx context.Context, filePath string, cont
 	}
 
 	// Classes (excluding widgets)
-	for _, match := range a.classRe.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range classMatches {
 		line := countLines(content[:match[0]])
 		name := text[match[4]:match[5]]
 		if widgetNames[name] {
 			continue
 		}
-		endLine := findDartBlockEndLine(lines, line-1)
+		endLine := findBlockEndLine(lines, line-1)
 		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindClass, Language: "dart", FilePath: filePath, StartLine: line, EndLine: endLine})
 	}
 
 	// Enums
-	for _, match := range a.enumRe.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range enumMatches {
 		line := countLines(content[:match[0]])
 		name := text[match[2]:match[3]]
-		endLine := findDartBlockEndLine(lines, line-1)
+		endLine := findBlockEndLine(lines, line-1)
 		symbols = append(symbols, analysis.Symbol{Name: name, Kind: analysis.KindEnum, Language: "dart", FilePath: filePath, StartLine: line, EndLine: endLine})
 	}
 
 	return symbols, nil
 }
 
-// findDartBlockEndLine finds the end line of a block by matching braces
-func findDartBlockEndLine(lines []string, startLineIdx int) int {
-	if startLineIdx < 0 || startLineIdx >= len(lines) {
-		return startLineIdx + 1
-	}
-
-	braceCount := 0
-	started := false
-
-	for i := startLineIdx; i < len(lines); i++ {
-		line := lines[i]
-		for _, ch := range line {
-			if ch == '{' {
-				braceCount++
-				started = true
-			} else if ch == '}' {
-				braceCount--
-			}
-		}
-		if started && braceCount == 0 {
-			return i + 1
-		}
-	}
-
-	endLine := startLineIdx + 20
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
-	return endLine
-}
-
 func (a *DartAnalyzer) GetImports(ctx context.Context, filePath string, content []byte) ([]analysis.Import, error) {
-	var imports []analysis.Import
-	for _, match := range a.importRe.FindAllStringSubmatch(string(content), -1) {
+	matches := a.importRe.FindAllStringSubmatch(string(content), -1)
+	imports := make([]analysis.Import, 0, len(matches))
+	for _, match := range matches {
 		path := match[1]
 		isLocal := strings.HasPrefix(path, "package:") || strings.HasPrefix(path, "./")
 		imports = append(imports, analysis.Import{Path: path, IsLocal: isLocal})

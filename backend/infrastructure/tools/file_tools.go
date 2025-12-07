@@ -1,12 +1,15 @@
 package tools
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+const nodeModulesDir = "node_modules"
 
 func (e *Executor) registerFileTool() {
 	e.tools["search_files"] = e.searchFiles
@@ -35,7 +38,7 @@ func (e *Executor) searchFiles(args map[string]any, projectRoot string) (string,
 		}
 		if info.IsDir() {
 			name := info.Name()
-			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" {
+			if strings.HasPrefix(name, ".") || name == nodeModulesDir || name == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -54,7 +57,7 @@ func (e *Executor) searchFiles(args map[string]any, projectRoot string) (string,
 		return nil
 	})
 
-	if err != nil && err != filepath.SkipAll {
+	if err != nil && !errors.Is(err, filepath.SkipAll) {
 		return "", err
 	}
 
@@ -75,7 +78,7 @@ func (e *Executor) readFile(args map[string]any, projectRoot string) (string, er
 	}
 
 	fullPath := filepath.Join(projectRoot, path)
-	
+
 	// Security: prevent path traversal
 	absProjectRoot, err := filepath.Abs(projectRoot)
 	if err != nil {
@@ -87,11 +90,11 @@ func (e *Executor) readFile(args map[string]any, projectRoot string) (string, er
 	}
 	absProjectRoot = filepath.Clean(absProjectRoot)
 	absFullPath = filepath.Clean(absFullPath)
-	
+
 	if !strings.HasPrefix(absFullPath, absProjectRoot+string(filepath.Separator)) && absFullPath != absProjectRoot {
 		return "", fmt.Errorf("path traversal not allowed")
 	}
-	
+
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return "", err
@@ -131,44 +134,61 @@ func (e *Executor) listDirectory(args map[string]any, projectRoot string) (strin
 
 	var entries []string
 	if recursive {
-		filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			relPath, _ := filepath.Rel(projectRoot, p)
-			if info.IsDir() {
-				name := info.Name()
-				if strings.HasPrefix(name, ".") || name == "node_modules" {
-					return filepath.SkipDir
-				}
-				entries = append(entries, relPath+"/")
-			} else {
-				entries = append(entries, relPath)
-			}
-			if len(entries) >= 100 {
-				return filepath.SkipAll
-			}
-			return nil
-		})
+		entries = e.listDirRecursive(dir, projectRoot)
 	} else {
-		files, err := os.ReadDir(dir)
+		var err error
+		entries, err = e.listDirFlat(dir)
 		if err != nil {
 			return "", err
 		}
-		for _, f := range files {
-			name := f.Name()
-			if strings.HasPrefix(name, ".") {
-				continue
-			}
-			if f.IsDir() {
-				entries = append(entries, name+"/")
-			} else {
-				entries = append(entries, name)
-			}
+	}
+	return strings.Join(entries, "\n"), nil
+}
+
+func (e *Executor) listDirRecursive(dir, projectRoot string) []string {
+	var entries []string
+	_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() && e.shouldSkipDir(info.Name()) {
+			return filepath.SkipDir
+		}
+		relPath, _ := filepath.Rel(projectRoot, p)
+		if info.IsDir() {
+			entries = append(entries, relPath+"/")
+		} else {
+			entries = append(entries, relPath)
+		}
+		if len(entries) >= 100 {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return entries
+}
+
+func (e *Executor) listDirFlat(dir string) ([]string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var entries []string
+	for _, f := range files {
+		if strings.HasPrefix(f.Name(), ".") {
+			continue
+		}
+		if f.IsDir() {
+			entries = append(entries, f.Name()+"/")
+		} else {
+			entries = append(entries, f.Name())
 		}
 	}
+	return entries, nil
+}
 
-	return strings.Join(entries, "\n"), nil
+func (e *Executor) shouldSkipDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == nodeModulesDir
 }
 
 func (e *Executor) searchContent(args map[string]any, projectRoot string) (string, error) {
@@ -179,50 +199,70 @@ func (e *Executor) searchContent(args map[string]any, projectRoot string) (strin
 		return "", fmt.Errorf("pattern is required")
 	}
 
-	re, err := regexp.Compile("(?i)" + pattern)
-	if err != nil {
-		re = regexp.MustCompile(regexp.QuoteMeta(pattern))
-	}
-
-	var results []string
-	filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			if info != nil && info.IsDir() {
-				name := info.Name()
-				if strings.HasPrefix(name, ".") || name == "node_modules" {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		}
-
-		if filePattern != "" {
-			if matched, _ := filepath.Match(filePattern, info.Name()); !matched {
-				return nil
-			}
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		relPath, _ := filepath.Rel(projectRoot, path)
-		lines := strings.Split(string(content), "\n")
-		for i, line := range lines {
-			if re.MatchString(line) {
-				results = append(results, fmt.Sprintf("%s:%d: %s", relPath, i+1, strings.TrimSpace(line)))
-				if len(results) >= 30 {
-					return filepath.SkipAll
-				}
-			}
-		}
-		return nil
-	})
+	re := e.compilePattern(pattern)
+	results := e.searchFilesContent(projectRoot, filePattern, re, 30)
 
 	if len(results) == 0 {
 		return fmt.Sprintf("No matches found for '%s'", pattern), nil
 	}
-
 	return strings.Join(results, "\n"), nil
+}
+
+func (e *Executor) compilePattern(pattern string) *regexp.Regexp {
+	re, err := regexp.Compile("(?i)" + pattern)
+	if err != nil {
+		return regexp.MustCompile(regexp.QuoteMeta(pattern))
+	}
+	return re
+}
+
+func (e *Executor) searchFilesContent(projectRoot, filePattern string, re *regexp.Regexp, maxResults int) []string {
+	var results []string
+	_ = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return nil
+		}
+		if info.IsDir() {
+			if e.shouldSkipDir(info.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !e.matchesPattern(info.Name(), filePattern) {
+			return nil
+		}
+		matches := e.searchInFile(path, projectRoot, re, maxResults-len(results))
+		results = append(results, matches...)
+		if len(results) >= maxResults {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return results
+}
+
+func (e *Executor) matchesPattern(name, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	matched, _ := filepath.Match(pattern, name)
+	return matched
+}
+
+func (e *Executor) searchInFile(path, projectRoot string, re *regexp.Regexp, limit int) []string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	relPath, _ := filepath.Rel(projectRoot, path)
+	var results []string
+	for i, line := range strings.Split(string(content), "\n") {
+		if re.MatchString(line) {
+			results = append(results, fmt.Sprintf("%s:%d: %s", relPath, i+1, strings.TrimSpace(line)))
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+	return results
 }

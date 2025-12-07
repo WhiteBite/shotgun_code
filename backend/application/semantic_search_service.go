@@ -21,7 +21,7 @@ type SemanticSearchServiceImpl struct {
 	vectorStore       domain.VectorStore
 	symbolIndex       analysis.SymbolIndex
 	log               domain.Logger
-	
+
 	// Indexing state
 	indexingMu    sync.RWMutex
 	indexingState map[string]*IndexingState
@@ -29,13 +29,13 @@ type SemanticSearchServiceImpl struct {
 
 // IndexingState tracks the state of project indexing
 type IndexingState struct {
-	ProjectID   string
-	InProgress  bool
-	Progress    float64
-	TotalFiles  int
+	ProjectID    string
+	InProgress   bool
+	Progress     float64
+	TotalFiles   int
 	IndexedFiles int
-	StartedAt   time.Time
-	Error       error
+	StartedAt    time.Time
+	Error        error
 }
 
 // NewSemanticSearchService creates a new semantic search service
@@ -54,74 +54,75 @@ func NewSemanticSearchService(
 	}
 }
 
+// startIndexingState initializes indexing state, returns error if already indexing
+func (s *SemanticSearchServiceImpl) startIndexingState(projectID string) (*IndexingState, error) {
+	s.indexingMu.Lock()
+	defer s.indexingMu.Unlock()
+
+	if state, exists := s.indexingState[projectID]; exists && state.InProgress {
+		return nil, fmt.Errorf("indexing already in progress for project")
+	}
+
+	state := &IndexingState{ProjectID: projectID, InProgress: true, StartedAt: time.Now()}
+	s.indexingState[projectID] = state
+	return state, nil
+}
+
+// collectCodeFiles collects all code files from project
+func (s *SemanticSearchServiceImpl) collectCodeFiles(projectRoot string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if shouldSkipDir(info.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isCodeFile(path) {
+			relPath, _ := filepath.Rel(projectRoot, path)
+			files = append(files, relPath)
+		}
+		return nil
+	})
+	return files, err
+}
+
 // IndexProject indexes all files in a project
 func (s *SemanticSearchServiceImpl) IndexProject(ctx context.Context, projectRoot string) error {
 	projectID := generateProjectID(projectRoot)
-	
-	// Check if already indexing
-	s.indexingMu.Lock()
-	if state, exists := s.indexingState[projectID]; exists && state.InProgress {
-		s.indexingMu.Unlock()
-		return fmt.Errorf("indexing already in progress for project")
+
+	state, err := s.startIndexingState(projectID)
+	if err != nil {
+		return err
 	}
-	
-	state := &IndexingState{
-		ProjectID:  projectID,
-		InProgress: true,
-		StartedAt:  time.Now(),
-	}
-	s.indexingState[projectID] = state
-	s.indexingMu.Unlock()
-	
+
 	defer func() {
 		s.indexingMu.Lock()
 		state.InProgress = false
 		s.indexingMu.Unlock()
 	}()
-	
+
 	s.log.Info(fmt.Sprintf("Starting semantic indexing for project: %s", projectRoot))
-	
-	// Ensure symbol index is up-to-date before chunking
-	// For CachedSymbolIndex this will use SQLite cache for incremental indexing
+
 	if s.symbolIndex != nil {
 		s.log.Info("Indexing symbols for project...")
 		if err := s.symbolIndex.IndexProject(ctx, projectRoot); err != nil {
 			s.log.Warning(fmt.Sprintf("Symbol indexing failed (non-critical): %v", err))
 		}
 	}
-	
-	// Collect files to index
-	var files []string
-	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		
-		// Skip directories
-		if info.IsDir() {
-			name := info.Name()
-			if shouldSkipDir(name) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		
-		// Only index code files
-		if isCodeFile(path) {
-			relPath, _ := filepath.Rel(projectRoot, path)
-			files = append(files, relPath)
-		}
-		
-		return nil
-	})
+
+	files, err := s.collectCodeFiles(projectRoot)
 	if err != nil {
 		state.Error = err
 		return fmt.Errorf("failed to walk project: %w", err)
 	}
-	
+
 	state.TotalFiles = len(files)
 	s.log.Info(fmt.Sprintf("Found %d files to index", len(files)))
-	
+
 	// Process files in batches
 	batchSize := 10
 	for i := 0; i < len(files); i += batchSize {
@@ -130,21 +131,21 @@ func (s *SemanticSearchServiceImpl) IndexProject(ctx context.Context, projectRoo
 			return ctx.Err()
 		default:
 		}
-		
+
 		end := i + batchSize
 		if end > len(files) {
 			end = len(files)
 		}
-		
+
 		batch := files[i:end]
 		if err := s.indexFileBatch(ctx, projectRoot, projectID, batch); err != nil {
 			s.log.Warning(fmt.Sprintf("Failed to index batch: %v", err))
 		}
-		
+
 		state.IndexedFiles = end
 		state.Progress = float64(end) / float64(len(files))
 	}
-	
+
 	s.log.Info(fmt.Sprintf("Completed semantic indexing: %d files indexed", state.IndexedFiles))
 	return nil
 }
@@ -152,15 +153,15 @@ func (s *SemanticSearchServiceImpl) IndexProject(ctx context.Context, projectRoo
 // indexFileBatch indexes a batch of files
 func (s *SemanticSearchServiceImpl) indexFileBatch(ctx context.Context, projectRoot, projectID string, files []string) error {
 	var allChunks []domain.CodeChunk
-	
+
 	for _, relPath := range files {
 		fullPath := filepath.Join(projectRoot, relPath)
-		
+
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
 			continue
 		}
-		
+
 		// Get symbols for better chunking
 		var symbols []SymbolInfoForChunking
 		if s.symbolIndex != nil {
@@ -174,29 +175,29 @@ func (s *SemanticSearchServiceImpl) indexFileBatch(ctx context.Context, projectR
 				})
 			}
 		}
-		
+
 		// Chunk the file
 		chunks := s.chunkFile(relPath, content, symbols)
 		allChunks = append(allChunks, chunks...)
 	}
-	
+
 	if len(allChunks) == 0 {
 		return nil
 	}
-	
+
 	// Generate embeddings for all chunks
 	texts := make([]string, len(allChunks))
 	for i, chunk := range allChunks {
 		// Create embedding text with context
 		texts[i] = createEmbeddingText(chunk)
 	}
-	
+
 	// Generate embeddings with retry logic for API resilience
 	resp, err := s.generateEmbeddingsWithRetry(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings: %w", err)
 	}
-	
+
 	// Create embedded chunks
 	now := time.Now()
 	embeddedChunks := make([]domain.EmbeddedChunk, len(allChunks))
@@ -208,7 +209,7 @@ func (s *SemanticSearchServiceImpl) indexFileBatch(ctx context.Context, projectR
 			UpdatedAt: now,
 		}
 	}
-	
+
 	// Store in vector store
 	return s.vectorStore.StoreBatch(ctx, projectID, embeddedChunks)
 }
@@ -217,17 +218,17 @@ func (s *SemanticSearchServiceImpl) indexFileBatch(ctx context.Context, projectR
 func (s *SemanticSearchServiceImpl) IndexFile(ctx context.Context, projectRoot string, filePath string) error {
 	projectID := generateProjectID(projectRoot)
 	fullPath := filepath.Join(projectRoot, filePath)
-	
+
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
-	
+
 	// Delete existing chunks for this file
 	if err := s.vectorStore.Delete(ctx, projectID, filePath); err != nil {
 		s.log.Warning(fmt.Sprintf("Failed to delete existing chunks: %v", err))
 	}
-	
+
 	// Get symbols
 	var symbols []SymbolInfoForChunking
 	if s.symbolIndex != nil {
@@ -241,24 +242,24 @@ func (s *SemanticSearchServiceImpl) IndexFile(ctx context.Context, projectRoot s
 			})
 		}
 	}
-	
+
 	// Chunk the file
 	chunks := s.chunkFile(filePath, content, symbols)
 	if len(chunks) == 0 {
 		return nil
 	}
-	
+
 	// Generate embeddings with retry logic for API resilience
 	texts := make([]string, len(chunks))
 	for i, chunk := range chunks {
 		texts[i] = createEmbeddingText(chunk)
 	}
-	
+
 	resp, err := s.generateEmbeddingsWithRetry(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings: %w", err)
 	}
-	
+
 	// Store
 	now := time.Now()
 	embeddedChunks := make([]domain.EmbeddedChunk, len(chunks))
@@ -270,7 +271,7 @@ func (s *SemanticSearchServiceImpl) IndexFile(ctx context.Context, projectRoot s
 			UpdatedAt: now,
 		}
 	}
-	
+
 	return s.vectorStore.StoreBatch(ctx, projectID, embeddedChunks)
 }
 
@@ -278,7 +279,7 @@ func (s *SemanticSearchServiceImpl) IndexFile(ctx context.Context, projectRoot s
 func (s *SemanticSearchServiceImpl) Search(ctx context.Context, req domain.SemanticSearchRequest) (*domain.SemanticSearchResponse, error) {
 	startTime := time.Now()
 	projectID := generateProjectID(req.ProjectRoot)
-	
+
 	// Set defaults
 	if req.TopK == 0 {
 		req.TopK = 10
@@ -286,9 +287,9 @@ func (s *SemanticSearchServiceImpl) Search(ctx context.Context, req domain.Seman
 	if req.MinScore == 0 {
 		req.MinScore = 0.5
 	}
-	
+
 	s.log.Info(fmt.Sprintf("Semantic search: query='%s', topK=%d", truncateStringForSearch(req.Query, 50), req.TopK))
-	
+
 	// Handle different search types
 	switch req.SearchType {
 	case domain.SearchTypeKeyword:
@@ -308,23 +309,23 @@ func (s *SemanticSearchServiceImpl) semanticSearch(ctx context.Context, projectI
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
-	
+
 	queryEmbedding := resp.Embeddings[0]
-	
+
 	// Search vector store
 	results, err := s.vectorStore.Search(ctx, projectID, queryEmbedding, req.TopK*2, req.MinScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search vector store: %w", err)
 	}
-	
+
 	// Apply filters
 	results = s.applyFilters(results, req.Filters)
-	
+
 	// Limit to topK
 	if len(results) > req.TopK {
 		results = results[:req.TopK]
 	}
-	
+
 	return &domain.SemanticSearchResponse{
 		Results:      results,
 		TotalResults: len(results),
@@ -343,15 +344,15 @@ func (s *SemanticSearchServiceImpl) keywordSearch(ctx context.Context, req domai
 			SearchType: domain.SearchTypeKeyword,
 		}, nil
 	}
-	
+
 	symbols := s.symbolIndex.SearchByName(req.Query)
-	
-	var results []domain.SemanticSearchResult
+
+	results := make([]domain.SemanticSearchResult, 0, min(len(symbols), req.TopK))
 	for _, sym := range symbols {
 		if len(results) >= req.TopK {
 			break
 		}
-		
+
 		// Read file content to populate chunk Content
 		content := ""
 		fullPath := filepath.Join(req.ProjectRoot, sym.FilePath)
@@ -359,7 +360,7 @@ func (s *SemanticSearchServiceImpl) keywordSearch(ctx context.Context, req domai
 			lines := strings.Split(string(fileContent), "\n")
 			startIdx := sym.StartLine - 1
 			endIdx := sym.EndLine
-			
+
 			// Bounds checking
 			if startIdx < 0 {
 				startIdx = 0
@@ -371,7 +372,7 @@ func (s *SemanticSearchServiceImpl) keywordSearch(ctx context.Context, req domai
 				content = strings.Join(lines[startIdx:endIdx], "\n")
 			}
 		}
-		
+
 		// Use StartLine consistently for ID and chunk
 		chunk := domain.CodeChunk{
 			ID:         fmt.Sprintf("%s:%d", sym.FilePath, sym.StartLine),
@@ -383,13 +384,13 @@ func (s *SemanticSearchServiceImpl) keywordSearch(ctx context.Context, req domai
 			SymbolKind: string(sym.Kind),
 			Language:   sym.Language,
 		}
-		
+
 		results = append(results, domain.SemanticSearchResult{
 			Chunk: chunk,
 			Score: 1.0, // Exact match
 		})
 	}
-	
+
 	return &domain.SemanticSearchResponse{
 		Results:      results,
 		TotalResults: len(results),
@@ -401,7 +402,7 @@ func (s *SemanticSearchServiceImpl) keywordSearch(ctx context.Context, req domai
 // hybridSearch combines semantic and keyword search
 func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain.SemanticSearchRequest, startTime time.Time) (*domain.SemanticSearchResponse, error) {
 	projectID := generateProjectID(req.ProjectRoot)
-	
+
 	// Get semantic results
 	semanticReq := req
 	semanticReq.TopK = req.TopK * 2
@@ -409,7 +410,7 @@ func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get keyword results
 	keywordReq := req
 	keywordReq.TopK = req.TopK
@@ -417,17 +418,17 @@ func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Merge and re-rank results
 	resultMap := make(map[string]domain.SemanticSearchResult)
-	
+
 	// Add semantic results with weight 0.7
 	for _, r := range semanticResults.Results {
 		key := fmt.Sprintf("%s:%d", r.Chunk.FilePath, r.Chunk.StartLine)
 		r.Score *= 0.7
 		resultMap[key] = r
 	}
-	
+
 	// Add keyword results with weight 0.3, boost if already present
 	for _, r := range keywordResults.Results {
 		key := fmt.Sprintf("%s:%d", r.Chunk.FilePath, r.Chunk.StartLine)
@@ -439,21 +440,21 @@ func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain
 			resultMap[key] = r
 		}
 	}
-	
+
 	// Convert to slice and sort
-	var results []domain.SemanticSearchResult
+	results := make([]domain.SemanticSearchResult, 0, len(resultMap))
 	for _, r := range resultMap {
 		results = append(results, r)
 	}
-	
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Score > results[j].Score
 	})
-	
+
 	if len(results) > req.TopK {
 		results = results[:req.TopK]
 	}
-	
+
 	return &domain.SemanticSearchResponse{
 		Results:      results,
 		TotalResults: len(results),
@@ -465,26 +466,26 @@ func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain
 // FindSimilar finds similar code
 func (s *SemanticSearchServiceImpl) FindSimilar(ctx context.Context, req domain.SimilarCodeRequest) (*domain.SemanticSearchResponse, error) {
 	startTime := time.Now()
-	
+
 	// Read the source code
 	content, err := os.ReadFile(req.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
-	
+
 	lines := strings.Split(string(content), "\n")
 	if req.StartLine < 1 || req.EndLine > len(lines) {
 		return nil, fmt.Errorf("invalid line range")
 	}
-	
+
 	sourceCode := strings.Join(lines[req.StartLine-1:req.EndLine], "\n")
-	
+
 	// Generate embedding for source code with retry logic for API resilience
 	resp, err := s.generateEmbeddingsWithRetry(ctx, []string{sourceCode})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
-	
+
 	// Get project root from file path
 	projectRoot := filepath.Dir(req.FilePath)
 	for {
@@ -498,38 +499,38 @@ func (s *SemanticSearchServiceImpl) FindSimilar(ctx context.Context, req domain.
 		}
 		projectRoot = parent
 	}
-	
+
 	projectID := generateProjectID(projectRoot)
-	
+
 	// Search for similar code
 	topK := req.TopK
 	if req.ExcludeSelf {
 		topK++ // Get one extra to potentially exclude self
 	}
-	
+
 	results, err := s.vectorStore.Search(ctx, projectID, resp.Embeddings[0], topK, req.MinScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
-	
+
 	// Filter out self if requested
 	if req.ExcludeSelf {
 		var filtered []domain.SemanticSearchResult
 		for _, r := range results {
-			if r.Chunk.FilePath == req.FilePath && 
-			   r.Chunk.StartLine == req.StartLine && 
-			   r.Chunk.EndLine == req.EndLine {
+			if r.Chunk.FilePath == req.FilePath &&
+				r.Chunk.StartLine == req.StartLine &&
+				r.Chunk.EndLine == req.EndLine {
 				continue
 			}
 			filtered = append(filtered, r)
 		}
 		results = filtered
 	}
-	
+
 	if len(results) > req.TopK {
 		results = results[:req.TopK]
 	}
-	
+
 	return &domain.SemanticSearchResponse{
 		Results:      results,
 		TotalResults: len(results),
@@ -581,31 +582,31 @@ func (s *SemanticSearchServiceImpl) GetIndexingState(projectRoot string) *Indexi
 func (s *SemanticSearchServiceImpl) chunkFile(filePath string, content []byte, symbols []SymbolInfoForChunking) []domain.CodeChunk {
 	language := detectLanguageFromPath(filePath)
 	lines := strings.Split(string(content), "\n")
-	
+
 	// Simple chunking - prefer symbol-based if available
 	if len(symbols) > 0 {
 		return s.chunkBySymbols(filePath, lines, symbols, language)
 	}
-	
+
 	return s.chunkBySize(filePath, lines, language)
 }
 
 func (s *SemanticSearchServiceImpl) chunkBySymbols(filePath string, lines []string, symbols []SymbolInfoForChunking, language string) []domain.CodeChunk {
-	var chunks []domain.CodeChunk
-	
+	chunks := make([]domain.CodeChunk, 0, len(symbols))
+
 	for _, sym := range symbols {
 		if sym.StartLine < 1 || sym.EndLine > len(lines) || sym.EndLine < sym.StartLine {
 			continue
 		}
-		
+
 		symbolLines := lines[sym.StartLine-1 : sym.EndLine]
 		content := strings.Join(symbolLines, "\n")
 		tokenCount := len(content) / 4
-		
+
 		if tokenCount < 20 {
 			continue
 		}
-		
+
 		chunk := domain.CodeChunk{
 			ID:         generateChunkID(filePath, sym.StartLine, sym.EndLine),
 			FilePath:   filePath,
@@ -621,21 +622,21 @@ func (s *SemanticSearchServiceImpl) chunkBySymbols(filePath string, lines []stri
 		}
 		chunks = append(chunks, chunk)
 	}
-	
+
 	return chunks
 }
 
 func (s *SemanticSearchServiceImpl) chunkBySize(filePath string, lines []string, language string) []domain.CodeChunk {
-	var chunks []domain.CodeChunk
+	chunks := make([]domain.CodeChunk, 0, len(lines)/50+1)
 	maxTokens := 512
-	
+
 	currentStart := 1
-	var currentLines []string
+	currentLines := make([]string, 0, 50)
 	currentTokens := 0
-	
+
 	for i, line := range lines {
 		lineTokens := len(line) / 4
-		
+
 		if currentTokens+lineTokens > maxTokens && len(currentLines) > 0 {
 			content := strings.Join(currentLines, "\n")
 			chunk := domain.CodeChunk{
@@ -650,16 +651,16 @@ func (s *SemanticSearchServiceImpl) chunkBySize(filePath string, lines []string,
 				Hash:       hashContent(content),
 			}
 			chunks = append(chunks, chunk)
-			
+
 			currentLines = nil
 			currentStart = i + 1
 			currentTokens = 0
 		}
-		
+
 		currentLines = append(currentLines, line)
 		currentTokens += lineTokens
 	}
-	
+
 	if len(currentLines) > 0 && currentTokens >= 20 {
 		content := strings.Join(currentLines, "\n")
 		chunk := domain.CodeChunk{
@@ -675,77 +676,75 @@ func (s *SemanticSearchServiceImpl) chunkBySize(filePath string, lines []string,
 		}
 		chunks = append(chunks, chunk)
 	}
-	
+
 	return chunks
+}
+
+// matchesLanguageFilter checks if chunk matches language filter
+func matchesLanguageFilter(chunk *domain.CodeChunk, languages []string) bool {
+	if len(languages) == 0 {
+		return true
+	}
+	for _, lang := range languages {
+		if chunk.Language == lang {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesChunkTypeFilter checks if chunk matches chunk type filter
+func matchesChunkTypeFilter(chunk *domain.CodeChunk, chunkTypes []domain.ChunkType) bool {
+	if len(chunkTypes) == 0 {
+		return true
+	}
+	for _, ct := range chunkTypes {
+		if chunk.ChunkType == ct {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesFilePathFilter checks if chunk matches file path filter
+func matchesFilePathFilter(chunk *domain.CodeChunk, filePaths []string) bool {
+	if len(filePaths) == 0 {
+		return true
+	}
+	for _, fp := range filePaths {
+		if strings.HasPrefix(chunk.FilePath, fp) {
+			return true
+		}
+	}
+	return false
+}
+
+// isExcludedDir checks if chunk is in an excluded directory
+func isExcludedDir(chunk *domain.CodeChunk, excludeDirs []string) bool {
+	for _, dir := range excludeDirs {
+		if strings.Contains(chunk.FilePath, dir) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *SemanticSearchServiceImpl) applyFilters(results []domain.SemanticSearchResult, filters *domain.SearchFilters) []domain.SemanticSearchResult {
 	if filters == nil {
 		return results
 	}
-	
-	var filtered []domain.SemanticSearchResult
-	
+
+	filtered := make([]domain.SemanticSearchResult, 0, len(results))
 	for _, r := range results {
-		// Filter by language
-		if len(filters.Languages) > 0 {
-			found := false
-			for _, lang := range filters.Languages {
-				if r.Chunk.Language == lang {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
+		chunk := &r.Chunk
+		if !matchesLanguageFilter(chunk, filters.Languages) ||
+			!matchesChunkTypeFilter(chunk, filters.ChunkTypes) ||
+			!matchesFilePathFilter(chunk, filters.FilePaths) ||
+			isExcludedDir(chunk, filters.ExcludeDirs) {
+			continue
 		}
-		
-		// Filter by chunk type
-		if len(filters.ChunkTypes) > 0 {
-			found := false
-			for _, ct := range filters.ChunkTypes {
-				if r.Chunk.ChunkType == ct {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-		
-		// Filter by file path
-		if len(filters.FilePaths) > 0 {
-			found := false
-			for _, fp := range filters.FilePaths {
-				if strings.HasPrefix(r.Chunk.FilePath, fp) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-		
-		// Exclude directories
-		if len(filters.ExcludeDirs) > 0 {
-			excluded := false
-			for _, dir := range filters.ExcludeDirs {
-				if strings.Contains(r.Chunk.FilePath, dir) {
-					excluded = true
-					break
-				}
-			}
-			if excluded {
-				continue
-			}
-		}
-		
 		filtered = append(filtered, r)
 	}
-	
 	return filtered
 }
 
@@ -784,7 +783,7 @@ func shouldSkipDir(name string) bool {
 		"__pycache__", ".pytest_cache",
 		"coverage", ".nyc_output",
 	}
-	
+
 	for _, skip := range skipDirs {
 		if name == skip {
 			return true
@@ -837,14 +836,14 @@ func mapKindToChunkType(kind string) domain.ChunkType {
 
 func createEmbeddingText(chunk domain.CodeChunk) string {
 	var sb strings.Builder
-	
+
 	// Add metadata as prefix for better semantic understanding
 	if chunk.SymbolName != "" {
 		sb.WriteString(fmt.Sprintf("// %s %s in %s\n", chunk.SymbolKind, chunk.SymbolName, chunk.FilePath))
 	} else {
 		sb.WriteString(fmt.Sprintf("// Code from %s (lines %d-%d)\n", chunk.FilePath, chunk.StartLine, chunk.EndLine))
 	}
-	
+
 	sb.WriteString(chunk.Content)
 	return sb.String()
 }
@@ -862,7 +861,7 @@ func (s *SemanticSearchServiceImpl) generateEmbeddingsWithRetry(ctx context.Cont
 	maxRetries := 3
 	baseDelay := 1 * time.Second
 	maxDelay := 30 * time.Second
-	
+
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		select {
@@ -870,16 +869,16 @@ func (s *SemanticSearchServiceImpl) generateEmbeddingsWithRetry(ctx context.Cont
 			return nil, ctx.Err()
 		default:
 		}
-		
+
 		resp, err := s.embeddingProvider.GenerateEmbeddings(ctx, domain.EmbeddingRequest{
 			Texts: texts,
 		})
 		if err == nil {
 			return resp, nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable (rate limit, temporary network issues)
 		errStr := err.Error()
 		isRetryable := strings.Contains(errStr, "rate limit") ||
@@ -889,12 +888,12 @@ func (s *SemanticSearchServiceImpl) generateEmbeddingsWithRetry(ctx context.Cont
 			strings.Contains(errStr, "timeout") ||
 			strings.Contains(errStr, "connection") ||
 			strings.Contains(errStr, "temporary")
-		
+
 		if !isRetryable {
 			// Non-retryable error, fail immediately
 			return nil, err
 		}
-		
+
 		// Calculate delay with exponential backoff and jitter
 		delay := baseDelay * time.Duration(1<<uint(attempt))
 		if delay > maxDelay {
@@ -903,10 +902,10 @@ func (s *SemanticSearchServiceImpl) generateEmbeddingsWithRetry(ctx context.Cont
 		// Add jitter (±25%)
 		jitter := time.Duration(float64(delay) * 0.25 * (0.5 - float64(time.Now().UnixNano()%100)/100))
 		delay += jitter
-		
-		s.log.Warning(fmt.Sprintf("Embedding API error (attempt %d/%d): %v. Retrying in %v...", 
+
+		s.log.Warning(fmt.Sprintf("Embedding API error (attempt %d/%d): %v. Retrying in %v...",
 			attempt+1, maxRetries, err, delay))
-		
+
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -914,6 +913,6 @@ func (s *SemanticSearchServiceImpl) generateEmbeddingsWithRetry(ctx context.Cont
 			// Continue to next retry
 		}
 	}
-	
+
 	return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
 }

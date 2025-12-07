@@ -7,6 +7,8 @@ import (
 	"shotgun_code/domain"
 )
 
+const versionUnknown = "unknown"
+
 // GrypeScanner представляет сканер уязвимостей с использованием Grype
 type GrypeScanner struct {
 	log domain.Logger
@@ -88,7 +90,7 @@ func (g *GrypeScanner) ScanSBOM(ctx context.Context, sbomPath string) (*domain.V
 	g.log.Info(fmt.Sprintf("Scanning SBOM with Grype: %s", sbomPath))
 
 	// Запускаем Grype для SBOM
-	cmd := exec.CommandContext(ctx, "grype", "sbom:"+sbomPath, "-o", "json")
+	cmd := exec.CommandContext(ctx, "grype", "sbom:"+sbomPath, "-o", "json") //nolint:gosec // External tool command
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -135,7 +137,7 @@ func (g *GrypeScanner) UpdateDatabase(ctx context.Context) error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("grype db update failed: %v, output: %s", err, string(output))
+		return fmt.Errorf("grype db update failed: %w, output: %s", err, string(output))
 	}
 
 	return nil
@@ -153,7 +155,7 @@ func (g *GrypeScanner) GetDatabaseInfo(ctx context.Context) (map[string]interfac
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("grype db status failed: %v", err)
+		return nil, fmt.Errorf("grype db status failed: %w", err)
 	}
 
 	return map[string]interface{}{
@@ -167,7 +169,7 @@ func (g *GrypeScanner) getVersion() string {
 	cmd := exec.Command("grype", "--version")
 	output, err := cmd.Output()
 	if err != nil {
-		return "unknown"
+		return versionUnknown
 	}
 	return string(output)
 }

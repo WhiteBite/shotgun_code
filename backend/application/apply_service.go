@@ -41,7 +41,7 @@ func NewApplyService(
 func (s *ApplyService) ApplyEdits(ctx context.Context, edits *domain.EditsJSON) ([]*domain.ApplyResult, error) {
 	s.log.Info(fmt.Sprintf("Applying %d edits", len(edits.Edits)))
 
-	var operations []*domain.ApplyOperation
+	operations := make([]*domain.ApplyOperation, 0, len(edits.Edits))
 
 	// Конвертируем Edits JSON в операции
 	for _, edit := range edits.Edits {

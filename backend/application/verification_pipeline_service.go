@@ -151,7 +151,7 @@ func (s *VerificationPipelineService) RunVerificationPipeline(ctx context.Contex
 func (s *VerificationPipelineService) runFormatStep(ctx context.Context, config *domain.VerificationConfig) (interface{}, error) {
 	s.log.Info("Running format step")
 
-	var results []*domain.FormatResult
+	results := make([]*domain.FormatResult, 0, len(config.Languages))
 
 	for _, language := range config.Languages {
 		result, err := s.formatterService.FormatProject(ctx, config.ProjectPath, language)
@@ -222,7 +222,7 @@ func (s *VerificationPipelineService) runStaticAnalysisStep(ctx context.Context,
 func (s *VerificationPipelineService) saveVerificationReport(ctx context.Context, result *domain.VerificationResult) error {
 	// Создаем директорию tasks/reports если не существует
 	reportsDir := "tasks/reports"
-	if err := s.reportWriter.MkdirAll(reportsDir, 0755); err != nil {
+	if err := s.reportWriter.MkdirAll(reportsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create reports directory: %w", err)
 	}
 
@@ -238,7 +238,7 @@ func (s *VerificationPipelineService) saveVerificationReport(ctx context.Context
 	}
 
 	// Сохраняем файл
-	if err := s.reportWriter.WriteFile(filepath, jsonData, 0644); err != nil {
+	if err := s.reportWriter.WriteFile(filepath, jsonData, 0o644); err != nil {
 		return fmt.Errorf("failed to write verification report: %w", err)
 	}
 
@@ -338,7 +338,7 @@ func (s *VerificationPipelineService) CreateTaskProtocolConfig(verifyConfig *dom
 func (s *VerificationPipelineService) saveTaskProtocolReport(ctx context.Context, result *domain.TaskProtocolResult) error {
 	// Create directory for task protocol reports
 	reportsDir := "tasks/reports/protocols"
-	if err := s.reportWriter.MkdirAll(reportsDir, 0755); err != nil {
+	if err := s.reportWriter.MkdirAll(reportsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create protocol reports directory: %w", err)
 	}
 
@@ -354,7 +354,7 @@ func (s *VerificationPipelineService) saveTaskProtocolReport(ctx context.Context
 	}
 
 	// Save file
-	if err := s.reportWriter.WriteFile(filepath, jsonData, 0644); err != nil {
+	if err := s.reportWriter.WriteFile(filepath, jsonData, 0o644); err != nil {
 		return fmt.Errorf("failed to write task protocol report: %w", err)
 	}
 

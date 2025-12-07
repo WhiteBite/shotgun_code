@@ -21,31 +21,31 @@ func (d *Detector) initFrameworkDetectors() {
 		&svelteDetector{},
 		&nextjsDetector{},
 		&nuxtDetector{},
-		
+
 		// Backend frameworks - Go
 		&ginDetector{},
 		&echoDetector{},
 		&fiberDetector{},
 		&wailsDetector{},
-		
+
 		// Backend frameworks - Node
 		&expressDetector{},
 		&nestjsDetector{},
 		&fastifyDetector{},
-		
+
 		// Backend frameworks - Python
 		&djangoDetector{},
 		&flaskDetector{},
 		&fastapiDetector{},
-		
+
 		// Backend frameworks - Java/Kotlin
 		&springDetector{},
 		&ktorDetector{},
-		
+
 		// Mobile
 		&flutterDetector{},
 		&reactNativeDetector{},
-		
+
 		// Testing
 		&jestDetector{},
 		&vitestDetector{},
@@ -68,7 +68,7 @@ func (v *vueDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	version := extractDependencyVersion(content, "vue")
-	
+
 	var configFiles []string
 	configs := []string{"vite.config.ts", "vite.config.js", "vue.config.js", "nuxt.config.ts"}
 	for _, cfg := range configs {
@@ -111,11 +111,11 @@ func (r *reactDetector) detect(projectPath string) *domain.FrameworkInfo {
 	version := extractDependencyVersion(content, "react")
 
 	return &domain.FrameworkInfo{
-		Name:        "React",
-		Version:     version,
-		Category:    "web",
-		Language:    "TypeScript",
-		Indicators:  []string{"react dependency in package.json"},
+		Name:       "React",
+		Version:    version,
+		Category:   "web",
+		Language:   "TypeScript",
+		Indicators: []string{"react dependency in package.json"},
 		BestPractices: []string{
 			"Use functional components with hooks",
 			"Organize by feature, not by type",
@@ -355,10 +355,10 @@ func (e *expressDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	return &domain.FrameworkInfo{
-		Name:        "Express",
-		Category:    "web",
-		Language:    "JavaScript",
-		Indicators:  []string{"express dependency in package.json"},
+		Name:       "Express",
+		Category:   "web",
+		Language:   "JavaScript",
+		Indicators: []string{"express dependency in package.json"},
 		BestPractices: []string{
 			"Use middleware for cross-cutting concerns",
 			"Implement proper error handling middleware",
@@ -410,10 +410,10 @@ func (f *fastifyDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	return &domain.FrameworkInfo{
-		Name:        "Fastify",
-		Category:    "web",
-		Language:    "TypeScript",
-		Indicators:  []string{"fastify dependency in package.json"},
+		Name:       "Fastify",
+		Category:   "web",
+		Language:   "TypeScript",
+		Indicators: []string{"fastify dependency in package.json"},
 		BestPractices: []string{
 			"Use plugins for modularity",
 			"Implement JSON Schema validation",
@@ -460,10 +460,10 @@ func (f *flaskDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	return &domain.FrameworkInfo{
-		Name:        "Flask",
-		Category:    "web",
-		Language:    "Python",
-		Indicators:  []string{"flask in requirements.txt"},
+		Name:       "Flask",
+		Category:   "web",
+		Language:   "Python",
+		Indicators: []string{"flask in requirements.txt"},
 		BestPractices: []string{
 			"Use blueprints for modularity",
 			"Implement proper error handling",
@@ -492,10 +492,10 @@ func (f *fastapiDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	return &domain.FrameworkInfo{
-		Name:        "FastAPI",
-		Category:    "web",
-		Language:    "Python",
-		Indicators:  []string{"fastapi in requirements.txt or pyproject.toml"},
+		Name:       "FastAPI",
+		Category:   "web",
+		Language:   "Python",
+		Indicators: []string{"fastapi in requirements.txt or pyproject.toml"},
 		BestPractices: []string{
 			"Use Pydantic models for validation",
 			"Implement dependency injection",
@@ -613,10 +613,10 @@ func (r *reactNativeDetector) detect(projectPath string) *domain.FrameworkInfo {
 	}
 
 	return &domain.FrameworkInfo{
-		Name:        "React Native",
-		Category:    "mobile",
-		Language:    "TypeScript",
-		Indicators:  []string{"react-native dependency in package.json"},
+		Name:       "React Native",
+		Category:   "mobile",
+		Language:   "TypeScript",
+		Indicators: []string{"react-native dependency in package.json"},
 		BestPractices: []string{
 			"Use TypeScript for type safety",
 			"Implement proper navigation",

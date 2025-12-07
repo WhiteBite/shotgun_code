@@ -133,19 +133,18 @@ func (a *JavaScriptAnalyzer) GetImports(ctx context.Context, filePath string, co
 	return imports, nil
 }
 
-
 // VueAnalyzer analyzes Vue SFC files
 type VueAnalyzer struct {
-	scriptRe    *regexp.Regexp
+	scriptRe     *regexp.Regexp
 	composableRe *regexp.Regexp
-	importRe    *regexp.Regexp
+	importRe     *regexp.Regexp
 }
 
 func NewVueAnalyzer() *VueAnalyzer {
 	return &VueAnalyzer{
-		scriptRe:    regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`),
+		scriptRe:     regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`),
 		composableRe: regexp.MustCompile(`(?m)(const|function)\s+(use\w+)`),
-		importRe:    regexp.MustCompile(`(?m)^import\s+.*from\s+['"]([^'"]+)['"]`),
+		importRe:     regexp.MustCompile(`(?m)^import\s+.*from\s+['"]([^'"]+)['"]`),
 	}
 }
 
@@ -157,7 +156,7 @@ func (a *VueAnalyzer) CanAnalyze(filePath string) bool {
 
 func (a *VueAnalyzer) ExtractSymbols(ctx context.Context, filePath string, content []byte) ([]Symbol, error) {
 	var symbols []Symbol
-	
+
 	// Get component name from filename
 	parts := strings.Split(filePath, "/")
 	if len(parts) == 0 {
@@ -165,12 +164,12 @@ func (a *VueAnalyzer) ExtractSymbols(ctx context.Context, filePath string, conte
 	}
 	fileName := parts[len(parts)-1]
 	componentName := strings.TrimSuffix(fileName, ".vue")
-	
+
 	symbols = append(symbols, Symbol{
-		Name:     componentName,
-		Kind:     SymbolComponent,
-		Language: "vue",
-		FilePath: filePath,
+		Name:      componentName,
+		Kind:      SymbolComponent,
+		Language:  "vue",
+		FilePath:  filePath,
 		StartLine: 1,
 	})
 
@@ -184,10 +183,10 @@ func (a *VueAnalyzer) ExtractSymbols(ctx context.Context, filePath string, conte
 			line := countLines([]byte(scriptContent[:match[0]]))
 			name := scriptContent[match[4]:match[5]]
 			symbols = append(symbols, Symbol{
-				Name:     name,
-				Kind:     SymbolComposable,
-				Language: "vue",
-				FilePath: filePath,
+				Name:      name,
+				Kind:      SymbolComposable,
+				Language:  "vue",
+				FilePath:  filePath,
 				StartLine: line,
 			})
 		}

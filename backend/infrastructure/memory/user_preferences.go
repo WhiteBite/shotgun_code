@@ -58,10 +58,12 @@ func (up *UserPreferences) Get(key PreferenceKey) string {
 	return v
 }
 
+const boolTrue = "true"
+
 // GetBool gets a boolean preference
 func (up *UserPreferences) GetBool(key PreferenceKey) bool {
 	v := strings.ToLower(up.Get(key))
-	return v == "true" || v == "yes" || v == "1"
+	return v == boolTrue || v == "yes" || v == "1"
 }
 
 // GetInt gets an integer preference
@@ -89,7 +91,7 @@ func (up *UserPreferences) GetStringList(key PreferenceKey) []string {
 		return nil
 	}
 	var list []string
-	json.Unmarshal([]byte(v), &list)
+	_ = json.Unmarshal([]byte(v), &list)
 	return list
 }
 
@@ -190,18 +192,18 @@ func ParsePreferenceFromMessage(message string) (key PreferenceKey, value string
 
 	// Patterns for preference extraction
 	patterns := map[string]PreferenceKey{
-		"не включай тесты":       PrefExcludeTests,
-		"exclude tests":          PrefExcludeTests,
-		"без тестов":             PrefExcludeTests,
-		"ignore tests":           PrefExcludeTests,
-		"не включай vendor":      PrefExcludeVendor,
-		"exclude vendor":         PrefExcludeVendor,
-		"без сгенерированного":   PrefExcludeGenerated,
-		"exclude generated":      PrefExcludeGenerated,
-		"максимум файлов":        PrefMaxContextFiles,
-		"max files":              PrefMaxContextFiles,
-		"включай комментарии":    PrefIncludeComments,
-		"include comments":       PrefIncludeComments,
+		"не включай тесты":     PrefExcludeTests,
+		"exclude tests":        PrefExcludeTests,
+		"без тестов":           PrefExcludeTests,
+		"ignore tests":         PrefExcludeTests,
+		"не включай vendor":    PrefExcludeVendor,
+		"exclude vendor":       PrefExcludeVendor,
+		"без сгенерированного": PrefExcludeGenerated,
+		"exclude generated":    PrefExcludeGenerated,
+		"максимум файлов":      PrefMaxContextFiles,
+		"max files":            PrefMaxContextFiles,
+		"включай комментарии":  PrefIncludeComments,
+		"include comments":     PrefIncludeComments,
 	}
 
 	for pattern, prefKey := range patterns {
@@ -209,10 +211,10 @@ func ParsePreferenceFromMessage(message string) (key PreferenceKey, value string
 			// Determine value
 			if strings.Contains(message, "не ") || strings.Contains(message, "exclude") ||
 				strings.Contains(message, "без") || strings.Contains(message, "ignore") {
-				return prefKey, "true", true
+				return prefKey, boolTrue, true
 			}
 			if strings.Contains(message, "включай") || strings.Contains(message, "include") {
-				return prefKey, "true", true
+				return prefKey, boolTrue, true
 			}
 		}
 	}

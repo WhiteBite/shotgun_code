@@ -78,170 +78,161 @@ func (b *GoSymbolGraphBuilder) BuildGraph(ctx context.Context, projectRoot strin
 	return graph, nil
 }
 
+// parseContext holds parsing context to avoid repeated allocations
+type parseContext struct {
+	fset        *token.FileSet
+	packageName string
+	relPath     string
+	nodes       []*domain.SymbolNode
+	edges       []*domain.SymbolEdge
+}
+
+// processImports extracts import nodes and edges
+func (b *GoSymbolGraphBuilder) processImports(ctx *parseContext, file *ast.File, packageNodeID string) {
+	for _, imp := range file.Imports {
+		importPath := strings.Trim(imp.Path.Value, "\"")
+		importNode := &domain.SymbolNode{
+			ID:         fmt.Sprintf("import:%s:%s", ctx.relPath, importPath),
+			Name:       importPath,
+			Type:       domain.SymbolTypeImport,
+			Path:       ctx.relPath,
+			Package:    ctx.packageName,
+			Visibility: domain.VisibilityPublic,
+		}
+		ctx.nodes = append(ctx.nodes, importNode)
+		ctx.edges = append(ctx.edges, &domain.SymbolEdge{
+			From: packageNodeID, To: importNode.ID, Type: domain.EdgeTypeImports, Weight: 1.0,
+		})
+	}
+}
+
+// processFuncDecl processes function declarations
+func (b *GoSymbolGraphBuilder) processFuncDecl(ctx *parseContext, x *ast.FuncDecl) {
+	funcNode := &domain.SymbolNode{
+		ID:         fmt.Sprintf("func:%s:%s", ctx.relPath, x.Name.Name),
+		Name:       x.Name.Name,
+		Type:       domain.SymbolTypeFunction,
+		Path:       ctx.relPath,
+		Package:    ctx.packageName,
+		Visibility: b.getVisibility(x.Name.Name),
+	}
+	if x.Recv != nil {
+		funcNode.Type = domain.SymbolTypeMethod
+		if len(x.Recv.List) > 0 {
+			if receiverType := b.getReceiverType(x.Recv.List[0].Type); receiverType != "" {
+				ctx.edges = append(ctx.edges, &domain.SymbolEdge{
+					From: funcNode.ID, To: fmt.Sprintf("type:%s:%s", ctx.relPath, receiverType),
+					Type: domain.EdgeTypeReferences, Weight: 1.0,
+				})
+			}
+		}
+	}
+	ctx.nodes = append(ctx.nodes, funcNode)
+}
+
+// processStructFields processes struct field declarations
+func (b *GoSymbolGraphBuilder) processStructFields(ctx *parseContext, structType *ast.StructType, typeName string) {
+	for _, field := range structType.Fields.List {
+		for _, name := range field.Names {
+			fieldNode := &domain.SymbolNode{
+				ID:         fmt.Sprintf("field:%s:%s.%s", ctx.relPath, typeName, name.Name),
+				Name:       name.Name,
+				Type:       domain.SymbolTypeField,
+				Path:       ctx.relPath,
+				Package:    ctx.packageName,
+				Visibility: b.getVisibility(name.Name),
+			}
+			ctx.nodes = append(ctx.nodes, fieldNode)
+			ctx.edges = append(ctx.edges, &domain.SymbolEdge{
+				From: fieldNode.ID, To: fmt.Sprintf("type:%s:%s", ctx.relPath, typeName),
+				Type: domain.EdgeTypeReferences, Weight: 1.0,
+			})
+		}
+	}
+}
+
+// processTypeSpec processes type specifications
+func (b *GoSymbolGraphBuilder) processTypeSpec(ctx *parseContext, typeSpec *ast.TypeSpec) {
+	symbolType := domain.SymbolTypeType
+	switch t := typeSpec.Type.(type) {
+	case *ast.StructType:
+		symbolType = domain.SymbolTypeStruct
+		b.processStructFields(ctx, t, typeSpec.Name.Name)
+	case *ast.InterfaceType:
+		symbolType = domain.SymbolTypeInterface
+	}
+	ctx.nodes = append(ctx.nodes, &domain.SymbolNode{
+		ID:         fmt.Sprintf("type:%s:%s", ctx.relPath, typeSpec.Name.Name),
+		Name:       typeSpec.Name.Name,
+		Type:       symbolType,
+		Path:       ctx.relPath,
+		Package:    ctx.packageName,
+		Visibility: b.getVisibility(typeSpec.Name.Name),
+	})
+}
+
+// processValueSpec processes var/const specifications
+func (b *GoSymbolGraphBuilder) processValueSpec(ctx *parseContext, valueSpec *ast.ValueSpec, tok token.Token) {
+	symbolType := domain.SymbolTypeVariable
+	if tok == token.CONST {
+		symbolType = domain.SymbolTypeConstant
+	}
+	for _, name := range valueSpec.Names {
+		ctx.nodes = append(ctx.nodes, &domain.SymbolNode{
+			ID:         fmt.Sprintf("%s:%s:%s", strings.ToLower(tok.String()), ctx.relPath, name.Name),
+			Name:       name.Name,
+			Type:       symbolType,
+			Path:       ctx.relPath,
+			Package:    ctx.packageName,
+			Visibility: b.getVisibility(name.Name),
+		})
+	}
+}
+
 // parseGoFile парсит отдельный Go файл и извлекает символы
 func (b *GoSymbolGraphBuilder) parseGoFile(filePath, projectRoot string) ([]*domain.SymbolNode, []*domain.SymbolEdge, error) {
 	fset := token.NewFileSet()
-
-	// Парсим файл
 	file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse file %s: %w", filePath, err)
 	}
 
-	var nodes []*domain.SymbolNode
-	var edges []*domain.SymbolEdge
-
-	// Определяем пакет
-	packageName := file.Name.Name
 	relPath, _ := filepath.Rel(projectRoot, filePath)
+	ctx := &parseContext{
+		fset:        fset,
+		packageName: file.Name.Name,
+		relPath:     relPath,
+		nodes:       make([]*domain.SymbolNode, 0, 32),
+		edges:       make([]*domain.SymbolEdge, 0, 16),
+	}
 
-	// Добавляем узел пакета
+	// Package node
 	packageNode := &domain.SymbolNode{
-		ID:         fmt.Sprintf("%s:%s", packageName, relPath),
-		Name:       packageName,
-		Type:       domain.SymbolTypePackage,
-		Path:       relPath,
-		Package:    packageName,
-		Visibility: domain.VisibilityPublic,
+		ID: fmt.Sprintf("%s:%s", ctx.packageName, relPath), Name: ctx.packageName,
+		Type: domain.SymbolTypePackage, Path: relPath, Package: ctx.packageName, Visibility: domain.VisibilityPublic,
 	}
-	nodes = append(nodes, packageNode)
+	ctx.nodes = append(ctx.nodes, packageNode)
 
-	// Обрабатываем импорты
-	for _, imp := range file.Imports {
-		importPath := strings.Trim(imp.Path.Value, "\"")
-		importNode := &domain.SymbolNode{
-			ID:         fmt.Sprintf("import:%s:%s", relPath, importPath),
-			Name:       importPath,
-			Type:       domain.SymbolTypeImport,
-			Path:       relPath,
-			Package:    packageName,
-			Visibility: domain.VisibilityPublic,
-		}
-		nodes = append(nodes, importNode)
+	b.processImports(ctx, file, packageNode.ID)
 
-		// Добавляем ребро импорта
-		importEdge := &domain.SymbolEdge{
-			From:   packageNode.ID,
-			To:     importNode.ID,
-			Type:   domain.EdgeTypeImports,
-			Weight: 1.0,
-		}
-		edges = append(edges, importEdge)
-	}
-
-	// Обрабатываем объявления
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			// Функция
-			funcNode := &domain.SymbolNode{
-				ID:         fmt.Sprintf("func:%s:%s", relPath, x.Name.Name),
-				Name:       x.Name.Name,
-				Type:       domain.SymbolTypeFunction,
-				Path:       relPath,
-				Package:    packageName,
-				Visibility: b.getVisibility(x.Name.Name),
-			}
-			if x.Recv != nil {
-				funcNode.Type = domain.SymbolTypeMethod
-				// Добавляем связь с типом-получателем
-				if len(x.Recv.List) > 0 && len(x.Recv.List[0].Names) > 0 {
-					receiverType := b.getReceiverType(x.Recv.List[0].Type)
-					if receiverType != "" {
-						receiverEdge := &domain.SymbolEdge{
-							From:   funcNode.ID,
-							To:     fmt.Sprintf("type:%s:%s", relPath, receiverType),
-							Type:   domain.EdgeTypeReferences,
-							Weight: 1.0,
-						}
-						edges = append(edges, receiverEdge)
-					}
-				}
-			}
-			nodes = append(nodes, funcNode)
-
+			b.processFuncDecl(ctx, x)
 		case *ast.GenDecl:
-			switch x.Tok {
-			case token.TYPE:
-				// Тип
-				for _, spec := range x.Specs {
-					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-						var symbolType = domain.SymbolTypeType
-
-						// Определяем конкретный тип
-						switch typeSpec.Type.(type) {
-						case *ast.StructType:
-							symbolType = domain.SymbolTypeStruct
-							// Обрабатываем поля структуры
-							if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-								for _, field := range structType.Fields.List {
-									for _, name := range field.Names {
-										fieldNode := &domain.SymbolNode{
-											ID:         fmt.Sprintf("field:%s:%s.%s", relPath, typeSpec.Name.Name, name.Name),
-											Name:       name.Name,
-											Type:       domain.SymbolTypeField,
-											Path:       relPath,
-											Package:    packageName,
-											Visibility: b.getVisibility(name.Name),
-										}
-										nodes = append(nodes, fieldNode)
-
-										// Добавляем связь с родительским типом
-										fieldEdge := &domain.SymbolEdge{
-											From:   fieldNode.ID,
-											To:     fmt.Sprintf("type:%s:%s", relPath, typeSpec.Name.Name),
-											Type:   domain.EdgeTypeReferences,
-											Weight: 1.0,
-										}
-										edges = append(edges, fieldEdge)
-									}
-								}
-							}
-						case *ast.InterfaceType:
-							symbolType = domain.SymbolTypeInterface
-						}
-
-						typeNode := &domain.SymbolNode{
-							ID:         fmt.Sprintf("type:%s:%s", relPath, typeSpec.Name.Name),
-							Name:       typeSpec.Name.Name,
-							Type:       symbolType,
-							Path:       relPath,
-							Package:    packageName,
-							Visibility: b.getVisibility(typeSpec.Name.Name),
-						}
-						nodes = append(nodes, typeNode)
-					}
-				}
-			case token.VAR, token.CONST:
-				// Переменные и константы
-				for _, spec := range x.Specs {
-					if valueSpec, ok := spec.(*ast.ValueSpec); ok {
-						for _, name := range valueSpec.Names {
-							var symbolType domain.SymbolType
-							if x.Tok == token.CONST {
-								symbolType = domain.SymbolTypeConstant
-							} else {
-								symbolType = domain.SymbolTypeVariable
-							}
-
-							varNode := &domain.SymbolNode{
-								ID:         fmt.Sprintf("%s:%s:%s", strings.ToLower(x.Tok.String()), relPath, name.Name),
-								Name:       name.Name,
-								Type:       symbolType,
-								Path:       relPath,
-								Package:    packageName,
-								Visibility: b.getVisibility(name.Name),
-							}
-							nodes = append(nodes, varNode)
-						}
-					}
+			for _, spec := range x.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					b.processTypeSpec(ctx, s)
+				case *ast.ValueSpec:
+					b.processValueSpec(ctx, s, x.Tok)
 				}
 			}
 		}
 		return true
 	})
 
-	return nodes, edges, nil
+	return ctx.nodes, ctx.edges, nil
 }
 
 // getVisibility определяет видимость символа по его имени

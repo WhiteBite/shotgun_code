@@ -44,12 +44,11 @@ Be thorough but efficient.`, toolsJSON)
 	messages = append(messages, domain.ChatMessage{Role: domain.RoleSystem, Content: systemPrompt})
 	messages = append(messages, domain.ChatMessage{Role: domain.RoleUser, Content: req.Task})
 
-	var toolCallLogs []ToolCallLog
 	iterations := 0
 
 	for iterations < s.maxIterations {
 		iterations++
-		
+
 		callback(AgenticStreamEvent{
 			Type:      "thinking",
 			Content:   fmt.Sprintf("Iteration %d...", iterations),
@@ -86,7 +85,7 @@ Be thorough but efficient.`, toolsJSON)
 		var toolResults []string
 		for _, call := range toolCalls {
 			argsJSON, _ := json.Marshal(call.Arguments)
-			
+
 			callback(AgenticStreamEvent{
 				Type:      "tool_call",
 				ToolName:  call.Name,
@@ -101,12 +100,6 @@ Be thorough but efficient.`, toolsJSON)
 				ToolName:  call.Name,
 				Content:   truncateStr(result.Content, 200),
 				Iteration: iterations,
-			})
-
-			toolCallLogs = append(toolCallLogs, ToolCallLog{
-				Tool:      call.Name,
-				Arguments: string(argsJSON),
-				Result:    truncateStr(result.Content, 500),
 			})
 
 			toolResults = append(toolResults, fmt.Sprintf("Tool: %s\nResult:\n%s", call.Name, result.Content))

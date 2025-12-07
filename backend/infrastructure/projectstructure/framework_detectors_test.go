@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+const categoryWebTest = "web"
+
 func TestVueDetector(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -23,7 +25,7 @@ func TestVueDetector(t *testing.T) {
 	for _, fw := range frameworks {
 		if fw.Name == "Vue.js" {
 			found = true
-			if fw.Category != "web" {
+			if fw.Category != categoryWebTest {
 				t.Errorf("Expected category 'web', got '%s'", fw.Category)
 			}
 			if fw.Version == "" {
@@ -57,7 +59,7 @@ func TestReactDetector(t *testing.T) {
 	for _, fw := range frameworks {
 		if fw.Name == "React" {
 			found = true
-			if fw.Category != "web" {
+			if fw.Category != categoryWebTest {
 				t.Errorf("Expected category 'web', got '%s'", fw.Category)
 			}
 		}
@@ -111,7 +113,7 @@ require github.com/gin-gonic/gin v1.9.1
 			if fw.Language != "Go" {
 				t.Errorf("Expected language 'Go', got '%s'", fw.Language)
 			}
-			if fw.Category != "web" {
+			if fw.Category != categoryWebTest {
 				t.Errorf("Expected category 'web', got '%s'", fw.Category)
 			}
 		}

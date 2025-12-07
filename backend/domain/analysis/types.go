@@ -7,7 +7,7 @@ type Symbol struct {
 	Kind       SymbolKind        `json:"kind"`
 	Language   string            `json:"language"`
 	FilePath   string            `json:"filePath"`
-	Line       int               `json:"line"`      // alias for StartLine
+	Line       int               `json:"line"` // alias for StartLine
 	StartLine  int               `json:"startLine"`
 	EndLine    int               `json:"endLine"`
 	StartCol   int               `json:"startCol"`

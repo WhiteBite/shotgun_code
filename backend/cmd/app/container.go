@@ -104,12 +104,12 @@ type AppContainer struct {
 	QwenTaskService     *application.QwenTaskService
 
 	// Semantic Search Services
-	SymbolIndex        analysis.SymbolIndex
-	EmbeddingProvider  domain.EmbeddingProvider
-	VectorStore        domain.VectorStore
-	SemanticSearch     domain.SemanticSearchService
-	RAGService         domain.RAGService
-	SemanticHandler    *handlers.SemanticHandler
+	SymbolIndex       analysis.SymbolIndex
+	EmbeddingProvider domain.EmbeddingProvider
+	VectorStore       domain.VectorStore
+	SemanticSearch    domain.SemanticSearchService
+	RAGService        domain.RAGService
+	SemanticHandler   *handlers.SemanticHandler
 
 	// Handlers (new architecture)
 	ProjectHandler  *handlers.ProjectHandler
@@ -129,7 +129,7 @@ type AppContainer struct {
 
 	// Lazy service manager for coordinated lifecycle management
 	lazyManager *initmanager.LazyServiceManager
-	
+
 	// Cleanup goroutine control
 	cleanupStopCh chan struct{}
 }
@@ -181,10 +181,10 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Create AI service with intelligent service
 	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
-	
+
 	// Set provider getter in IntelligentAIService (uses interface to break circular dependency)
 	intelligentService.SetProviderGetter(c.AIService)
-	
+
 	// Connect SettingsService to AIService for cache invalidation on settings change
 	c.SettingsService.SetAICacheInvalidator(c.AIService)
 
@@ -203,7 +203,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		return nil, fmt.Errorf("failed to determine user home directory: %w", homeErr)
 	}
 	contextDir := filepath.Join(homeDir, ".shotgun-code", "contexts")
-	if mkErr := os.MkdirAll(contextDir, 0755); mkErr != nil {
+	if mkErr := os.MkdirAll(contextDir, 0o755); mkErr != nil {
 		return nil, fmt.Errorf("failed to create context directory: %w", mkErr)
 	}
 
@@ -426,18 +426,18 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Initialize lazy service manager for memory optimization
 	c.lazyManager = initmanager.NewLazyServiceManager()
-	
+
 	// Note: Services are currently eagerly initialized for compatibility
 	// Future enhancement: wrap heavy services in LazyService[T] and register with manager
 	// Example: c.lazyManager.Register("symbolgraph", lazySymbolGraphService)
-	
+
 	// Start periodic cleanup of unused services (runs every 5 minutes)
 	// Note: This goroutine will be stopped when lazyManager is shutdown
 	c.cleanupStopCh = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-c.cleanupStopCh:
@@ -477,7 +477,7 @@ func (c *AppContainer) initializeSemanticSearch() error {
 
 	// Create analyzer registry for symbol extraction
 	analyzerRegistry := analyzers.NewAnalyzerRegistry()
-	
+
 	// Create symbol index with SQLite caching for incremental indexing
 	symbolCacheDir := filepath.Join(dataDir, "symbol_cache")
 	cachedSymbolIndex, err := analyzers.NewCachedSymbolIndex(analyzerRegistry, symbolCacheDir)
@@ -629,7 +629,7 @@ func (c *AppContainer) GetLazyServiceStats() map[string]interface{} {
 			"message": "Lazy service manager not initialized",
 		}
 	}
-	
+
 	stats := c.lazyManager.GetInitializationStats()
 	stats["enabled"] = true
 	return stats
@@ -640,11 +640,11 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 	fetchers := make(domain.ModelFetcherRegistry)
 
 	for providerType, config := range registry {
-	// Capture variables for closure
+		// Capture variables for closure
 		providerType := providerType
 		config := config
 
-	// Create a cached fetcher
+		// Create a cached fetcher
 		cachedFetcher := &cachedModelFetcher{
 			fetcher: config.ModelFetcher,
 			log:     log,

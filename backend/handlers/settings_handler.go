@@ -34,12 +34,12 @@ func (h *SettingsHandler) GetSettings() (domain.SettingsDTO, error) {
 }
 
 // SaveSettings saves settings from JSON
-func (h *SettingsHandler) SaveSettings(settingsJson string) error {
+func (h *SettingsHandler) SaveSettings(settingsJSON string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	var dto domain.SettingsDTO
-	if err := json.Unmarshal([]byte(settingsJson), &dto); err != nil {
+	if err := json.Unmarshal([]byte(settingsJSON), &dto); err != nil {
 		return fmt.Errorf("failed to parse settings JSON: %w", err)
 	}
 	return h.settingsService.SaveSettingsDTO(dto)
@@ -113,18 +113,18 @@ func (h *SettingsHandler) GetSLAPolicy() (string, error) {
 		Timeout:     30,
 	}
 
-	policyJson, err := json.Marshal(defaultPolicy)
+	policyJSON, err := json.Marshal(defaultPolicy)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal SLA policy: %w", err)
 	}
 
-	return string(policyJson), nil
+	return string(policyJSON), nil
 }
 
 // SetSLAPolicy sets SLA policy
-func (h *SettingsHandler) SetSLAPolicy(policyJson string) error {
+func (h *SettingsHandler) SetSLAPolicy(policyJSON string) error {
 	var policy domain.SLAPolicy
-	if err := json.Unmarshal([]byte(policyJson), &policy); err != nil {
+	if err := json.Unmarshal([]byte(policyJSON), &policy); err != nil {
 		return fmt.Errorf("failed to parse SLA policy JSON: %w", err)
 	}
 

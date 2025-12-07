@@ -8,7 +8,7 @@ import (
 type ErrorCode string
 
 const (
-	ErrCodeInvalidAPIKey      ErrorCode = "INVALID_API_KEY"
+	ErrCodeInvalidAPIKey      ErrorCode = "INVALID_API_KEY" //nolint:gosec // This is an error code, not a credential
 	ErrCodeRateLimitExceeded  ErrorCode = "RATE_LIMIT_EXCEEDED"
 	ErrCodeTaskNotFound       ErrorCode = "TASK_NOT_FOUND"
 	ErrCodeInvalidTaskState   ErrorCode = "INVALID_TASK_STATE"

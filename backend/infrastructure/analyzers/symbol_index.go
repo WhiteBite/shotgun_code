@@ -44,7 +44,7 @@ func (idx *SymbolIndexImpl) Clear() {
 func (idx *SymbolIndexImpl) IndexProject(ctx context.Context, projectRoot string) error {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	
+
 	// Clear index while holding the lock to prevent race condition
 	idx.symbols = make([]analysis.Symbol, 0)
 	idx.byName = make(map[string][]int)

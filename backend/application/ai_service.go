@@ -52,11 +52,11 @@ const (
 	cacheCleanupInterval = 5 * time.Minute
 
 	// Default generation parameters
-	defaultTemperature    = 0.7
-	defaultMaxTokens      = 4000
-	defaultTopP           = 1.0
-	defaultTimeout        = 60 * time.Second
-	defaultStreamTimeout  = 120 * time.Second
+	defaultTemperature   = 0.7
+	defaultMaxTokens     = 4000
+	defaultTopP          = 1.0
+	defaultTimeout       = 60 * time.Second
+	defaultStreamTimeout = 120 * time.Second
 
 	// Cache behavior thresholds
 	deterministicTempThreshold = 0.1 // Disable cache above this temperature
@@ -131,32 +131,52 @@ func (s *AIService) cleanupResponseCache() {
 		case <-s.stopCh:
 			return
 		case <-ticker.C:
-			s.responseCacheMu.Lock()
-			now := time.Now()
-			for key, entry := range s.responseCache {
-				if now.Sub(entry.timestamp) > responseCacheTTL {
-					delete(s.responseCache, key)
-				}
-			}
-			// Limit cache size - remove oldest entries
-			for len(s.responseCache) > maxResponseCacheSize {
-				oldest := now
-				oldestKey := ""
-				for key, entry := range s.responseCache {
-					if entry.timestamp.Before(oldest) {
-						oldest = entry.timestamp
-						oldestKey = key
-					}
-				}
-				if oldestKey != "" {
-					delete(s.responseCache, oldestKey)
-				} else {
-					break
-				}
-			}
-			s.responseCacheMu.Unlock()
+			s.performCacheCleanup()
 		}
 	}
+}
+
+// performCacheCleanup removes expired and excess cache entries
+func (s *AIService) performCacheCleanup() {
+	s.responseCacheMu.Lock()
+	defer s.responseCacheMu.Unlock()
+
+	s.removeExpiredEntries()
+	s.enforceMaxCacheSize()
+}
+
+// removeExpiredEntries removes entries older than TTL
+func (s *AIService) removeExpiredEntries() {
+	now := time.Now()
+	for key, entry := range s.responseCache {
+		if now.Sub(entry.timestamp) > responseCacheTTL {
+			delete(s.responseCache, key)
+		}
+	}
+}
+
+// enforceMaxCacheSize removes oldest entries to stay within size limit
+func (s *AIService) enforceMaxCacheSize() {
+	for len(s.responseCache) > maxResponseCacheSize {
+		oldestKey := s.findOldestCacheEntry()
+		if oldestKey == "" {
+			break
+		}
+		delete(s.responseCache, oldestKey)
+	}
+}
+
+// findOldestCacheEntry finds the key of the oldest cache entry
+func (s *AIService) findOldestCacheEntry() string {
+	oldest := time.Now()
+	oldestKey := ""
+	for key, entry := range s.responseCache {
+		if entry.timestamp.Before(oldest) {
+			oldest = entry.timestamp
+			oldestKey = key
+		}
+	}
+	return oldestKey
 }
 
 // getCacheKey generates a hash key for caching including generation parameters
@@ -180,13 +200,66 @@ func (s *AIService) GetMetrics() map[string]interface{} {
 	s.providerCacheMu.RUnlock()
 
 	return map[string]interface{}{
-		"total_requests":    atomic.LoadInt64(&s.totalRequests),
-		"cache_hits":        atomic.LoadInt64(&s.cacheHits),
-		"cache_misses":      atomic.LoadInt64(&s.cacheMisses),
-		"total_tokens_used": atomic.LoadInt64(&s.totalTokensUsed),
+		"total_requests":      atomic.LoadInt64(&s.totalRequests),
+		"cache_hits":          atomic.LoadInt64(&s.cacheHits),
+		"cache_misses":        atomic.LoadInt64(&s.cacheMisses),
+		"total_tokens_used":   atomic.LoadInt64(&s.totalTokensUsed),
 		"response_cache_size": cacheSize,
 		"cached_providers":    providerCount,
 	}
+}
+
+// generationParams holds parameters for code generation
+type generationParams struct {
+	model       string
+	temperature float64
+	maxTokens   int
+	topP        float64
+	timeout     time.Duration
+	priority    domain.RequestPriority
+	useCache    bool
+}
+
+// applyOptions applies options to generation params
+func applyOptions(params *generationParams, options *CodeGenerationOptions) {
+	if options == nil {
+		return
+	}
+	if options.Model != "" {
+		params.model = options.Model
+	}
+	if options.Temperature != 0 {
+		params.temperature = options.Temperature
+		if params.temperature > deterministicTempThreshold {
+			params.useCache = false
+		}
+	}
+	if options.MaxTokens != 0 {
+		params.maxTokens = options.MaxTokens
+	}
+	if options.TopP != 0 {
+		params.topP = options.TopP
+	}
+	if options.Timeout != 0 {
+		params.timeout = options.Timeout
+	}
+	if options.Priority != domain.PriorityLow {
+		params.priority = options.Priority
+	}
+}
+
+// checkCache checks response cache and returns cached content if valid
+func (s *AIService) checkCache(cacheKey string, useCache bool) (string, bool) {
+	if !useCache {
+		return "", false
+	}
+	s.responseCacheMu.RLock()
+	defer s.responseCacheMu.RUnlock()
+	if cached, ok := s.responseCache[cacheKey]; ok && time.Since(cached.timestamp) < responseCacheTTL {
+		atomic.AddInt64(&s.cacheHits, 1)
+		return cached.content, true
+	}
+	return "", false
 }
 
 // generateCodeInternal is a helper method that encapsulates the common logic for code generation
@@ -194,7 +267,6 @@ func (s *AIService) generateCodeInternal(ctx context.Context, systemPrompt, user
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
 	atomic.AddInt64(&s.totalRequests, 1)
 
 	provider, model, err := s.getProvider(ctx)
@@ -202,68 +274,31 @@ func (s *AIService) generateCodeInternal(ctx context.Context, systemPrompt, user
 		return "", err
 	}
 
-	// Set default values
-	temperature := defaultTemperature
-	maxTokens := defaultMaxTokens
-	topP := defaultTopP
-	timeout := defaultTimeout
-	priority := domain.PriorityNormal
-	useCache := true
-
-	// Apply options if provided
-	if options != nil {
-		if options.Model != "" {
-			model = options.Model
-		}
-		if options.Temperature != 0 {
-			temperature = options.Temperature
-			// Disable cache for non-deterministic requests
-			if temperature > deterministicTempThreshold {
-				useCache = false
-			}
-		}
-		if options.MaxTokens != 0 {
-			maxTokens = options.MaxTokens
-		}
-		if options.TopP != 0 {
-			topP = options.TopP
-		}
-		if options.Timeout != 0 {
-			timeout = options.Timeout
-		}
-		if options.Priority != domain.PriorityLow {
-			priority = options.Priority
-		}
+	params := &generationParams{
+		model: model, temperature: defaultTemperature, maxTokens: defaultMaxTokens,
+		topP: defaultTopP, timeout: defaultTimeout, priority: domain.PriorityNormal, useCache: true,
 	}
+	applyOptions(params, options)
 
-	// Check response cache for deterministic requests
-	cacheKey := s.getCacheKey(systemPrompt, userPrompt, model, temperature, maxTokens, topP)
-	if useCache {
-		s.responseCacheMu.RLock()
-		if cached, ok := s.responseCache[cacheKey]; ok {
-			if time.Since(cached.timestamp) < responseCacheTTL {
-				s.responseCacheMu.RUnlock()
-				atomic.AddInt64(&s.cacheHits, 1)
-				return cached.content, nil
-			}
-		}
-		s.responseCacheMu.RUnlock()
+	cacheKey := s.getCacheKey(systemPrompt, userPrompt, params.model, params.temperature, params.maxTokens, params.topP)
+	if content, found := s.checkCache(cacheKey, params.useCache); found {
+		return content, nil
 	}
 	atomic.AddInt64(&s.cacheMisses, 1)
 
 	req := domain.AIRequest{
-		Model:        model,
+		Model:        params.model,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
-		Temperature:  temperature,
-		MaxTokens:    maxTokens,
-		TopP:         topP,
+		Temperature:  params.temperature,
+		MaxTokens:    params.maxTokens,
+		TopP:         params.topP,
 		RequestID:    fmt.Sprintf("req_%d", time.Now().UnixNano()),
-		Priority:     priority,
-		Timeout:      timeout,
+		Priority:     params.priority,
+		Timeout:      params.timeout,
 	}
 
-	tctx, cancel := context.WithTimeout(ctx, timeout)
+	tctx, cancel := context.WithTimeout(ctx, params.timeout)
 	defer cancel()
 
 	resp, err := provider.Generate(tctx, req)
@@ -272,7 +307,7 @@ func (s *AIService) generateCodeInternal(ctx context.Context, systemPrompt, user
 	}
 
 	// Cache the response for deterministic requests
-	if useCache && resp.Content != "" {
+	if params.useCache && resp.Content != "" {
 		s.responseCacheMu.Lock()
 		s.responseCache[cacheKey] = &cachedAIResponse{
 			content:   resp.Content,

@@ -14,9 +14,9 @@ type InMemoryUXReportRepository struct {
 }
 
 const (
-	maxReports      = 100
+	maxReports       = 100
 	maxReportsSizeMB = 10
-	maxReportAge    = 24 * time.Hour
+	maxReportAge     = 24 * time.Hour
 )
 
 // NewInMemoryUXReportRepository creates a new in-memory UX report repository
@@ -25,10 +25,10 @@ func NewInMemoryUXReportRepository() *InMemoryUXReportRepository {
 		reports:   make(map[string]*domain.UXReport),
 		createdAt: make(map[string]time.Time),
 	}
-	
+
 	// Start periodic cleanup
 	go repo.periodicCleanup()
-	
+
 	return repo
 }
 
@@ -54,7 +54,7 @@ func (r *InMemoryUXReportRepository) SaveReport(report *domain.UXReport) error {
 	if len(r.reports) >= maxReports {
 		r.evictOldestReport()
 	}
-	
+
 	// Check memory usage
 	if r.getMemoryUsageUnlocked() > maxReportsSizeMB*1024*1024 {
 		r.evictOldestReport()
@@ -69,14 +69,14 @@ func (r *InMemoryUXReportRepository) SaveReport(report *domain.UXReport) error {
 func (r *InMemoryUXReportRepository) evictOldestReport() {
 	var oldestID string
 	var oldestTime time.Time = time.Now()
-	
+
 	for id, createdTime := range r.createdAt {
 		if createdTime.Before(oldestTime) {
 			oldestTime = createdTime
 			oldestID = id
 		}
 	}
-	
+
 	if oldestID != "" {
 		delete(r.reports, oldestID)
 		delete(r.createdAt, oldestID)
@@ -87,7 +87,7 @@ func (r *InMemoryUXReportRepository) evictOldestReport() {
 func (r *InMemoryUXReportRepository) CleanupOldReports(maxAge time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	now := time.Now()
 	for id, createdTime := range r.createdAt {
 		if now.Sub(createdTime) > maxAge {
@@ -101,7 +101,7 @@ func (r *InMemoryUXReportRepository) CleanupOldReports(maxAge time.Duration) {
 func (r *InMemoryUXReportRepository) periodicCleanup() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		r.CleanupOldReports(maxReportAge)
 	}
@@ -122,7 +122,7 @@ func (r *InMemoryUXReportRepository) getMemoryUsageUnlocked() int64 {
 		// Добавляем размер метаданных
 		for k, v := range report.Metadata {
 			size += int64(len(k) + 100) // Приблизительный размер значения
-			_ = v // Используем переменную
+			_ = v                       // Используем переменную
 		}
 	}
 	return size
@@ -133,7 +133,7 @@ func (r *InMemoryUXReportRepository) ListReports(reportType domain.UXReportType)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var reports []*domain.UXReport
+	reports := make([]*domain.UXReport, 0, len(r.reports))
 	for _, report := range r.reports {
 		// Filter by report type if specified
 		if reportType != "" && report.Type != reportType {

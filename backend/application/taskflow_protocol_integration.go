@@ -59,7 +59,7 @@ func (t *TaskflowProtocolIntegration) ExecuteTaskWithProtocol(ctx context.Contex
 	result, err := t.taskProtocolService.ExecuteProtocol(ctx, protocolConfig)
 	if err != nil {
 		// Update task status to failed
-		t.taskflowService.UpdateTaskStatus(taskID, domain.TaskStateFailed, fmt.Sprintf("Protocol verification failed: %v", err))
+		_ = t.taskflowService.UpdateTaskStatus(taskID, domain.TaskStateFailed, fmt.Sprintf("Protocol verification failed: %v", err))
 		return result, fmt.Errorf("protocol execution failed: %w", err)
 	}
 

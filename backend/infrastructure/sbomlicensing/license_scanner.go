@@ -154,7 +154,7 @@ func (l *LicenseScanner) scanWithLicensecheck(ctx context.Context, projectPath s
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("licensecheck failed: %v, output: %s", err, string(output))
+		return nil, fmt.Errorf("licensecheck failed: %w, output: %s", err, string(output))
 	}
 
 	return l.parseLicensecheckOutput(output), nil
@@ -169,7 +169,7 @@ func (l *LicenseScanner) scanWithLicensee(ctx context.Context, projectPath strin
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("licensee failed: %v, output: %s", err, string(output))
+		return nil, fmt.Errorf("licensee failed: %w, output: %s", err, string(output))
 	}
 
 	return l.parseLicenseeOutput(output), nil
@@ -184,7 +184,7 @@ func (l *LicenseScanner) scanWithGoLicenses(ctx context.Context, projectPath str
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("go-licenses failed: %v, output: %s", err, string(output))
+		return nil, fmt.Errorf("go-licenses failed: %w, output: %s", err, string(output))
 	}
 
 	return l.parseGoLicensesOutput(output), nil

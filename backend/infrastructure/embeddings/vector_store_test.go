@@ -150,8 +150,8 @@ func TestDecodeEmbedding_InvalidJSON(t *testing.T) {
 
 func TestCosineSimilarity_Normalized(t *testing.T) {
 	// Test with normalized vectors (common in embeddings)
-	a := []float32{0.6, 0.8, 0}  // normalized: sqrt(0.36 + 0.64) = 1
-	b := []float32{0.8, 0.6, 0}  // normalized: sqrt(0.64 + 0.36) = 1
+	a := []float32{0.6, 0.8, 0} // normalized: sqrt(0.36 + 0.64) = 1
+	b := []float32{0.8, 0.6, 0} // normalized: sqrt(0.64 + 0.36) = 1
 
 	result := cosineSimilarity(a, b)
 	expected := float32(0.96) // 0.6*0.8 + 0.8*0.6 = 0.96

@@ -2,6 +2,7 @@ package settingsfs
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ func newStorage() (*storage, error) {
 		return nil, fmt.Errorf("failed to get user config directory: %w", err)
 	}
 	appSpecificDir := filepath.Join(appDataDir, "shotgun-code")
-	if err := os.MkdirAll(appSpecificDir, 0755); err != nil {
+	if err := os.MkdirAll(appSpecificDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create application data directory: %w", err)
 	}
 	return &storage{
@@ -49,30 +50,30 @@ func (s *storage) saveToFile(settings *appSettings) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
-	return os.WriteFile(s.settingsFilePath, data, 0644)
+	return os.WriteFile(s.settingsFilePath, data, 0o600)
 }
 
 // loadKeysFromKeyring populates the API key fields from the system's keyring.
 func (s *storage) loadKeysFromKeyring(settings *secureSettings) error {
 	var err error
 	settings.openAIAPIKey, err = keyring.Get(keyringService, "openai")
-	if err != nil && err != keyring.ErrNotFound {
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed to get openai key: %w", err)
 	}
 	settings.geminiAPIKey, err = keyring.Get(keyringService, "gemini")
-	if err != nil && err != keyring.ErrNotFound {
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed to get gemini key: %w", err)
 	}
 	settings.openRouterAPIKey, err = keyring.Get(keyringService, "openrouter")
-	if err != nil && err != keyring.ErrNotFound {
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed to get openrouter key: %w", err)
 	}
 	settings.localAIAPIKey, err = keyring.Get(keyringService, "localai")
-	if err != nil && err != keyring.ErrNotFound {
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed to get localai key: %w", err)
 	}
 	settings.qwenAPIKey, err = keyring.Get(keyringService, "qwen")
-	if err != nil && err != keyring.ErrNotFound {
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed to get qwen key: %w", err)
 	}
 	return nil

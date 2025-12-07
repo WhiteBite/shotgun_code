@@ -32,7 +32,7 @@ func New() *AsyncInitManager {
 func (m *AsyncInitManager) Register(serviceName string, handler func(context.Context) error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.handlers[serviceName] = handler
 	m.statuses[serviceName] = &InitStatus{Completed: false, Error: nil}
 }
@@ -41,7 +41,7 @@ func (m *AsyncInitManager) Register(serviceName string, handler func(context.Con
 func (m *AsyncInitManager) IsInitialized(serviceName string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	status, exists := m.statuses[serviceName]
 	if !exists {
 		return false
@@ -53,7 +53,7 @@ func (m *AsyncInitManager) IsInitialized(serviceName string) bool {
 func (m *AsyncInitManager) GetStatus(serviceName string) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	status, exists := m.statuses[serviceName]
 	if !exists {
 		return false, nil
@@ -64,7 +64,7 @@ func (m *AsyncInitManager) GetStatus(serviceName string) (bool, error) {
 // InitAsync initiates asynchronous initialization for a service
 func (m *AsyncInitManager) InitAsync(ctx context.Context, serviceName string) {
 	m.mu.Lock()
-	
+
 	handler, exists := m.handlers[serviceName]
 	if !exists {
 		status := &InitStatus{
@@ -75,34 +75,34 @@ func (m *AsyncInitManager) InitAsync(ctx context.Context, serviceName string) {
 		m.mu.Unlock()
 		return
 	}
-	
+
 	// Check if already initializing
 	if status, exists := m.statuses[serviceName]; exists && status.Completed {
 		m.mu.Unlock()
 		return
 	}
-	
+
 	// Mark as initializing
 	m.statuses[serviceName] = &InitStatus{
 		Completed: false,
 		Error:     nil,
 	}
-	
+
 	m.mu.Unlock()
-	
+
 	// Run initialization in a goroutine
 	go func() {
-	err := handler(ctx)
-		
+		err := handler(ctx)
+
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		
+
 		// Update status
 		m.statuses[serviceName] = &InitStatus{
 			Completed: true,
 			Error:     err,
 		}
-		
+
 		// Notify all waiters
 		if waiters, exists := m.waiters[serviceName]; exists {
 			for _, waiter := range waiters {
@@ -116,31 +116,31 @@ func (m *AsyncInitManager) InitAsync(ctx context.Context, serviceName string) {
 // WaitFor waits for a service to be initialized
 func (m *AsyncInitManager) WaitFor(serviceName string) error {
 	m.mu.RLock()
-	
+
 	status, exists := m.statuses[serviceName]
 	if !exists {
 		m.mu.RUnlock()
 		return nil // No handler registered, consider it initialized
 	}
-	
+
 	if status.Completed {
 		m.mu.RUnlock()
 		return status.Error
 	}
-	
+
 	// Service is not completed yet, need to wait
 	waiter := make(chan struct{})
 	m.waiters[serviceName] = append(m.waiters[serviceName], waiter)
 	m.mu.RUnlock()
-	
+
 	// Wait for completion
 	<-waiter
-	
+
 	// Return the final status
 	m.mu.RLock()
 	finalStatus := m.statuses[serviceName]
 	m.mu.RUnlock()
-	
+
 	return finalStatus.Error
 }
 

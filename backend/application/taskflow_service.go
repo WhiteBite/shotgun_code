@@ -72,10 +72,10 @@ func (s *TaskflowServiceImpl) GetTaskType(taskID string) (string, error) {
 
 	// Определяем тип задачи по ID или другим характеристикам
 	taskType := "regular"
-	if strings.Contains(task.ID, "scaffold") {
-		taskType = "scaffold"
-	} else if strings.Contains(task.ID, "deps_fix") {
-		taskType = "deps_fix"
+	if strings.Contains(task.ID, taskTypeScaffold) {
+		taskType = taskTypeScaffold
+	} else if strings.Contains(task.ID, taskTypeDepsFix) {
+		taskType = taskTypeDepsFix
 	}
 
 	return taskType, nil
@@ -119,7 +119,7 @@ func (s *TaskflowServiceImpl) LoadTasks() ([]domain.Task, error) {
 	}
 
 	// Создаем задачи
-	var tasks []domain.Task
+	tasks := make([]domain.Task, 0, len(plan.Tasks))
 	for _, taskData := range plan.Tasks {
 		state := domain.TaskStateTodo
 		if status, exists := statuses[taskData.ID]; exists {
@@ -201,6 +201,56 @@ func (s *TaskflowServiceImpl) UpdateTaskStatus(taskID string, state domain.TaskS
 	return nil
 }
 
+// getTaskType determines task type from taskID
+func getTaskType(taskID string) string {
+	if strings.Contains(taskID, "scaffold") {
+		return "scaffold"
+	}
+	if strings.Contains(taskID, "deps_fix") {
+		return "deps_fix"
+	}
+	return "regular"
+}
+
+// checkDependencies verifies all dependencies are completed
+func (s *TaskflowServiceImpl) checkDependencies(taskID string) error {
+	deps, err := s.GetTaskDependencies(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get dependencies: %w", err)
+	}
+	for _, dep := range deps {
+		if dep.State != domain.TaskStateDone {
+			return fmt.Errorf("dependency %s is not completed (state: %s)", dep.ID, dep.State)
+		}
+	}
+	return nil
+}
+
+// validateWithGuardrails validates task with guardrails
+func (s *TaskflowServiceImpl) validateWithGuardrails(taskID string) error {
+	if s.guardrails == nil {
+		return nil
+	}
+
+	taskType := getTaskType(taskID)
+	if taskType == "scaffold" || taskType == "deps_fix" {
+		if err := s.guardrails.EnableEphemeralMode(taskID, taskType, 5*time.Minute); err != nil {
+			s.log.Warning(fmt.Sprintf("Failed to enable ephemeral mode for task %s: %v", taskID, err))
+		}
+	}
+
+	validationResult, err := s.guardrails.ValidateTask(taskID, []string{}, 0)
+	if err != nil {
+		s.log.Error(fmt.Sprintf("Guardrail validation failed for task %s: %v", taskID, err))
+		return fmt.Errorf("guardrail validation failed: %w", err)
+	}
+	if !validationResult.Valid {
+		s.log.Error(fmt.Sprintf("Task %s failed guardrail validation: %s", taskID, validationResult.Error))
+		return fmt.Errorf("task validation failed: %s", validationResult.Error)
+	}
+	return nil
+}
+
 // ExecuteTask выполняет задачу
 func (s *TaskflowServiceImpl) ExecuteTask(taskID string) error {
 	s.mu.Lock()
@@ -211,45 +261,11 @@ func (s *TaskflowServiceImpl) ExecuteTask(taskID string) error {
 	}
 	s.mu.Unlock()
 
-	// Проверяем зависимости
-	deps, err := s.GetTaskDependencies(taskID)
-	if err != nil {
-		return fmt.Errorf("failed to get dependencies: %w", err)
+	if err := s.checkDependencies(taskID); err != nil {
+		return err
 	}
-
-	for _, dep := range deps {
-		if dep.State != domain.TaskStateDone {
-			return fmt.Errorf("dependency %s is not completed (state: %s)", dep.ID, dep.State)
-		}
-	}
-
-	// Проверяем guardrails перед выполнением
-	if s.guardrails != nil {
-		// Включаем ephemeral mode для scaffold/deps_fix задач
-		taskType := "regular"
-		if strings.Contains(taskID, "scaffold") {
-			taskType = "scaffold"
-		} else if strings.Contains(taskID, "deps_fix") {
-			taskType = "deps_fix"
-		}
-
-		if taskType == "scaffold" || taskType == "deps_fix" {
-			if err := s.guardrails.EnableEphemeralMode(taskID, taskType, 5*time.Minute); err != nil {
-				s.log.Warning(fmt.Sprintf("Failed to enable ephemeral mode for task %s: %v", taskID, err))
-			}
-		}
-
-		// Валидируем задачу (пока без файлов, так как они еще не изменены)
-		validationResult, err := s.guardrails.ValidateTask(taskID, []string{}, 0)
-		if err != nil {
-			s.log.Error(fmt.Sprintf("Guardrail validation failed for task %s: %v", taskID, err))
-			return fmt.Errorf("guardrail validation failed: %w", err)
-		}
-
-		if !validationResult.Valid {
-			s.log.Error(fmt.Sprintf("Task %s failed guardrail validation: %s", taskID, validationResult.Error))
-			return fmt.Errorf("task validation failed: %s", validationResult.Error)
-		}
+	if err := s.validateWithGuardrails(taskID); err != nil {
+		return err
 	}
 
 	// Обновляем статус на выполнение
@@ -510,20 +526,20 @@ func (s *TaskflowServiceImpl) StartAutonomousTask(ctx context.Context, request d
 }
 
 // CancelAutonomousTask отменяет автономную задачу
-func (s *TaskflowServiceImpl) CancelAutonomousTask(ctx context.Context, taskId string) error {
-	s.log.Info(fmt.Sprintf("Cancelling autonomous task: %s", taskId))
+func (s *TaskflowServiceImpl) CancelAutonomousTask(ctx context.Context, taskID string) error {
+	s.log.Info(fmt.Sprintf("Cancelling autonomous task: %s", taskID))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	status, exists := s.statuses[taskId]
+	status, exists := s.statuses[taskID]
 	if !exists {
-		return domain.NewTaskNotFoundError(taskId)
+		return domain.NewTaskNotFoundError(taskID)
 	}
 
 	// Check if task can be cancelled
 	if status.State == domain.TaskStateDone {
-		return domain.NewInvalidTaskStateError(taskId, string(status.State), "cancellable")
+		return domain.NewInvalidTaskStateError(taskID, string(status.State), "cancellable")
 	}
 
 	// Обновляем статус на отмененный
@@ -535,23 +551,23 @@ func (s *TaskflowServiceImpl) CancelAutonomousTask(ctx context.Context, taskId s
 		return domain.NewInternalError("Failed to save task status after cancellation", err)
 	}
 
-	s.log.Info(fmt.Sprintf("Task %s cancelled successfully", taskId))
+	s.log.Info(fmt.Sprintf("Task %s cancelled successfully", taskID))
 	return nil
 }
 
 // GetAutonomousTaskStatus получает статус автономной задачи
-func (s *TaskflowServiceImpl) GetAutonomousTaskStatus(ctx context.Context, taskId string) (*domain.AutonomousTaskStatus, error) {
+func (s *TaskflowServiceImpl) GetAutonomousTaskStatus(ctx context.Context, taskID string) (*domain.AutonomousTaskStatus, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	status, exists := s.statuses[taskId]
+	status, exists := s.statuses[taskID]
 	if !exists {
-		return nil, domain.NewTaskNotFoundError(taskId)
+		return nil, domain.NewTaskNotFoundError(taskID)
 	}
 
 	// Конвертируем в AutonomousTaskStatus
 	autonomousStatus := &domain.AutonomousTaskStatus{
-		TaskId:                 taskId,
+		TaskId:                 taskID,
 		Status:                 string(status.State),
 		CurrentStep:            status.Message,
 		Progress:               status.Progress * 100, // Конвертируем в проценты
@@ -608,14 +624,14 @@ func (s *TaskflowServiceImpl) ListAutonomousTasks(ctx context.Context, projectPa
 }
 
 // GetTaskLogs возвращает логи для задачи
-func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([]domain.LogEntry, error) {
+func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskID string) ([]domain.LogEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Проверяем существование задачи
-	status, exists := s.statuses[taskId]
+	status, exists := s.statuses[taskID]
 	if !exists {
-		return nil, domain.NewTaskNotFoundError(taskId)
+		return nil, domain.NewTaskNotFoundError(taskID)
 	}
 
 	// Создаем базовые логи на основе статуса задачи
@@ -624,8 +640,8 @@ func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([
 	// Лог создания задачи
 	if status.StartedAt != nil {
 		logs = append(logs, domain.LogEntry{
-			ID:        fmt.Sprintf("%s-created", taskId),
-			TaskID:    taskId,
+			ID:        fmt.Sprintf("%s-created", taskID),
+			TaskID:    taskID,
 			Level:     "INFO",
 			Message:   "Task created",
 			Timestamp: *status.StartedAt,
@@ -637,8 +653,8 @@ func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([
 
 	// Лог текущего статуса
 	logs = append(logs, domain.LogEntry{
-		ID:        fmt.Sprintf("%s-status", taskId),
-		TaskID:    taskId,
+		ID:        fmt.Sprintf("%s-status", taskID),
+		TaskID:    taskID,
 		Level:     "INFO",
 		Message:   fmt.Sprintf("Task status: %s - %s", status.State, status.Message),
 		Timestamp: status.UpdatedAt,
@@ -651,8 +667,8 @@ func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([
 	// Лог ошибки если есть
 	if status.Error != "" {
 		logs = append(logs, domain.LogEntry{
-			ID:        fmt.Sprintf("%s-error", taskId),
-			TaskID:    taskId,
+			ID:        fmt.Sprintf("%s-error", taskID),
+			TaskID:    taskID,
 			Level:     "ERROR",
 			Message:   status.Error,
 			Timestamp: status.UpdatedAt,
@@ -665,8 +681,8 @@ func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([
 	// Лог завершения если задача завершена
 	if status.CompletedAt != nil {
 		logs = append(logs, domain.LogEntry{
-			ID:        fmt.Sprintf("%s-completed", taskId),
-			TaskID:    taskId,
+			ID:        fmt.Sprintf("%s-completed", taskID),
+			TaskID:    taskID,
 			Level:     "INFO",
 			Message:   "Task completed",
 			Timestamp: *status.CompletedAt,
@@ -677,178 +693,140 @@ func (s *TaskflowServiceImpl) GetTaskLogs(ctx context.Context, taskId string) ([
 		})
 	}
 
-	s.log.Debug(fmt.Sprintf("Retrieved %d log entries for task %s", len(logs), taskId))
+	s.log.Debug(fmt.Sprintf("Retrieved %d log entries for task %s", len(logs), taskID))
 	return logs, nil
 }
 
-// PauseTask приостанавливает выполнение задачи
-func (s *TaskflowServiceImpl) PauseTask(ctx context.Context, taskId string) error {
+// changeTaskState is a helper for PauseTask and ResumeTask
+func (s *TaskflowServiceImpl) changeTaskState(taskID string, fromState, toState domain.TaskState, message, action string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	status, exists := s.statuses[taskId]
+	status, exists := s.statuses[taskID]
 	if !exists {
-		return domain.NewTaskNotFoundError(taskId)
+		return domain.NewTaskNotFoundError(taskID)
 	}
 
-	// Проверяем, можно ли приостановить задачу
-	if status.State != domain.TaskStateTodo {
-		return domain.NewInvalidTaskStateError(taskId, string(status.State), "running")
+	if status.State != fromState {
+		return domain.NewInvalidTaskStateError(taskID, string(status.State), string(fromState))
 	}
 
-	// Обновляем статус на заблокированный (используем как паузу)
-	status.State = domain.TaskStateBlocked
-	status.Message = "Task paused by user"
+	status.State = toState
+	status.Message = message
 	status.UpdatedAt = time.Now()
 
-	// Сохраняем статус
 	if err := s.saveStatuses(); err != nil {
-		return domain.NewInternalError("Failed to save task status after pause", err)
+		return domain.NewInternalError("Failed to save task status after "+action, err)
 	}
 
-	s.log.Info(fmt.Sprintf("Task %s paused successfully", taskId))
+	s.log.Info(fmt.Sprintf("Task %s %s successfully", taskID, action))
 	return nil
 }
 
+// PauseTask приостанавливает выполнение задачи
+func (s *TaskflowServiceImpl) PauseTask(ctx context.Context, taskID string) error {
+	return s.changeTaskState(taskID, domain.TaskStateTodo, domain.TaskStateBlocked, "Task paused by user", "paused")
+}
+
 // ResumeTask возобновляет выполнение приостановленной задачи
-func (s *TaskflowServiceImpl) ResumeTask(ctx context.Context, taskId string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *TaskflowServiceImpl) ResumeTask(ctx context.Context, taskID string) error {
+	return s.changeTaskState(taskID, domain.TaskStateBlocked, domain.TaskStateTodo, "Task resumed by user", "resumed")
+}
 
-	status, exists := s.statuses[taskId]
-	if !exists {
-		return domain.NewTaskNotFoundError(taskId)
+// planAutonomousTask creates execution plan for autonomous task
+func (s *TaskflowServiceImpl) planAutonomousTask(ctx context.Context, request domain.AutonomousTaskRequest, status *domain.AutonomousTaskStatus) (*TaskPipeline, domain.Task, error) {
+	s.updateAutonomousTaskStatus(status.TaskId, "running", "Planning task...", 10.0)
+	s.log.Info(fmt.Sprintf("[Task %s] Generating execution plan for: %s", status.TaskId, request.Task))
+
+	contextPack, err := s.buildContextForTask(ctx, request)
+	if err != nil {
+		s.log.Error(fmt.Sprintf("[Task %s] Failed to build context: %v", status.TaskId, err))
+		return nil, domain.Task{}, fmt.Errorf("failed to build context for task: %v", err)
 	}
 
-	// Проверяем, можно ли возобновить задачу
-	if status.State != domain.TaskStateBlocked {
-		return domain.NewInvalidTaskStateError(taskId, string(status.State), "paused")
+	planningTask := domain.Task{
+		ID: status.TaskId, Name: "Autonomous Planning Task",
+		Metadata: map[string]interface{}{"original_request": request.Task, "sla_policy": request.SlaPolicy, "project_path": request.ProjectPath},
 	}
 
-	// Обновляем статус обратно на выполнение
-	status.State = domain.TaskStateTodo
-	status.Message = "Task resumed by user"
-	status.UpdatedAt = time.Now()
-
-	// Сохраняем статус
-	if err := s.saveStatuses(); err != nil {
-		return domain.NewInternalError("Failed to save task status after resume", err)
+	var policy *PipelinePolicy
+	if llmResponse, err := s.routerLlmService.CreatePipelineWithLLM(ctx, planningTask, contextPack); err == nil && llmResponse != nil && !llmResponse.FallbackUsed {
+		policy = llmResponse.Policy
+		s.log.Info(fmt.Sprintf("[Task %s] Using LLM-defined policy.", status.TaskId))
+	} else {
+		s.log.Info(fmt.Sprintf("[Task %s] Using heuristic policy.", status.TaskId))
 	}
 
-	s.log.Info(fmt.Sprintf("Task %s resumed successfully", taskId))
+	basePipeline, err := s.planner.CreatePipeline(ctx, planningTask, policy)
+	if err != nil {
+		s.log.Error(fmt.Sprintf("[Task %s] Failed to create execution plan: %v", status.TaskId, err))
+		return nil, domain.Task{}, fmt.Errorf("failed to create execution plan: %v", err)
+	}
+
+	s.log.Info(fmt.Sprintf("[Task %s] Execution plan generated with %d steps.", status.TaskId, len(basePipeline.Steps)))
+	s.updateAutonomousTaskStatus(status.TaskId, "running", "Execution plan created. Starting execution...", 20.0)
+	return basePipeline, planningTask, nil
+}
+
+// finishAutonomousTask completes the task and generates report
+func (s *TaskflowServiceImpl) finishAutonomousTask(request domain.AutonomousTaskRequest, status *domain.AutonomousTaskStatus) {
+	s.updateAutonomousTaskStatus(status.TaskId, "running", "Generating final report...", 95.0)
+	if diff, err := s.gitRepo.GenerateDiff(request.ProjectPath); err != nil {
+		s.log.Error(fmt.Sprintf("[Task %s] Failed to generate git diff: %v", status.TaskId, err))
+	} else {
+		s.log.Info(fmt.Sprintf("[Task %s] Git Diff:\n%s", status.TaskId, diff))
+	}
+	s.updateAutonomousTaskStatus(status.TaskId, "completed", "Task completed successfully", 100.0)
+	s.log.Info(fmt.Sprintf("[Task %s] Autonomous task finished.", status.TaskId))
+}
+
+// attemptRepair attempts to repair a failed pipeline step
+func (s *TaskflowServiceImpl) attemptRepair(ctx context.Context, planningTask domain.Task, pipeline *TaskPipeline, status *domain.AutonomousTaskStatus, attempt int) error {
+	s.updateAutonomousTaskStatus(status.TaskId, "running", "Execution failed. Attempting self-correction...", 80.0+float64(attempt)*5)
+
+	failedStep := s.findFailedStep(pipeline)
+	if failedStep == nil {
+		return fmt.Errorf("pipeline failed but no failed step found. Final status: %s", pipeline.Status)
+	}
+
+	s.log.Info(fmt.Sprintf("[Task %s] Found failed step: %s. Attempting to repair.", status.TaskId, failedStep.Name))
+	repairPipeline, err := s.createRepairPipeline(ctx, planningTask, failedStep)
+	if err != nil {
+		return fmt.Errorf("failed to create repair pipeline: %w", err)
+	}
+
+	if err := s.planner.ExecutePipeline(ctx, repairPipeline); err != nil {
+		return fmt.Errorf("repair pipeline execution failed: %w", err)
+	}
+	if repairPipeline.Status != PipelineStatusCompleted {
+		return fmt.Errorf("repair pipeline did not complete successfully. Final status: %s", repairPipeline.Status)
+	}
+	s.log.Info(fmt.Sprintf("[Task %s] Repair successful. Retrying main pipeline.", status.TaskId))
 	return nil
 }
 
 // executeAutonomousTask выполняет автономную задачу с циклом самоисправления
 func (s *TaskflowServiceImpl) executeAutonomousTask(ctx context.Context, request domain.AutonomousTaskRequest, status *domain.AutonomousTaskStatus) error {
-	// Этап 1: Планирование
-	s.updateAutonomousTaskStatus(status.TaskId, "running", "Planning task...", 10.0)
-	s.log.Info(fmt.Sprintf("[Task %s] Generating execution plan for: %s", status.TaskId, request.Task))
-
-	// Собираем контекст для задачи
-	contextPack, err := s.buildContextForTask(ctx, request)
+	basePipeline, planningTask, err := s.planAutonomousTask(ctx, request, status)
 	if err != nil {
-		errMessage := fmt.Sprintf("Failed to build context for task: %v", err)
-		s.log.Error(fmt.Sprintf("[Task %s] %s", status.TaskId, errMessage))
-		return fmt.Errorf("%s", errMessage)
+		return err
 	}
 
-	planningTask := domain.Task{
-		ID:   status.TaskId,
-		Name: "Autonomous Planning Task",
-		Metadata: map[string]interface{}{
-			"original_request": request.Task,
-			"sla_policy":       request.SlaPolicy,
-			"project_path":     request.ProjectPath,
-		},
-	}
-
-	// Получаем политику от LLM
-	llmResponse, err := s.routerLlmService.CreatePipelineWithLLM(ctx, planningTask, contextPack)
-	if err != nil {
-		s.log.Warning(fmt.Sprintf("[Task %s] Failed to get policy from LLM, falling back to heuristic: %v", status.TaskId, err))
-	}
-
-	var policy *PipelinePolicy
-	if llmResponse != nil && !llmResponse.FallbackUsed {
-		policy = llmResponse.Policy
-		s.log.Info(fmt.Sprintf("[Task %s] Using LLM-defined policy.", status.TaskId))
-	} else {
-		s.log.Info(fmt.Sprintf("[Task %s] Using heuristic policy.", status.TaskId))
-		// `CreatePipeline` будет использовать эвристику, если policy is nil
-	}
-
-	basePipeline, err := s.planner.CreatePipeline(ctx, planningTask, policy)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed to create execution plan: %v", err)
-		s.log.Error(fmt.Sprintf("[Task %s] %s", status.TaskId, errMessage))
-		return fmt.Errorf("%s", errMessage)
-	}
-
-	s.log.Info(fmt.Sprintf("[Task %s] Execution plan generated with %d steps.", status.TaskId, len(basePipeline.Steps)))
-	s.updateAutonomousTaskStatus(status.TaskId, "running", "Execution plan created. Starting execution...", 20.0)
-
-	// Цикл выполнения и самоисправления
-	maxRetries := 3 // Можно вынести в конфиг
+	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
 		s.log.Info(fmt.Sprintf("[Task %s] Starting pipeline execution, attempt %d/%d.", status.TaskId, i+1, maxRetries))
-
-		// Создаем копию пайплайна для каждого запуска
 		currentPipeline := *basePipeline
 
-		// Этап 2: Исполнение
-		executionErr := s.planner.ExecutePipeline(ctx, &currentPipeline)
-		if executionErr == nil && currentPipeline.Status == PipelineStatusCompleted {
-			s.log.Info(fmt.Sprintf("[Task %s] Pipeline executed successfully.", status.TaskId))
-
-			// Этап 4: Отчетность
-			s.updateAutonomousTaskStatus(status.TaskId, "running", "Generating final report...", 95.0)
-			s.log.Info(fmt.Sprintf("[Task %s] Generating git diff and final report.", status.TaskId))
-
-			diff, err := s.gitRepo.GenerateDiff(request.ProjectPath)
-			if err != nil {
-				s.log.Error(fmt.Sprintf("[Task %s] Failed to generate git diff: %v", status.TaskId, err))
-				// Не проваливаем задачу из-за ошибки генерации diff'а, просто логируем
-			} else {
-				s.log.Info(fmt.Sprintf("[Task %s] Git Diff:\n%s", status.TaskId, diff))
-				// TODO: Сохранить diff в артефакты задачи
-			}
-
-			// Завершение
-			s.updateAutonomousTaskStatus(status.TaskId, "completed", "Task completed successfully", 100.0)
-			s.log.Info(fmt.Sprintf("[Task %s] Autonomous task finished.", status.TaskId))
+		if err := s.planner.ExecutePipeline(ctx, &currentPipeline); err == nil && currentPipeline.Status == PipelineStatusCompleted {
+			s.finishAutonomousTask(request, status)
 			return nil
 		}
 
-		s.log.Error(fmt.Sprintf("[Task %s] Pipeline execution failed: %v", status.TaskId, executionErr))
-
-		// Этап 3: Самоисправление
-		s.updateAutonomousTaskStatus(status.TaskId, "running", "Execution failed. Attempting self-correction...", 80.0+float64(i)*5)
-
-		failedStep := s.findFailedStep(&currentPipeline)
-		if failedStep == nil {
-			return fmt.Errorf("pipeline failed but no failed step found. Final status: %s", currentPipeline.Status)
+		s.log.Error(fmt.Sprintf("[Task %s] Pipeline execution failed", status.TaskId))
+		if err := s.attemptRepair(ctx, planningTask, &currentPipeline, status, i); err != nil {
+			return err
 		}
-
-		s.log.Info(fmt.Sprintf("[Task %s] Found failed step: %s. Attempting to repair.", status.TaskId, failedStep.Name))
-
-		repairPipeline, err := s.createRepairPipeline(ctx, planningTask, failedStep)
-		if err != nil {
-			return fmt.Errorf("failed to create repair pipeline: %w", err)
-		}
-
-		s.log.Info(fmt.Sprintf("[Task %s] Executing repair pipeline.", status.TaskId))
-		if err := s.planner.ExecutePipeline(ctx, repairPipeline); err != nil {
-			return fmt.Errorf("repair pipeline execution failed: %w", err)
-		}
-
-		if repairPipeline.Status != PipelineStatusCompleted {
-			return fmt.Errorf("repair pipeline did not complete successfully. Final status: %s", repairPipeline.Status)
-		}
-
-		s.log.Info(fmt.Sprintf("[Task %s] Repair successful. Retrying main pipeline.", status.TaskId))
 	}
-
 	return fmt.Errorf("task failed after %d repair attempts", maxRetries)
 }
 
@@ -970,17 +948,17 @@ func (s *TaskflowServiceImpl) createTaskStatus(taskID string, request domain.Aut
 }
 
 // notifyTaskFailure sends failure notification to frontend
-func (s *TaskflowServiceImpl) notifyTaskFailure(taskId, message string) {
+func (s *TaskflowServiceImpl) notifyTaskFailure(taskID, message string) {
 	// This could emit an event to the frontend via the event bus
-	s.log.Error(fmt.Sprintf("Task %s failed: %s", taskId, message))
+	s.log.Error(fmt.Sprintf("Task %s failed: %s", taskID, message))
 }
 
 // updateAutonomousTaskStatus обновляет статус автономной задачи
-func (s *TaskflowServiceImpl) updateAutonomousTaskStatus(taskId, status, message string, progress float64) {
+func (s *TaskflowServiceImpl) updateAutonomousTaskStatus(taskID, status, message string, progress float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	taskStatus, exists := s.statuses[taskId]
+	taskStatus, exists := s.statuses[taskID]
 	if !exists {
 		return
 	}

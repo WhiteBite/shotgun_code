@@ -113,7 +113,7 @@ func (c *SolveCommand) Execute(ctx context.Context, args []string) error {
 			return fmt.Errorf("failed to marshal solve result: %w", err)
 		}
 
-		if err := os.WriteFile(*output, data, 0644); err != nil {
+		if err := os.WriteFile(*output, data, 0o644); err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 

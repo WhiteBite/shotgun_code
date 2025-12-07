@@ -38,24 +38,24 @@ type ExecuteTaskRequest struct {
 
 // ExecuteTaskResponse is the response from task execution
 type ExecuteTaskResponse struct {
-	Content        string                          `json:"content"`
-	Model          string                          `json:"model"`
-	TokensUsed     int                             `json:"tokensUsed"`
-	ProcessingTime string                          `json:"processingTime"`
-	ContextSummary application.ContextSummaryDTO   `json:"contextSummary"`
-	Success        bool                            `json:"success"`
-	Error          string                          `json:"error,omitempty"`
+	Content        string                        `json:"content"`
+	Model          string                        `json:"model"`
+	TokensUsed     int                           `json:"tokensUsed"`
+	ProcessingTime string                        `json:"processingTime"`
+	ContextSummary application.ContextSummaryDTO `json:"contextSummary"`
+	Success        bool                          `json:"success"`
+	Error          string                        `json:"error,omitempty"`
 }
 
 // PreviewContextResponse is the response for context preview
 type PreviewContextResponse struct {
-	TotalFiles      int                        `json:"totalFiles"`
-	TotalTokens     int                        `json:"totalTokens"`
-	Files           []FilePreview              `json:"files"`
-	TruncatedFiles  []string                   `json:"truncatedFiles"`
-	ExcludedFiles   []string                   `json:"excludedFiles"`
-	CallStackInfo   *CallStackInfo             `json:"callStackInfo,omitempty"`
-	RelevanceScores map[string]float64         `json:"relevanceScores"`
+	TotalFiles      int                `json:"totalFiles"`
+	TotalTokens     int                `json:"totalTokens"`
+	Files           []FilePreview      `json:"files"`
+	TruncatedFiles  []string           `json:"truncatedFiles"`
+	ExcludedFiles   []string           `json:"excludedFiles"`
+	CallStackInfo   *CallStackInfo     `json:"callStackInfo,omitempty"`
+	RelevanceScores map[string]float64 `json:"relevanceScores"`
 }
 
 // FilePreview represents a file in the preview

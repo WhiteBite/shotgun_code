@@ -65,38 +65,29 @@ func (s *SBOMService) GenerateSBOM(ctx context.Context, projectPath string, form
 	return result, nil
 }
 
+// checkProjectAndScanner validates project exists and scanner is available
+func (s *SBOMService) checkProjectAndScanner(projectPath string, isAvailable func() bool, scannerName string) (bool, string) {
+	if _, err := s.fileStatProvider.Stat(projectPath); err != nil {
+		return false, fmt.Sprintf("project path does not exist: %s", projectPath)
+	}
+	if !isAvailable() {
+		return false, scannerName + " is not available"
+	}
+	return true, ""
+}
+
 // ScanVulnerabilities сканирует уязвимости в проекте
 func (s *SBOMService) ScanVulnerabilities(ctx context.Context, projectPath string) (*domain.VulnerabilityScanResult, error) {
 	s.log.Info(fmt.Sprintf("Scanning vulnerabilities for project: %s", projectPath))
 
-	// Проверяем существование проекта
-	if _, err := s.fileStatProvider.Stat(projectPath); err != nil {
-		return &domain.VulnerabilityScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       fmt.Sprintf("project path does not exist: %s", projectPath),
-		}, nil
+	if ok, errMsg := s.checkProjectAndScanner(projectPath, s.vulnScanner.IsAvailable, "Vulnerability scanner"); !ok {
+		return &domain.VulnerabilityScanResult{Success: false, ProjectPath: projectPath, Error: errMsg}, nil
 	}
 
-	// Проверяем доступность Grype
-	if !s.vulnScanner.IsAvailable() {
-		return &domain.VulnerabilityScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       "Vulnerability scanner is not available",
-		}, nil
-	}
-
-	// Сканируем уязвимости с помощью Grype
 	result, err := s.vulnScanner.ScanVulnerabilities(ctx, projectPath)
 	if err != nil {
-		return &domain.VulnerabilityScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       err.Error(),
-		}, nil
+		return &domain.VulnerabilityScanResult{Success: false, ProjectPath: projectPath, Error: err.Error()}, nil
 	}
-
 	return result, nil
 }
 
@@ -104,34 +95,14 @@ func (s *SBOMService) ScanVulnerabilities(ctx context.Context, projectPath strin
 func (s *SBOMService) ScanLicenses(ctx context.Context, projectPath string) (*domain.LicenseScanResult, error) {
 	s.log.Info(fmt.Sprintf("Scanning licenses for project: %s", projectPath))
 
-	// Проверяем существование проекта
-	if _, err := s.fileStatProvider.Stat(projectPath); err != nil {
-		return &domain.LicenseScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       fmt.Sprintf("project path does not exist: %s", projectPath),
-		}, nil
+	if ok, errMsg := s.checkProjectAndScanner(projectPath, s.licenseScanner.IsAvailable, "License scanner"); !ok {
+		return &domain.LicenseScanResult{Success: false, ProjectPath: projectPath, Error: errMsg}, nil
 	}
 
-	// Проверяем доступность инструментов сканирования лицензий
-	if !s.licenseScanner.IsAvailable() {
-		return &domain.LicenseScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       "No license scanning tools available",
-		}, nil
-	}
-
-	// Сканируем лицензии с помощью LicenseScanner
 	result, err := s.licenseScanner.ScanLicenses(ctx, projectPath)
 	if err != nil {
-		return &domain.LicenseScanResult{
-			Success:     false,
-			ProjectPath: projectPath,
-			Error:       err.Error(),
-		}, nil
+		return &domain.LicenseScanResult{Success: false, ProjectPath: projectPath, Error: err.Error()}, nil
 	}
-
 	return result, nil
 }
 
@@ -212,55 +183,60 @@ func (s *SBOMService) ValidateSBOM(ctx context.Context, sbomPath string, format 
 	return s.sbomGenerator.ValidateSBOM(ctx, sbomPath, format)
 }
 
-// analyzeCompliance анализирует соответствие требованиям
-func (s *SBOMService) analyzeCompliance(projectPath string, requirements *domain.ComplianceRequirements, sbomResult *domain.SBOMResult, vulnResult *domain.VulnerabilityScanResult, licenseResult *domain.LicenseScanResult) *domain.ComplianceReport {
-	var issues []*domain.ComplianceIssue
-
-	// Проверяем SBOM
+// checkSBOMCompliance checks SBOM requirements
+func checkSBOMCompliance(requirements *domain.ComplianceRequirements, sbomResult *domain.SBOMResult) []*domain.ComplianceIssue {
 	if requirements.RequireSBOM && !sbomResult.Success {
+		return []*domain.ComplianceIssue{{Type: "sbom", Severity: "high", Description: "SBOM generation failed"}}
+	}
+	return nil
+}
+
+// checkVulnerabilityCompliance checks vulnerability requirements
+func checkVulnerabilityCompliance(requirements *domain.ComplianceRequirements, vulnResult *domain.VulnerabilityScanResult) []*domain.ComplianceIssue {
+	if !vulnResult.Success || vulnResult.Summary == nil {
+		return nil
+	}
+	var issues []*domain.ComplianceIssue
+	if vulnResult.Summary.Total > requirements.MaxVulnerabilities {
 		issues = append(issues, &domain.ComplianceIssue{
-			Type:        "sbom",
-			Severity:    "high",
-			Description: "SBOM generation failed",
+			Type: "vulnerability", Severity: "high",
+			Description: fmt.Sprintf("Too many vulnerabilities: %d (max: %d)", vulnResult.Summary.Total, requirements.MaxVulnerabilities),
 		})
 	}
-
-	// Проверяем уязвимости
-	if vulnResult.Success && vulnResult.Summary != nil {
-		if vulnResult.Summary.Total > requirements.MaxVulnerabilities {
-			issues = append(issues, &domain.ComplianceIssue{
-				Type:        "vulnerability",
-				Severity:    "high",
-				Description: fmt.Sprintf("Too many vulnerabilities: %d (max: %d)", vulnResult.Summary.Total, requirements.MaxVulnerabilities),
-			})
-		}
-
-		// Проверяем критические уязвимости
-		if vulnResult.Summary.Critical > 0 {
-			issues = append(issues, &domain.ComplianceIssue{
-				Type:        "vulnerability",
-				Severity:    "critical",
-				Description: fmt.Sprintf("Critical vulnerabilities found: %d", vulnResult.Summary.Critical),
-			})
-		}
+	if vulnResult.Summary.Critical > 0 {
+		issues = append(issues, &domain.ComplianceIssue{
+			Type: "vulnerability", Severity: "critical",
+			Description: fmt.Sprintf("Critical vulnerabilities found: %d", vulnResult.Summary.Critical),
+		})
 	}
+	return issues
+}
 
-	// Проверяем лицензии
-	if licenseResult.Success && licenseResult.Summary != nil {
-		for _, license := range licenseResult.Licenses {
-			// Проверяем запрещенные лицензии
-			for _, forbidden := range requirements.ForbiddenLicenses {
-				if strings.Contains(strings.ToLower(license.Name), strings.ToLower(forbidden)) {
-					issues = append(issues, &domain.ComplianceIssue{
-						Type:        "license",
-						Severity:    "high",
-						Description: fmt.Sprintf("Forbidden license found: %s", license.Name),
-						Component:   license.Name,
-					})
-				}
+// checkLicenseCompliance checks license requirements
+func checkLicenseCompliance(requirements *domain.ComplianceRequirements, licenseResult *domain.LicenseScanResult) []*domain.ComplianceIssue {
+	if !licenseResult.Success || licenseResult.Summary == nil {
+		return nil
+	}
+	var issues []*domain.ComplianceIssue
+	for _, license := range licenseResult.Licenses {
+		for _, forbidden := range requirements.ForbiddenLicenses {
+			if strings.Contains(strings.ToLower(license.Name), strings.ToLower(forbidden)) {
+				issues = append(issues, &domain.ComplianceIssue{
+					Type: "license", Severity: "high",
+					Description: fmt.Sprintf("Forbidden license found: %s", license.Name), Component: license.Name,
+				})
 			}
 		}
 	}
+	return issues
+}
+
+// analyzeCompliance анализирует соответствие требованиям
+func (s *SBOMService) analyzeCompliance(projectPath string, requirements *domain.ComplianceRequirements, sbomResult *domain.SBOMResult, vulnResult *domain.VulnerabilityScanResult, licenseResult *domain.LicenseScanResult) *domain.ComplianceReport {
+	var issues []*domain.ComplianceIssue
+	issues = append(issues, checkSBOMCompliance(requirements, sbomResult)...)
+	issues = append(issues, checkVulnerabilityCompliance(requirements, vulnResult)...)
+	issues = append(issues, checkLicenseCompliance(requirements, licenseResult)...)
 
 	// Рассчитываем сводку
 	summary := &domain.ComplianceSummary{

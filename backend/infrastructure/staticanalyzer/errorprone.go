@@ -108,7 +108,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 	}
 
 	// Генерируем сводку
-	result.Summary = a.generateSummary(issues)
+	result.Summary = generateSummary(issues)
 
 	a.log.Info(fmt.Sprintf("ErrorProne analysis completed in %.2fs, found %d issues", duration, len(issues)))
 	return result, nil
@@ -178,12 +178,11 @@ func (a *ErrorProneAnalyzer) hasJavaFilePaths(projectPath string) bool {
 
 // parseErrorProneOutput парсит вывод ErrorProne
 func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
+	lines := strings.Split(string(output), "\n")
+	issues := make([]*domain.StaticIssue, 0, len(lines)/2)
 
 	// ErrorProne выводит ошибки в формате:
 	// filename:line:column: [error] message
-	lines := strings.Split(string(output), "\n")
-
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || !strings.Contains(line, ":") {
@@ -219,9 +218,9 @@ func (a *ErrorProneAnalyzer) parseErrorProneOutput(output []byte) ([]*domain.Sta
 		}
 
 		// Определяем severity
-		severity := "warning"
+		severity := severityWarning
 		if strings.Contains(line, "[error]") {
-			severity = "error"
+			severity = severityError
 		}
 
 		issue := &domain.StaticIssue{
@@ -255,45 +254,5 @@ func (a *ErrorProneAnalyzer) getCategory(message string) string {
 	} else if strings.Contains(message, "resource") {
 		return "resource-management"
 	}
-	return "other"
-}
-
-// generateSummary генерирует сводку анализа
-func (a *ErrorProneAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
-	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
-	}
-
-	filesWithIssues := make(map[string]bool)
-
-	for _, issue := range issues {
-		// Подсчитываем по severity
-		summary.SeverityBreakdown[issue.Severity]++
-
-		// Подсчитываем по категориям
-		summary.CategoryBreakdown[issue.Category]++
-
-		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
-
-		// Подсчитываем по типам
-		switch issue.Severity {
-		case "error":
-			summary.ErrorCount++
-		case "warning":
-			summary.WarningCount++
-		case "info":
-			summary.InfoCount++
-		case "hint":
-			summary.HintCount++
-		}
-	}
-
-	summary.FilesWithIssues = len(filesWithIssues)
-
-	return summary
+	return severityOther
 }

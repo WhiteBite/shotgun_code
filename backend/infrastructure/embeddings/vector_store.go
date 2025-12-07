@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -27,28 +28,28 @@ type SQLiteVectorStore struct {
 // NewSQLiteVectorStore creates a new SQLite-based vector store
 func NewSQLiteVectorStore(dataDir string, log domain.Logger) (*SQLiteVectorStore, error) {
 	// Ensure data directory exists
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
-	
+
 	dbPath := filepath.Join(dataDir, "embeddings.db")
-	
+
 	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	
+
 	store := &SQLiteVectorStore{
 		db:     db,
 		dbPath: dbPath,
 		log:    log,
 	}
-	
+
 	if err := store.initSchema(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
-	
+
 	return store, nil
 }
 
@@ -88,7 +89,7 @@ func (s *SQLiteVectorStore) initSchema() error {
 		dimensions INTEGER DEFAULT 0
 	);
 	`
-	
+
 	_, err := s.db.Exec(schema)
 	return err
 }
@@ -97,19 +98,19 @@ func (s *SQLiteVectorStore) initSchema() error {
 func (s *SQLiteVectorStore) Store(ctx context.Context, projectID string, chunk domain.EmbeddedChunk) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	embeddingBytes, err := encodeEmbedding(chunk.Embedding)
 	if err != nil {
 		return fmt.Errorf("failed to encode embedding: %w", err)
 	}
-	
+
 	query := `
 	INSERT OR REPLACE INTO embeddings 
 	(id, project_id, file_path, content, start_line, end_line, chunk_type, 
 	 symbol_name, symbol_kind, language, token_count, content_hash, embedding, created_at, updated_at)
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	
+
 	_, err = s.db.ExecContext(ctx, query,
 		chunk.Chunk.ID,
 		projectID,
@@ -127,7 +128,7 @@ func (s *SQLiteVectorStore) Store(ctx context.Context, projectID string, chunk d
 		chunk.CreatedAt,
 		chunk.UpdatedAt,
 	)
-	
+
 	return err
 }
 
@@ -135,13 +136,13 @@ func (s *SQLiteVectorStore) Store(ctx context.Context, projectID string, chunk d
 func (s *SQLiteVectorStore) StoreBatch(ctx context.Context, projectID string, chunks []domain.EmbeddedChunk) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
-	
+	defer func() { _ = tx.Rollback() }()
+
 	stmt, err := tx.PrepareContext(ctx, `
 	INSERT OR REPLACE INTO embeddings 
 	(id, project_id, file_path, content, start_line, end_line, chunk_type, 
@@ -152,13 +153,13 @@ func (s *SQLiteVectorStore) StoreBatch(ctx context.Context, projectID string, ch
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer stmt.Close()
-	
+
 	for _, chunk := range chunks {
 		embeddingBytes, err := encodeEmbedding(chunk.Embedding)
 		if err != nil {
 			return fmt.Errorf("failed to encode embedding: %w", err)
 		}
-		
+
 		_, err = stmt.ExecContext(ctx,
 			chunk.Chunk.ID,
 			projectID,
@@ -180,7 +181,7 @@ func (s *SQLiteVectorStore) StoreBatch(ctx context.Context, projectID string, ch
 			return fmt.Errorf("failed to insert chunk: %w", err)
 		}
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -188,7 +189,7 @@ func (s *SQLiteVectorStore) StoreBatch(ctx context.Context, projectID string, ch
 func (s *SQLiteVectorStore) Search(ctx context.Context, projectID string, query domain.EmbeddingVector, topK int, minScore float32) ([]domain.SemanticSearchResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Load all embeddings for the project (for small-medium projects)
 	// For large projects, consider using approximate nearest neighbor algorithms
 	rows, err := s.db.QueryContext(ctx, `
@@ -201,20 +202,20 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, projectID string, query 
 		return nil, fmt.Errorf("failed to query embeddings: %w", err)
 	}
 	defer rows.Close()
-	
+
 	type scoredResult struct {
 		chunk domain.CodeChunk
 		score float32
 	}
-	
+
 	var results []scoredResult
-	
+
 	for rows.Next() {
 		var chunk domain.CodeChunk
 		var chunkType string
 		var embeddingBytes []byte
 		var symbolName, symbolKind sql.NullString
-		
+
 		err := rows.Scan(
 			&chunk.ID,
 			&chunk.FilePath,
@@ -232,7 +233,7 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, projectID string, query 
 		if err != nil {
 			continue
 		}
-		
+
 		chunk.ChunkType = domain.ChunkType(chunkType)
 		if symbolName.Valid {
 			chunk.SymbolName = symbolName.String
@@ -240,30 +241,30 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, projectID string, query 
 		if symbolKind.Valid {
 			chunk.SymbolKind = symbolKind.String
 		}
-		
+
 		embedding, err := decodeEmbedding(embeddingBytes)
 		if err != nil {
 			continue
 		}
-		
+
 		// Calculate cosine similarity
 		score := cosineSimilarity(query, embedding)
-		
+
 		if score >= minScore {
 			results = append(results, scoredResult{chunk: chunk, score: score})
 		}
 	}
-	
+
 	// Sort by score descending
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].score > results[j].score
 	})
-	
+
 	// Take top K
 	if len(results) > topK {
 		results = results[:topK]
 	}
-	
+
 	// Convert to response format
 	searchResults := make([]domain.SemanticSearchResult, len(results))
 	for i, r := range results {
@@ -272,16 +273,16 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, projectID string, query 
 			Score: r.score,
 		}
 	}
-	
+
 	return searchResults, nil
 }
 
 // Delete removes embeddings for a file
-func (s *SQLiteVectorStore) Delete(ctx context.Context, projectID string, filePath string) error {
+func (s *SQLiteVectorStore) Delete(ctx context.Context, projectID, filePath string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
-	_, err := s.db.ExecContext(ctx, 
+
+	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM embeddings WHERE project_id = ? AND file_path = ?",
 		projectID, filePath)
 	return err
@@ -291,23 +292,23 @@ func (s *SQLiteVectorStore) Delete(ctx context.Context, projectID string, filePa
 func (s *SQLiteVectorStore) DeleteProject(ctx context.Context, projectID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	
+	defer func() { _ = tx.Rollback() }()
+
 	_, err = tx.ExecContext(ctx, "DELETE FROM embeddings WHERE project_id = ?", projectID)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = tx.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", projectID)
 	if err != nil {
 		return err
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -315,9 +316,9 @@ func (s *SQLiteVectorStore) DeleteProject(ctx context.Context, projectID string)
 func (s *SQLiteVectorStore) GetStats(ctx context.Context, projectID string) (*domain.VectorStoreStats, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	var stats domain.VectorStoreStats
-	
+
 	// Get counts
 	row := s.db.QueryRowContext(ctx, `
 	SELECT 
@@ -328,40 +329,40 @@ func (s *SQLiteVectorStore) GetStats(ctx context.Context, projectID string) (*do
 	FROM embeddings 
 	WHERE project_id = ?
 	`, projectID)
-	
+
 	var lastUpdated sql.NullTime
 	err := row.Scan(&stats.TotalChunks, &stats.TotalFiles, &stats.TotalTokens, &lastUpdated)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if lastUpdated.Valid {
 		stats.LastUpdated = lastUpdated.Time
 	}
-	
+
 	// Get file size
 	if info, err := os.Stat(s.dbPath); err == nil {
 		stats.IndexSize = info.Size()
 	}
-	
+
 	// Get dimensions from first embedding
 	var embeddingBytes []byte
-	row = s.db.QueryRowContext(ctx, 
+	row = s.db.QueryRowContext(ctx,
 		"SELECT embedding FROM embeddings WHERE project_id = ? LIMIT 1", projectID)
 	if err := row.Scan(&embeddingBytes); err == nil {
 		if emb, err := decodeEmbedding(embeddingBytes); err == nil {
 			stats.Dimensions = len(emb)
 		}
 	}
-	
+
 	return &stats, nil
 }
 
 // GetChunkByID retrieves a specific chunk
-func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID string, chunkID string) (*domain.EmbeddedChunk, error) {
+func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID, chunkID string) (*domain.EmbeddedChunk, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	row := s.db.QueryRowContext(ctx, `
 	SELECT id, file_path, content, start_line, end_line, chunk_type, 
 	       symbol_name, symbol_kind, language, token_count, content_hash, 
@@ -369,13 +370,13 @@ func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID string, 
 	FROM embeddings 
 	WHERE project_id = ? AND id = ?
 	`, projectID, chunkID)
-	
+
 	var chunk domain.CodeChunk
 	var chunkType string
 	var embeddingBytes []byte
 	var symbolName, symbolKind sql.NullString
 	var createdAt, updatedAt time.Time
-	
+
 	err := row.Scan(
 		&chunk.ID,
 		&chunk.FilePath,
@@ -393,12 +394,12 @@ func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID string, 
 		&updatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	
+
 	chunk.ChunkType = domain.ChunkType(chunkType)
 	if symbolName.Valid {
 		chunk.SymbolName = symbolName.String
@@ -406,12 +407,12 @@ func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID string, 
 	if symbolKind.Valid {
 		chunk.SymbolKind = symbolKind.String
 	}
-	
+
 	embedding, err := decodeEmbedding(embeddingBytes)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &domain.EmbeddedChunk{
 		Chunk:     chunk,
 		Embedding: embedding,
@@ -421,10 +422,10 @@ func (s *SQLiteVectorStore) GetChunkByID(ctx context.Context, projectID string, 
 }
 
 // ListChunks lists all chunks for a file
-func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID string, filePath string) ([]domain.EmbeddedChunk, error) {
+func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID, filePath string) ([]domain.EmbeddedChunk, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	rows, err := s.db.QueryContext(ctx, `
 	SELECT id, file_path, content, start_line, end_line, chunk_type, 
 	       symbol_name, symbol_kind, language, token_count, content_hash, 
@@ -437,16 +438,16 @@ func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID string, fi
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var chunks []domain.EmbeddedChunk
-	
+
 	for rows.Next() {
 		var chunk domain.CodeChunk
 		var chunkType string
 		var embeddingBytes []byte
 		var symbolName, symbolKind sql.NullString
 		var createdAt, updatedAt time.Time
-		
+
 		err := rows.Scan(
 			&chunk.ID,
 			&chunk.FilePath,
@@ -466,7 +467,7 @@ func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID string, fi
 		if err != nil {
 			continue
 		}
-		
+
 		chunk.ChunkType = domain.ChunkType(chunkType)
 		if symbolName.Valid {
 			chunk.SymbolName = symbolName.String
@@ -474,12 +475,12 @@ func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID string, fi
 		if symbolKind.Valid {
 			chunk.SymbolKind = symbolKind.String
 		}
-		
+
 		embedding, err := decodeEmbedding(embeddingBytes)
 		if err != nil {
 			continue
 		}
-		
+
 		chunks = append(chunks, domain.EmbeddedChunk{
 			Chunk:     chunk,
 			Embedding: embedding,
@@ -487,23 +488,23 @@ func (s *SQLiteVectorStore) ListChunks(ctx context.Context, projectID string, fi
 			UpdatedAt: updatedAt,
 		})
 	}
-	
+
 	return chunks, nil
 }
 
 // GetFileHashes returns content hashes for all chunks in a file
-func (s *SQLiteVectorStore) GetFileHashes(ctx context.Context, projectID string, filePath string) (map[string]string, error) {
+func (s *SQLiteVectorStore) GetFileHashes(ctx context.Context, projectID, filePath string) (map[string]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
-	rows, err := s.db.QueryContext(ctx, 
+
+	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, content_hash FROM embeddings WHERE project_id = ? AND file_path = ?",
 		projectID, filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	hashes := make(map[string]string)
 	for rows.Next() {
 		var id, hash string
@@ -511,7 +512,7 @@ func (s *SQLiteVectorStore) GetFileHashes(ctx context.Context, projectID string,
 			hashes[id] = hash
 		}
 	}
-	
+
 	return hashes, nil
 }
 
@@ -536,18 +537,18 @@ func cosineSimilarity(a, b domain.EmbeddingVector) float32 {
 	if len(a) != len(b) {
 		return 0
 	}
-	
+
 	var dotProduct, normA, normB float64
-	
+
 	for i := range a {
 		dotProduct += float64(a[i]) * float64(b[i])
 		normA += float64(a[i]) * float64(a[i])
 		normB += float64(b[i]) * float64(b[i])
 	}
-	
+
 	if normA == 0 || normB == 0 {
 		return 0
 	}
-	
+
 	return float32(dotProduct / (math.Sqrt(normA) * math.Sqrt(normB)))
 }

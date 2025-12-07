@@ -10,9 +10,9 @@ import (
 
 // AgenticChatService handles AI chat with tool use capabilities
 type AgenticChatService struct {
-	logger       domain.Logger
-	aiService    *AIService
-	toolExecutor *ToolExecutorImpl
+	logger        domain.Logger
+	aiService     *AIService
+	toolExecutor  *ToolExecutorImpl
 	maxIterations int
 }
 
@@ -39,10 +39,10 @@ type AgenticChatRequest struct {
 
 // AgenticChatResponse represents the response from agentic chat
 type AgenticChatResponse struct {
-	Response   string            `json:"response"`
-	ToolCalls  []ToolCallLog     `json:"toolCalls"`
-	Iterations int               `json:"iterations"`
-	Context    []string          `json:"context"` // Files that were read
+	Response   string        `json:"response"`
+	ToolCalls  []ToolCallLog `json:"toolCalls"`
+	Iterations int           `json:"iterations"`
+	Context    []string      `json:"context"` // Files that were read
 }
 
 // ToolCallLog logs a tool call for transparency
@@ -107,7 +107,7 @@ IMPORTANT: Always respond in the user's language (Russian if they write in Russi
 
 		// Check if response contains tool calls
 		toolCalls := s.parseToolCalls(response)
-		
+
 		if len(toolCalls) == 0 {
 			// No tool calls - this is the final answer
 			s.logger.Info("Agentic chat completed with final answer")
@@ -128,7 +128,7 @@ IMPORTANT: Always respond in the user's language (Russian if they write in Russi
 		var toolResults []string
 		for _, call := range toolCalls {
 			result := s.toolExecutor.ExecuteTool(call, req.ProjectRoot)
-			
+
 			// Log the call
 			argsJSON, _ := json.Marshal(call.Arguments)
 			toolCallLogs = append(toolCallLogs, ToolCallLog{
@@ -159,7 +159,7 @@ IMPORTANT: Always respond in the user's language (Russian if they write in Russi
 
 // formatToolsForPrompt formats tools for the system prompt
 func (s *AgenticChatService) formatToolsForPrompt(tools []domain.Tool) string {
-	var lines []string
+	lines := make([]string, 0, len(tools))
 	for _, tool := range tools {
 		params := []string{}
 		for name, prop := range tool.Parameters.Properties {
@@ -185,7 +185,7 @@ func (s *AgenticChatService) callAI(ctx context.Context, messages []domain.ChatM
 	// Extract system prompt and build conversation
 	var systemPrompt string
 	var userPrompt strings.Builder
-	
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case domain.RoleSystem:
@@ -204,7 +204,7 @@ func (s *AgenticChatService) callAI(ctx context.Context, messages []domain.ChatM
 			userPrompt.WriteString("\n\n")
 		}
 	}
-	
+
 	userPrompt.WriteString("Assistant: ")
 
 	// Use the AI service with proper system prompt
@@ -221,13 +221,13 @@ func (s *AgenticChatService) parseToolCalls(response string) []domain.ToolCall {
 	// Try to find JSON with tool_calls
 	start := strings.Index(response, "{")
 	end := strings.LastIndex(response, "}")
-	
+
 	if start == -1 || end == -1 || end <= start {
 		return nil
 	}
 
 	jsonStr := response[start : end+1]
-	
+
 	// Try to parse as tool calls
 	var parsed struct {
 		ToolCalls []struct {
@@ -240,7 +240,7 @@ func (s *AgenticChatService) parseToolCalls(response string) []domain.ToolCall {
 		return nil
 	}
 
-	var calls []domain.ToolCall
+	calls := make([]domain.ToolCall, 0, len(parsed.ToolCalls))
 	for i, tc := range parsed.ToolCalls {
 		calls = append(calls, domain.ToolCall{
 			ID:        fmt.Sprintf("call_%d", i),

@@ -223,8 +223,8 @@ func writeTestFile(t *testing.T, base, path, content string) {
 	t.Helper()
 	fullPath := filepath.Join(base, path)
 	dir := filepath.Dir(fullPath)
-	os.MkdirAll(dir, 0755)
-	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+	os.MkdirAll(dir, 0o755)
+	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 }

@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// Language constant for error analysis
+const langJavaScript = "javascript"
+
 // ErrorAnalyzerImpl implements the ErrorAnalyzer interface
 type ErrorAnalyzerImpl struct {
 	log               domain.Logger
@@ -21,9 +24,9 @@ func NewErrorAnalyzer(log domain.Logger) domain.ErrorAnalyzer {
 	}
 
 	// Register language-specific analyzers
-	analyzer.languageAnalyzers["go"] = NewGoErrorAnalyzer()
-	analyzer.languageAnalyzers["typescript"] = NewTypeScriptErrorAnalyzer()
-	analyzer.languageAnalyzers["javascript"] = NewJavaScriptErrorAnalyzer()
+	analyzer.languageAnalyzers[langGo] = NewGoErrorAnalyzer()
+	analyzer.languageAnalyzers[langTypeScript] = NewTypeScriptErrorAnalyzer()
+	analyzer.languageAnalyzers[langJavaScript] = NewJavaScriptErrorAnalyzer()
 
 	return analyzer
 }
@@ -273,7 +276,7 @@ func (g *GoErrorAnalyzer) ClassifyErrorType(errorOutput string) domain.ErrorType
 }
 
 func (g *GoErrorAnalyzer) GetLanguage() string {
-	return "go"
+	return langGo
 }
 
 // TypeScriptErrorAnalyzer analyzes TypeScript-specific errors
@@ -326,7 +329,7 @@ func (t *TypeScriptErrorAnalyzer) ClassifyErrorType(errorOutput string) domain.E
 }
 
 func (t *TypeScriptErrorAnalyzer) GetLanguage() string {
-	return "typescript"
+	return langTypeScript
 }
 
 // JavaScriptErrorAnalyzer analyzes JavaScript-specific errors
@@ -374,7 +377,7 @@ func (j *JavaScriptErrorAnalyzer) ClassifyErrorType(errorOutput string) domain.E
 }
 
 func (j *JavaScriptErrorAnalyzer) GetLanguage() string {
-	return "javascript"
+	return langJavaScript
 }
 
 // Utility functions

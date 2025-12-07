@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const testValue2 = "value2"
+
 func TestNewContextMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 	cm, err := NewContextMemory(tmpDir)
@@ -145,7 +147,7 @@ func TestContextMemory_Preferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPreference failed: %v", err)
 	}
-	if val != "true" {
+	if val != boolTrue {
 		t.Errorf("expected 'true', got %q", val)
 	}
 
@@ -172,10 +174,10 @@ func TestContextMemory_UpdatePreference(t *testing.T) {
 	defer cm.Close()
 
 	cm.SetPreference("key", "value1")
-	cm.SetPreference("key", "value2")
+	cm.SetPreference("key", testValue2)
 
 	val, _ := cm.GetPreference("key")
-	if val != "value2" {
+	if val != testValue2 {
 		t.Errorf("expected 'value2', got %q", val)
 	}
 }

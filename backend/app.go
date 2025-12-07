@@ -130,14 +130,14 @@ func (a *App) domReady(ctx context.Context) {
 
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
-	
+
 	// Shutdown container services first
 	if a.container != nil {
 		if err := a.container.Shutdown(ctx); err != nil {
 			a.log.Warning("Container shutdown error: " + err.Error())
 		}
 	}
-	
+
 	// Stop file watcher
 	a.fileWatcher.Stop()
 }
@@ -1982,7 +1982,7 @@ func (a *App) matchesIgnorePattern(path string, rules string) bool {
 // AddToGitignore adds a pattern to .gitignore file
 func (a *App) AddToGitignore(projectPath string, pattern string) error {
 	gitignorePath := filepath.Join(projectPath, ".gitignore")
-	
+
 	// Read existing content
 	content, err := os.ReadFile(gitignorePath)
 	if err != nil && !os.IsNotExist(err) {
@@ -1997,13 +1997,12 @@ func (a *App) AddToGitignore(projectPath string, pattern string) error {
 	newContent += pattern + "\n"
 
 	// Write back
-	if err := os.WriteFile(gitignorePath, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(gitignorePath, []byte(newContent), 0o644); err != nil {
 		return fmt.Errorf("failed to write .gitignore: %w", err)
 	}
 
 	return nil
 }
-
 
 // ==================== Qwen Task Methods ====================
 

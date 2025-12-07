@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const testProjectPath = testProjectPath
+
 // MockFileContentReader is a mock implementation of domain.FileContentReader
 type MockFileContentReader struct {
 	mock.Mock
@@ -89,7 +91,7 @@ func TestService_BuildContext(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{"src/main.go", "src/util.go"}
 	fileContents := map[string]string{
 		"src/main.go": "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}",
@@ -129,7 +131,7 @@ func TestService_BuildContext(t *testing.T) {
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
 	mockLogger.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }
 
 func TestService_BuildContext_TokenLimitExceeded(t *testing.T) {
@@ -153,7 +155,7 @@ func TestService_BuildContext_TokenLimitExceeded(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := "/test/project"
+	projectPath := testProjectPath
 	includedPaths := []string{"src/large.go"}
 	fileContents := map[string]string{
 		"src/large.go": strings.Repeat("// Large file content\n", 1000),
@@ -181,7 +183,7 @@ func TestService_BuildContext_TokenLimitExceeded(t *testing.T) {
 
 	mockFileReader.AssertExpectations(t)
 	mockTokenCounter.AssertExpectations(t)
-	// mockBus.AssertExpectations(t) // Skipping event bus assertions for now
+	// Skipping event bus assertions for now
 }
 
 func TestService_GetContext(t *testing.T) {
@@ -204,7 +206,7 @@ func TestService_GetContext(t *testing.T) {
 		Files:       []string{"test.go"},
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-		ProjectPath: "/test/project",
+		ProjectPath: testProjectPath,
 		TokenCount:  100,
 	}
 

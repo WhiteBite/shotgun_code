@@ -10,20 +10,22 @@ import (
 	"time"
 )
 
-// SandboxRunnerImpl реализует SandboxRunner
-type SandboxRunnerImpl struct {
+const defaultEngine = "docker"
+
+// RunnerImpl реализует SandboxRunner
+type RunnerImpl struct {
 	log domain.Logger
 }
 
 // NewSandboxRunner создает новый sandbox runner
-func NewSandboxRunner(log domain.Logger) *SandboxRunnerImpl {
-	return &SandboxRunnerImpl{
+func NewSandboxRunner(log domain.Logger) *RunnerImpl {
+	return &RunnerImpl{
 		log: log,
 	}
 }
 
 // Run выполняет команду в песочнице
-func (r *SandboxRunnerImpl) Run(ctx context.Context, config domain.SandboxConfig, command []string) (*domain.SandboxResult, error) {
+func (r *RunnerImpl) Run(ctx context.Context, config domain.SandboxConfig, command []string) (*domain.SandboxResult, error) {
 	startTime := time.Now()
 	result := &domain.SandboxResult{}
 
@@ -77,7 +79,7 @@ func (r *SandboxRunnerImpl) Run(ctx context.Context, config domain.SandboxConfig
 }
 
 // Cleanup очищает ресурсы песочницы
-func (r *SandboxRunnerImpl) Cleanup(ctx context.Context, containerID string) error {
+func (r *RunnerImpl) Cleanup(ctx context.Context, containerID string) error {
 	if containerID == "" {
 		return nil
 	}
@@ -91,14 +93,14 @@ func (r *SandboxRunnerImpl) Cleanup(ctx context.Context, containerID string) err
 	// Удаляем контейнер
 	rmCmd := exec.CommandContext(ctx, "docker", "rm", containerID)
 	if err := rmCmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove container %s: %v", containerID, err)
+		return fmt.Errorf("failed to remove container %s: %w", containerID, err)
 	}
 
 	return nil
 }
 
 // IsAvailable проверяет доступность движка песочницы
-func (r *SandboxRunnerImpl) IsAvailable(ctx context.Context) bool {
+func (r *RunnerImpl) IsAvailable(ctx context.Context) bool {
 	// Проверяем наличие Docker
 	if _, err := exec.LookPath("docker"); err == nil {
 		// Проверяем, что Docker daemon работает
@@ -121,7 +123,7 @@ func (r *SandboxRunnerImpl) IsAvailable(ctx context.Context) bool {
 }
 
 // GetInfo возвращает информацию о движке
-func (r *SandboxRunnerImpl) GetInfo(ctx context.Context) (map[string]interface{}, error) {
+func (r *RunnerImpl) GetInfo(ctx context.Context) (map[string]interface{}, error) {
 	info := make(map[string]interface{})
 
 	// Проверяем Docker
@@ -152,8 +154,8 @@ func (r *SandboxRunnerImpl) GetInfo(ctx context.Context) (map[string]interface{}
 }
 
 // createContainer создает контейнер
-func (r *SandboxRunnerImpl) createContainer(ctx context.Context, config domain.SandboxConfig, command []string) (string, error) {
-	engine := "docker"
+func (r *RunnerImpl) createContainer(ctx context.Context, config domain.SandboxConfig, command []string) (string, error) {
+	engine := defaultEngine
 	if config.Engine != "" {
 		engine = config.Engine
 	}
@@ -214,8 +216,8 @@ func (r *SandboxRunnerImpl) createContainer(ctx context.Context, config domain.S
 }
 
 // runContainer запускает контейнер
-func (r *SandboxRunnerImpl) runContainer(ctx context.Context, containerID string) (string, error) {
-	engine := "docker"
+func (r *RunnerImpl) runContainer(ctx context.Context, containerID string) (string, error) {
+	engine := defaultEngine
 
 	cmd := exec.CommandContext(ctx, engine, "start", "-a", containerID)
 	output, err := cmd.CombinedOutput()
@@ -227,8 +229,8 @@ func (r *SandboxRunnerImpl) runContainer(ctx context.Context, containerID string
 }
 
 // getContainerLogs получает логи контейнера
-func (r *SandboxRunnerImpl) getContainerLogs(ctx context.Context, containerID string) (string, error) {
-	engine := "docker"
+func (r *RunnerImpl) getContainerLogs(ctx context.Context, containerID string) (string, error) {
+	engine := defaultEngine
 
 	cmd := exec.CommandContext(ctx, engine, "logs", containerID)
 	output, err := cmd.Output()

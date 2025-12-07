@@ -77,7 +77,7 @@ func TestGitDiff(t *testing.T) {
 	}
 
 	// With changes
-	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Modified"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Modified"), 0o644)
 	result, err = e.gitDiff(map[string]any{}, tmpDir)
 	if err != nil {
 		t.Fatalf("gitDiff failed: %v", err)
@@ -150,7 +150,6 @@ func TestGitShow(t *testing.T) {
 	}
 }
 
-
 // Phase 5 Git-Aware Context Tests
 
 func TestGitDiffBranches(t *testing.T) {
@@ -209,7 +208,7 @@ func TestGitChangedFiles(t *testing.T) {
 
 	// Add multiple commits changing same file
 	for i := 0; i < 3; i++ {
-		os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Version "+string(rune('0'+i))), 0644)
+		os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Version "+string(rune('0'+i))), 0o644)
 		runGit(t, tmpDir, "add", ".")
 		runGit(t, tmpDir, "commit", "-m", "Update README")
 	}
@@ -231,7 +230,7 @@ func TestGitFileHistory(t *testing.T) {
 
 	// Multiple commits on same file
 	for i := 0; i < 3; i++ {
-		os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Version "+string(rune('0'+i))), 0644)
+		os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Version "+string(rune('0'+i))), 0o644)
 		runGit(t, tmpDir, "add", ".")
 		runGit(t, tmpDir, "commit", "-m", "Update v"+string(rune('0'+i)))
 	}
@@ -264,8 +263,8 @@ func TestGitCoChanged(t *testing.T) {
 	runGit(t, tmpDir, "commit", "-m", "Add service")
 
 	// Change them together again
-	os.WriteFile(filepath.Join(tmpDir, "service.go"), []byte("package main\n// v2"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "service_test.go"), []byte("package main\n// v2"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "service.go"), []byte("package main\n// v2"), 0o644)
+	os.WriteFile(filepath.Join(tmpDir, "service_test.go"), []byte("package main\n// v2"), 0o644)
 	runGit(t, tmpDir, "add", ".")
 	runGit(t, tmpDir, "commit", "-m", "Update service")
 

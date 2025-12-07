@@ -89,7 +89,7 @@ func (s *TaskflowService) LoadTasks() ([]domain.Task, error) {
 	}
 
 	// Create tasks
-	var tasks []domain.Task
+	tasks := make([]domain.Task, 0, len(plan.Tasks))
 	for _, taskData := range plan.Tasks {
 		state := domain.TaskStateTodo
 		if status, exists := statuses[taskData.ID]; exists {
@@ -256,5 +256,5 @@ func (s *TaskflowService) saveStatuses() error {
 		return fmt.Errorf("failed to marshal statuses: %w", err)
 	}
 
-	return os.WriteFile(s.statusPath, data, 0644)
+	return os.WriteFile(s.statusPath, data, 0o600)
 }

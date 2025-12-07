@@ -34,51 +34,65 @@ func (c *commentStripperImpl) Strip(content, filePath string) string {
 func stripCStyleComments(content string) string {
 	lines := strings.Split(content, "\n")
 	var result []string
-
 	inBlockComment := false
 
 	for _, line := range lines {
-		if inBlockComment {
-			if strings.Contains(line, "*/") {
-				parts := strings.SplitN(line, "*/", 2)
-				if len(parts) > 1 {
-					line = parts[1]
-					inBlockComment = false
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
-		}
-
-		if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
-			parts := strings.SplitN(line, "/*", 2)
-			line = parts[0]
-			inBlockComment = true
-		}
-
-		if idx := strings.Index(line, "//"); idx != -1 {
-			line = line[:idx]
-		}
-
-		for strings.Contains(line, "/*") && strings.Contains(line, "*/") {
-			start := strings.Index(line, "/*")
-			end := strings.Index(line, "*/")
-			if end > start {
-				line = line[:start] + line[end+2:]
-			} else {
-				// end <= start means malformed comment or */ before /*, break to avoid infinite loop
-				break
-			}
-		}
-
+		line, inBlockComment = processCommentLine(line, inBlockComment)
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			result = append(result, line)
 		}
 	}
-
 	return strings.Join(result, "\n")
+}
+
+// processCommentLine processes a single line for C-style comments
+func processCommentLine(line string, inBlock bool) (string, bool) {
+	if inBlock {
+		return handleBlockCommentContinuation(line)
+	}
+	line = handleBlockCommentStart(line, &inBlock)
+	line = stripLineComment(line)
+	line = stripInlineBlockComments(line)
+	return line, inBlock
+}
+
+// handleBlockCommentContinuation handles lines inside a block comment
+func handleBlockCommentContinuation(line string) (string, bool) {
+	if idx := strings.Index(line, "*/"); idx != -1 {
+		return line[idx+2:], false
+	}
+	return "", true
+}
+
+// handleBlockCommentStart handles start of block comments
+func handleBlockCommentStart(line string, inBlock *bool) string {
+	if strings.Contains(line, "/*") && !strings.Contains(line, "*/") {
+		parts := strings.SplitN(line, "/*", 2)
+		*inBlock = true
+		return parts[0]
+	}
+	return line
+}
+
+// stripLineComment removes // comments
+func stripLineComment(line string) string {
+	if idx := strings.Index(line, "//"); idx != -1 {
+		return line[:idx]
+	}
+	return line
+}
+
+// stripInlineBlockComments removes inline /* */ comments
+func stripInlineBlockComments(line string) string {
+	for strings.Contains(line, "/*") && strings.Contains(line, "*/") {
+		start, end := strings.Index(line, "/*"), strings.Index(line, "*/")
+		if end > start {
+			line = line[:start] + line[end+2:]
+		} else {
+			break
+		}
+	}
+	return line
 }
 
 // stripHashComments removes hash-style comments (#)

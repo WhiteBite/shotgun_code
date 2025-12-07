@@ -39,12 +39,12 @@ type SemanticSearchRequest struct {
 }
 
 // Search performs semantic search
-func (h *SemanticHandler) Search(ctx context.Context, requestJson string) (string, error) {
+func (h *SemanticHandler) Search(ctx context.Context, requestJSON string) (string, error) {
 	var req SemanticSearchRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request: %w", err)
 	}
-	
+
 	// Set defaults
 	if req.TopK == 0 {
 		req.TopK = 10
@@ -52,7 +52,7 @@ func (h *SemanticHandler) Search(ctx context.Context, requestJson string) (strin
 	if req.MinScore == 0 {
 		req.MinScore = 0.5
 	}
-	
+
 	searchType := domain.SearchTypeHybrid
 	switch req.SearchType {
 	case "semantic":
@@ -60,7 +60,7 @@ func (h *SemanticHandler) Search(ctx context.Context, requestJson string) (strin
 	case "keyword":
 		searchType = domain.SearchTypeKeyword
 	}
-	
+
 	searchReq := domain.SemanticSearchRequest{
 		Query:       req.Query,
 		ProjectRoot: req.ProjectRoot,
@@ -68,7 +68,7 @@ func (h *SemanticHandler) Search(ctx context.Context, requestJson string) (strin
 		MinScore:    req.MinScore,
 		SearchType:  searchType,
 	}
-	
+
 	// Add filters if provided
 	if len(req.Languages) > 0 || len(req.ChunkTypes) > 0 {
 		searchReq.Filters = &domain.SearchFilters{}
@@ -81,18 +81,18 @@ func (h *SemanticHandler) Search(ctx context.Context, requestJson string) (strin
 			}
 		}
 	}
-	
+
 	results, err := h.semanticSearch.Search(ctx, searchReq)
 	if err != nil {
 		return "", fmt.Errorf("search failed: %w", err)
 	}
-	
-	resultJson, err := json.Marshal(results)
+
+	resultJSON, err := json.Marshal(results)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal results: %w", err)
 	}
-	
-	return string(resultJson), nil
+
+	return string(resultJSON), nil
 }
 
 // FindSimilarRequest represents a find similar request
@@ -106,19 +106,19 @@ type FindSimilarRequest struct {
 }
 
 // FindSimilar finds similar code
-func (h *SemanticHandler) FindSimilar(ctx context.Context, requestJson string) (string, error) {
+func (h *SemanticHandler) FindSimilar(ctx context.Context, requestJSON string) (string, error) {
 	var req FindSimilarRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request: %w", err)
 	}
-	
+
 	if req.TopK == 0 {
 		req.TopK = 5
 	}
 	if req.MinScore == 0 {
 		req.MinScore = 0.5
 	}
-	
+
 	searchReq := domain.SimilarCodeRequest{
 		FilePath:    req.FilePath,
 		StartLine:   req.StartLine,
@@ -127,18 +127,18 @@ func (h *SemanticHandler) FindSimilar(ctx context.Context, requestJson string) (
 		MinScore:    req.MinScore,
 		ExcludeSelf: req.ExcludeSelf,
 	}
-	
+
 	results, err := h.semanticSearch.FindSimilar(ctx, searchReq)
 	if err != nil {
 		return "", fmt.Errorf("find similar failed: %w", err)
 	}
-	
-	resultJson, err := json.Marshal(results)
+
+	resultJSON, err := json.Marshal(results)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal results: %w", err)
 	}
-	
-	return string(resultJson), nil
+
+	return string(resultJSON), nil
 }
 
 // IndexProject indexes a project for semantic search
@@ -158,13 +158,13 @@ func (h *SemanticHandler) GetStats(ctx context.Context, projectRoot string) (str
 	if err != nil {
 		return "", err
 	}
-	
-	statsJson, err := json.Marshal(stats)
+
+	statsJSON, err := json.Marshal(stats)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal stats: %w", err)
 	}
-	
-	return string(statsJson), nil
+
+	return string(statsJSON), nil
 }
 
 // IsIndexed checks if a project is indexed
@@ -180,43 +180,43 @@ type RetrieveContextRequest struct {
 }
 
 // RetrieveContext retrieves relevant context using RAG
-func (h *SemanticHandler) RetrieveContext(ctx context.Context, requestJson string) (string, error) {
+func (h *SemanticHandler) RetrieveContext(ctx context.Context, requestJSON string) (string, error) {
 	var req RetrieveContextRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request: %w", err)
 	}
-	
+
 	if req.MaxTokens == 0 {
 		req.MaxTokens = 4000
 	}
-	
+
 	chunks, err := h.ragService.RetrieveContext(ctx, req.Query, req.ProjectRoot, req.MaxTokens)
 	if err != nil {
 		return "", fmt.Errorf("retrieve context failed: %w", err)
 	}
-	
-	chunksJson, err := json.Marshal(chunks)
+
+	chunksJSON, err := json.Marshal(chunks)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal chunks: %w", err)
 	}
-	
-	return string(chunksJson), nil
+
+	return string(chunksJSON), nil
 }
 
 // HybridSearch performs hybrid search using RAG
-func (h *SemanticHandler) HybridSearch(ctx context.Context, requestJson string) (string, error) {
+func (h *SemanticHandler) HybridSearch(ctx context.Context, requestJSON string) (string, error) {
 	var req SemanticSearchRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request: %w", err)
 	}
-	
+
 	if req.TopK == 0 {
 		req.TopK = 10
 	}
 	if req.MinScore == 0 {
 		req.MinScore = 0.3
 	}
-	
+
 	searchReq := domain.SemanticSearchRequest{
 		Query:       req.Query,
 		ProjectRoot: req.ProjectRoot,
@@ -224,16 +224,16 @@ func (h *SemanticHandler) HybridSearch(ctx context.Context, requestJson string) 
 		MinScore:    req.MinScore,
 		SearchType:  domain.SearchTypeHybrid,
 	}
-	
+
 	results, err := h.ragService.HybridSearch(ctx, searchReq)
 	if err != nil {
 		return "", fmt.Errorf("hybrid search failed: %w", err)
 	}
-	
-	resultJson, err := json.Marshal(results)
+
+	resultJSON, err := json.Marshal(results)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal results: %w", err)
 	}
-	
-	return string(resultJson), nil
+
+	return string(resultJSON), nil
 }

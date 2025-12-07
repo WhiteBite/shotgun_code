@@ -31,7 +31,7 @@ func (r *KeyResolverImpl) GetKey(providerType string, settings domain.SettingsDT
 	if !exists {
 		return "", fmt.Errorf("no key extractor registered for provider: %s", providerType)
 	}
-	
+
 	key := extractor(settings)
 	return key, nil
 }

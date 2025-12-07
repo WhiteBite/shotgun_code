@@ -25,7 +25,7 @@ func TestGenerateDiff_NoChanges(t *testing.T) {
 
 	// Create and commit a file
 	testFile := filepath.Join(tmpDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("initial content"), 0644)
+	err = os.WriteFile(testFile, []byte("initial content"), 0o644)
 	require.NoError(t, err)
 
 	worktree, err := repo.Worktree()
@@ -73,7 +73,7 @@ func TestGenerateDiff_WithChanges(t *testing.T) {
 
 	// Create and commit a file
 	testFile := filepath.Join(tmpDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("initial content"), 0644)
+	err = os.WriteFile(testFile, []byte("initial content"), 0o644)
 	require.NoError(t, err)
 
 	worktree, err := repo.Worktree()
@@ -91,7 +91,7 @@ func TestGenerateDiff_WithChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	// Modify the file and commit again
-	err = os.WriteFile(testFile, []byte("modified content"), 0644)
+	err = os.WriteFile(testFile, []byte("modified content"), 0o644)
 	require.NoError(t, err)
 
 	_, err = worktree.Add("test.txt")

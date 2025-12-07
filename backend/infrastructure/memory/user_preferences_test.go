@@ -44,7 +44,7 @@ func TestUserPreferences_SetGet(t *testing.T) {
 	}
 
 	val := up.Get(PrefExcludeTests)
-	if val != "true" {
+	if val != boolTrue {
 		t.Errorf("expected 'true', got %q", val)
 	}
 }

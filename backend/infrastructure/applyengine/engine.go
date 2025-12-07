@@ -11,8 +11,13 @@ import (
 	"strings"
 )
 
-// ApplyEngineImpl реализует ApplyEngine
-type ApplyEngineImpl struct {
+// Operation type constants
+const (
+	opModify = "modify"
+)
+
+// Impl реализует ApplyEngine
+type Impl struct {
 	log          domain.Logger
 	config       *domain.ApplyEngineConfig
 	formatters   map[string]domain.Formatter
@@ -21,8 +26,8 @@ type ApplyEngineImpl struct {
 }
 
 // NewApplyEngine создает новый движок применения
-func NewApplyEngine(log domain.Logger, config *domain.ApplyEngineConfig) *ApplyEngineImpl {
-	return &ApplyEngineImpl{
+func NewApplyEngine(log domain.Logger, config *domain.ApplyEngineConfig) *Impl {
+	return &Impl{
 		log:          log,
 		config:       config,
 		formatters:   make(map[string]domain.Formatter),
@@ -32,19 +37,19 @@ func NewApplyEngine(log domain.Logger, config *domain.ApplyEngineConfig) *ApplyE
 }
 
 // RegisterFormatter регистрирует форматтер для языка
-func (e *ApplyEngineImpl) RegisterFormatter(language string, formatter domain.Formatter) {
+func (e *Impl) RegisterFormatter(language string, formatter domain.Formatter) {
 	e.formatters[language] = formatter
 	e.log.Info(fmt.Sprintf("Registered formatter for language: %s", language))
 }
 
 // RegisterImportFixer регистрирует исправитель импортов для языка
-func (e *ApplyEngineImpl) RegisterImportFixer(language string, fixer domain.ImportFixer) {
+func (e *Impl) RegisterImportFixer(language string, fixer domain.ImportFixer) {
 	e.importFixers[language] = fixer
 	e.log.Info(fmt.Sprintf("Registered import fixer for language: %s", language))
 }
 
 // ApplyOperation применяет одну операцию
-func (e *ApplyEngineImpl) ApplyOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+func (e *Impl) ApplyOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
 	e.log.Info(fmt.Sprintf("Applying operation %s to %s", op.ID, op.Path))
 
 	// Валидируем операцию
@@ -101,8 +106,8 @@ func (e *ApplyEngineImpl) ApplyOperation(ctx context.Context, op *domain.ApplyOp
 }
 
 // ApplyOperations применяет несколько операций
-func (e *ApplyEngineImpl) ApplyOperations(ctx context.Context, ops []*domain.ApplyOperation) ([]*domain.ApplyResult, error) {
-	var results []*domain.ApplyResult
+func (e *Impl) ApplyOperations(ctx context.Context, ops []*domain.ApplyOperation) ([]*domain.ApplyResult, error) {
+	results := make([]*domain.ApplyResult, 0, len(ops))
 
 	for _, op := range ops {
 		result, err := e.ApplyOperation(ctx, op)
@@ -121,7 +126,7 @@ func (e *ApplyEngineImpl) ApplyOperations(ctx context.Context, ops []*domain.App
 }
 
 // ValidateOperation проверяет корректность операции
-func (e *ApplyEngineImpl) ValidateOperation(ctx context.Context, op *domain.ApplyOperation) error {
+func (e *Impl) ValidateOperation(ctx context.Context, op *domain.ApplyOperation) error {
 	if op.ID == "" {
 		return fmt.Errorf("operation ID is required")
 	}
@@ -135,7 +140,7 @@ func (e *ApplyEngineImpl) ValidateOperation(ctx context.Context, op *domain.Appl
 	}
 
 	// Проверяем существование файла для модификации
-	if op.Operation == "modify" {
+	if op.Operation == opModify {
 		if _, err := os.Stat(op.Path); os.IsNotExist(err) {
 			return fmt.Errorf("file does not exist: %s", op.Path)
 		}
@@ -159,7 +164,7 @@ func (e *ApplyEngineImpl) ValidateOperation(ctx context.Context, op *domain.Appl
 }
 
 // RollbackOperation откатывает операцию
-func (e *ApplyEngineImpl) RollbackOperation(ctx context.Context, result *domain.ApplyResult) error {
+func (e *Impl) RollbackOperation(ctx context.Context, result *domain.ApplyResult) error {
 	if !e.config.BackupFiles {
 		return fmt.Errorf("backup not available")
 	}
@@ -170,7 +175,7 @@ func (e *ApplyEngineImpl) RollbackOperation(ctx context.Context, result *domain.
 	}
 
 	// Восстанавливаем файл из резервной копии
-	if err := os.WriteFile(result.Path, []byte(backup), 0644); err != nil {
+	if err := os.WriteFile(result.Path, []byte(backup), 0o600); err != nil {
 		return fmt.Errorf("failed to restore backup: %w", err)
 	}
 
@@ -181,14 +186,14 @@ func (e *ApplyEngineImpl) RollbackOperation(ctx context.Context, result *domain.
 }
 
 // applyAnchorOperation применяет операцию с якорями
-func (e *ApplyEngineImpl) applyAnchorOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+func (e *Impl) applyAnchorOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
 	content, err := os.ReadFile(op.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	lines := strings.Split(string(content), "\n")
-	var newLines []string
+	newLines := make([]string, 0, len(lines)+10)
 	anchorFound := false
 
 	for _, line := range lines {
@@ -236,7 +241,7 @@ func (e *ApplyEngineImpl) applyAnchorOperation(ctx context.Context, op *domain.A
 		}, nil
 	}
 
-	if err := os.WriteFile(op.Path, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(op.Path, []byte(newContent), 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -249,14 +254,14 @@ func (e *ApplyEngineImpl) applyAnchorOperation(ctx context.Context, op *domain.A
 }
 
 // applyFullFileOperation применяет операцию замены всего файла
-func (e *ApplyEngineImpl) applyFullFileOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+func (e *Impl) applyFullFileOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
 	// Создаем директорию если нужно
 	dir := filepath.Dir(op.Path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	if err := os.WriteFile(op.Path, []byte(op.Content), 0644); err != nil {
+	if err := os.WriteFile(op.Path, []byte(op.Content), 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -269,21 +274,21 @@ func (e *ApplyEngineImpl) applyFullFileOperation(ctx context.Context, op *domain
 }
 
 // applyASTOperation применяет операцию на уровне AST
-func (e *ApplyEngineImpl) applyASTOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+func (e *Impl) applyASTOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
 	// Базовая реализация - используем fullFile стратегию
 	// В будущем можно добавить поддержку AST трансформаций
 	return e.applyFullFileOperation(ctx, op)
 }
 
 // applyRecipeOperation применяет операцию рецепта
-func (e *ApplyEngineImpl) applyRecipeOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
+func (e *Impl) applyRecipeOperation(ctx context.Context, op *domain.ApplyOperation) (*domain.ApplyResult, error) {
 	// Базовая реализация - используем fullFile стратегию
 	// В будущем можно добавить поддержку рецептов
 	return e.applyFullFileOperation(ctx, op)
 }
 
 // createBackup создает резервную копию файла
-func (e *ApplyEngineImpl) createBackup(path string) error {
+func (e *Impl) createBackup(path string) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -294,7 +299,7 @@ func (e *ApplyEngineImpl) createBackup(path string) error {
 }
 
 // postProcess выполняет пост-обработку файла
-func (e *ApplyEngineImpl) postProcess(ctx context.Context, op *domain.ApplyOperation) error {
+func (e *Impl) postProcess(ctx context.Context, op *domain.ApplyOperation) error {
 	// Форматирование
 	if e.config.AutoFormat {
 		if formatter, exists := e.formatters[op.Language]; exists {
@@ -334,13 +339,13 @@ func (e *ApplyEngineImpl) postProcess(ctx context.Context, op *domain.ApplyOpera
 }
 
 // calculateHash вычисляет хеш содержимого
-func (e *ApplyEngineImpl) calculateHash(content string) string {
+func (e *Impl) calculateHash(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
 }
 
 // validateAnchorHash проверяет hash окна для якоря
-func (e *ApplyEngineImpl) validateAnchorHash(ctx context.Context, op *domain.ApplyOperation) error {
+func (e *Impl) validateAnchorHash(ctx context.Context, op *domain.ApplyOperation) error {
 	content, err := os.ReadFile(op.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read file for hash validation: %w", err)
@@ -378,7 +383,7 @@ func (e *ApplyEngineImpl) validateAnchorHash(ctx context.Context, op *domain.App
 }
 
 // validateAppliedChanges проверяет примененные изменения
-func (e *ApplyEngineImpl) validateAppliedChanges(ctx context.Context, op *domain.ApplyOperation) error {
+func (e *Impl) validateAppliedChanges(ctx context.Context, op *domain.ApplyOperation) error {
 	// Проверяем, что файл существует и читается
 	if _, err := os.Stat(op.Path); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist after application: %s", op.Path)
@@ -407,7 +412,7 @@ func (e *ApplyEngineImpl) validateAppliedChanges(ctx context.Context, op *domain
 }
 
 // validateGoSyntax проверяет базовую синтаксическую корректность Go кода
-func (e *ApplyEngineImpl) validateGoSyntax(content string) error {
+func (e *Impl) validateGoSyntax(content string) error {
 	// Простая проверка на наличие базовых Go конструкций
 	lines := strings.Split(content, "\n")
 
@@ -429,7 +434,7 @@ func (e *ApplyEngineImpl) validateGoSyntax(content string) error {
 }
 
 // ApplyEdit applies a single edit
-func (e *ApplyEngineImpl) ApplyEdit(ctx context.Context, edit domain.Edit) error {
+func (e *Impl) ApplyEdit(ctx context.Context, edit domain.Edit) error {
 	e.log.Info(fmt.Sprintf("Applying edit to file: %s", edit.FilePath))
 
 	// Convert Edit to ApplyOperation
@@ -469,7 +474,7 @@ func (e *ApplyEngineImpl) ApplyEdit(ctx context.Context, edit domain.Edit) error
 }
 
 // determineStrategy determines the appropriate strategy based on the edit type
-func (e *ApplyEngineImpl) determineStrategy(edit domain.Edit) domain.ApplyStrategy {
+func (e *Impl) determineStrategy(edit domain.Edit) domain.ApplyStrategy {
 	// Default to full file strategy
 	strategy := domain.ApplyStrategyFullFile
 
@@ -482,16 +487,16 @@ func (e *ApplyEngineImpl) determineStrategy(edit domain.Edit) domain.ApplyStrate
 }
 
 // determineOperation determines the operation type based on the edit type
-func (e *ApplyEngineImpl) determineOperation(edit domain.Edit) string {
+func (e *Impl) determineOperation(edit domain.Edit) string {
 	switch edit.Type {
 	case domain.EditTypeReplace:
-		return "modify"
+		return opModify
 	case domain.EditTypeInsert:
 		return "create"
 	case domain.EditTypeDelete:
 		return "delete"
 	default:
 		// Default to modify operation
-		return "modify"
+		return opModify
 	}
 }

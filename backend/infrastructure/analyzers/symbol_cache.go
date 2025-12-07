@@ -2,7 +2,7 @@ package analyzers
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // MD5 used for content hashing, not security
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // SQLite driver
 )
 
 // CachedSymbolIndex wraps SymbolIndexImpl with SQLite persistence
@@ -27,7 +27,7 @@ type CachedSymbolIndex struct {
 
 // NewCachedSymbolIndex creates a symbol index with SQLite caching
 func NewCachedSymbolIndex(registry analysis.AnalyzerRegistry, cacheDir string) (*CachedSymbolIndex, error) {
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +83,6 @@ func (idx *CachedSymbolIndex) initDB() error {
 	return err
 }
 
-
 // IndexProject indexes project with caching
 func (idx *CachedSymbolIndex) IndexProject(ctx context.Context, projectRoot string) error {
 	idx.mu.Lock()
@@ -92,83 +91,97 @@ func (idx *CachedSymbolIndex) IndexProject(ctx context.Context, projectRoot stri
 	idx.projectRoot = projectRoot
 	idx.SymbolIndexImpl.Clear()
 
-	// Load cached symbols first
-	cachedFiles := make(map[string]string) // path -> hash
+	cachedFiles := idx.loadCachedFileHashes()
+	filesToIndex, filesToRemove := idx.scanProjectFiles(projectRoot, cachedFiles)
+
+	idx.removeStaleFiles(filesToRemove)
+	idx.indexNewFiles(ctx, projectRoot, filesToIndex)
+	idx.loadFromCache()
+
+	idx.indexed = true
+	return nil
+}
+
+// loadCachedFileHashes loads file hashes from cache
+func (idx *CachedSymbolIndex) loadCachedFileHashes() map[string]string {
+	cachedFiles := make(map[string]string)
 	rows, err := idx.db.Query("SELECT path, hash FROM files")
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var path, hash string
-			rows.Scan(&path, &hash)
+	if err != nil {
+		return cachedFiles
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var path, hash string
+		if rows.Scan(&path, &hash) == nil {
 			cachedFiles[path] = hash
 		}
 	}
+	return cachedFiles
+}
 
+// scanProjectFiles scans project and determines what needs indexing
+func (idx *CachedSymbolIndex) scanProjectFiles(projectRoot string, cachedFiles map[string]string) ([]string, []string) {
 	var filesToIndex []string
-	var filesToRemove []string
+	visited := make(map[string]bool)
 
-	// Walk project and check what needs indexing
-	err = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() {
-			name := info.Name()
-			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" || name == "build" || name == "dist" {
+	_ = filepath.Walk(projectRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			if info != nil && info.IsDir() && idx.shouldSkipDir(info.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-
-		analyzer := idx.registry.GetAnalyzer(path)
-		if analyzer == nil {
+		if idx.registry.GetAnalyzer(path) == nil {
 			return nil
 		}
 
 		relPath, _ := filepath.Rel(projectRoot, path)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
+		visited[relPath] = true
 
-		currentHash := hashContent(content)
-		if cachedHash, exists := cachedFiles[relPath]; exists {
-			if cachedHash == currentHash {
-				// Load from cache
-				delete(cachedFiles, relPath)
-				return nil
-			}
+		if idx.needsReindex(path, relPath, cachedFiles) {
+			filesToIndex = append(filesToIndex, relPath)
 		}
-		filesToIndex = append(filesToIndex, relPath)
-		delete(cachedFiles, relPath)
 		return nil
 	})
 
-	// Files in cachedFiles that weren't visited should be removed
+	filesToRemove := make([]string, 0, len(cachedFiles))
 	for path := range cachedFiles {
-		filesToRemove = append(filesToRemove, path)
+		if !visited[path] {
+			filesToRemove = append(filesToRemove, path)
+		}
 	}
+	return filesToIndex, filesToRemove
+}
 
-	// Remove stale files from cache
-	for _, path := range filesToRemove {
+// shouldSkipDir checks if directory should be skipped
+func (idx *CachedSymbolIndex) shouldSkipDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" || name == "build" || name == "dist"
+}
+
+// needsReindex checks if file needs reindexing
+func (idx *CachedSymbolIndex) needsReindex(fullPath, relPath string, cachedFiles map[string]string) bool {
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return false
+	}
+	cachedHash, exists := cachedFiles[relPath]
+	return !exists || cachedHash != hashContent(content)
+}
+
+// removeStaleFiles removes files no longer in project
+func (idx *CachedSymbolIndex) removeStaleFiles(files []string) {
+	for _, path := range files {
 		idx.removeFileFromCache(path)
 	}
+}
 
-	// Index new/changed files
-	for _, relPath := range filesToIndex {
-		fullPath := filepath.Join(projectRoot, relPath)
-		content, err := os.ReadFile(fullPath)
-		if err != nil {
-			continue
+// indexNewFiles indexes new or changed files
+func (idx *CachedSymbolIndex) indexNewFiles(ctx context.Context, projectRoot string, files []string) {
+	for _, relPath := range files {
+		if content, err := os.ReadFile(filepath.Join(projectRoot, relPath)); err == nil {
+			_ = idx.indexFileWithCache(ctx, relPath, content)
 		}
-		idx.indexFileWithCache(ctx, relPath, content)
 	}
-
-	// Load all symbols from cache into memory
-	idx.loadFromCache()
-
-	idx.indexed = true
-	return err
 }
 
 func (idx *CachedSymbolIndex) indexFileWithCache(ctx context.Context, filePath string, content []byte) error {
@@ -189,14 +202,14 @@ func (idx *CachedSymbolIndex) indexFileWithCache(ctx context.Context, filePath s
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Remove old symbols for this file
-	tx.Exec("DELETE FROM symbols WHERE file_path = ?", filePath)
-	tx.Exec("DELETE FROM files WHERE path = ?", filePath)
+	_, _ = tx.Exec("DELETE FROM symbols WHERE file_path = ?", filePath)
+	_, _ = tx.Exec("DELETE FROM files WHERE path = ?", filePath)
 
 	// Insert file record
-	tx.Exec("INSERT INTO files (path, hash, indexed_at) VALUES (?, ?, ?)",
+	_, _ = tx.Exec("INSERT INTO files (path, hash, indexed_at) VALUES (?, ?, ?)",
 		filePath, hash, time.Now().Unix())
 
 	// Insert symbols
@@ -216,7 +229,7 @@ func (idx *CachedSymbolIndex) indexFileWithCache(ctx context.Context, filePath s
 				extra = string(b)
 			}
 		}
-		stmt.Exec(filePath, sym.Name, string(sym.Kind), sym.Language,
+		_, _ = stmt.Exec(filePath, sym.Name, string(sym.Kind), sym.Language,
 			sym.StartLine, sym.EndLine, sym.Signature, sym.DocComment, sym.Parent, extra)
 	}
 
@@ -224,8 +237,8 @@ func (idx *CachedSymbolIndex) indexFileWithCache(ctx context.Context, filePath s
 }
 
 func (idx *CachedSymbolIndex) removeFileFromCache(filePath string) {
-	idx.db.Exec("DELETE FROM symbols WHERE file_path = ?", filePath)
-	idx.db.Exec("DELETE FROM files WHERE path = ?", filePath)
+	_, _ = idx.db.Exec("DELETE FROM symbols WHERE file_path = ?", filePath)
+	_, _ = idx.db.Exec("DELETE FROM files WHERE path = ?", filePath)
 }
 
 func (idx *CachedSymbolIndex) loadFromCache() {
@@ -241,11 +254,13 @@ func (idx *CachedSymbolIndex) loadFromCache() {
 	for rows.Next() {
 		var sym analysis.Symbol
 		var extra string
-		rows.Scan(&sym.FilePath, &sym.Name, &sym.Kind, &sym.Language,
-			&sym.StartLine, &sym.EndLine, &sym.Signature, &sym.DocComment, &sym.Parent, &extra)
+		if err := rows.Scan(&sym.FilePath, &sym.Name, &sym.Kind, &sym.Language,
+			&sym.StartLine, &sym.EndLine, &sym.Signature, &sym.DocComment, &sym.Parent, &extra); err != nil {
+			continue
+		}
 		sym.Line = sym.StartLine
 		if extra != "" {
-			json.Unmarshal([]byte(extra), &sym.Extra)
+			_ = json.Unmarshal([]byte(extra), &sym.Extra)
 		}
 		idx.addSymbolLocked(sym)
 	}
@@ -344,8 +359,8 @@ func (idx *CachedSymbolIndex) GetCacheStats() map[string]int {
 	stats := idx.Stats()
 
 	var fileCount, symbolCount int
-	idx.db.QueryRow("SELECT COUNT(*) FROM files").Scan(&fileCount)
-	idx.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbolCount)
+	_ = idx.db.QueryRow("SELECT COUNT(*) FROM files").Scan(&fileCount)
+	_ = idx.db.QueryRow("SELECT COUNT(*) FROM symbols").Scan(&symbolCount)
 
 	stats["cached_files"] = fileCount
 	stats["cached_symbols"] = symbolCount
@@ -363,6 +378,6 @@ func (idx *CachedSymbolIndex) InvalidateCache() error {
 }
 
 func hashContent(content []byte) string {
-	h := md5.Sum(content)
+	h := md5.Sum(content) //nolint:gosec // MD5 used for content hashing, not security
 	return hex.EncodeToString(h[:])
 }

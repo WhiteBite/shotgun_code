@@ -4,7 +4,6 @@ import (
 	"context"
 	"shotgun_code/application"
 	"shotgun_code/domain"
-	"sync"
 )
 
 // AnalysisHandler handles static analysis, testing, and build operations
@@ -18,7 +17,6 @@ type AnalysisHandler struct {
 
 	// Semaphore for limiting concurrent analysis operations
 	sem chan struct{}
-	mu  sync.Mutex
 }
 
 const maxConcurrentAnalysis = 4

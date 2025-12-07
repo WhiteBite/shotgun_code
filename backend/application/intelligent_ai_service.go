@@ -12,11 +12,11 @@ import (
 
 // IntelligentAIService предоставляет интеллектуальные возможности для работы с ИИ
 type IntelligentAIService struct {
-	settingsService  *SettingsService
-	log              domain.Logger
-	providerGetter   domain.AIProviderGetter // Используем интерфейс для разрыва циклической зависимости
-	rateLimiter      *RateLimiter
-	metrics          *MetricsCollector
+	settingsService *SettingsService
+	log             domain.Logger
+	providerGetter  domain.AIProviderGetter // Используем интерфейс для разрыва циклической зависимости
+	rateLimiter     *RateLimiter
+	metrics         *MetricsCollector
 }
 
 // NewIntelligentAIService создает новый интеллектуальный сервис ИИ
@@ -28,11 +28,11 @@ func NewIntelligentAIService(
 	metrics *MetricsCollector,
 ) *IntelligentAIService {
 	return &IntelligentAIService{
-		settingsService:  settingsService,
-		log:              log,
-		providerGetter:   nil, // Will be set via SetProviderGetter after creation
-		rateLimiter:      rateLimiter,
-		metrics:          metrics,
+		settingsService: settingsService,
+		log:             log,
+		providerGetter:  nil, // Will be set via SetProviderGetter after creation
+		rateLimiter:     rateLimiter,
+		metrics:         metrics,
 	}
 }
 
@@ -327,7 +327,7 @@ type IntelligentGenerationResult struct {
 
 // Вспомогательные функции
 func generateRequestID() string {
-	return fmt.Sprintf("req_%d_%d", time.Now().Unix(), rand.Intn(1000))
+	return fmt.Sprintf("req_%d_%d", time.Now().Unix(), rand.Intn(1000)) //nolint:gosec // Not used for security
 }
 
 // RateLimiter implements token bucket rate limiting per provider

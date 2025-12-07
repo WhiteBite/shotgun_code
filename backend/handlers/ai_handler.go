@@ -84,13 +84,13 @@ func (h *AIHandler) GenerateCode(ctx context.Context, systemPrompt, userPrompt s
 }
 
 // GenerateIntelligentCode generates code with intelligent options
-func (h *AIHandler) GenerateIntelligentCode(ctx context.Context, task, contextStr, optionsJson string) (string, error) {
+func (h *AIHandler) GenerateIntelligentCode(ctx context.Context, task, contextStr, optionsJSON string) (string, error) {
 	if err := h.checkRateLimit(); err != nil {
 		return "", err
 	}
 
 	var options application.IntelligentGenerationOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+	if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
 		return "", fmt.Errorf("failed to parse options JSON: %w", err)
 	}
 
@@ -101,22 +101,22 @@ func (h *AIHandler) GenerateIntelligentCode(ctx context.Context, task, contextSt
 		return "", err
 	}
 
-	resultJson, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %w", err)
 	}
 
-	return string(resultJson), nil
+	return string(resultJSON), nil
 }
 
 // GenerateCodeWithOptions generates code with additional options
-func (h *AIHandler) GenerateCodeWithOptions(ctx context.Context, systemPrompt, userPrompt, optionsJson string) (string, error) {
+func (h *AIHandler) GenerateCodeWithOptions(ctx context.Context, systemPrompt, userPrompt, optionsJSON string) (string, error) {
 	if err := h.checkRateLimit(); err != nil {
 		return "", err
 	}
 
 	var options application.CodeGenerationOptions
-	if err := json.Unmarshal([]byte(optionsJson), &options); err != nil {
+	if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
 		return "", fmt.Errorf("failed to parse options JSON: %w", err)
 	}
 
@@ -131,12 +131,12 @@ func (h *AIHandler) GetProviderInfo(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	infoJson, err := json.Marshal(info)
+	infoJSON, err := json.Marshal(info)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal provider info: %w", err)
 	}
 
-	return string(infoJson), nil
+	return string(infoJSON), nil
 }
 
 // ListAvailableModels returns available AI models
@@ -154,9 +154,9 @@ func (h *AIHandler) SuggestContextFiles(ctx context.Context, task string, allFil
 }
 
 // AnalyzeTaskAndCollectContext analyzes task and collects relevant context
-func (h *AIHandler) AnalyzeTaskAndCollectContext(ctx context.Context, task string, allFilesJson string, rootDir string) (string, error) {
+func (h *AIHandler) AnalyzeTaskAndCollectContext(ctx context.Context, task string, allFilesJSON string, rootDir string) (string, error) {
 	var allFiles []*domain.FileNode
-	if err := json.Unmarshal([]byte(allFilesJson), &allFiles); err != nil {
+	if err := json.Unmarshal([]byte(allFilesJSON), &allFiles); err != nil {
 		return "", fmt.Errorf("invalid allFiles JSON: %w", err)
 	}
 
@@ -180,12 +180,12 @@ func (h *AIHandler) AnalyzeTaskAndCollectContext(ctx context.Context, task strin
 		return "", err
 	}
 
-	resultJson, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal analysis result: %w", err)
 	}
 
-	return string(resultJson), nil
+	return string(resultJSON), nil
 }
 
 // checkRateLimit checks if rate limit is exceeded
@@ -226,13 +226,13 @@ func (h *AIHandler) GenerateCodeStream(ctx context.Context, systemPrompt, userPr
 }
 
 // AgenticChat performs agentic chat with tool use
-func (h *AIHandler) AgenticChat(ctx context.Context, requestJson string) (string, error) {
+func (h *AIHandler) AgenticChat(ctx context.Context, requestJSON string) (string, error) {
 	if err := h.checkRateLimit(); err != nil {
 		return "", err
 	}
 
 	var req application.AgenticChatRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request JSON: %w", err)
 	}
 
@@ -247,23 +247,23 @@ func (h *AIHandler) AgenticChat(ctx context.Context, requestJson string) (string
 		return "", err
 	}
 
-	resultJson, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %w", err)
 	}
 
-	return string(resultJson), nil
+	return string(resultJSON), nil
 }
 
 // AgenticChatStream performs agentic chat with streaming events
-func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJson string, onEvent func(event application.AgenticStreamEvent)) error {
+func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJSON string, onEvent func(event application.AgenticStreamEvent)) error {
 	if err := h.checkRateLimit(); err != nil {
 		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
 		return err
 	}
 
 	var req application.AgenticChatRequest
-	if err := json.Unmarshal([]byte(requestJson), &req); err != nil {
+	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
 		return fmt.Errorf("invalid request JSON: %w", err)
 	}

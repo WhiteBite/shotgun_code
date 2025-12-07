@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ func (e *Executor) listSymbols(args map[string]any, projectRoot string) (string,
 		return fmt.Sprintf("No analyzer for file type: %s", filepath.Ext(path)), nil
 	}
 
-	symbols, err := analyzer.ExtractSymbols(nil, path, content)
+	symbols, err := analyzer.ExtractSymbols(context.Background(), path, content)
 	if err != nil {
 		return "", err
 	}
@@ -57,7 +58,7 @@ func (e *Executor) listSymbols(args map[string]any, projectRoot string) (string,
 		return fmt.Sprintf("No symbols found in %s", path), nil
 	}
 
-	var lines []string
+	lines := make([]string, 0, len(symbols)+1)
 	lines = append(lines, fmt.Sprintf("Symbols in %s (%s):", path, analyzer.Language()))
 	for _, s := range symbols {
 		line := fmt.Sprintf("  [%s] %s", s.Kind, s.Name)
@@ -84,7 +85,7 @@ func (e *Executor) searchSymbols(args map[string]any, projectRoot string) (strin
 	// Build index if needed
 	if !e.symbolIndex.IsIndexed() {
 		e.logger.Info("Building symbol index...")
-		if err := e.symbolIndex.IndexProject(nil, projectRoot); err != nil {
+		if err := e.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
 			return "", fmt.Errorf("failed to build index: %w", err)
 		}
 	}
@@ -109,7 +110,7 @@ func (e *Executor) searchSymbols(args map[string]any, projectRoot string) (strin
 		results = results[:30]
 	}
 
-	var lines []string
+	lines := make([]string, 0, len(results)+1)
 	lines = append(lines, fmt.Sprintf("Found %d symbols matching '%s':", len(results), query))
 	for _, s := range results {
 		line := fmt.Sprintf("  [%s] %s in %s", s.Kind, s.Name, s.FilePath)
@@ -132,7 +133,7 @@ func (e *Executor) findDefinition(args map[string]any, projectRoot string) (stri
 
 	if !e.symbolIndex.IsIndexed() {
 		e.logger.Info("Building symbol index...")
-		if err := e.symbolIndex.IndexProject(nil, projectRoot); err != nil {
+		if err := e.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
 			return "", fmt.Errorf("failed to build index: %w", err)
 		}
 	}
@@ -196,7 +197,7 @@ func (e *Executor) getImports(args map[string]any, projectRoot string) (string, 
 		return fmt.Sprintf("No analyzer for file type: %s", filepath.Ext(path)), nil
 	}
 
-	imports, err := analyzer.GetImports(nil, path, content)
+	imports, err := analyzer.GetImports(context.Background(), path, content)
 	if err != nil {
 		return "", err
 	}
@@ -232,7 +233,6 @@ func (e *Executor) getImports(args map[string]any, projectRoot string) (string, 
 	return strings.Join(lines, "\n"), nil
 }
 
-
 func (e *Executor) findReferences(args map[string]any, projectRoot string) (string, error) {
 	name, _ := args["name"].(string)
 	kindFilter, _ := args["kind"].(string)
@@ -246,7 +246,7 @@ func (e *Executor) findReferences(args map[string]any, projectRoot string) (stri
 		kind = analysis.SymbolKind(kindFilter)
 	}
 
-	refs, err := e.refFinder.FindReferences(nil, projectRoot, name, kind)
+	refs, err := e.refFinder.FindReferences(context.Background(), projectRoot, name, kind)
 	if err != nil {
 		return "", err
 	}
@@ -255,7 +255,7 @@ func (e *Executor) findReferences(args map[string]any, projectRoot string) (stri
 		return fmt.Sprintf("No references found for '%s'", name), nil
 	}
 
-	var lines []string
+	lines := make([]string, 0, len(refs)+10)
 	lines = append(lines, fmt.Sprintf("Found %d references to '%s':", len(refs), name))
 
 	// Group by file
@@ -277,7 +277,6 @@ func (e *Executor) findReferences(args map[string]any, projectRoot string) (stri
 
 	return strings.Join(lines, "\n"), nil
 }
-
 
 func (e *Executor) getFunction(args map[string]any, projectRoot string) (string, error) {
 	path, _ := args["path"].(string)
@@ -301,7 +300,7 @@ func (e *Executor) getFunction(args map[string]any, projectRoot string) (string,
 		return fmt.Sprintf("No analyzer for file type: %s", filepath.Ext(path)), nil
 	}
 
-	body, startLine, endLine, err := analyzer.GetFunctionBody(nil, path, content, name)
+	body, startLine, endLine, err := analyzer.GetFunctionBody(context.Background(), path, content, name)
 	if err != nil {
 		return "", err
 	}
@@ -335,7 +334,7 @@ func (e *Executor) getExports(args map[string]any, projectRoot string) (string, 
 		return fmt.Sprintf("No analyzer for file type: %s", filepath.Ext(path)), nil
 	}
 
-	exports, err := analyzer.GetExports(nil, path, content)
+	exports, err := analyzer.GetExports(context.Background(), path, content)
 	if err != nil {
 		return "", err
 	}
@@ -344,7 +343,7 @@ func (e *Executor) getExports(args map[string]any, projectRoot string) (string, 
 		return fmt.Sprintf("No exports in %s", path), nil
 	}
 
-	var lines []string
+	lines := make([]string, 0, len(exports)+1)
 	lines = append(lines, fmt.Sprintf("Exports in %s (%d):", path, len(exports)))
 
 	for _, exp := range exports {

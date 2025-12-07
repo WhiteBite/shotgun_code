@@ -179,15 +179,15 @@ func TestExecute_WithHandler(t *testing.T) {
 // noopLogger for testing
 type noopLogger struct{}
 
-func (l *noopLogger) Debug(msg string)                                       {}
-func (l *noopLogger) Info(msg string)                                        {}
-func (l *noopLogger) Warning(msg string)                                     {}
-func (l *noopLogger) Error(msg string)                                       {}
-func (l *noopLogger) Fatal(msg string)                                       {}
-func (l *noopLogger) Debugf(format string, args ...interface{})              {}
-func (l *noopLogger) Infof(format string, args ...interface{})               {}
-func (l *noopLogger) Warningf(format string, args ...interface{})            {}
-func (l *noopLogger) Errorf(format string, args ...interface{})              {}
-func (l *noopLogger) Fatalf(format string, args ...interface{})              {}
-func (l *noopLogger) WithField(key string, value interface{}) interface{}    { return l }
-func (l *noopLogger) WithFields(fields map[string]interface{}) interface{}   { return l }
+func (l *noopLogger) Debug(msg string)                                     {}
+func (l *noopLogger) Info(msg string)                                      {}
+func (l *noopLogger) Warning(msg string)                                   {}
+func (l *noopLogger) Error(msg string)                                     {}
+func (l *noopLogger) Fatal(msg string)                                     {}
+func (l *noopLogger) Debugf(format string, args ...interface{})            {}
+func (l *noopLogger) Infof(format string, args ...interface{})             {}
+func (l *noopLogger) Warningf(format string, args ...interface{})          {}
+func (l *noopLogger) Errorf(format string, args ...interface{})            {}
+func (l *noopLogger) Fatalf(format string, args ...interface{})            {}
+func (l *noopLogger) WithField(key string, value interface{}) interface{}  { return l }
+func (l *noopLogger) WithFields(fields map[string]interface{}) interface{} { return l }

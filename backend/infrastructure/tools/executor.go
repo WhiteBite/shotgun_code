@@ -9,13 +9,13 @@ import (
 
 // Executor executes tools
 type Executor struct {
-	logger       domain.Logger
-	fileReader   domain.FileContentReader
-	registry     analysis.AnalyzerRegistry
-	symbolIndex  analysis.SymbolIndex
-	refFinder    *analyzers.ReferenceFinder
-	callGraph    *analyzers.CallGraphBuilderImpl
-	tools        map[string]ToolHandler
+	logger      domain.Logger
+	fileReader  domain.FileContentReader
+	registry    analysis.AnalyzerRegistry
+	symbolIndex analysis.SymbolIndex
+	refFinder   *analyzers.ReferenceFinder
+	callGraph   *analyzers.CallGraphBuilderImpl
+	tools       map[string]ToolHandler
 }
 
 // ToolHandler is a function that handles a tool call
@@ -29,13 +29,13 @@ func NewExecutor(
 	symbolIndex analysis.SymbolIndex,
 ) *Executor {
 	e := &Executor{
-		logger:       logger,
-		fileReader:   fileReader,
-		registry:     registry,
-		symbolIndex:  symbolIndex,
-		refFinder:    analyzers.NewReferenceFinder(registry),
-		callGraph:    analyzers.NewCallGraphBuilder(registry),
-		tools:        make(map[string]ToolHandler),
+		logger:      logger,
+		fileReader:  fileReader,
+		registry:    registry,
+		symbolIndex: symbolIndex,
+		refFinder:   analyzers.NewReferenceFinder(registry),
+		callGraph:   analyzers.NewCallGraphBuilder(registry),
+		tools:       make(map[string]ToolHandler),
 	}
 
 	// Register file tools

@@ -7,7 +7,6 @@ import (
 	"os"
 	"shotgun_code/domain"
 	projectservice "shotgun_code/internal/project"
-	"sync"
 )
 
 // ProjectHandler handles all project-related operations
@@ -19,15 +18,6 @@ type ProjectHandler struct {
 	fileWatcher    domain.FileSystemWatcher
 	fileReader     domain.FileContentReader
 	gitRepo        domain.GitRepository
-
-	// Cache for file trees (with TTL)
-	treeCache   map[string]*cachedTree
-	treeCacheMu sync.RWMutex
-}
-
-type cachedTree struct {
-	nodes     []*domain.FileNode
-	timestamp int64
 }
 
 // NewProjectHandler creates a new project handler
@@ -46,7 +36,6 @@ func NewProjectHandler(
 		fileWatcher:    fileWatcher,
 		fileReader:     fileReader,
 		gitRepo:        gitRepo,
-		treeCache:      make(map[string]*cachedTree),
 	}
 }
 
@@ -97,12 +86,12 @@ func (h *ProjectHandler) GetFileStats(filePath string) (string, error) {
 		"mode":    fileInfo.Mode().String(),
 	}
 
-	statsJson, err := json.Marshal(stats)
+	statsJSON, err := json.Marshal(stats)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal file stats: %w", err)
 	}
 
-	return string(statsJson), nil
+	return string(statsJSON), nil
 }
 
 // GenerateContext delegates context generation to project service
@@ -147,9 +136,6 @@ func (h *ProjectHandler) GetCurrentBranch(projectRoot string) (string, error) {
 	return h.gitRepo.GetCurrentBranch(projectRoot)
 }
 
-// ClearCache clears the file tree cache
+// ClearCache clears the file tree cache (no-op, cache removed)
 func (h *ProjectHandler) ClearCache() {
-	h.treeCacheMu.Lock()
-	defer h.treeCacheMu.Unlock()
-	h.treeCache = make(map[string]*cachedTree)
 }

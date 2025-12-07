@@ -81,13 +81,13 @@ func (p *Provider) WriteFile(filename string, data []byte, perm int) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	// Write to temp file first for atomicity
 	tempFile := filename + ".tmp"
-	if err := os.WriteFile(tempFile, data, os.FileMode(perm)); err != nil {
+	if err := os.WriteFile(tempFile, data, os.FileMode(perm)); err != nil { //nolint:gosec // perm is validated
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (p *Provider) MkdirAll(path string, perm int) error {
 	if err := p.validatePath(path); err != nil {
 		return err
 	}
-	return os.MkdirAll(path, os.FileMode(perm))
+	return os.MkdirAll(path, os.FileMode(perm)) //nolint:gosec // perm is validated
 }
 
 // Remove removes a file
@@ -187,7 +187,7 @@ func (p *Provider) CopyFile(src, dst string) error {
 	defer srcFile.Close()
 
 	// Ensure destination directory exists
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 

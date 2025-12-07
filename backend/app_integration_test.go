@@ -42,7 +42,7 @@ This is a test project for integration testing.`,
 
 	for filename, content := range testFiles {
 		filePath := filepath.Join(tempDir, filename)
-		err := os.WriteFile(filePath, []byte(content), 0644)
+		err := os.WriteFile(filePath, []byte(content), 0o644)
 		require.NoError(t, err)
 	}
 
@@ -106,10 +106,10 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create test files
-	err = os.WriteFile(filepath.Join(tempDir, "main.go"), []byte("package main\nfunc main() {}"), 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "main.go"), []byte("package main\nfunc main() {}"), 0o644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(tempDir, "utils.go"), []byte("package main\nfunc utils() {}"), 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "utils.go"), []byte("package main\nfunc utils() {}"), 0o644)
 	require.NoError(t, err)
 
 	// Test the metadata approach (new efficient method)
@@ -124,19 +124,19 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 		"framework":      "standard",
 	}
 
-	metadataJson, err := json.Marshal(projectMetadata)
+	metadataJSON, err := json.Marshal(projectMetadata)
 	require.NoError(t, err)
 
 	// Validate metadata structure
 	var parsedMetadata map[string]interface{}
-	err = json.Unmarshal(metadataJson, &parsedMetadata)
+	err = json.Unmarshal(metadataJSON, &parsedMetadata)
 	assert.NoError(t, err)
 
 	assert.Equal(t, tempDir, parsedMetadata["projectPath"])
 	assert.Equal(t, float64(2), parsedMetadata["totalFileCount"]) // JSON numbers are float64
 
 	// Verify this is much more efficient than serializing full file tree
-	metadataSize := len(metadataJson)
+	metadataSize := len(metadataJSON)
 	assert.Less(t, metadataSize, 1000, "Metadata should be compact")
 
 	// Compare with theoretical full file serialization
@@ -155,10 +155,10 @@ func TestApp_AnalyzeTaskAndCollectContext_MetadataApproach(t *testing.T) {
 		},
 	}
 
-	fullListJson, err := json.Marshal(mockFullFileList)
+	fullListJSON, err := json.Marshal(mockFullFileList)
 	require.NoError(t, err)
 
-	fullListSize := len(fullListJson)
+	fullListSize := len(fullListJSON)
 	assert.Greater(t, fullListSize, metadataSize,
 		"Full file list should be larger than metadata (efficiency improvement)")
 
@@ -194,7 +194,7 @@ func TestApp_GetContext_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	contextFile := filepath.Join(tempDir, contextID+".json")
-	err = os.WriteFile(contextFile, contextData, 0644)
+	err = os.WriteFile(contextFile, contextData, 0o644)
 	require.NoError(t, err)
 
 	// Verify context file was created
@@ -239,13 +239,13 @@ func TestApp_StartAutonomousTask_Integration(t *testing.T) {
 	assert.NotNil(t, validRequest.Options)
 
 	// Test request serialization (what would be sent to backend)
-	requestJson, err := json.Marshal(validRequest)
+	requestJSON, err := json.Marshal(validRequest)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, requestJson)
+	assert.NotEmpty(t, requestJSON)
 
 	// Test request deserialization (what backend would receive)
 	var deserializedRequest domain.AutonomousTaskRequest
-	err = json.Unmarshal(requestJson, &deserializedRequest)
+	err = json.Unmarshal(requestJSON, &deserializedRequest)
 	assert.NoError(t, err)
 
 	assert.Equal(t, validRequest.Task, deserializedRequest.Task)
@@ -300,7 +300,7 @@ func TestApp_ListReports_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		reportFile := filepath.Join(tempDir, report.Id+".json")
-		err = os.WriteFile(reportFile, reportData, 0644)
+		err = os.WriteFile(reportFile, reportData, 0o644)
 		require.NoError(t, err)
 	}
 

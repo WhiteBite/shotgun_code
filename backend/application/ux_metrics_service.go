@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// Impact level constants
+const (
+	impactMedium = "Medium"
+	impactHigh   = "High"
+	impactLow    = "Low"
+)
+
 // UXMetricsServiceImpl реализует UXMetricsService
 type UXMetricsServiceImpl struct {
 	log     domain.Logger
@@ -183,7 +190,7 @@ func (s *UXMetricsServiceImpl) GenerateTimeToGreenMetrics(taskID string) (*domai
 				Type:        "build",
 				Description: "Initial compilation took longer than expected",
 				Duration:    30 * time.Second,
-				Impact:      "Medium",
+				Impact:      impactMedium,
 				Suggestions: []string{"Optimize build configuration", "Use incremental builds"},
 			},
 		},
@@ -419,7 +426,7 @@ func (s *UXMetricsServiceImpl) ListReports(_ context.Context, reportType string)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var reports []*domain.GenericReport
+	reports := make([]*domain.GenericReport, 0, len(s.reports))
 
 	for _, report := range s.reports {
 		// Фильтруем по типу если указан
@@ -446,13 +453,13 @@ func (s *UXMetricsServiceImpl) ListReports(_ context.Context, reportType string)
 }
 
 // GetReport получает конкретный отчет
-func (s *UXMetricsServiceImpl) GetReport(_ context.Context, reportId string) (*domain.GenericReport, error) {
+func (s *UXMetricsServiceImpl) GetReport(_ context.Context, reportID string) (*domain.GenericReport, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	report, exists := s.reports[reportId]
+	report, exists := s.reports[reportID]
 	if !exists {
-		return nil, fmt.Errorf("report not found: %s", reportId)
+		return nil, fmt.Errorf("report not found: %s", reportID)
 	}
 
 	// Конвертируем UXReport в GenericReport
@@ -508,27 +515,27 @@ func (s *UXMetricsServiceImpl) analyzeFileReason(filePath, _ string, taskContext
 	switch ext {
 	case ".go":
 		reason.Reason = "Go source file modified for task implementation"
-		reason.Impact = "High"
+		reason.Impact = impactHigh
 		reason.Confidence = 0.9
 	case ".ts", ".js":
 		reason.Reason = "TypeScript/JavaScript file modified for frontend changes"
-		reason.Impact = "Medium"
+		reason.Impact = impactMedium
 		reason.Confidence = 0.85
 	case ".vue":
 		reason.Reason = "Vue component modified for UI changes"
-		reason.Impact = "Medium"
+		reason.Impact = impactMedium
 		reason.Confidence = 0.85
 	case ".yaml", ".yml":
 		reason.Reason = "Configuration file modified for task setup"
-		reason.Impact = "Low"
+		reason.Impact = impactLow
 		reason.Confidence = 0.95
 	case ".md":
 		reason.Reason = "Documentation file updated"
-		reason.Impact = "Low"
+		reason.Impact = impactLow
 		reason.Confidence = 0.9
 	default:
 		reason.Reason = "File modified for task implementation"
-		reason.Impact = "Medium"
+		reason.Impact = impactMedium
 		reason.Confidence = 0.8
 	}
 
@@ -655,9 +662,9 @@ func (s *UXMetricsServiceImpl) assessDiffImpact(changes []domain.DiffChange, sum
 
 	// Оцениваем риск на основе количества изменений
 	if summary.TotalLines > 100 {
-		impact.RiskLevel = "High"
+		impact.RiskLevel = impactHigh
 	} else if summary.TotalLines > 50 {
-		impact.RiskLevel = "Medium"
+		impact.RiskLevel = impactMedium
 	}
 
 	// Проверяем на потенциальные breaking changes

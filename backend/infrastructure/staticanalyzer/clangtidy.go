@@ -107,7 +107,7 @@ func (a *ClangTidyAnalyzer) Analyze(ctx context.Context, config *domain.StaticAn
 	}
 
 	// Генерируем сводку
-	result.Summary = a.generateSummary(issues)
+	result.Summary = generateSummary(issues)
 
 	a.log.Info(fmt.Sprintf("ClangTidy analysis completed in %.2fs, found %d issues", duration, len(issues)))
 	return result, nil
@@ -183,109 +183,75 @@ func (a *ClangTidyAnalyzer) hasCppFilePaths(projectPath string) bool {
 
 // parseClangTidyOutput парсит JSON вывод ClangTidy
 func (a *ClangTidyAnalyzer) parseClangTidyOutput(output []byte) ([]*domain.StaticIssue, error) {
-	var issues []*domain.StaticIssue
-
-	// ClangTidy выводит JSON в формате:
-	// [{"DiagnosticName": "clang-diagnostic-unused-variable", "DiagnosticMessage": {"Message": "unused variable 'x'", "FilePathOffset": 123, "FilePathPath": "test.cpp", "FilePathLineNumber": 5, "FilePathColumnStart": 9}}]
-
-	// Простой парсинг JSON (в реальной реализации нужно использовать encoding/json)
-	outputStr := string(output)
-	lines := strings.Split(outputStr, "\n")
+	lines := strings.Split(string(output), "\n")
+	issues := make([]*domain.StaticIssue, 0, len(lines))
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.Contains(line, "\"DiagnosticName\"") {
-			continue
+		if issue := a.parseClangTidyLine(strings.TrimSpace(line)); issue != nil {
+			issues = append(issues, issue)
 		}
+	}
+	return issues, nil
+}
 
-		// Извлекаем имя диагностики
-		nameStart := strings.Index(line, "\"DiagnosticName\": \"")
-		if nameStart == -1 {
-			continue
-		}
-		nameStart += 19
-		nameEnd := strings.Index(line[nameStart:], "\"")
-		if nameEnd == -1 {
-			continue
-		}
-		diagnosticName := line[nameStart : nameStart+nameEnd]
-
-		// Извлекаем сообщение
-		messageStart := strings.Index(line, "\"Message\": \"")
-		if messageStart == -1 {
-			continue
-		}
-		messageStart += 12
-		messageEnd := strings.Index(line[messageStart:], "\"")
-		if messageEnd == -1 {
-			continue
-		}
-		message := line[messageStart : messageStart+messageEnd]
-
-		// Извлекаем файл
-		fileStart := strings.Index(line, "\"FilePathPath\": \"")
-		if fileStart == -1 {
-			continue
-		}
-		fileStart += 13
-		fileEnd := strings.Index(line[fileStart:], "\"")
-		if fileEnd == -1 {
-			continue
-		}
-		filePath := line[fileStart : fileStart+fileEnd]
-
-		// Извлекаем строку
-		lineStart := strings.Index(line, "\"FilePathLineNumber\": ")
-		if lineStart == -1 {
-			continue
-		}
-		lineStart += 12
-		lineEnd := strings.Index(line[lineStart:], ",")
-		if lineEnd == -1 {
-			continue
-		}
-		lineNum := 0
-		if _, scanErr := fmt.Sscanf(line[lineStart:lineStart+lineEnd], "%d", &lineNum); scanErr != nil {
-			a.log.Warning(fmt.Sprintf("Failed to parse diagnostic line number: %v", scanErr))
-			continue
-		}
-
-		// Извлекаем колонку
-		columnStart := strings.Index(line, "\"FilePathColumnStart\": ")
-		if columnStart == -1 {
-			continue
-		}
-		columnStart += 14
-		columnEnd := strings.Index(line[columnStart:], ",")
-		if columnEnd == -1 {
-			continue
-		}
-		columnNum := 0
-		if _, scanErr := fmt.Sscanf(line[columnStart:columnStart+columnEnd], "%d", &columnNum); scanErr != nil {
-			a.log.Warning(fmt.Sprintf("Failed to parse diagnostic column: %v", scanErr))
-			continue
-		}
-
-		// Определяем severity
-		severity := "warning"
-		if strings.Contains(diagnosticName, "error") {
-			severity = "error"
-		}
-
-		issue := &domain.StaticIssue{
-			File:     filePath,
-			Line:     lineNum,
-			Column:   columnNum,
-			Severity: severity,
-			Message:  message,
-			Code:     diagnosticName,
-			Category: a.getCategory(diagnosticName),
-		}
-
-		issues = append(issues, issue)
+// parseClangTidyLine parses a single ClangTidy output line
+func (a *ClangTidyAnalyzer) parseClangTidyLine(line string) *domain.StaticIssue {
+	if line == "" || !strings.Contains(line, "\"DiagnosticName\"") {
+		return nil
 	}
 
-	return issues, nil
+	diagnosticName := a.extractClangString(line, "\"DiagnosticName\": \"")
+	message := a.extractClangString(line, "\"Message\": \"")
+	filePath := a.extractClangString(line, "\"FilePathPath\": \"")
+	lineNum := a.extractClangInt(line, "\"FilePathLineNumber\": ")
+	columnNum := a.extractClangInt(line, "\"FilePathColumnStart\": ")
+
+	if diagnosticName == "" || filePath == "" {
+		return nil
+	}
+
+	severity := severityWarning
+	if strings.Contains(diagnosticName, severityError) {
+		severity = severityError
+	}
+
+	return &domain.StaticIssue{
+		File: filePath, Line: lineNum, Column: columnNum,
+		Severity: severity, Message: message, Code: diagnosticName, Category: a.getCategory(diagnosticName),
+	}
+}
+
+// extractClangString extracts a string value from JSON-like line
+func (a *ClangTidyAnalyzer) extractClangString(line, prefix string) string {
+	start := strings.Index(line, prefix)
+	if start == -1 {
+		return ""
+	}
+	start += len(prefix)
+	end := strings.Index(line[start:], "\"")
+	if end == -1 {
+		return ""
+	}
+	return line[start : start+end]
+}
+
+// extractClangInt extracts an int value from JSON-like line
+func (a *ClangTidyAnalyzer) extractClangInt(line, prefix string) int {
+	start := strings.Index(line, prefix)
+	if start == -1 {
+		return 0
+	}
+	start += len(prefix)
+	end := strings.Index(line[start:], ",")
+	if end == -1 {
+		end = strings.Index(line[start:], "}")
+	}
+	if end == -1 {
+		return 0
+	}
+	var val int
+	_, _ = fmt.Sscanf(line[start:start+end], "%d", &val)
+	return val
 }
 
 // getCategory определяет категорию проблемы по имени диагностики
@@ -305,45 +271,5 @@ func (a *ClangTidyAnalyzer) getCategory(diagnosticName string) string {
 	} else if strings.Contains(diagnosticName, "bugprone") {
 		return "bug-prone"
 	}
-	return "other"
-}
-
-// generateSummary генерирует сводку анализа
-func (a *ClangTidyAnalyzer) generateSummary(issues []*domain.StaticIssue) *domain.StaticAnalysisSummary {
-	summary := &domain.StaticAnalysisSummary{
-		TotalIssues:       len(issues),
-		SeverityBreakdown: make(map[string]int),
-		CategoryBreakdown: make(map[string]int),
-		FilesAnalyzed:     0,
-		FilesWithIssues:   0,
-	}
-
-	filesWithIssues := make(map[string]bool)
-
-	for _, issue := range issues {
-		// Подсчитываем по severity
-		summary.SeverityBreakdown[issue.Severity]++
-
-		// Подсчитываем по категориям
-		summary.CategoryBreakdown[issue.Category]++
-
-		// Подсчитываем файлы с проблемами
-		filesWithIssues[issue.File] = true
-
-		// Подсчитываем по типам
-		switch issue.Severity {
-		case "error":
-			summary.ErrorCount++
-		case "warning":
-			summary.WarningCount++
-		case "info":
-			summary.InfoCount++
-		case "hint":
-			summary.HintCount++
-		}
-	}
-
-	summary.FilesWithIssues = len(filesWithIssues)
-
-	return summary
+	return severityOther
 }

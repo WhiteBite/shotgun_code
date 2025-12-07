@@ -30,7 +30,7 @@ func (a *GoAnalyzer) ExtractSymbols(ctx context.Context, filePath string, conten
 		return nil, err
 	}
 
-	var symbols []analysis.Symbol
+	symbols := make([]analysis.Symbol, 0, 32)
 
 	// Extract package
 	if file.Name != nil {
@@ -117,7 +117,6 @@ func (a *GoAnalyzer) extractFunction(fset *token.FileSet, filePath string, decl 
 	}
 }
 
-
 func (a *GoAnalyzer) extractGenDecl(fset *token.FileSet, filePath string, decl *ast.GenDecl) []analysis.Symbol {
 	var symbols []analysis.Symbol
 	for _, spec := range decl.Specs {
@@ -162,7 +161,7 @@ func (a *GoAnalyzer) extractTypeSpec(fset *token.FileSet, filePath string, decl 
 }
 
 func (a *GoAnalyzer) extractValueSpec(fset *token.FileSet, filePath string, decl *ast.GenDecl, spec *ast.ValueSpec) []analysis.Symbol {
-	var symbols []analysis.Symbol
+	symbols := make([]analysis.Symbol, 0, len(spec.Names))
 	kind := analysis.KindVariable
 	if decl.Tok == token.CONST {
 		kind = analysis.KindConstant
@@ -223,7 +222,7 @@ func (a *GoAnalyzer) GetImports(ctx context.Context, filePath string, content []
 		return nil, err
 	}
 
-	var imports []analysis.Import
+	imports := make([]analysis.Import, 0, len(file.Imports))
 	for _, imp := range file.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		var alias string

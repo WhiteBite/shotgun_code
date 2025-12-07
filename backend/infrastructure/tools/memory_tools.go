@@ -88,11 +88,11 @@ func (e *Executor) setPreference(args map[string]any, projectRoot string) (strin
 func (e *Executor) getPreferences(args map[string]any, projectRoot string) (string, error) {
 	// Placeholder - return default preferences
 	prefs := map[string]string{
-		"exclude_tests":      "false",
-		"exclude_vendor":     "true",
-		"exclude_generated":  "true",
-		"max_context_files":  "20",
-		"include_comments":   "true",
+		"exclude_tests":     "false",
+		"exclude_vendor":    "true",
+		"exclude_generated": "true",
+		"max_context_files": "20",
+		"include_comments":  "true",
 	}
 
 	b, _ := json.MarshalIndent(prefs, "", "  ")

@@ -24,10 +24,10 @@ func NewInMemoryTaskflowRepository() *InMemoryTaskflowRepository {
 		statuses:  make(map[string]domain.TaskState),
 		createdAt: make(map[string]time.Time),
 	}
-	
+
 	// Start periodic cleanup
 	go repo.periodicCleanup()
-	
+
 	return repo
 }
 
@@ -57,7 +57,7 @@ func (r *InMemoryTaskflowRepository) SaveStatuses(statuses map[string]domain.Tas
 			r.createdAt[k] = time.Now()
 		}
 	}
-	
+
 	// Check limits
 	if len(r.statuses) > maxTaskStatuses {
 		r.cleanupOldCompletedTasksUnlocked(maxCompletedTaskAge)
@@ -92,7 +92,7 @@ func (r *InMemoryTaskflowRepository) cleanupOldCompletedTasksUnlocked(maxAge tim
 func (r *InMemoryTaskflowRepository) periodicCleanup() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		r.CleanupCompletedTasks(maxCompletedTaskAge)
 	}
@@ -102,7 +102,7 @@ func (r *InMemoryTaskflowRepository) periodicCleanup() {
 func (r *InMemoryTaskflowRepository) GetMemoryUsage() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	var size int64
 	for id := range r.statuses {
 		size += int64(len(id) + 100) // Приблизительный размер
@@ -114,10 +114,10 @@ func (r *InMemoryTaskflowRepository) GetMemoryUsage() int64 {
 func (r *InMemoryTaskflowRepository) GetStats() map[string]interface{} {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	activeCount := 0
 	completedCount := 0
-	
+
 	for _, state := range r.statuses {
 		if state == "completed" || state == "failed" {
 			completedCount++
@@ -125,7 +125,7 @@ func (r *InMemoryTaskflowRepository) GetStats() map[string]interface{} {
 			activeCount++
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"total_tasks":     len(r.statuses),
 		"active_tasks":    activeCount,

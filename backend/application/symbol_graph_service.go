@@ -93,13 +93,13 @@ func (s *SymbolGraphService) BuildSymbolGraph(ctx context.Context, projectRoot, 
 	// Кэшируем результат с LRU eviction
 	s.mu.Lock()
 	graphSize := s.estimateGraphSize(graph)
-	
+
 	// Если ключ уже существует, вычитаем старый размер
 	if oldGraph, exists := s.cache[cacheKey]; exists {
 		oldSize := s.estimateGraphSize(oldGraph)
 		s.cacheSize -= oldSize
 	}
-	
+
 	s.evictOldestIfNeeded(graphSize)
 	s.cache[cacheKey] = graph
 	s.cacheTimestamps[cacheKey] = time.Now().Unix()
@@ -124,28 +124,28 @@ func (s *SymbolGraphService) estimateGraphSize(graph *domain.SymbolGraph) int64 
 // evictOldestIfNeeded удаляет старые записи при превышении лимитов
 func (s *SymbolGraphService) evictOldestIfNeeded(newGraphSize int64) {
 	maxSize := int64(maxCacheSizeMB * 1024 * 1024)
-	
+
 	// Проверяем лимиты
 	for len(s.cache) >= maxCacheGraphs || (s.cacheSize+newGraphSize) > maxSize {
 		if len(s.cache) == 0 {
 			break
 		}
-		
+
 		// Находим самую старую запись
 		var oldestKey string
-		var oldestTime int64 = time.Now().Unix()
-		
+		oldestTime := time.Now().Unix()
+
 		for key, accessTime := range s.lastAccessed {
 			if accessTime < oldestTime {
 				oldestTime = accessTime
 				oldestKey = key
 			}
 		}
-		
+
 		if oldestKey == "" {
 			break
 		}
-		
+
 		// Удаляем старую запись
 		if graph, exists := s.cache[oldestKey]; exists {
 			s.cacheSize -= s.estimateGraphSize(graph)
@@ -154,7 +154,7 @@ func (s *SymbolGraphService) evictOldestIfNeeded(newGraphSize int64) {
 		delete(s.cacheTimestamps, oldestKey)
 		delete(s.lastAccessed, oldestKey)
 		s.evictions++
-		
+
 		s.log.Info(fmt.Sprintf("Evicted symbol graph from cache: %s", oldestKey))
 	}
 }
@@ -248,13 +248,13 @@ func (s *SymbolGraphService) UpdateSymbolGraph(ctx context.Context, projectRoot,
 	cacheKey := fmt.Sprintf("%s:%s", projectRoot, language)
 	s.mu.Lock()
 	graphSize := s.estimateGraphSize(graph)
-	
+
 	// Если ключ уже существует, вычитаем старый размер
 	if oldGraph, exists := s.cache[cacheKey]; exists {
 		oldSize := s.estimateGraphSize(oldGraph)
 		s.cacheSize -= oldSize
 	}
-	
+
 	s.evictOldestIfNeeded(graphSize)
 	s.cache[cacheKey] = graph
 	s.cacheTimestamps[cacheKey] = time.Now().Unix()

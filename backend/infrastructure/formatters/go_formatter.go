@@ -50,37 +50,37 @@ func (f *GoFormatter) FormatFile(ctx context.Context, path string) error {
 	return nil
 }
 
-// FormatContent форматирует содержимое Go кода
-func (f *GoFormatter) FormatContent(ctx context.Context, content string, language string) (string, error) {
-	if language != "go" {
-		return content, fmt.Errorf("unsupported language: %s", language)
-	}
-
-	// Создаем временный файл
-	tmpFile, err := os.CreateTemp("", "gofmt-*.go")
+// processContentWithTempFile is a helper that writes content to temp file, processes it, and returns result
+func (f *GoFormatter) processContentWithTempFile(ctx context.Context, content, prefix string, processor func(ctx context.Context, path string) error) (string, error) {
+	tmpFile, err := os.CreateTemp("", prefix+"*.go")
 	if err != nil {
 		return content, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer os.Remove(tmpFile.Name())
 	defer tmpFile.Close()
 
-	// Записываем содержимое во временный файл
 	if _, err := tmpFile.WriteString(content); err != nil {
 		return content, fmt.Errorf("failed to write temp file: %w", err)
 	}
 
-	// Форматируем файл
-	if err := f.FormatFile(ctx, tmpFile.Name()); err != nil {
+	if err := processor(ctx, tmpFile.Name()); err != nil {
 		return content, err
 	}
 
-	// Читаем отформатированное содержимое
-	formattedContent, err := os.ReadFile(tmpFile.Name())
+	result, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
-		return content, fmt.Errorf("failed to read formatted file: %w", err)
+		return content, fmt.Errorf("failed to read processed file: %w", err)
 	}
 
-	return string(formattedContent), nil
+	return string(result), nil
+}
+
+// FormatContent форматирует содержимое Go кода
+func (f *GoFormatter) FormatContent(ctx context.Context, content string, language string) (string, error) {
+	if language != "go" {
+		return content, fmt.Errorf("unsupported language: %s", language)
+	}
+	return f.processContentWithTempFile(ctx, content, "gofmt-", f.FormatFile)
 }
 
 // GetSupportedLanguages возвращает поддерживаемые языки
@@ -112,30 +112,5 @@ func (f *GoFormatter) FixImportsInContent(ctx context.Context, content string, l
 	if language != "go" {
 		return content, fmt.Errorf("unsupported language: %s", language)
 	}
-
-	// Создаем временный файл
-	tmpFile, err := os.CreateTemp("", "goimports-*.go")
-	if err != nil {
-		return content, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
-
-	// Записываем содержимое во временный файл
-	if _, err := tmpFile.WriteString(content); err != nil {
-		return content, fmt.Errorf("failed to write temp file: %w", err)
-	}
-
-	// Исправляем импорты
-	if err := f.FixImports(ctx, tmpFile.Name()); err != nil {
-		return content, err
-	}
-
-	// Читаем исправленное содержимое
-	fixedContent, err := os.ReadFile(tmpFile.Name())
-	if err != nil {
-		return content, fmt.Errorf("failed to read fixed file: %w", err)
-	}
-
-	return string(fixedContent), nil
+	return f.processContentWithTempFile(ctx, content, "goimports-", f.FixImports)
 }

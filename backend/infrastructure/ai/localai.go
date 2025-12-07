@@ -116,7 +116,7 @@ func (p *LocalAIProviderImpl) ListModels(ctx context.Context) ([]string, error) 
 		return nil, fmt.Errorf("failed to decode models response: %w", err)
 	}
 
-	var models []string
+	models := make([]string, 0, len(modelsResponse.Data))
 	for _, model := range modelsResponse.Data {
 		models = append(models, model.ID)
 	}

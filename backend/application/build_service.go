@@ -6,6 +6,14 @@ import (
 	"shotgun_code/domain"
 )
 
+// Language constants
+const (
+	langGo         = "go"
+	langTypeScript = "typescript"
+	langTS         = "ts"
+	langJava       = "java"
+)
+
 // BuildService предоставляет высокоуровневый API для работы с build pipeline
 type BuildService struct {
 	log      domain.Logger
@@ -143,15 +151,15 @@ func (s *BuildService) DetectLanguages(ctx context.Context, projectPath string) 
 
 	for _, language := range supportedLanguages {
 		switch language {
-		case "go":
+		case langGo:
 			if s.hasFile(projectPath, "go.mod") {
 				detectedLanguages = append(detectedLanguages, language)
 			}
-		case "typescript", "ts":
+		case langTypeScript, langTS:
 			if s.hasFile(projectPath, "package.json") || s.hasFile(projectPath, "tsconfig.json") {
 				detectedLanguages = append(detectedLanguages, language)
 			}
-		case "java":
+		case langJava:
 			if s.hasFile(projectPath, "pom.xml") || s.hasFile(projectPath, "build.gradle") {
 				detectedLanguages = append(detectedLanguages, language)
 			}
