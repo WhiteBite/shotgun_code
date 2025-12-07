@@ -346,42 +346,20 @@ func getOverlapLines(lines []string, overlapTokens int) []string {
 	return result
 }
 
+var extToLanguage = map[string]string{
+	".go": "go", ".ts": "typescript", ".tsx": "typescript",
+	".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
+	".vue": "vue", ".py": "python", ".java": "java",
+	".kt": "kotlin", ".kts": "kotlin", ".dart": "dart",
+	".rs": "rust", ".cs": "csharp", ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+	".c": "c", ".h": "c", ".rb": "ruby", ".php": "php", ".swift": "swift",
+}
+
 func detectLanguage(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	switch ext {
-	case ".go":
-		return "go"
-	case ".ts", ".tsx":
-		return "typescript"
-	case ".js", ".jsx", ".mjs":
-		return "javascript"
-	case ".vue":
-		return "vue"
-	case ".py":
-		return "python"
-	case ".java":
-		return "java"
-	case ".kt", ".kts":
-		return "kotlin"
-	case ".dart":
-		return "dart"
-	case ".rs":
-		return "rust"
-	case ".cs":
-		return "csharp"
-	case ".cpp", ".cc", ".cxx", ".hpp":
-		return "cpp"
-	case ".c", ".h":
-		return "c"
-	case ".rb":
-		return "ruby"
-	case ".php":
-		return "php"
-	case ".swift":
-		return "swift"
-	default:
-		return "unknown"
+	if lang, ok := extToLanguage[strings.ToLower(filepath.Ext(filePath))]; ok {
+		return lang
 	}
+	return "unknown"
 }
 
 func mapSymbolKindToChunkType(kind string) domain.ChunkType {

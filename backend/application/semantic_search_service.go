@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
+	"shotgun_code/infrastructure/embeddings"
 	"sort"
 	"strings"
 	"sync"
@@ -21,11 +22,15 @@ type SemanticSearchServiceImpl struct {
 	vectorStore       domain.VectorStore
 	symbolIndex       analysis.SymbolIndex
 	log               domain.Logger
+	chunker           *CodeChunker
 
 	// Indexing state
 	indexingMu    sync.RWMutex
 	indexingState map[string]*IndexingState
 }
+
+// CodeChunker is imported from embeddings package
+type CodeChunker = embeddings.CodeChunker
 
 // IndexingState tracks the state of project indexing
 type IndexingState struct {
@@ -50,6 +55,7 @@ func NewSemanticSearchService(
 		vectorStore:       vectorStore,
 		symbolIndex:       symbolIndex,
 		log:               log,
+		chunker:           embeddings.NewCodeChunker(embeddings.DefaultChunkerConfig()),
 		indexingState:     make(map[string]*IndexingState),
 	}
 }
@@ -463,49 +469,64 @@ func (s *SemanticSearchServiceImpl) hybridSearch(ctx context.Context, req domain
 	}, nil
 }
 
+// extractSourceCode reads file and extracts lines in range
+func extractSourceCode(filePath string, startLine, endLine int) (string, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+	lines := strings.Split(string(content), "\n")
+	if startLine < 1 || endLine > len(lines) {
+		return "", fmt.Errorf("invalid line range")
+	}
+	return strings.Join(lines[startLine-1:endLine], "\n"), nil
+}
+
+// findProjectRoot walks up to find .git directory
+func findProjectRoot(filePath string) string {
+	projectRoot := filepath.Dir(filePath)
+	for {
+		if _, err := os.Stat(filepath.Join(projectRoot, ".git")); err == nil {
+			return projectRoot
+		}
+		parent := filepath.Dir(projectRoot)
+		if parent == projectRoot {
+			return filepath.Dir(filePath)
+		}
+		projectRoot = parent
+	}
+}
+
+// filterSelfFromResults removes the source chunk from results
+func filterSelfFromResults(results []domain.SemanticSearchResult, filePath string, startLine, endLine int) []domain.SemanticSearchResult {
+	filtered := make([]domain.SemanticSearchResult, 0, len(results))
+	for _, r := range results {
+		if r.Chunk.FilePath == filePath && r.Chunk.StartLine == startLine && r.Chunk.EndLine == endLine {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
 // FindSimilar finds similar code
 func (s *SemanticSearchServiceImpl) FindSimilar(ctx context.Context, req domain.SimilarCodeRequest) (*domain.SemanticSearchResponse, error) {
 	startTime := time.Now()
 
-	// Read the source code
-	content, err := os.ReadFile(req.FilePath)
+	sourceCode, err := extractSourceCode(req.FilePath, req.StartLine, req.EndLine)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, err
 	}
 
-	lines := strings.Split(string(content), "\n")
-	if req.StartLine < 1 || req.EndLine > len(lines) {
-		return nil, fmt.Errorf("invalid line range")
-	}
-
-	sourceCode := strings.Join(lines[req.StartLine-1:req.EndLine], "\n")
-
-	// Generate embedding for source code with retry logic for API resilience
 	resp, err := s.generateEmbeddingsWithRetry(ctx, []string{sourceCode})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
 
-	// Get project root from file path
-	projectRoot := filepath.Dir(req.FilePath)
-	for {
-		if _, err := os.Stat(filepath.Join(projectRoot, ".git")); err == nil {
-			break
-		}
-		parent := filepath.Dir(projectRoot)
-		if parent == projectRoot {
-			projectRoot = filepath.Dir(req.FilePath)
-			break
-		}
-		projectRoot = parent
-	}
-
-	projectID := generateProjectID(projectRoot)
-
-	// Search for similar code
+	projectID := generateProjectID(findProjectRoot(req.FilePath))
 	topK := req.TopK
 	if req.ExcludeSelf {
-		topK++ // Get one extra to potentially exclude self
+		topK++
 	}
 
 	results, err := s.vectorStore.Search(ctx, projectID, resp.Embeddings[0], topK, req.MinScore)
@@ -513,29 +534,16 @@ func (s *SemanticSearchServiceImpl) FindSimilar(ctx context.Context, req domain.
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
 
-	// Filter out self if requested
 	if req.ExcludeSelf {
-		var filtered []domain.SemanticSearchResult
-		for _, r := range results {
-			if r.Chunk.FilePath == req.FilePath &&
-				r.Chunk.StartLine == req.StartLine &&
-				r.Chunk.EndLine == req.EndLine {
-				continue
-			}
-			filtered = append(filtered, r)
-		}
-		results = filtered
+		results = filterSelfFromResults(results, req.FilePath, req.StartLine, req.EndLine)
 	}
-
 	if len(results) > req.TopK {
 		results = results[:req.TopK]
 	}
 
 	return &domain.SemanticSearchResponse{
-		Results:      results,
-		TotalResults: len(results),
-		QueryTime:    time.Since(startTime),
-		SearchType:   domain.SearchTypeSemantic,
+		Results: results, TotalResults: len(results),
+		QueryTime: time.Since(startTime), SearchType: domain.SearchTypeSemantic,
 	}, nil
 }
 
@@ -580,105 +588,23 @@ func (s *SemanticSearchServiceImpl) GetIndexingState(projectRoot string) *Indexi
 // Helper methods
 
 func (s *SemanticSearchServiceImpl) chunkFile(filePath string, content []byte, symbols []SymbolInfoForChunking) []domain.CodeChunk {
-	language := detectLanguageFromPath(filePath)
-	lines := strings.Split(string(content), "\n")
-
-	// Simple chunking - prefer symbol-based if available
-	if len(symbols) > 0 {
-		return s.chunkBySymbols(filePath, lines, symbols, language)
-	}
-
-	return s.chunkBySize(filePath, lines, language)
-}
-
-func (s *SemanticSearchServiceImpl) chunkBySymbols(filePath string, lines []string, symbols []SymbolInfoForChunking, language string) []domain.CodeChunk {
-	chunks := make([]domain.CodeChunk, 0, len(symbols))
-
+	// Convert symbols to embeddings.SymbolInfo format
+	symbolInfos := make([]embeddings.SymbolInfo, 0, len(symbols))
 	for _, sym := range symbols {
-		if sym.StartLine < 1 || sym.EndLine > len(lines) || sym.EndLine < sym.StartLine {
-			continue
-		}
-
-		symbolLines := lines[sym.StartLine-1 : sym.EndLine]
-		content := strings.Join(symbolLines, "\n")
-		tokenCount := len(content) / 4
-
-		if tokenCount < 20 {
-			continue
-		}
-
-		chunk := domain.CodeChunk{
-			ID:         generateChunkID(filePath, sym.StartLine, sym.EndLine),
-			FilePath:   filePath,
-			Content:    content,
-			StartLine:  sym.StartLine,
-			EndLine:    sym.EndLine,
-			ChunkType:  mapKindToChunkType(sym.Kind),
-			SymbolName: sym.Name,
-			SymbolKind: sym.Kind,
-			Language:   language,
-			TokenCount: tokenCount,
-			Hash:       hashContent(content),
-		}
-		chunks = append(chunks, chunk)
+		symbolInfos = append(symbolInfos, embeddings.SymbolInfo{
+			Name:      sym.Name,
+			Kind:      sym.Kind,
+			StartLine: sym.StartLine,
+			EndLine:   sym.EndLine,
+		})
 	}
 
-	return chunks
+	// Use CodeChunker for intelligent chunking with overlap and symbol boundaries
+	return s.chunker.ChunkFile(filePath, content, symbolInfos)
 }
 
-func (s *SemanticSearchServiceImpl) chunkBySize(filePath string, lines []string, language string) []domain.CodeChunk {
-	chunks := make([]domain.CodeChunk, 0, len(lines)/50+1)
-	maxTokens := 512
-
-	currentStart := 1
-	currentLines := make([]string, 0, 50)
-	currentTokens := 0
-
-	for i, line := range lines {
-		lineTokens := len(line) / 4
-
-		if currentTokens+lineTokens > maxTokens && len(currentLines) > 0 {
-			content := strings.Join(currentLines, "\n")
-			chunk := domain.CodeChunk{
-				ID:         generateChunkID(filePath, currentStart, i),
-				FilePath:   filePath,
-				Content:    content,
-				StartLine:  currentStart,
-				EndLine:    i,
-				ChunkType:  domain.ChunkTypeBlock,
-				Language:   language,
-				TokenCount: currentTokens,
-				Hash:       hashContent(content),
-			}
-			chunks = append(chunks, chunk)
-
-			currentLines = nil
-			currentStart = i + 1
-			currentTokens = 0
-		}
-
-		currentLines = append(currentLines, line)
-		currentTokens += lineTokens
-	}
-
-	if len(currentLines) > 0 && currentTokens >= 20 {
-		content := strings.Join(currentLines, "\n")
-		chunk := domain.CodeChunk{
-			ID:         generateChunkID(filePath, currentStart, len(lines)),
-			FilePath:   filePath,
-			Content:    content,
-			StartLine:  currentStart,
-			EndLine:    len(lines),
-			ChunkType:  domain.ChunkTypeBlock,
-			Language:   language,
-			TokenCount: currentTokens,
-			Hash:       hashContent(content),
-		}
-		chunks = append(chunks, chunk)
-	}
-
-	return chunks
-}
+// Note: chunkBySymbols and chunkBySize methods removed - now using CodeChunker from embeddings package
+// which provides better chunking with overlap, symbol boundaries, and configurable token limits
 
 // matchesLanguageFilter checks if chunk matches language filter
 func matchesLanguageFilter(chunk *domain.CodeChunk, languages []string) bool {
@@ -763,17 +689,6 @@ func generateProjectID(projectRoot string) string {
 	return hex.EncodeToString(hash[:8])
 }
 
-func generateChunkID(filePath string, startLine, endLine int) string {
-	data := fmt.Sprintf("%s:%d:%d", filePath, startLine, endLine)
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:8])
-}
-
-func hashContent(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:16])
-}
-
 func shouldSkipDir(name string) bool {
 	skipDirs := []string{
 		".git", ".svn", ".hg",
@@ -802,36 +717,6 @@ func isCodeFile(path string) bool {
 		".scala": true, ".clj": true, ".ex": true, ".exs": true,
 	}
 	return codeExts[ext]
-}
-
-func detectLanguageFromPath(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	langMap := map[string]string{
-		".go": "go", ".ts": "typescript", ".tsx": "typescript",
-		".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
-		".vue": "vue", ".py": "python", ".java": "java",
-		".kt": "kotlin", ".kts": "kotlin", ".dart": "dart",
-		".rs": "rust", ".cs": "csharp", ".cpp": "cpp", ".c": "c",
-		".h": "c", ".hpp": "cpp", ".rb": "ruby", ".php": "php",
-		".swift": "swift", ".scala": "scala",
-	}
-	if lang, ok := langMap[ext]; ok {
-		return lang
-	}
-	return "unknown"
-}
-
-func mapKindToChunkType(kind string) domain.ChunkType {
-	switch strings.ToLower(kind) {
-	case "function", "func":
-		return domain.ChunkTypeFunction
-	case "class":
-		return domain.ChunkTypeClass
-	case "method":
-		return domain.ChunkTypeMethod
-	default:
-		return domain.ChunkTypeBlock
-	}
 }
 
 func createEmbeddingText(chunk domain.CodeChunk) string {

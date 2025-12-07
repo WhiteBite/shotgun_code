@@ -252,7 +252,7 @@ func (s *GuardrailServiceImpl) ValidateTask(taskID string, files []string, lines
 
 // EnableEphemeralMode включает ephemeral mode для критических путей
 // This method now accepts taskType parameter directly instead of checking with TaskflowService
-func (s *GuardrailServiceImpl) EnableEphemeralMode(taskID string, taskType string, duration time.Duration) error {
+func (s *GuardrailServiceImpl) EnableEphemeralMode(taskID, taskType string, duration time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

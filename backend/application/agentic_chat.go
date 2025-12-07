@@ -81,15 +81,10 @@ INSTRUCTIONS:
 
 IMPORTANT: Always respond in the user's language (Russian if they write in Russian).`, toolsJSON)
 
-	var messages []domain.ChatMessage
-	messages = append(messages, domain.ChatMessage{
-		Role:    domain.RoleSystem,
-		Content: systemPrompt,
-	})
-	messages = append(messages, domain.ChatMessage{
-		Role:    domain.RoleUser,
-		Content: req.Task,
-	})
+	messages := []domain.ChatMessage{
+		{Role: domain.RoleSystem, Content: systemPrompt},
+		{Role: domain.RoleUser, Content: req.Task},
+	}
 
 	var toolCallLogs []ToolCallLog
 	var readFiles []string

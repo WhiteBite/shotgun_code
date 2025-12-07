@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"shotgun_code/domain"
 	"strings"
 	"time"
@@ -267,40 +268,20 @@ func (s *QwenTaskService) getFilePaths(files []ContextFile) []string {
 	return paths
 }
 
+// extToLang maps file extensions to language identifiers for syntax highlighting
+var extToLang = map[string]string{
+	".go": langGo, ".ts": langTypeScript, ".tsx": langTypeScript,
+	".js": langJavaScript, ".jsx": langJavaScript, ".py": "python",
+	".java": "java", ".rs": "rust", ".vue": "vue",
+	".css": "css", ".scss": "css", ".html": "html",
+	".json": "json", ".yaml": "yaml", ".yml": "yaml",
+}
+
 // getLanguageFromPath returns the language identifier for syntax highlighting
 func getLanguageFromPath(path string) string {
-	if strings.HasSuffix(path, ".go") {
-		return langGo
-	}
-	if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx") {
-		return langTypeScript
-	}
-	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".jsx") {
-		return langJavaScript
-	}
-	if strings.HasSuffix(path, ".py") {
-		return "python"
-	}
-	if strings.HasSuffix(path, ".java") {
-		return "java"
-	}
-	if strings.HasSuffix(path, ".rs") {
-		return "rust"
-	}
-	if strings.HasSuffix(path, ".vue") {
-		return "vue"
-	}
-	if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".scss") {
-		return "css"
-	}
-	if strings.HasSuffix(path, ".html") {
-		return "html"
-	}
-	if strings.HasSuffix(path, ".json") {
-		return "json"
-	}
-	if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
-		return "yaml"
+	ext := filepath.Ext(path)
+	if lang, ok := extToLang[ext]; ok {
+		return lang
 	}
 	return ""
 }

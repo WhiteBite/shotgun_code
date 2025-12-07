@@ -40,9 +40,10 @@ INSTRUCTIONS:
 
 Be thorough but efficient.`, toolsJSON)
 
-	var messages []domain.ChatMessage
-	messages = append(messages, domain.ChatMessage{Role: domain.RoleSystem, Content: systemPrompt})
-	messages = append(messages, domain.ChatMessage{Role: domain.RoleUser, Content: req.Task})
+	messages := []domain.ChatMessage{
+		{Role: domain.RoleSystem, Content: systemPrompt},
+		{Role: domain.RoleUser, Content: req.Task},
+	}
 
 	iterations := 0
 

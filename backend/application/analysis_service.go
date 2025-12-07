@@ -139,7 +139,7 @@ func scoreFile(file domain.FileNode, keywords []string) (float64, []string) {
 
 	// Normalize score to 0-1 range
 	if score > 0 {
-		score = score / float64(len(keywords))
+		score /= float64(len(keywords))
 		if score > 1.0 {
 			score = 1.0
 		}

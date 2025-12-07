@@ -113,60 +113,63 @@ func (up *UserPreferences) LoadAll() error {
 	return nil
 }
 
+// isTestFile checks if path looks like a test file
+func isTestFile(path string) bool {
+	testPatterns := []string{"_test.", ".test.", ".spec.", "/test/", "/tests/", "/__tests__/"}
+	testPrefixes := []string{"test/", "tests/", "__tests__/"}
+	for _, p := range testPatterns {
+		if strings.Contains(path, p) {
+			return true
+		}
+	}
+	for _, p := range testPrefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// isVendorFile checks if path is in vendor/node_modules
+func isVendorFile(path string) bool {
+	return strings.Contains(path, "/vendor/") || strings.Contains(path, "/node_modules/") ||
+		strings.HasPrefix(path, "vendor/") || strings.HasPrefix(path, "node_modules/")
+}
+
+// isGeneratedFile checks if path looks like generated code
+func isGeneratedFile(path string) bool {
+	return strings.Contains(path, ".gen.") || strings.Contains(path, ".generated.") ||
+		strings.Contains(path, "_gen.") || strings.HasSuffix(path, ".pb.go")
+}
+
+// matchesPattern checks if path matches a glob-like pattern
+func matchesPattern(path, pattern string) bool {
+	pattern = strings.ToLower(pattern)
+	if strings.HasPrefix(pattern, "*") {
+		return strings.HasSuffix(path, strings.TrimPrefix(pattern, "*"))
+	}
+	return strings.Contains(path, pattern)
+}
+
 // ShouldExcludeFile checks if a file should be excluded based on preferences
 func (up *UserPreferences) ShouldExcludeFile(filePath string) bool {
 	filePath = strings.ToLower(filePath)
 
-	// Check test exclusion
-	if up.GetBool(PrefExcludeTests) {
-		if strings.Contains(filePath, "_test.") ||
-			strings.Contains(filePath, ".test.") ||
-			strings.Contains(filePath, ".spec.") ||
-			strings.Contains(filePath, "/test/") ||
-			strings.Contains(filePath, "/tests/") ||
-			strings.Contains(filePath, "/__tests__/") ||
-			strings.HasPrefix(filePath, "test/") ||
-			strings.HasPrefix(filePath, "tests/") ||
-			strings.HasPrefix(filePath, "__tests__/") {
+	if up.GetBool(PrefExcludeTests) && isTestFile(filePath) {
+		return true
+	}
+	if up.GetBool(PrefExcludeVendor) && isVendorFile(filePath) {
+		return true
+	}
+	if up.GetBool(PrefExcludeGenerated) && isGeneratedFile(filePath) {
+		return true
+	}
+
+	for _, pattern := range up.GetStringList(PrefExcludePatterns) {
+		if matchesPattern(filePath, pattern) {
 			return true
 		}
 	}
-
-	// Check vendor exclusion
-	if up.GetBool(PrefExcludeVendor) {
-		if strings.Contains(filePath, "/vendor/") ||
-			strings.Contains(filePath, "/node_modules/") ||
-			strings.HasPrefix(filePath, "vendor/") ||
-			strings.HasPrefix(filePath, "node_modules/") {
-			return true
-		}
-	}
-
-	// Check generated exclusion
-	if up.GetBool(PrefExcludeGenerated) {
-		if strings.Contains(filePath, ".gen.") ||
-			strings.Contains(filePath, ".generated.") ||
-			strings.Contains(filePath, "_gen.") ||
-			strings.HasSuffix(filePath, ".pb.go") {
-			return true
-		}
-	}
-
-	// Check custom exclude patterns
-	excludePatterns := up.GetStringList(PrefExcludePatterns)
-	for _, pattern := range excludePatterns {
-		pattern = strings.ToLower(pattern)
-		// Handle glob-like patterns
-		if strings.HasPrefix(pattern, "*") {
-			suffix := strings.TrimPrefix(pattern, "*")
-			if strings.HasSuffix(filePath, suffix) {
-				return true
-			}
-		} else if strings.Contains(filePath, pattern) {
-			return true
-		}
-	}
-
 	return false
 }
 

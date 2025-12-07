@@ -349,6 +349,69 @@ func (te *ToolExecutorImpl) GetAvailableTools() []domain.Tool {
 	}
 }
 
+// toolHandler is a function type for tool execution
+type toolHandler func(te *ToolExecutorImpl, args map[string]any, projectRoot string) (string, error)
+
+// toolHandlers maps tool names to their handlers
+var toolHandlers = map[string]toolHandler{
+	"search_files": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.searchFiles(args, pr)
+	},
+	"search_content": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.searchContent(args, pr)
+	},
+	"read_file": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.readFile(args, pr)
+	},
+	"list_directory": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.listDirectory(args, pr)
+	},
+	"get_file_info": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getFileInfo(args, pr)
+	},
+	"list_functions": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.listFunctions(args, pr)
+	},
+	"git_status": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) { return te.gitStatus(pr) },
+	"git_diff": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.gitDiff(args, pr)
+	},
+	"git_log": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.gitLog(args, pr) },
+	"list_symbols": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.listSymbols(args, pr)
+	},
+	"get_imports": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getImports(args, pr)
+	},
+	"search_symbols": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.searchSymbols(args, pr)
+	},
+	"find_definition": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.findDefinition(args, pr)
+	},
+	"find_references": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.findReferences(args, pr)
+	},
+	"detect_architecture": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) {
+		return te.detectArchitecture(pr)
+	},
+	"detect_frameworks": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) {
+		return te.detectFrameworks(pr)
+	},
+	"detect_conventions": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) {
+		return te.detectConventions(pr)
+	},
+	"get_project_structure": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) {
+		return te.getProjectStructure(pr)
+	},
+	"get_related_layers": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getRelatedLayers(args, pr)
+	},
+	"suggest_related_files": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.suggestRelatedFiles(args, pr)
+	},
+}
+
 // ExecuteTool executes a tool and returns the result
 func (te *ToolExecutorImpl) ExecuteTool(call domain.ToolCall, projectRoot string) domain.ToolResult {
 	te.logger.Info(fmt.Sprintf("Executing tool: %s with args: %v", call.Name, call.Arguments))
@@ -356,61 +419,17 @@ func (te *ToolExecutorImpl) ExecuteTool(call domain.ToolCall, projectRoot string
 	var content string
 	var err error
 
-	switch call.Name {
-	case "search_files":
-		content, err = te.searchFiles(call.Arguments, projectRoot)
-	case "search_content":
-		content, err = te.searchContent(call.Arguments, projectRoot)
-	case "read_file":
-		content, err = te.readFile(call.Arguments, projectRoot)
-	case "list_directory":
-		content, err = te.listDirectory(call.Arguments, projectRoot)
-	case "get_file_info":
-		content, err = te.getFileInfo(call.Arguments, projectRoot)
-	case "list_functions":
-		content, err = te.listFunctions(call.Arguments, projectRoot)
-	case "git_status":
-		content, err = te.gitStatus(projectRoot)
-	case "git_diff":
-		content, err = te.gitDiff(call.Arguments, projectRoot)
-	case "git_log":
-		content, err = te.gitLog(call.Arguments, projectRoot)
-	case "list_symbols":
-		content, err = te.listSymbols(call.Arguments, projectRoot)
-	case "get_imports":
-		content, err = te.getImports(call.Arguments, projectRoot)
-	case "search_symbols":
-		content, err = te.searchSymbols(call.Arguments, projectRoot)
-	case "find_definition":
-		content, err = te.findDefinition(call.Arguments, projectRoot)
-	case "find_references":
-		content, err = te.findReferences(call.Arguments, projectRoot)
-	// Project Structure Tools (Phase 6)
-	case "detect_architecture":
-		content, err = te.detectArchitecture(projectRoot)
-	case "detect_frameworks":
-		content, err = te.detectFrameworks(projectRoot)
-	case "detect_conventions":
-		content, err = te.detectConventions(projectRoot)
-	case "get_project_structure":
-		content, err = te.getProjectStructure(projectRoot)
-	case "get_related_layers":
-		content, err = te.getRelatedLayers(call.Arguments, projectRoot)
-	case "suggest_related_files":
-		content, err = te.suggestRelatedFiles(call.Arguments, projectRoot)
-	default:
+	if handler, ok := toolHandlers[call.Name]; ok {
+		content, err = handler(te, call.Arguments, projectRoot)
+	} else {
 		err = fmt.Errorf("unknown tool: %s", call.Name)
 	}
 
-	result := domain.ToolResult{
-		ToolCallID: call.ID,
-		Content:    content,
-	}
+	result := domain.ToolResult{ToolCallID: call.ID, Content: content}
 	if err != nil {
 		result.Error = err.Error()
 		result.Content = fmt.Sprintf("Error: %s", err.Error())
 	}
-
 	return result
 }
 
