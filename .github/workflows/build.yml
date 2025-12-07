@@ -88,6 +88,9 @@ jobs:
         run: |
           go test ./application/... ./domain/... ./handlers/... ./infrastructure/... ./internal/... ./tests/... -short -count=1
 
+      - name: Create frontend dist placeholder for linting
+        run: mkdir -p backend/frontend/dist && touch backend/frontend/dist/.gitkeep
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:

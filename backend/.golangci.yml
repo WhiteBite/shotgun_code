@@ -4,9 +4,6 @@
 run:
   timeout: 5m
   tests: true
-  skip-files:
-    - main.go
-    - app.go
 
 linters:
   enable:
@@ -105,6 +102,9 @@ issues:
     - vendor
     - frontend
     - cmd
+  exclude-files:
+    - main.go
+    - app.go
   exclude-rules:
     # Exclude some linters from running on tests
     - path: _test\.go
