@@ -218,7 +218,7 @@ func (m *MockGuardrailService) ValidateBudget(budgetType domain.BudgetType, curr
 	return args.Get(0).([]domain.BudgetViolation), args.Error(1)
 }
 
-func (m *MockGuardrailService) EnableEphemeralMode(taskID, taskType string, duration time.Duration) error {
+func (m *MockGuardrailService) EnableEphemeralMode(taskID string, taskType string, duration time.Duration) error {
 	args := m.Called(taskID, taskType, duration)
 	return args.Error(0)
 }
@@ -341,13 +341,13 @@ func (m *MockTaskflowService) StartAutonomousTask(ctx context.Context, request d
 	return args.Get(0).(*domain.AutonomousTaskResponse), args.Error(1)
 }
 
-func (m *MockTaskflowService) CancelAutonomousTask(ctx context.Context, taskID string) error {
-	args := m.Called(ctx, taskID)
+func (m *MockTaskflowService) CancelAutonomousTask(ctx context.Context, taskId string) error {
+	args := m.Called(ctx, taskId)
 	return args.Error(0)
 }
 
-func (m *MockTaskflowService) GetAutonomousTaskStatus(ctx context.Context, taskID string) (*domain.AutonomousTaskStatus, error) {
-	args := m.Called(ctx, taskID)
+func (m *MockTaskflowService) GetAutonomousTaskStatus(ctx context.Context, taskId string) (*domain.AutonomousTaskStatus, error) {
+	args := m.Called(ctx, taskId)
 	return args.Get(0).(*domain.AutonomousTaskStatus), args.Error(1)
 }
 
@@ -356,18 +356,18 @@ func (m *MockTaskflowService) ListAutonomousTasks(ctx context.Context, projectPa
 	return args.Get(0).([]domain.AutonomousTask), args.Error(1)
 }
 
-func (m *MockTaskflowService) GetTaskLogs(ctx context.Context, taskID string) ([]domain.LogEntry, error) {
-	args := m.Called(ctx, taskID)
+func (m *MockTaskflowService) GetTaskLogs(ctx context.Context, taskId string) ([]domain.LogEntry, error) {
+	args := m.Called(ctx, taskId)
 	return args.Get(0).([]domain.LogEntry), args.Error(1)
 }
 
-func (m *MockTaskflowService) PauseTask(ctx context.Context, taskID string) error {
-	args := m.Called(ctx, taskID)
+func (m *MockTaskflowService) PauseTask(ctx context.Context, taskId string) error {
+	args := m.Called(ctx, taskId)
 	return args.Error(0)
 }
 
-func (m *MockTaskflowService) ResumeTask(ctx context.Context, taskID string) error {
-	args := m.Called(ctx, taskID)
+func (m *MockTaskflowService) ResumeTask(ctx context.Context, taskId string) error {
+	args := m.Called(ctx, taskId)
 	return args.Error(0)
 }
 
@@ -419,7 +419,7 @@ func (m *MockFormatter) FormatFile(ctx context.Context, path string) error {
 	return args.Error(0)
 }
 
-func (m *MockFormatter) FormatContent(ctx context.Context, content, language string) (string, error) {
+func (m *MockFormatter) FormatContent(ctx context.Context, content string, language string) (string, error) {
 	args := m.Called(ctx, content, language)
 	return args.Get(0).(string), args.Error(1)
 }

@@ -62,18 +62,18 @@ func (e *ErrorAnalyzerImpl) AnalyzeError(errorOutput string, stage domain.Protoc
 }
 
 // SuggestCorrections provides correction suggestions for a given error
-func (e *ErrorAnalyzerImpl) SuggestCorrections(error *domain.ErrorDetails) ([]*domain.CorrectionStep, error) {
+func (e *ErrorAnalyzerImpl) SuggestCorrections(errDetails *domain.ErrorDetails) ([]*domain.CorrectionStep, error) {
 	corrections := make([]*domain.CorrectionStep, 0)
 
 	// Try language-specific corrections first
 	for _, analyzer := range e.languageAnalyzers {
-		if langCorrections, err := analyzer.SuggestCorrections(error); err == nil && len(langCorrections) > 0 {
+		if langCorrections, err := analyzer.SuggestCorrections(errDetails); err == nil && len(langCorrections) > 0 {
 			corrections = append(corrections, langCorrections...)
 		}
 	}
 
 	// Add generic corrections based on error type
-	genericCorrections := e.getGenericCorrections(error)
+	genericCorrections := e.getGenericCorrections(errDetails)
 	corrections = append(corrections, genericCorrections...)
 
 	return corrections, nil

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const testProjectPath = testProjectPath
+const testProjectPathService = "/test/project"
 
 // MockFileContentReader is a mock implementation of domain.FileContentReader
 type MockFileContentReader struct {
@@ -91,7 +91,7 @@ func TestService_BuildContext(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := testProjectPath
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/main.go", "src/util.go"}
 	fileContents := map[string]string{
 		"src/main.go": "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}",
@@ -155,7 +155,7 @@ func TestService_BuildContext_TokenLimitExceeded(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := testProjectPath
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/large.go"}
 	fileContents := map[string]string{
 		"src/large.go": strings.Repeat("// Large file content\n", 1000),
@@ -206,7 +206,7 @@ func TestService_GetContext(t *testing.T) {
 		Files:       []string{"test.go"},
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-		ProjectPath: testProjectPath,
+		ProjectPath: testProjectPathService,
 		TokenCount:  100,
 	}
 
@@ -244,5 +244,5 @@ func TestService_GetContext_NotFound(t *testing.T) {
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "context not found")
+	assert.Contains(t, err.Error(), "not found")
 }

@@ -31,7 +31,7 @@ func TestService_CreateStream(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := "/test/project"
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/main.go", "src/util.go"}
 	fileContents := map[string]string{
 		"src/main.go": "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}",
@@ -112,7 +112,7 @@ func TestService_CreateStream_TokenLimitExceeded(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := "/test/project"
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/large.go"}
 	fileContents := map[string]string{
 		"src/large.go": "content",
@@ -164,7 +164,7 @@ func TestService_GetContextLines(t *testing.T) {
 	}
 
 	// Create a test stream first
-	projectPath := "/test/project"
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/test.go"}
 	fileContents := map[string]string{
 		"src/test.go": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
@@ -252,7 +252,7 @@ func TestService_BuildContext_StreamingForced(t *testing.T) {
 	}
 
 	// Test data
-	projectPath := "/test/project"
+	projectPath := testProjectPathService
 	includedPaths := []string{"src/main.go"}
 	fileContents := map[string]string{
 		"src/main.go": "package main\n\nfunc main() {}",

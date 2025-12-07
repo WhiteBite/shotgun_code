@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	testProjectPath = "/test/project"
-	branchMain      = "main"
+	benchProjectPath = "/test/project"
+	branchMain       = "main"
 )
 
 // Mock implementations for benchmarking
@@ -37,20 +37,20 @@ func (m *mockTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 	nodes := []*domain.FileNode{
 		{
 			Name:    "file1.go",
-			Path:    testProjectPath + "/file1.go",
+			Path:    benchProjectPath + "/file1.go",
 			RelPath: "file1.go",
 			IsDir:   false,
 			Size:    1024,
 		},
 		{
 			Name:    "dir1",
-			Path:    testProjectPath + "/dir1",
+			Path:    benchProjectPath + "/dir1",
 			RelPath: "dir1",
 			IsDir:   true,
 			Children: []*domain.FileNode{
 				{
 					Name:    "file2.js",
-					Path:    testProjectPath + "/dir1/file2.js",
+					Path:    benchProjectPath + "/dir1/file2.js",
 					RelPath: "dir1/file2.js",
 					IsDir:   false,
 					Size:    2048,
@@ -178,7 +178,7 @@ func BenchmarkProjectService_ListFiles(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	dirPath := testProjectPath
+	dirPath := benchProjectPath
 	useGitignore := true
 	useCustomIgnore := true
 
@@ -203,7 +203,7 @@ func BenchmarkProjectService_GetUncommittedFiles(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectRoot := testProjectPath
+	projectRoot := benchProjectPath
 
 	for i := 0; i < b.N; i++ {
 		_, err := service.GetUncommittedFiles(projectRoot)
@@ -226,7 +226,7 @@ func BenchmarkProjectService_GetRichCommitHistory(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	projectRoot := testProjectPath
+	projectRoot := benchProjectPath
 	branchName := branchMain
 	limit := 10
 
@@ -271,7 +271,7 @@ func BenchmarkProjectService_GenerateContext(b *testing.B) {
 	b.ReportAllocs()
 
 	ctx := context.Background()
-	rootDir := testProjectPath
+	rootDir := benchProjectPath
 	includedPaths := []string{"file1.go", "dir1/file2.js"}
 
 	for i := 0; i < b.N; i++ {

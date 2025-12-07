@@ -127,16 +127,6 @@ type PipelinePolicy struct {
 	Timeout        time.Duration `json:"timeout"`
 }
 
-// getDependsOn determines the dependency for a step based on enabled policies
-func getDependsOn(taskID string, stepID int, policy *PipelinePolicy, checkOrder []bool) []string {
-	for _, enabled := range checkOrder {
-		if enabled {
-			return []string{fmt.Sprintf("%s-step-%d", taskID, stepID-1)}
-		}
-	}
-	return []string{fmt.Sprintf("%s-step-%d", taskID, 1)}
-}
-
 // CreatePipeline создает пайплайн для задачи
 func (r *RouterPlannerService) CreatePipeline(ctx context.Context, task domain.Task, policy *PipelinePolicy) (*TaskPipeline, error) {
 	r.log.Info(fmt.Sprintf("Creating pipeline for task: %s", task.ID))

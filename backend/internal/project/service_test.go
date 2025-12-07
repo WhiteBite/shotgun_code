@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const testProjectPath = testProjectPath
+const testProjectPathProject = "/test/project"
 
 // Mock implementations for testing
 type MockProjectLogger struct {
@@ -201,7 +201,7 @@ func TestProjectService_ListFiles_Success(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	dirPath := testProjectPath
+	dirPath := testProjectPathProject
 	useGitignore := true
 	useCustomIgnore := true
 
@@ -246,7 +246,7 @@ func TestProjectService_ListFiles_Error(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	dirPath := testProjectPath
+	dirPath := testProjectPathProject
 	useGitignore := true
 	useCustomIgnore := true
 
@@ -278,7 +278,7 @@ func TestProjectService_GetUncommittedFiles_Success(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	projectRoot := testProjectPath
+	projectRoot := testProjectPathProject
 
 	fileStatuses := []domain.FileStatus{
 		{
@@ -319,7 +319,7 @@ func TestProjectService_GetUncommittedFiles_Error(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	projectRoot := testProjectPath
+	projectRoot := testProjectPathProject
 
 	// Setup mocks
 	mockLogger.On("Info", mock.AnythingOfType("string")).Return()
@@ -349,7 +349,7 @@ func TestProjectService_GetRichCommitHistory_Success(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	projectRoot := testProjectPath
+	projectRoot := testProjectPathProject
 	branchName := "main"
 	limit := 10
 
@@ -394,7 +394,7 @@ func TestProjectService_GetRichCommitHistory_Error(t *testing.T) {
 	service := NewService(mockLogger, mockBus, mockTreeBuilder, mockGitRepo, mockContextSvc)
 
 	// Test data
-	projectRoot := testProjectPath
+	projectRoot := testProjectPathProject
 	branchName := "main"
 	limit := 10
 
@@ -463,7 +463,7 @@ func TestProjectService_GenerateContext(t *testing.T) {
 
 	// Test data
 	ctx := context.Background()
-	rootDir := testProjectPath
+	rootDir := testProjectPathProject
 	includedPaths := []string{"file1.go", "dir1/file2.js"}
 
 	// Setup mocks
