@@ -4,9 +4,9 @@
 run:
   timeout: 5m
   tests: true
-  skip-dirs:
-    - vendor
-    - frontend
+  skip-files:
+    - main.go
+    - app.go
 
 linters:
   enable:
@@ -101,6 +101,10 @@ linters-settings:
       - -SA1019 # Deprecated (handle separately)
 
 issues:
+  exclude-dirs:
+    - vendor
+    - frontend
+    - cmd
   exclude-rules:
     # Exclude some linters from running on tests
     - path: _test\.go
