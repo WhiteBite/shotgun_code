@@ -102,14 +102,14 @@ func (c *CorrectionEngineImpl) ApplyCorrections(ctx context.Context, steps []*do
 }
 
 // CanHandle checks if the engine can handle a specific error type
-func (c *CorrectionEngineImpl) CanHandle(error *domain.ErrorDetails) bool {
-	rules, exists := c.correctionRules[error.ErrorType]
+func (c *CorrectionEngineImpl) CanHandle(errDetails *domain.ErrorDetails) bool {
+	rules, exists := c.correctionRules[errDetails.ErrorType]
 	if !exists {
 		return false
 	}
 
 	for _, rule := range rules {
-		if rule.CanHandle(error) {
+		if rule.CanHandle(errDetails) {
 			return true
 		}
 	}
@@ -322,11 +322,11 @@ func NewImportCorrectionRule() domain.CorrectionRule {
 	return &ImportCorrectionRule{}
 }
 
-func (r *ImportCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
-	return error.ErrorType == domain.ErrorTypeImport
+func (r *ImportCorrectionRule) CanHandle(errDetails *domain.ErrorDetails) bool {
+	return errDetails.ErrorType == domain.ErrorTypeImport
 }
 
-func (r *ImportCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+func (r *ImportCorrectionRule) ApplyCorrection(errDetails *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
 	// Simplified import correction
 	return &domain.CorrectionResult{
 		Success: true,
@@ -349,11 +349,11 @@ func NewSyntaxCorrectionRule() domain.CorrectionRule {
 	return &SyntaxCorrectionRule{}
 }
 
-func (r *SyntaxCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
-	return error.ErrorType == domain.ErrorTypeSyntax
+func (r *SyntaxCorrectionRule) CanHandle(errDetails *domain.ErrorDetails) bool {
+	return errDetails.ErrorType == domain.ErrorTypeSyntax
 }
 
-func (r *SyntaxCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+func (r *SyntaxCorrectionRule) ApplyCorrection(errDetails *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
 	return &domain.CorrectionResult{
 		Success: true,
 		Message: "Syntax correction applied",
@@ -375,11 +375,11 @@ func NewTypeCorrectionRule() domain.CorrectionRule {
 	return &TypeCorrectionRule{}
 }
 
-func (r *TypeCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
-	return error.ErrorType == domain.ErrorTypeTypeCheck
+func (r *TypeCorrectionRule) CanHandle(errDetails *domain.ErrorDetails) bool {
+	return errDetails.ErrorType == domain.ErrorTypeTypeCheck
 }
 
-func (r *TypeCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+func (r *TypeCorrectionRule) ApplyCorrection(errDetails *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
 	return &domain.CorrectionResult{
 		Success: true,
 		Message: "Type correction applied",
@@ -401,11 +401,11 @@ func NewLintingCorrectionRule() domain.CorrectionRule {
 	return &LintingCorrectionRule{}
 }
 
-func (r *LintingCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
-	return error.ErrorType == domain.ErrorTypeLinting
+func (r *LintingCorrectionRule) CanHandle(errDetails *domain.ErrorDetails) bool {
+	return errDetails.ErrorType == domain.ErrorTypeLinting
 }
 
-func (r *LintingCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+func (r *LintingCorrectionRule) ApplyCorrection(errDetails *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
 	return &domain.CorrectionResult{
 		Success: true,
 		Message: "Linting correction applied",
@@ -427,11 +427,11 @@ func NewCompilationCorrectionRule() domain.CorrectionRule {
 	return &CompilationCorrectionRule{}
 }
 
-func (r *CompilationCorrectionRule) CanHandle(error *domain.ErrorDetails) bool {
-	return error.ErrorType == domain.ErrorTypeCompilation
+func (r *CompilationCorrectionRule) CanHandle(errDetails *domain.ErrorDetails) bool {
+	return errDetails.ErrorType == domain.ErrorTypeCompilation
 }
 
-func (r *CompilationCorrectionRule) ApplyCorrection(error *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
+func (r *CompilationCorrectionRule) ApplyCorrection(errDetails *domain.ErrorDetails, projectPath string) (*domain.CorrectionResult, error) {
 	return &domain.CorrectionResult{
 		Success: true,
 		Message: "Compilation correction applied",

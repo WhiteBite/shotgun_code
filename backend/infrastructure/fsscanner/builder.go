@@ -53,7 +53,7 @@ func New(settingsRepo domain.SettingsRepository, log domain.Logger) domain.TreeB
 	}
 }
 
-func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
+func (b *fileTreeBuilder) BuildTree(dirPath string, useGitignore, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	if cached := b.getCachedTree(dirPath); cached != nil {
 		b.log.Debug("Using cached tree for: " + dirPath)
 		return cached, nil
@@ -126,7 +126,7 @@ func (b *fileTreeBuilder) processEntry(path string, d fs.DirEntry, err error, di
 }
 
 // checkIgnored checks if path matches gitignore or custom ignore
-func (b *fileTreeBuilder) checkIgnored(relPath string, isDir bool, gi, ci *gitignore.GitIgnore) (bool, bool) {
+func (b *fileTreeBuilder) checkIgnored(relPath string, isDir bool, gi, ci *gitignore.GitIgnore) (isGitIgnored, isCustomIgnored bool) {
 	matchPath := relPath
 	if isDir && !strings.HasSuffix(matchPath, string(filepath.Separator)) {
 		matchPath += string(filepath.Separator)

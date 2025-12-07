@@ -101,7 +101,7 @@ func (s *ReleasesService) GetReleases(ctx context.Context) (*ReleasesResponse, e
 func (s *ReleasesService) fetchReleases(ctx context.Context) ([]Release, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", RepoOwner, RepoName)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -167,10 +167,10 @@ func compareVersions(current, latest string) bool {
 	}
 
 	// Strip 'v' prefix for comparison
-	if len(current) > 0 && current[0] == 'v' {
+	if current != "" && current[0] == 'v' {
 		current = current[1:]
 	}
-	if len(latest) > 0 && latest[0] == 'v' {
+	if latest != "" && latest[0] == 'v' {
 		latest = latest[1:]
 	}
 

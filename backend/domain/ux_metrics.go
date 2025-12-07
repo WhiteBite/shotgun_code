@@ -153,7 +153,7 @@ type UXMetricsService interface {
 	ListReports(ctx context.Context, reportType string) ([]*GenericReport, error)
 
 	// GetReport получает конкретный отчет
-	GetReport(ctx context.Context, reportId string) (*GenericReport, error)
+	GetReport(ctx context.Context, reportID string) (*GenericReport, error)
 }
 
 // UXReportRepository интерфейс для работы с UX отчетами

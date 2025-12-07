@@ -190,32 +190,32 @@ func (e *ErrorAnalyzerImpl) addStageSpecificAnalysis(details *domain.ErrorDetail
 	}
 }
 
-func (e *ErrorAnalyzerImpl) getGenericCorrections(error *domain.ErrorDetails) []*domain.CorrectionStep {
+func (e *ErrorAnalyzerImpl) getGenericCorrections(errDetails *domain.ErrorDetails) []*domain.CorrectionStep {
 	corrections := make([]*domain.CorrectionStep, 0)
 
-	switch error.ErrorType {
+	switch errDetails.ErrorType {
 	case domain.ErrorTypeImport:
 		corrections = append(corrections, &domain.CorrectionStep{
 			Action:      domain.ActionFixImport,
-			Target:      error.SourceFile,
+			Target:      errDetails.SourceFile,
 			Description: "Fix import statement",
 		})
 	case domain.ErrorTypeSyntax:
 		corrections = append(corrections, &domain.CorrectionStep{
 			Action:      domain.ActionFixSyntax,
-			Target:      error.SourceFile,
+			Target:      errDetails.SourceFile,
 			Description: "Fix syntax error",
 		})
 	case domain.ErrorTypeTypeCheck:
 		corrections = append(corrections, &domain.CorrectionStep{
 			Action:      domain.ActionFixType,
-			Target:      error.SourceFile,
+			Target:      errDetails.SourceFile,
 			Description: "Fix type error",
 		})
 	case domain.ErrorTypeLinting:
 		corrections = append(corrections, &domain.CorrectionStep{
 			Action:      domain.ActionFormatCode,
-			Target:      error.SourceFile,
+			Target:      errDetails.SourceFile,
 			Description: "Format code to fix linting issues",
 		})
 	}

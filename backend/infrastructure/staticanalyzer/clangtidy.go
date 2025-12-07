@@ -161,15 +161,16 @@ func (a *ClangTidyAnalyzer) checkClangTidyInstalled() error {
 
 // hasCppFilePaths проверяет, есть ли C/C++ файлы в проекте
 func (a *ClangTidyAnalyzer) hasCppFilePaths(projectPath string) bool {
+	sep := string(filepath.Separator)
 	patterns := []string{
-		filepath.Join(projectPath, "**/*.c"),
-		filepath.Join(projectPath, "**/*.cpp"),
-		filepath.Join(projectPath, "**/*.cc"),
-		filepath.Join(projectPath, "**/*.h"),
-		filepath.Join(projectPath, "**/*.hpp"),
-		filepath.Join(projectPath, "src/**/*.c"),
-		filepath.Join(projectPath, "src/**/*.cpp"),
-		filepath.Join(projectPath, "src/**/*.cc"),
+		projectPath + sep + "**" + sep + "*.c",
+		projectPath + sep + "**" + sep + "*.cpp",
+		projectPath + sep + "**" + sep + "*.cc",
+		projectPath + sep + "**" + sep + "*.h",
+		projectPath + sep + "**" + sep + "*.hpp",
+		projectPath + sep + "src" + sep + "**" + sep + "*.c",
+		projectPath + sep + "src" + sep + "**" + sep + "*.cpp",
+		projectPath + sep + "src" + sep + "**" + sep + "*.cc",
 	}
 
 	for _, pattern := range patterns {

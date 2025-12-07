@@ -109,20 +109,20 @@ type TaskflowService interface {
 	StartAutonomousTask(ctx context.Context, request AutonomousTaskRequest) (*AutonomousTaskResponse, error)
 
 	// CancelAutonomousTask отменяет автономную задачу
-	CancelAutonomousTask(ctx context.Context, taskId string) error
+	CancelAutonomousTask(ctx context.Context, taskID string) error
 
 	// GetAutonomousTaskStatus получает статус автономной задачи
-	GetAutonomousTaskStatus(ctx context.Context, taskId string) (*AutonomousTaskStatus, error)
+	GetAutonomousTaskStatus(ctx context.Context, taskID string) (*AutonomousTaskStatus, error)
 
 	// ListAutonomousTasks возвращает список автономных задач
 	ListAutonomousTasks(ctx context.Context, projectPath string) ([]AutonomousTask, error)
 
 	// GetTaskLogs возвращает логи задачи
-	GetTaskLogs(ctx context.Context, taskId string) ([]LogEntry, error)
+	GetTaskLogs(ctx context.Context, taskID string) ([]LogEntry, error)
 
 	// PauseTask приостанавливает задачу
-	PauseTask(ctx context.Context, taskId string) error
+	PauseTask(ctx context.Context, taskID string) error
 
 	// ResumeTask возобновляет задачу
-	ResumeTask(ctx context.Context, taskId string) error
+	ResumeTask(ctx context.Context, taskID string) error
 }

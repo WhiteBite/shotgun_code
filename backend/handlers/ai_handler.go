@@ -154,7 +154,7 @@ func (h *AIHandler) SuggestContextFiles(ctx context.Context, task string, allFil
 }
 
 // AnalyzeTaskAndCollectContext analyzes task and collects relevant context
-func (h *AIHandler) AnalyzeTaskAndCollectContext(ctx context.Context, task string, allFilesJSON string, rootDir string) (string, error) {
+func (h *AIHandler) AnalyzeTaskAndCollectContext(ctx context.Context, task, allFilesJSON, rootDir string) (string, error) {
 	var allFiles []*domain.FileNode
 	if err := json.Unmarshal([]byte(allFilesJSON), &allFiles); err != nil {
 		return "", fmt.Errorf("invalid allFiles JSON: %w", err)

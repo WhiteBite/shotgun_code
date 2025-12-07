@@ -54,8 +54,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 
 	// Добавляем правила если указаны
 	if len(config.Rules) > 0 {
-		args = append(args, "-XepDisableAllChecks")
-		args = append(args, "-Xep:"+strings.Join(config.Rules, ","))
+		args = append(args, "-XepDisableAllChecks", "-Xep:"+strings.Join(config.Rules, ","))
 	}
 
 	// Добавляем исключения если указаны
@@ -161,10 +160,11 @@ func (a *ErrorProneAnalyzer) checkJavaEnvironment() error {
 
 // hasJavaFilePaths проверяет, есть ли Java файлы в проекте
 func (a *ErrorProneAnalyzer) hasJavaFilePaths(projectPath string) bool {
+	sep := string(filepath.Separator)
 	patterns := []string{
-		filepath.Join(projectPath, "**/*.java"),
-		filepath.Join(projectPath, "src/**/*.java"),
-		filepath.Join(projectPath, "main/**/*.java"),
+		projectPath + sep + "**" + sep + "*.java",
+		projectPath + sep + "src" + sep + "**" + sep + "*.java",
+		projectPath + sep + "main" + sep + "**" + sep + "*.java",
 	}
 
 	for _, pattern := range patterns {

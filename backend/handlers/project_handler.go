@@ -40,7 +40,7 @@ func NewProjectHandler(
 }
 
 // ListFiles delegates to projectService
-func (h *ProjectHandler) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
+func (h *ProjectHandler) ListFiles(dirPath string, useGitignore, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	return h.projectService.ListFiles(dirPath, useGitignore, useCustomIgnore)
 }
 

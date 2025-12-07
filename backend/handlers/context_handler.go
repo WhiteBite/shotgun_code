@@ -74,7 +74,7 @@ func (h *ContextHandler) BuildContext(ctx context.Context, projectPath string, i
 }
 
 // GetContextContent returns paginated context content (memory-safe)
-func (h *ContextHandler) GetContextContent(ctx context.Context, contextID string, startLine int, lineCount int) (string, error) {
+func (h *ContextHandler) GetContextContent(ctx context.Context, contextID string, startLine, lineCount int) (string, error) {
 	if h.contextService == nil {
 		return "", fmt.Errorf("context service not available")
 	}
