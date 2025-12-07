@@ -484,6 +484,9 @@ const translations = {
         'callGraph.affectedFunctions': 'Затронутые функции',
         'callGraph.depth': 'Глубина',
         'callGraph.path': 'Путь',
+        'callGraph.zoomIn': 'Увеличить',
+        'callGraph.zoomOut': 'Уменьшить',
+        'callGraph.reset': 'Сбросить',
 
         // Git Context Tools (Phase 5)
         'gitContext.title': 'Git контекст',
@@ -1033,6 +1036,9 @@ const translations = {
         'callGraph.affectedFunctions': 'Affected functions',
         'callGraph.depth': 'Depth',
         'callGraph.path': 'Path',
+        'callGraph.zoomIn': 'Zoom In',
+        'callGraph.zoomOut': 'Zoom Out',
+        'callGraph.reset': 'Reset',
 
         // Git Context Tools (Phase 5)
         'gitContext.title': 'Git Context',
