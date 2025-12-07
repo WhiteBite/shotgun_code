@@ -35,7 +35,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
-      '@tests': resolve(__dirname, './tests')
+      '@tests': resolve(__dirname, './tests'),
+      '#wailsjs': resolve(__dirname, './tests/mocks/wailsjs'),
+      '../../wailsjs': resolve(__dirname, './tests/mocks/wailsjs'),
+      '../wailsjs': resolve(__dirname, './tests/mocks/wailsjs'),
+      '../../../wailsjs': resolve(__dirname, './tests/mocks/wailsjs')
     }
   }
 })
