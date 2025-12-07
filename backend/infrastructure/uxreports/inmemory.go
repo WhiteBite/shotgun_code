@@ -68,7 +68,7 @@ func (r *InMemoryUXReportRepository) SaveReport(report *domain.UXReport) error {
 // evictOldestReport удаляет самый старый отчет
 func (r *InMemoryUXReportRepository) evictOldestReport() {
 	var oldestID string
-	var oldestTime time.Time = time.Now()
+	oldestTime := time.Now()
 
 	for id, createdTime := range r.createdAt {
 		if createdTime.Before(oldestTime) {

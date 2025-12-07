@@ -242,7 +242,7 @@ func (b *GoSymbolGraphBuilder) getVisibility(name string) domain.Visibility {
 	}
 
 	// В Go: заглавная буква = публичный, строчная = приватный
-	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' {
+	if name != "" && name[0] >= 'A' && name[0] <= 'Z' {
 		return domain.VisibilityPublic
 	}
 	return domain.VisibilityPrivate
