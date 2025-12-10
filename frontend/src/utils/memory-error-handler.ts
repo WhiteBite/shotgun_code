@@ -2,7 +2,7 @@
  * Error handling utility specifically designed for memory issues and large context handling
  */
 
-import {useUIStore} from '@/stores/ui.store';
+import { useUIStore } from '@/stores/ui.store';
 
 export interface ErrorOptions {
   silent?: boolean;
@@ -13,13 +13,13 @@ export interface ErrorOptions {
 }
 
 export type ErrorCategory =
-    'memory' |     // Memory-related errors (OutOfMemory, heap limit, etc.)
-    'context' |    // Context building/processing errors
-    'file' |       // File-related errors (too large, can't read, etc.)
-    'network' |    // Network-related errors
-    'api' |        // API errors
-    'validation' | // Validation errors
-    'unknown';     // Uncategorized errors
+  'memory' |     // Memory-related errors (OutOfMemory, heap limit, etc.)
+  'context' |    // Context building/processing errors
+  'file' |       // File-related errors (too large, can't read, etc.)
+  'network' |    // Network-related errors
+  'api' |        // API errors
+  'validation' | // Validation errors
+  'unknown';     // Uncategorized errors
 
 export interface ErrorDetails {
   message: string;
@@ -85,7 +85,7 @@ export class MemoryErrorHandler {
     const errorObj = typeof error === 'string' ? new Error(error) : error;
     const category = this.categorizeError(errorObj);
 
-    let details: ErrorDetails = {
+    const details: ErrorDetails = {
       message: errorObj.message,
       category,
       recoverable: options.recoverable !== false,
@@ -100,8 +100,8 @@ export class MemoryErrorHandler {
 
         if (options.showNotification !== false) {
           uiStore.addToast(
-              `Memory error: ${errorObj.message}. ${details.suggestion}`,
-              'error'
+            `Memory error: ${errorObj.message}. ${details.suggestion}`,
+            'error'
           );
         }
 
@@ -115,8 +115,8 @@ export class MemoryErrorHandler {
 
         if (options.showNotification !== false) {
           uiStore.addToast(
-              `Context error: ${errorObj.message}. ${details.suggestion}`,
-              'error'
+            `Context error: ${errorObj.message}. ${details.suggestion}`,
+            'error'
           );
         }
         break;
@@ -127,8 +127,8 @@ export class MemoryErrorHandler {
 
         if (options.showNotification !== false && !options.silent) {
           uiStore.addToast(
-              `An error occurred: ${errorObj.message}`,
-              'error'
+            `An error occurred: ${errorObj.message}`,
+            'error'
           );
         }
     }
@@ -185,7 +185,7 @@ export class MemoryErrorHandler {
 
       // Only handle memory and context errors globally
       if (category === 'memory' || category === 'context') {
-        this.handle(error, {silent: true});
+        this.handle(error, { silent: true });
 
         // For memory errors, we can try to recover
         if (category === 'memory') {
@@ -201,7 +201,7 @@ export class MemoryErrorHandler {
 
       // Only handle memory and context errors globally
       if (category === 'memory' || category === 'context') {
-        this.handle(error, {silent: true});
+        this.handle(error, { silent: true });
       }
     });
   }

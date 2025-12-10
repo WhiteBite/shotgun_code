@@ -56,6 +56,10 @@ func (m *MockTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 	return args.Get(0).([]*domain.FileNode), args.Error(1)
 }
 
+func (m *MockTreeBuilder) InvalidateCache() {
+	m.Called()
+}
+
 // Mock GitRepository for testing
 type MockGitRepository struct {
 	mock.Mock

@@ -61,6 +61,10 @@ func (m *mockTreeBuilder) BuildTree(dirPath string, useGitignore bool, useCustom
 	return nodes, nil
 }
 
+func (m *mockTreeBuilder) InvalidateCache() {
+	// No-op for benchmark mock
+}
+
 // Mock GitRepository for benchmarking
 type mockGitRepository struct {
 	delayMs int

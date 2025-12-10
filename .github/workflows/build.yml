@@ -28,7 +28,7 @@ jobs:
             build_name: shotgun-code-linux-amd64
             artifact_name: shotgun_code-linux-amd64
             package: false
-            artifact_path: build/bin/shotgun-code-linux-amd64
+            artifact_path: backend/build/bin/shotgun-code-linux-amd64
 
           # ────────── Windows ──────────
           - os: windows-latest
@@ -36,15 +36,15 @@ jobs:
             build_name: shotgun-code-windows-amd64.exe
             artifact_name: shotgun_code-windows-amd64
             package: false
-            artifact_path: build/bin/shotgun-code-windows-amd64.exe
+            artifact_path: backend/build/bin/shotgun-code-windows-amd64.exe
 
           # ─────────── macOS ───────────
           - os: macos-latest
             platform: darwin/arm64
-            build_name: shotgun-code # .app
+            build_name: ShotgunWB
             artifact_name: shotgun_code-darwin-arm64
-            package: true
-            artifact_path: build/bin/shotgun-code.app.zip
+            package: false
+            artifact_path: backend/build/bin/ShotgunWB.app.zip
 
     runs-on: ${{ matrix.os }}
 
@@ -119,7 +119,13 @@ jobs:
           build-platform: ${{ matrix.platform }}
           go-version: "1.24"
           package: ${{ matrix.package }}
-          ldflags: "-X shotgun_code/infrastructure/version.Version=${{ steps.version.outputs.version }} -X shotgun_code/infrastructure/version.GitCommit=${{ steps.version.outputs.commit }} -X shotgun_code/infrastructure/version.BuildDate=${{ steps.version.outputs.date }}"
+          app-working-directory: backend
+
+      - name: Package macOS app
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd backend/build/bin
+          zip -r ShotgunWB.app.zip ShotgunWB.app
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4

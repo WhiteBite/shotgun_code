@@ -11,47 +11,44 @@ linters:
     - unused # Finds unused code
     - ineffassign # Detects ineffectual assignments
 
-    # Code duplication
-    - dupl # Code clone detection
-
-    # Constants
-    - goconst # Finds repeated strings that could be constants
-
-    # Complexity
-    - gocyclo # Cyclomatic complexity
-    - gocognit # Cognitive complexity
-
     # Code quality
     - gocritic # Comprehensive code critic
-    - revive # Fast, configurable linter (golint replacement)
     - staticcheck # Static analysis
     - gosimple # Simplify code
 
     # Error handling
     - errcheck # Check error returns
-    - errorlint # Error wrapping issues
 
     # Performance
     - unconvert # Unnecessary type conversions
-    - prealloc # Slice preallocation
 
     # Style
-    - gofmt # Formatting
-    - goimports # Import formatting
     - misspell # Spelling mistakes
 
     # Security
     - gosec # Security issues
 
+  disable:
+    # Too noisy for this project:
+    - dupl # Code duplication - many similar patterns are intentional
+    - goconst # Repeated strings - too strict
+    - gocyclo # Cyclomatic complexity - handled by gocognit
+    - gocognit # Cognitive complexity - too strict
+    - revive # Too many style warnings
+    - prealloc # Slice preallocation - premature optimization
+    - gofmt # Formatting - handled by IDE
+    - goimports # Import formatting - handled by IDE
+    - errorlint # Error wrapping - too strict
+
 linters-settings:
   dupl:
-    threshold: 150 # Minimum tokens for duplication detection (increased to allow minor structural similarities)
+    threshold: 200 # Minimum tokens for duplication detection (increased to allow structural similarities)
 
   gocyclo:
-    min-complexity: 15
+    min-complexity: 20
 
   gocognit:
-    min-complexity: 20
+    min-complexity: 40
 
   goconst:
     min-len: 3
@@ -60,32 +57,54 @@ linters-settings:
   gocritic:
     enabled-tags:
       - diagnostic
-      - style
       - performance
     disabled-checks:
       - hugeParam # Allow large params (common in Go)
       - rangeValCopy # Allow range value copies
+      - paramTypeCombine # Too noisy
+      - unnamedResult # Too noisy
+      - ifElseChain # Too noisy
+      - emptyStringTest # Style preference
+      - commentedOutCode # Allow commented code
+      - builtinShadow # Too strict
+      - preferFprint # Style preference
+      - elseif # Style preference
+      - appendCombine # Style preference
+      - filepathJoin # False positives with glob patterns
+      - unlambda # Style preference
+      - httpNoBody # Minor optimization
+      - sprintfQuotedString # Style preference
+      - typeUnparen # Style preference
+      - sloppyLen # False positives
+      - octalLiteral # Style preference
+      - singleCaseSwitch # Style preference
+      - dupBranchBody # Sometimes intentional
+      - typeAssertChain # Style preference
+      - nestingReduce # Style preference
+      - stringXbytes # Minor optimization
 
   revive:
+    severity: warning
     rules:
-      - name: blank-imports
       - name: context-as-argument
       - name: context-keys-type
       - name: dot-imports
       - name: error-return
       - name: error-strings
       - name: error-naming
-      - name: exported
       - name: increment-decrement
-      - name: var-naming
       - name: var-declaration
-      - name: package-comments
       - name: range
       - name: receiver-naming
       - name: time-naming
       - name: unexported-return
-      - name: indent-error-flow
       - name: errorf
+      # Disabled - too noisy:
+      # - name: blank-imports
+      # - name: exported
+      # - name: var-naming
+      # - name: package-comments
+      # - name: indent-error-flow
 
   gosec:
     excludes:

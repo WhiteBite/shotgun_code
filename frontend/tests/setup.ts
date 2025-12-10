@@ -1,11 +1,10 @@
-import { afterEach, beforeEach } from 'vitest'
-import { config, mount } from '@vue/test-utils'
-import { vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, vi } from 'vitest'
 
 // Настройка глобальных моков для Wails API
 beforeEach(() => {
   // Создание мока для window.go
- Object.defineProperty(window, 'go', {
+  Object.defineProperty(window, 'go', {
     value: {
       main: {
         App: {
@@ -33,7 +32,7 @@ beforeEach(() => {
 
 afterEach(() => {
   // Очистка моков после каждого теста
- if (window.go?.main?.App) {
+  if (window.go?.main?.App) {
     Object.keys(window.go.main.App).forEach(key => {
       if (typeof window.go.main.App[key] === 'function' && window.go.main.App[key]._isMockFunction) {
         window.go.main.App[key].mockClear()
@@ -44,7 +43,7 @@ afterEach(() => {
 
 // Глобальные утилиты для тестирования
 export const createWrapper = (component: any, options?: any) => {
- return mount(component, options)
+  return mount(component, options)
 }
 
 export const mockApiService = {
