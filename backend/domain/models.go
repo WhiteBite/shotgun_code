@@ -138,6 +138,15 @@ type ContextBuildOptions struct {
 	SplitStrategy        string `json:"splitStrategy"`
 	ForceStream          bool   `json:"forceStream"`
 	EnableProgressEvents bool   `json:"enableProgressEvents"`
+	OutputFormat         string `json:"outputFormat"` // markdown, xml, json, plain
+
+	// Content optimization options
+	ExcludeTests       bool `json:"excludeTests"`       // Исключать тестовые файлы из контекста
+	CollapseEmptyLines bool `json:"collapseEmptyLines"` // Схлопывать множественные пустые строки
+	StripLicense       bool `json:"stripLicense"`       // Удалять лицензионные заголовки
+	CompactDataFiles   bool `json:"compactDataFiles"`   // Сжимать JSON/YAML файлы
+	SkeletonMode       bool `json:"skeletonMode"`       // Генерировать только скелет кода (AST-based)
+	TrimWhitespace     bool `json:"trimWhitespace"`     // Удалять trailing whitespace
 }
 
 // Context представляет контекст проекта

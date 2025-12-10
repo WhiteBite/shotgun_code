@@ -1,7 +1,7 @@
+import { useFileStore } from '@/features/files'
+import { apiService } from '@/services/api.service'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { apiService } from '@/services/api.service'
-import { useFileStore } from '@/features/files'
 
 export interface TaskDraft {
     description: string
@@ -32,7 +32,7 @@ export const useTaskStore = defineStore('task', () => {
 
     // Auto-save to localStorage
     let saveTimeout: number | null = null
-    watch(taskDescription, (value) => {
+    watch(taskDescription, () => {
         if (saveTimeout) clearTimeout(saveTimeout)
         saveTimeout = setTimeout(() => {
             saveTaskDraft()

@@ -127,7 +127,7 @@ try {
 
 /* Sliding Indicator */
 .tabs-indicator {
-  @apply absolute top-2 bottom-2 rounded-lg;
+  @apply absolute top-2 bottom-2 rounded-xl;
   width: calc(33.333% - 8px);
   left: 8px;
   transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -157,7 +157,7 @@ try {
 
 .sidebar-tab {
   @apply flex-1 flex items-center justify-center gap-2;
-  @apply px-3 py-2 text-sm font-medium rounded-lg;
+  @apply px-3 py-2 text-sm font-medium rounded-xl;
   @apply relative z-10;
   color: var(--text-muted);
   transition: color 150ms ease-out, transform 100ms ease-out;

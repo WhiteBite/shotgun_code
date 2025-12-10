@@ -48,6 +48,12 @@ func (s *Service) ListFiles(dirPath string, useGitignore bool, useCustomIgnore b
 	return nodes, nil
 }
 
+// InvalidateCache clears the file tree cache
+func (s *Service) InvalidateCache() {
+	s.log.Info("Invalidating file tree cache")
+	s.treeBuilder.InvalidateCache()
+}
+
 // GetUncommittedFiles returns all uncommitted files in the git repository
 func (s *Service) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	s.log.Info("Getting uncommitted files for: " + projectRoot)

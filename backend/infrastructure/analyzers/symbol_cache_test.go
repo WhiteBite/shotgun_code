@@ -2,6 +2,7 @@ package analyzers
 
 import (
 	"context"
+	"os"
 	"shotgun_code/domain/analysis"
 	"testing"
 )
@@ -184,4 +185,160 @@ func World() {}
 	if len(symbols) < 2 {
 		t.Errorf("expected at least 2 symbols, got %d", len(symbols))
 	}
+}
+
+func TestCachedSymbolIndex_OnFileChanged(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	cacheDir := tmpDir + "/cache"
+
+	registry := NewAnalyzerRegistry()
+	idx, err := NewCachedSymbolIndex(registry, cacheDir)
+	if err != nil {
+		t.Fatalf("Failed to create cached index: %v", err)
+	}
+	defer idx.Close()
+
+	// Create a test Go file
+	testFile := tmpDir + "/test.go"
+	content := []byte(`package main
+
+func Original() {}
+`)
+	if err := writeSymbolTestFile(testFile, content); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	// Index the file
+	ctx := context.Background()
+	err = idx.OnFileChanged(ctx, testFile, tmpDir)
+	if err != nil {
+		t.Fatalf("OnFileChanged failed: %v", err)
+	}
+
+	// Verify symbol was indexed
+	symbols := idx.SearchByName("Original")
+	if len(symbols) != 1 {
+		t.Errorf("Expected 1 symbol after initial index, got %d", len(symbols))
+	}
+
+	// Modify the file
+	newContent := []byte(`package main
+
+func Modified() {}
+func Another() {}
+`)
+	if err := writeSymbolTestFile(testFile, newContent); err != nil {
+		t.Fatalf("Failed to write modified file: %v", err)
+	}
+
+	// Re-index
+	err = idx.OnFileChanged(ctx, testFile, tmpDir)
+	if err != nil {
+		t.Fatalf("OnFileChanged after modification failed: %v", err)
+	}
+
+	// Verify old symbol is gone
+	symbols = idx.SearchByName("Original")
+	if len(symbols) != 0 {
+		t.Errorf("Expected 0 symbols for 'Original' after modification, got %d", len(symbols))
+	}
+
+	// Verify new symbols exist
+	symbols = idx.SearchByName("Modified")
+	if len(symbols) != 1 {
+		t.Errorf("Expected 1 symbol for 'Modified', got %d", len(symbols))
+	}
+}
+
+func TestCachedSymbolIndex_OnFileDeleted(t *testing.T) {
+	tmpDir := t.TempDir()
+	cacheDir := tmpDir + "/cache"
+
+	registry := NewAnalyzerRegistry()
+	idx, err := NewCachedSymbolIndex(registry, cacheDir)
+	if err != nil {
+		t.Fatalf("Failed to create cached index: %v", err)
+	}
+	defer idx.Close()
+
+	// Create and index a test file
+	testFile := tmpDir + "/delete_me.go"
+	content := []byte(`package main
+
+func ToBeDeleted() {}
+`)
+	if err := writeSymbolTestFile(testFile, content); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+	err = idx.OnFileChanged(ctx, testFile, tmpDir)
+	if err != nil {
+		t.Fatalf("OnFileChanged failed: %v", err)
+	}
+
+	// Verify symbol exists
+	symbols := idx.SearchByName("ToBeDeleted")
+	if len(symbols) != 1 {
+		t.Errorf("Expected 1 symbol before deletion, got %d", len(symbols))
+	}
+
+	// Delete the file and notify
+	idx.OnFileDeleted(testFile, tmpDir)
+
+	// Verify symbol is removed
+	symbols = idx.SearchByName("ToBeDeleted")
+	if len(symbols) != 0 {
+		t.Errorf("Expected 0 symbols after deletion, got %d", len(symbols))
+	}
+}
+
+func TestCachedSymbolIndex_OnFileChanged_NoReindexIfUnchanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	cacheDir := tmpDir + "/cache"
+
+	registry := NewAnalyzerRegistry()
+	idx, err := NewCachedSymbolIndex(registry, cacheDir)
+	if err != nil {
+		t.Fatalf("Failed to create cached index: %v", err)
+	}
+	defer idx.Close()
+
+	// Create a test file
+	testFile := tmpDir + "/unchanged.go"
+	content := []byte(`package main
+
+func Unchanged() {}
+`)
+	if err := writeSymbolTestFile(testFile, content); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Index first time
+	err = idx.OnFileChanged(ctx, testFile, tmpDir)
+	if err != nil {
+		t.Fatalf("First OnFileChanged failed: %v", err)
+	}
+
+	// Get initial stats
+	stats1 := idx.GetCacheStats()
+
+	// Call OnFileChanged again without modifying file
+	err = idx.OnFileChanged(ctx, testFile, tmpDir)
+	if err != nil {
+		t.Fatalf("Second OnFileChanged failed: %v", err)
+	}
+
+	// Stats should be the same (no reindex)
+	stats2 := idx.GetCacheStats()
+	if stats1["cached_files"] != stats2["cached_files"] {
+		t.Error("File count changed even though file was not modified")
+	}
+}
+
+func writeSymbolTestFile(path string, content []byte) error {
+	return os.WriteFile(path, content, 0644)
 }

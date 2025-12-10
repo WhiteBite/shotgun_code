@@ -11,6 +11,12 @@ export class ContextApi {
             return await apiService.buildContextFromRequest(projectPath, files, options)
         } catch (error) {
             console.error('[ContextApi] Failed to build context:', error)
+
+            // Re-throw token limit errors with info preserved
+            if (error instanceof Error && error.message === 'TOKEN_LIMIT_EXCEEDED') {
+                throw error
+            }
+
             throw new Error('Failed to build context. Please check your file selection.')
         }
     }

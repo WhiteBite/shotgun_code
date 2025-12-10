@@ -106,6 +106,11 @@ func (b *fileTreeBuilder) processEntry(path string, d fs.DirEntry, err error, di
 		return nil
 	}
 
+	// Always skip .git directory (not in .gitignore but should be ignored)
+	if d.IsDir() && d.Name() == ".git" {
+		return fs.SkipDir
+	}
+
 	relPath, _ := filepath.Rel(dirPath, path)
 	isGi, isCi := b.checkIgnored(relPath, d.IsDir(), gi, ci)
 

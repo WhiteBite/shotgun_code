@@ -184,6 +184,7 @@ const cleanupIntervalRef = ref<number | null>(null)
 
 onMounted(async () => {
   // Start memory monitoring FIRST (before any heavy operations)
+  // In dev mode, monitoring is automatically throttled
   memoryMonitor.startMonitoring()
   
   // Register critical memory callback to show dashboard
@@ -198,28 +199,31 @@ onMounted(async () => {
   // This will only work if recent projects are already loaded from localStorage
   projectStore.maybeAutoOpenLastProject()
   
-  // Periodic cleanup every 10 minutes (now optimized)
-  cleanupIntervalRef.value = window.setInterval(async () => {
-    console.log('[App] Running periodic cleanup...')
-    
-    // Clear old caches
-    try {
-      const { clearAllCaches, getCacheStats } = await import('@/composables/useApiCache')
-      const stats = getCacheStats()
-      if (stats.size > stats.maxSize * 0.5) {
-        clearAllCaches()
-        console.log('[App] Cleared API caches')
+  // Periodic cleanup - DISABLED in dev mode to prevent memory leaks from dynamic imports
+  // In dev mode, Vite's HMR + dynamic imports can cause memory accumulation
+  if (!import.meta.env.DEV) {
+    cleanupIntervalRef.value = window.setInterval(async () => {
+      console.log('[App] Running periodic cleanup...')
+      
+      // Clear old caches
+      try {
+        const { clearAllCaches, getCacheStats } = await import('@/composables/useApiCache')
+        const stats = getCacheStats()
+        if (stats.size > stats.maxSize * 0.5) {
+          clearAllCaches()
+          console.log('[App] Cleared API caches')
+        }
+      } catch (e) {
+        console.warn('Could not clear API caches:', e)
       }
-    } catch (e) {
-      console.warn('Could not clear API caches:', e)
-    }
-    
-    // Check memory stats
-    const memStats = await memoryMonitor.getMemoryStats()
-    if (memStats) {
-      console.log(`[App] Memory: ${memStats.used}MB / ${memStats.total}MB (${memStats.percentage}%)`)
-    }
-  }, 10 * 60 * 1000) // Every 10 minutes
+      
+      // Check memory stats
+      const memStats = await memoryMonitor.getMemoryStats()
+      if (memStats) {
+        console.log(`[App] Memory: ${memStats.used}MB / ${memStats.total}MB (${memStats.percentage}%)`)
+      }
+    }, 10 * 60 * 1000) // Every 10 minutes
+  }
 })
 
 onUnmounted(() => {

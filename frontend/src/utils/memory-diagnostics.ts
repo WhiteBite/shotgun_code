@@ -71,6 +71,7 @@ class MemoryDiagnostics {
     private startTime: Date = new Date()
     private isCollecting = false
     private collectionInterval: number | null = null
+    private isDevMode = import.meta.env.DEV
 
     private constructor() { }
 
@@ -83,6 +84,7 @@ class MemoryDiagnostics {
 
     /**
      * Start automatic diagnostics collection
+     * In dev mode, use longer intervals to reduce memory overhead from dynamic imports
      */
     public startCollection(intervalMs: number = 10000): void {
         if (this.isCollecting) return
@@ -92,7 +94,10 @@ class MemoryDiagnostics {
         this.snapshots = []
         this.issues = []
 
-        console.log('[MemoryDiagnostics] Started collection')
+        // In dev mode, use much longer interval to reduce overhead
+        const actualInterval = this.isDevMode ? Math.max(intervalMs, 60000) : intervalMs
+
+        console.log(`[MemoryDiagnostics] Started collection (interval: ${actualInterval}ms, dev: ${this.isDevMode})`)
 
         // Collect initial snapshot
         void this.collectSnapshot()
@@ -102,7 +107,7 @@ class MemoryDiagnostics {
             void this.collectSnapshot().then(() => {
                 this.analyzeSnapshots()
             })
-        }, intervalMs)
+        }, actualInterval)
     }
 
     /**
@@ -155,8 +160,16 @@ class MemoryDiagnostics {
         return { used, total, percentage }
     }
 
+    // Cache store imports to avoid repeated dynamic imports causing memory leaks
+    private storeImportsCache: {
+        useFileStore?: any;
+        useContextStore?: any;
+        getCacheStats?: any;
+    } = {};
+
     /**
      * Get store statistics
+     * In dev mode, skip to reduce dynamic import overhead
      */
     private async getStoreStats(): Promise<DiagnosticSnapshot['stores']> {
         const stats: DiagnosticSnapshot['stores'] = {
@@ -184,11 +197,27 @@ class MemoryDiagnostics {
             }
         }
 
-        try {
-            // File Store
-            const { useFileStore } = await import('@/features/files/model/file.store')
-            const fileStore = useFileStore()
+        // Skip detailed store stats in dev mode to prevent memory leaks from dynamic imports
+        if (this.isDevMode) {
+            return stats
+        }
 
+        try {
+            // Cache imports to avoid repeated dynamic imports
+            if (!this.storeImportsCache.useFileStore) {
+                const { useFileStore } = await import('@/features/files/model/file.store')
+                this.storeImportsCache.useFileStore = useFileStore
+            }
+            if (!this.storeImportsCache.useContextStore) {
+                const { useContextStore } = await import('@/features/context/model/context.store')
+                this.storeImportsCache.useContextStore = useContextStore
+            }
+            if (!this.storeImportsCache.getCacheStats) {
+                const { getCacheStats } = await import('@/composables/useApiCache')
+                this.storeImportsCache.getCacheStats = getCacheStats
+            }
+
+            const fileStore = this.storeImportsCache.useFileStore()
             stats.fileStore = {
                 nodesCount: fileStore.nodes?.length || 0,
                 selectedCount: fileStore.selectedCount || 0,
@@ -197,10 +226,7 @@ class MemoryDiagnostics {
                 filterExtensionsCount: fileStore.filterExtensions?.length || 0
             }
 
-            // Context Store
-            const { useContextStore } = await import('@/features/context/model/context.store')
-            const contextStore = useContextStore()
-
+            const contextStore = this.storeImportsCache.useContextStore()
             stats.contextStore = {
                 hasContext: contextStore.hasContext || false,
                 fileCount: contextStore.fileCount || 0,
@@ -209,10 +235,7 @@ class MemoryDiagnostics {
                 cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0
             }
 
-            // API Cache
-            const { getCacheStats } = await import('@/composables/useApiCache')
-            const cacheStats = getCacheStats()
-
+            const cacheStats = this.storeImportsCache.getCacheStats()
             stats.apiCache = {
                 entries: cacheStats.entries || 0,
                 size: cacheStats.size || 0,

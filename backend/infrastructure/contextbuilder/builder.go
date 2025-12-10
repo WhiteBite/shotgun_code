@@ -169,7 +169,111 @@ func buildJSONFormat(entries []entry, opts BuildOptions) (string, error) {
 	return string(raw), nil
 }
 
-// BuildFromContext — собирает строку по формату: "plain" | "manifest" | "json"
+// getLanguageFromPath returns the language identifier for syntax highlighting based on file extension
+func getLanguageFromPath(path string) string {
+	ext := strings.ToLower(path)
+	if idx := strings.LastIndex(ext, "."); idx >= 0 {
+		ext = ext[idx+1:]
+	} else {
+		return ""
+	}
+
+	langMap := map[string]string{
+		"go":         "go",
+		"js":         "javascript",
+		"ts":         "typescript",
+		"jsx":        "jsx",
+		"tsx":        "tsx",
+		"py":         "python",
+		"rb":         "ruby",
+		"java":       "java",
+		"kt":         "kotlin",
+		"cs":         "csharp",
+		"cpp":        "cpp",
+		"c":          "c",
+		"h":          "c",
+		"hpp":        "cpp",
+		"rs":         "rust",
+		"swift":      "swift",
+		"php":        "php",
+		"vue":        "vue",
+		"svelte":     "svelte",
+		"html":       "html",
+		"css":        "css",
+		"scss":       "scss",
+		"sass":       "sass",
+		"less":       "less",
+		"json":       "json",
+		"yaml":       "yaml",
+		"yml":        "yaml",
+		"xml":        "xml",
+		"sql":        "sql",
+		"sh":         "bash",
+		"bash":       "bash",
+		"zsh":        "bash",
+		"ps1":        "powershell",
+		"md":         "markdown",
+		"dart":       "dart",
+		"lua":        "lua",
+		"r":          "r",
+		"scala":      "scala",
+		"groovy":     "groovy",
+		"gradle":     "groovy",
+		"tf":         "hcl",
+		"hcl":        "hcl",
+		"dockerfile": "dockerfile",
+		"makefile":   "makefile",
+	}
+
+	if lang, ok := langMap[ext]; ok {
+		return lang
+	}
+	return ext
+}
+
+// buildMarkdownFormat builds markdown format output with code blocks
+func buildMarkdownFormat(entries []entry, opts BuildOptions) string {
+	var b strings.Builder
+	for _, e := range entries {
+		content := e.Content
+		if opts.StripComments {
+			content = stripComments(content)
+		}
+		lang := getLanguageFromPath(e.Path)
+		b.WriteString("## File: " + e.Path + "\n\n")
+		b.WriteString("```" + lang + "\n")
+		b.WriteString(content)
+		if !strings.HasSuffix(content, "\n") {
+			b.WriteString("\n")
+		}
+		b.WriteString("```\n\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// buildXMLFormat builds XML format output
+func buildXMLFormat(entries []entry, opts BuildOptions) string {
+	var b strings.Builder
+	b.WriteString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+	b.WriteString("<files>\n")
+	for _, e := range entries {
+		content := e.Content
+		if opts.StripComments {
+			content = stripComments(content)
+		}
+		// Escape XML special characters
+		content = strings.ReplaceAll(content, "&", "&amp;")
+		content = strings.ReplaceAll(content, "<", "&lt;")
+		content = strings.ReplaceAll(content, ">", "&gt;")
+		b.WriteString("  <file path=\"" + e.Path + "\">\n")
+		b.WriteString("    <content><![CDATA[" + content + "]]></content>\n")
+		b.WriteString("  </file>\n")
+	}
+	b.WriteString("</files>")
+	return b.String()
+}
+
+// BuildFromContext — собирает строку по формату: "plain" | "manifest" | "json" | "markdown" | "xml"
 func BuildFromContext(format string, ctx string, opts BuildOptions) (string, error) {
 	entries := parseContext(ctx)
 
@@ -180,6 +284,10 @@ func BuildFromContext(format string, ctx string, opts BuildOptions) (string, err
 		return buildManifestFormat(entries, opts), nil
 	case "json":
 		return buildJSONFormat(entries, opts)
+	case "markdown":
+		return buildMarkdownFormat(entries, opts), nil
+	case "xml":
+		return buildXMLFormat(entries, opts), nil
 	default:
 		return BuildFromContext("manifest", ctx, opts)
 	}

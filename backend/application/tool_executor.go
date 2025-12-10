@@ -11,15 +11,34 @@ import (
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
 	"shotgun_code/infrastructure/analyzers"
+	"shotgun_code/infrastructure/git"
 	"strings"
 )
 
 // ToolExecutorImpl implements the ToolExecutor interface
 type ToolExecutorImpl struct {
-	logger      domain.Logger
-	fileReader  domain.FileContentReader
-	registry    analysis.AnalyzerRegistry
-	symbolIndex analysis.SymbolIndex
+	logger                  domain.Logger
+	fileReader              domain.FileContentReader
+	registry                analysis.AnalyzerRegistry
+	symbolIndex             analysis.SymbolIndex
+	callGraph               *analyzers.CallGraphBuilderImpl
+	gitContext              *git.ContextBuilder
+	contextMemory           domain.ContextMemory
+	hasSemanticSearch       bool // flag indicating if semantic search is available
+	semanticSearcherService SemanticSearcher
+}
+
+// SemanticSearcher interface for semantic search service
+type SemanticSearcher interface {
+	Search(query string, limit int) ([]SemanticSearchResult, error)
+}
+
+// SemanticSearchResult represents a semantic search result
+type SemanticSearchResult struct {
+	FilePath string
+	Score    float64
+	Snippet  string
+	Line     int
 }
 
 // NewToolExecutor creates a new ToolExecutor
@@ -30,7 +49,24 @@ func NewToolExecutor(logger domain.Logger, fileReader domain.FileContentReader) 
 		fileReader:  fileReader,
 		registry:    registry,
 		symbolIndex: analyzers.NewSymbolIndex(registry),
+		callGraph:   analyzers.NewCallGraphBuilder(registry),
 	}
+}
+
+// SetGitContext sets the git context builder for git-related tools
+func (te *ToolExecutorImpl) SetGitContext(projectRoot string) {
+	te.gitContext = git.NewContextBuilder(projectRoot)
+}
+
+// SetContextMemory sets the context memory for memory-related tools
+func (te *ToolExecutorImpl) SetContextMemory(cm domain.ContextMemory) {
+	te.contextMemory = cm
+}
+
+// SetSemanticSearch sets the semantic search service
+func (te *ToolExecutorImpl) SetSemanticSearch(ss SemanticSearcher) {
+	te.semanticSearcherService = ss
+	te.hasSemanticSearch = ss != nil
 }
 
 // GetAvailableTools returns all available tools
@@ -285,6 +321,104 @@ func (te *ToolExecutorImpl) GetAvailableTools() []domain.Tool {
 				Required: []string{"name"},
 			},
 		},
+		{
+			Name:        "get_symbol_info",
+			Description: "Get detailed information about a symbol including signature, documentation, modifiers, parent class/interface, and source code.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"name": {
+						Type:        "string",
+						Description: "Symbol name to get info for",
+					},
+					"kind": {
+						Type:        "string",
+						Description: "Symbol kind: class, function, interface, type, method (optional)",
+					},
+					"file_path": {
+						Type:        "string",
+						Description: "File path to narrow search (optional)",
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		{
+			Name:        "get_class_hierarchy",
+			Description: "Get class inheritance hierarchy - parent classes, implemented interfaces, and subclasses. Works for Java, Kotlin, Dart, TypeScript.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"class_name": {
+						Type:        "string",
+						Description: "Class name to analyze",
+					},
+					"direction": {
+						Type:        "string",
+						Description: "Direction: 'up' (ancestors), 'down' (descendants), 'both' (default: both)",
+					},
+				},
+				Required: []string{"class_name"},
+			},
+		},
+		{
+			Name:        "get_widget_tree",
+			Description: "Get Flutter widget tree structure from a Dart file. Shows widget hierarchy and their properties.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"file_path": {
+						Type:        "string",
+						Description: "Path to Dart file containing widgets",
+					},
+					"widget_name": {
+						Type:        "string",
+						Description: "Specific widget class name to analyze (optional, analyzes all if not specified)",
+					},
+				},
+				Required: []string{"file_path"},
+			},
+		},
+		{
+			Name:        "get_dependent_files",
+			Description: "Get all files that depend on or are depended by the specified file. Useful for understanding impact of changes.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"file_path": {
+						Type:        "string",
+						Description: "Path to the file",
+					},
+					"direction": {
+						Type:        "string",
+						Description: "Direction: 'imports' (files this file imports), 'importers' (files that import this), 'both' (default: both)",
+					},
+					"depth": {
+						Type:        "integer",
+						Description: "Depth of transitive dependencies (default: 1, max: 3)",
+					},
+				},
+				Required: []string{"file_path"},
+			},
+		},
+		{
+			Name:        "get_change_risk",
+			Description: "Estimate risk score for changing a file or function based on number of dependents, test coverage, and change frequency.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"file_path": {
+						Type:        "string",
+						Description: "Path to the file",
+					},
+					"function_name": {
+						Type:        "string",
+						Description: "Function name (optional, analyzes whole file if not specified)",
+					},
+				},
+				Required: []string{"file_path"},
+			},
+		},
 		// Project Structure Tools (Phase 6)
 		{
 			Name:        "detect_architecture",
@@ -346,6 +480,139 @@ func (te *ToolExecutorImpl) GetAvailableTools() []domain.Tool {
 				Required: []string{"path"},
 			},
 		},
+		// Call Graph Tools (Phase 3)
+		{
+			Name:        "get_callers",
+			Description: "Get functions that call the specified function",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"function_id": {Type: "string", Description: "Function identifier (e.g., 'pkg.FunctionName')"},
+				},
+				Required: []string{"function_id"},
+			},
+		},
+		{
+			Name:        "get_callees",
+			Description: "Get functions called by the specified function",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"function_id": {Type: "string", Description: "Function identifier (e.g., 'pkg.FunctionName')"},
+				},
+				Required: []string{"function_id"},
+			},
+		},
+		{
+			Name:        "get_impact",
+			Description: "Get all functions affected if the specified function changes",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"function_id": {Type: "string", Description: "Function identifier"},
+					"max_depth":   {Type: "integer", Description: "Maximum depth to search (default: 3)"},
+				},
+				Required: []string{"function_id"},
+			},
+		},
+		{
+			Name:        "get_call_chain",
+			Description: "Find call chain between two functions",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"start_function": {Type: "string", Description: "Starting function identifier"},
+					"end_function":   {Type: "string", Description: "Target function identifier"},
+					"max_depth":      {Type: "integer", Description: "Maximum depth (default: 5)"},
+				},
+				Required: []string{"start_function", "end_function"},
+			},
+		},
+		// Git Context Tools (Phase 5)
+		{
+			Name:        "git_changed_files",
+			Description: "Get recently changed files from git history",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"since":       {Type: "string", Description: "Time period (e.g., '1 week ago', '2024-01-01')"},
+					"path_filter": {Type: "string", Description: "Filter by path pattern"},
+				},
+			},
+		},
+		{
+			Name:        "git_co_changed",
+			Description: "Get files that are often changed together with the specified file",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"file_path": {Type: "string", Description: "Path to the file"},
+					"limit":     {Type: "integer", Description: "Maximum results (default: 10)"},
+				},
+				Required: []string{"file_path"},
+			},
+		},
+		{
+			Name:        "git_suggest_context",
+			Description: "Suggest files to include in context based on git history and task description",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"task":          {Type: "string", Description: "Task description"},
+					"current_files": {Type: "array", Description: "Currently selected files"},
+					"limit":         {Type: "integer", Description: "Maximum suggestions (default: 10)"},
+				},
+			},
+		},
+		// Memory Tools (Phase 7)
+		{
+			Name:        "save_context",
+			Description: "Save current context for later retrieval",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"topic":   {Type: "string", Description: "Topic/name for the context"},
+					"summary": {Type: "string", Description: "Brief summary"},
+					"files":   {Type: "array", Description: "List of file paths"},
+				},
+				Required: []string{"topic"},
+			},
+		},
+		{
+			Name:        "find_context",
+			Description: "Find saved contexts by topic",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"topic": {Type: "string", Description: "Topic to search for"},
+				},
+				Required: []string{"topic"},
+			},
+		},
+		{
+			Name:        "get_recent_contexts",
+			Description: "Get recently accessed contexts",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"limit": {Type: "integer", Description: "Maximum results (default: 10)"},
+				},
+			},
+		},
+		// Semantic Search Tool (Phase 4)
+		{
+			Name:        "semantic_search",
+			Description: "Search code by meaning/intent using AI embeddings. Use for conceptual queries like 'error handling code' or 'user authentication logic'.",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]domain.ToolProperty{
+					"query": {Type: "string", Description: "Natural language description of what you're looking for"},
+					"limit": {Type: "integer", Description: "Maximum results (default: 10)"},
+					"file_pattern": {Type: "string", Description: "Glob pattern to filter files (e.g., '*.go')"},
+				},
+				Required: []string{"query"},
+			},
+		},
 	}
 }
 
@@ -392,6 +659,21 @@ var toolHandlers = map[string]toolHandler{
 	"find_references": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
 		return te.findReferences(args, pr)
 	},
+	"get_symbol_info": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getSymbolInfo(args, pr)
+	},
+	"get_class_hierarchy": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getClassHierarchy(args, pr)
+	},
+	"get_widget_tree": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getWidgetTree(args, pr)
+	},
+	"get_dependent_files": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getDependentFiles(args, pr)
+	},
+	"get_change_risk": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
+		return te.getChangeRisk(args, pr)
+	},
 	"detect_architecture": func(te *ToolExecutorImpl, _ map[string]any, pr string) (string, error) {
 		return te.detectArchitecture(pr)
 	},
@@ -410,6 +692,21 @@ var toolHandlers = map[string]toolHandler{
 	"suggest_related_files": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) {
 		return te.suggestRelatedFiles(args, pr)
 	},
+	// Call Graph Tools (Phase 3)
+	"get_callers":    func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.getCallers(args, pr) },
+	"get_callees":    func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.getCallees(args, pr) },
+	"get_impact":     func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.getImpact(args, pr) },
+	"get_call_chain": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.getCallChain(args, pr) },
+	// Git Context Tools (Phase 5)
+	"git_changed_files":   func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.gitChangedFiles(args, pr) },
+	"git_co_changed":      func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.gitCoChanged(args, pr) },
+	"git_suggest_context": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.gitSuggestContext(args, pr) },
+	// Memory Tools (Phase 7)
+	"save_context":        func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.saveContext(args, pr) },
+	"find_context":        func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.findContext(args, pr) },
+	"get_recent_contexts": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.getRecentContexts(args, pr) },
+	// Semantic Search Tool (Phase 4)
+	"semantic_search": func(te *ToolExecutorImpl, args map[string]any, pr string) (string, error) { return te.doSemanticSearch(args, pr) },
 }
 
 // ExecuteTool executes a tool and returns the result
@@ -1283,6 +1580,416 @@ func (te *ToolExecutorImpl) findReferences(args map[string]any, projectRoot stri
 	return result.String(), nil
 }
 
+// getSymbolInfo returns detailed information about a symbol
+func (te *ToolExecutorImpl) getSymbolInfo(args map[string]any, projectRoot string) (string, error) {
+	name, _ := args["name"].(string)
+	kindFilter, _ := args["kind"].(string)
+	filePath, _ := args["file_path"].(string)
+
+	if name == "" {
+		return "", fmt.Errorf("name is required")
+	}
+
+	// Ensure index is built
+	if !te.symbolIndex.IsIndexed() {
+		te.logger.Info("Building symbol index...")
+		if err := te.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
+			return "", fmt.Errorf("failed to build index: %w", err)
+		}
+	}
+
+	// Find symbol
+	var kind analysis.SymbolKind
+	if kindFilter != "" {
+		kind = analysis.SymbolKind(kindFilter)
+	}
+
+	sym := te.symbolIndex.FindDefinition(name, kind)
+	if sym == nil {
+		// Try searching by name
+		results := te.symbolIndex.SearchByName(name)
+		if len(results) == 0 {
+			return fmt.Sprintf("No symbol found: '%s'", name), nil
+		}
+		// Filter by file path if provided
+		if filePath != "" {
+			for _, s := range results {
+				if s.FilePath == filePath {
+					sym = &s
+					break
+				}
+			}
+		}
+		if sym == nil {
+			sym = &results[0]
+		}
+	}
+
+	// Read source code
+	fullPath := filepath.Join(projectRoot, sym.FilePath)
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		content = nil // Continue without source
+	}
+
+	// Format output
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Symbol: %s\n", sym.Name))
+	result.WriteString(fmt.Sprintf("Kind: %s\n", sym.Kind))
+	result.WriteString(fmt.Sprintf("File: %s:%d\n", sym.FilePath, sym.StartLine))
+
+	if sym.Parent != "" {
+		result.WriteString(fmt.Sprintf("Parent: %s\n", sym.Parent))
+	}
+
+	if len(sym.Modifiers) > 0 {
+		result.WriteString(fmt.Sprintf("Modifiers: %s\n", strings.Join(sym.Modifiers, ", ")))
+	}
+
+	if sym.Signature != "" {
+		result.WriteString(fmt.Sprintf("\nSignature:\n  %s\n", sym.Signature))
+	}
+
+	if sym.DocComment != "" {
+		result.WriteString(fmt.Sprintf("\nDocumentation:\n  %s\n", sym.DocComment))
+	}
+
+	// Show children if any
+	if len(sym.Children) > 0 {
+		result.WriteString(fmt.Sprintf("\nMembers (%d):\n", len(sym.Children)))
+		for _, child := range sym.Children {
+			result.WriteString(fmt.Sprintf("  [%s] %s", child.Kind, child.Name))
+			if child.Signature != "" {
+				result.WriteString(fmt.Sprintf(" - %s", child.Signature))
+			}
+			result.WriteString("\n")
+		}
+	}
+
+	// Show source code
+	if content != nil && sym.StartLine > 0 {
+		lines := strings.Split(string(content), "\n")
+		startLine := sym.StartLine - 1
+		endLine := sym.EndLine
+		if endLine == 0 || endLine > len(lines) {
+			endLine = startLine + 15
+		}
+		if endLine > len(lines) {
+			endLine = len(lines)
+		}
+
+		result.WriteString(fmt.Sprintf("\nSource (lines %d-%d):\n", sym.StartLine, endLine))
+		for i := startLine; i < endLine; i++ {
+			result.WriteString(fmt.Sprintf("%4d | %s\n", i+1, lines[i]))
+		}
+	}
+
+	return result.String(), nil
+}
+
+// getClassHierarchy returns class inheritance hierarchy
+func (te *ToolExecutorImpl) getClassHierarchy(args map[string]any, projectRoot string) (string, error) {
+	className, _ := args["class_name"].(string)
+	direction, _ := args["direction"].(string)
+
+	if className == "" {
+		return "", fmt.Errorf("class_name is required")
+	}
+	if direction == "" {
+		direction = "both"
+	}
+
+	// Ensure index is built
+	if !te.symbolIndex.IsIndexed() {
+		if err := te.symbolIndex.IndexProject(context.Background(), projectRoot); err != nil {
+			return "", fmt.Errorf("failed to build index: %w", err)
+		}
+	}
+
+	// Find the class
+	sym := te.symbolIndex.FindDefinition(className, analysis.KindClass)
+	if sym == nil {
+		// Try interface
+		sym = te.symbolIndex.FindDefinition(className, analysis.KindInterface)
+	}
+	if sym == nil {
+		return fmt.Sprintf("Class or interface '%s' not found", className), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Class Hierarchy for: %s\n", className))
+	result.WriteString(fmt.Sprintf("Type: %s\n", sym.Kind))
+	result.WriteString(fmt.Sprintf("File: %s:%d\n\n", sym.FilePath, sym.StartLine))
+
+	// Get parent from symbol
+	if (direction == "up" || direction == "both") && sym.Parent != "" {
+		result.WriteString("Extends/Implements:\n")
+		parents := strings.Split(sym.Parent, ",")
+		for _, p := range parents {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			result.WriteString(fmt.Sprintf("  ↑ %s", p))
+			// Try to find parent definition
+			parentSym := te.symbolIndex.FindDefinition(p, "")
+			if parentSym != nil {
+				result.WriteString(fmt.Sprintf(" (%s:%d)", parentSym.FilePath, parentSym.StartLine))
+			}
+			result.WriteString("\n")
+		}
+		result.WriteString("\n")
+	}
+
+	// Find subclasses (classes that extend this one)
+	if direction == "down" || direction == "both" {
+		allClasses := te.symbolIndex.GetSymbolsByKind(analysis.KindClass)
+		var subclasses []analysis.Symbol
+		for _, c := range allClasses {
+			if c.Parent != "" && strings.Contains(c.Parent, className) {
+				subclasses = append(subclasses, c)
+			}
+		}
+
+		if len(subclasses) > 0 {
+			result.WriteString(fmt.Sprintf("Subclasses (%d):\n", len(subclasses)))
+			for _, sub := range subclasses {
+				result.WriteString(fmt.Sprintf("  ↓ %s (%s:%d)\n", sub.Name, sub.FilePath, sub.StartLine))
+			}
+		} else {
+			result.WriteString("Subclasses: none found\n")
+		}
+	}
+
+	return result.String(), nil
+}
+
+// getWidgetTree returns Flutter widget tree structure
+func (te *ToolExecutorImpl) getWidgetTree(args map[string]any, projectRoot string) (string, error) {
+	filePath, _ := args["file_path"].(string)
+	widgetName, _ := args["widget_name"].(string)
+
+	if filePath == "" {
+		return "", fmt.Errorf("file_path is required")
+	}
+
+	// Check if it's a Dart file
+	if !strings.HasSuffix(filePath, ".dart") {
+		return "", fmt.Errorf("file must be a Dart file (.dart)")
+	}
+
+	fullPath := filepath.Join(projectRoot, filePath)
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	text := string(content)
+
+	// Find widget classes (classes extending StatelessWidget or StatefulWidget)
+	widgetRe := regexp.MustCompile(`class\s+(\w+)\s+extends\s+(StatelessWidget|StatefulWidget|State<\w+>)`)
+	matches := widgetRe.FindAllStringSubmatch(text, -1)
+
+	if len(matches) == 0 {
+		return "No Flutter widgets found in this file", nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Widget Tree in %s:\n\n", filePath))
+
+	for _, match := range matches {
+		name := match[1]
+		extends := match[2]
+
+		// Filter by widget name if specified
+		if widgetName != "" && name != widgetName {
+			continue
+		}
+
+		result.WriteString(fmt.Sprintf("📦 %s (extends %s)\n", name, extends))
+
+		// Find build method and extract widget tree
+		buildRe := regexp.MustCompile(`Widget\s+build\s*\([^)]*\)\s*\{`)
+		buildMatch := buildRe.FindStringIndex(text)
+		if buildMatch != nil {
+			// Extract widgets used in build method
+			widgetUsageRe := regexp.MustCompile(`\b(Scaffold|AppBar|Container|Column|Row|Text|Center|Padding|ListView|GridView|Stack|Positioned|Expanded|Flexible|SizedBox|Card|ListTile|IconButton|FloatingActionButton|ElevatedButton|TextButton|TextField|Image|Icon|Drawer|BottomNavigationBar|TabBar|TabBarView)\s*\(`)
+			usages := widgetUsageRe.FindAllStringSubmatch(text, -1)
+
+			if len(usages) > 0 {
+				seen := make(map[string]int)
+				for _, u := range usages {
+					seen[u[1]]++
+				}
+				result.WriteString("  Used widgets:\n")
+				for widget, count := range seen {
+					result.WriteString(fmt.Sprintf("    • %s (%dx)\n", widget, count))
+				}
+			}
+		}
+		result.WriteString("\n")
+	}
+
+	return result.String(), nil
+}
+
+// getDependentFiles returns files that depend on or are depended by the specified file
+func (te *ToolExecutorImpl) getDependentFiles(args map[string]any, projectRoot string) (string, error) {
+	filePath, _ := args["file_path"].(string)
+	direction, _ := args["direction"].(string)
+	depth := 1
+	if d, ok := args["depth"].(float64); ok && d > 0 {
+		depth = int(d)
+		if depth > 3 {
+			depth = 3
+		}
+	}
+
+	if filePath == "" {
+		return "", fmt.Errorf("file_path is required")
+	}
+	if direction == "" {
+		direction = "both"
+	}
+
+	// Build dependency graph
+	if _, err := te.callGraph.BuildDependencyGraph(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Dependencies for: %s (depth: %d)\n\n", filePath, depth))
+
+	// Get files this file imports
+	if direction == "imports" || direction == "both" {
+		deps := te.callGraph.GetFileDependencies(filePath)
+		result.WriteString(fmt.Sprintf("Imports (%d files):\n", len(deps)))
+		if len(deps) == 0 {
+			result.WriteString("  (none)\n")
+		}
+		for _, dep := range deps {
+			result.WriteString(fmt.Sprintf("  → %s\n", dep.FilePath))
+		}
+		result.WriteString("\n")
+	}
+
+	// Get files that import this file
+	if direction == "importers" || direction == "both" {
+		dependents := te.callGraph.GetFileDependents(filePath)
+		result.WriteString(fmt.Sprintf("Imported by (%d files):\n", len(dependents)))
+		if len(dependents) == 0 {
+			result.WriteString("  (none)\n")
+		}
+		for _, dep := range dependents {
+			result.WriteString(fmt.Sprintf("  ← %s\n", dep.FilePath))
+		}
+	}
+
+	return result.String(), nil
+}
+
+// getChangeRisk estimates risk score for changing a file or function
+func (te *ToolExecutorImpl) getChangeRisk(args map[string]any, projectRoot string) (string, error) {
+	filePath, _ := args["file_path"].(string)
+	functionName, _ := args["function_name"].(string)
+
+	if filePath == "" {
+		return "", fmt.Errorf("file_path is required")
+	}
+
+	// Build graphs
+	if _, err := te.callGraph.Build(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build call graph: %w", err)
+	}
+	if _, err := te.callGraph.BuildDependencyGraph(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Change Risk Analysis: %s", filePath))
+	if functionName != "" {
+		result.WriteString(fmt.Sprintf(" → %s", functionName))
+	}
+	result.WriteString("\n\n")
+
+	// Calculate risk factors
+	riskScore := 0.0
+	factors := []string{}
+
+	// Factor 1: Number of dependents
+	dependents := te.callGraph.GetFileDependents(filePath)
+	dependentCount := len(dependents)
+	if dependentCount > 10 {
+		riskScore += 30
+		factors = append(factors, fmt.Sprintf("High coupling: %d files depend on this", dependentCount))
+	} else if dependentCount > 5 {
+		riskScore += 20
+		factors = append(factors, fmt.Sprintf("Medium coupling: %d files depend on this", dependentCount))
+	} else if dependentCount > 0 {
+		riskScore += 10
+		factors = append(factors, fmt.Sprintf("Low coupling: %d files depend on this", dependentCount))
+	}
+
+	// Factor 2: Function callers (if function specified)
+	if functionName != "" {
+		funcID := filePath + ":" + functionName
+		callers := te.callGraph.GetCallers(funcID)
+		if len(callers) > 5 {
+			riskScore += 25
+			factors = append(factors, fmt.Sprintf("Many callers: %d functions call this", len(callers)))
+		} else if len(callers) > 0 {
+			riskScore += 10
+			factors = append(factors, fmt.Sprintf("Some callers: %d functions call this", len(callers)))
+		}
+	}
+
+	// Factor 3: Check if it's a core/shared file
+	if strings.Contains(filePath, "domain") || strings.Contains(filePath, "core") || strings.Contains(filePath, "shared") || strings.Contains(filePath, "common") {
+		riskScore += 20
+		factors = append(factors, "Core/shared module - changes affect many parts")
+	}
+
+	// Factor 4: Check for test coverage
+	testFile := strings.TrimSuffix(filePath, filepath.Ext(filePath)) + "_test" + filepath.Ext(filePath)
+	if _, err := os.Stat(filepath.Join(projectRoot, testFile)); err != nil {
+		riskScore += 15
+		factors = append(factors, "No test file found - changes harder to verify")
+	} else {
+		factors = append(factors, "✓ Test file exists")
+	}
+
+	// Determine risk level
+	var riskLevel string
+	if riskScore >= 60 {
+		riskLevel = "🔴 HIGH"
+	} else if riskScore >= 30 {
+		riskLevel = "🟡 MEDIUM"
+	} else {
+		riskLevel = "🟢 LOW"
+	}
+
+	result.WriteString(fmt.Sprintf("Risk Level: %s (score: %.0f/100)\n\n", riskLevel, riskScore))
+	result.WriteString("Risk Factors:\n")
+	for _, f := range factors {
+		result.WriteString(fmt.Sprintf("  • %s\n", f))
+	}
+
+	// Recommendations
+	result.WriteString("\nRecommendations:\n")
+	if riskScore >= 60 {
+		result.WriteString("  • Consider breaking down changes into smaller PRs\n")
+		result.WriteString("  • Ensure comprehensive test coverage before changes\n")
+		result.WriteString("  • Review with team members familiar with dependents\n")
+	} else if riskScore >= 30 {
+		result.WriteString("  • Add tests for changed functionality\n")
+		result.WriteString("  • Check dependent files for compatibility\n")
+	} else {
+		result.WriteString("  • Standard review process should be sufficient\n")
+	}
+
+	return result.String(), nil
+}
+
 // Project Structure Tools (Phase 6)
 
 // detectArchitecture detects the architecture pattern of the project
@@ -1483,4 +2190,438 @@ func (te *ToolExecutorImpl) suggestRelatedFiles(args map[string]any, projectRoot
 	}
 
 	return result.String(), nil
+}
+
+// ============================================
+// Call Graph Tools (Phase 3)
+// ============================================
+
+func (te *ToolExecutorImpl) getCallers(args map[string]any, projectRoot string) (string, error) {
+	functionID, _ := args["function_id"].(string)
+	if functionID == "" {
+		return "", fmt.Errorf("function_id is required")
+	}
+
+	if _, err := te.callGraph.Build(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build call graph: %w", err)
+	}
+
+	callers := te.callGraph.GetCallers(functionID)
+	if len(callers) == 0 {
+		return fmt.Sprintf("No callers found for %s", functionID), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Functions that call %s:\n\n", functionID))
+	for _, c := range callers {
+		result.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", c.Name, c.FilePath, c.Line))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) getCallees(args map[string]any, projectRoot string) (string, error) {
+	functionID, _ := args["function_id"].(string)
+	if functionID == "" {
+		return "", fmt.Errorf("function_id is required")
+	}
+
+	if _, err := te.callGraph.Build(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build call graph: %w", err)
+	}
+
+	callees := te.callGraph.GetCallees(functionID)
+	if len(callees) == 0 {
+		return fmt.Sprintf("No callees found for %s", functionID), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Functions called by %s:\n\n", functionID))
+	for _, c := range callees {
+		result.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", c.Name, c.FilePath, c.Line))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) getImpact(args map[string]any, projectRoot string) (string, error) {
+	functionID, _ := args["function_id"].(string)
+	if functionID == "" {
+		return "", fmt.Errorf("function_id is required")
+	}
+	maxDepth := 3
+	if d, ok := args["max_depth"].(float64); ok {
+		maxDepth = int(d)
+	}
+
+	if _, err := te.callGraph.Build(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build call graph: %w", err)
+	}
+
+	affected := te.callGraph.GetImpact(functionID, maxDepth)
+	if len(affected) == 0 {
+		return fmt.Sprintf("No impact found for %s", functionID), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Functions affected by changes to %s (depth %d):\n\n", functionID, maxDepth))
+	for _, a := range affected {
+		result.WriteString(fmt.Sprintf("  - %s (%s:%d)\n", a.Name, a.FilePath, a.Line))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) getCallChain(args map[string]any, projectRoot string) (string, error) {
+	startID, _ := args["start_function"].(string)
+	endID, _ := args["end_function"].(string)
+	if startID == "" || endID == "" {
+		return "", fmt.Errorf("start_function and end_function are required")
+	}
+	maxDepth := 5
+	if d, ok := args["max_depth"].(float64); ok {
+		maxDepth = int(d)
+	}
+
+	if _, err := te.callGraph.Build(projectRoot); err != nil {
+		return "", fmt.Errorf("failed to build call graph: %w", err)
+	}
+
+	chains := te.callGraph.GetCallChain(startID, endID, maxDepth)
+	if len(chains) == 0 {
+		return fmt.Sprintf("No call chain found from %s to %s", startID, endID), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Call chains from %s to %s:\n\n", startID, endID))
+	for i, chain := range chains {
+		result.WriteString(fmt.Sprintf("  Chain %d: %s\n", i+1, strings.Join(chain, " → ")))
+	}
+	return result.String(), nil
+}
+
+// ============================================
+// Git Context Tools (Phase 5)
+// ============================================
+
+func (te *ToolExecutorImpl) gitChangedFiles(args map[string]any, projectRoot string) (string, error) {
+	if te.gitContext == nil {
+		te.gitContext = git.NewContextBuilder(projectRoot)
+	}
+
+	since, _ := args["since"].(string)
+	pathFilter, _ := args["path_filter"].(string)
+
+	changes, err := te.gitContext.GetRecentChanges(since, pathFilter)
+	if err != nil {
+		return "", fmt.Errorf("failed to get recent changes: %w", err)
+	}
+
+	if len(changes) == 0 {
+		return "No recent changes found", nil
+	}
+
+	var result strings.Builder
+	result.WriteString("Recently changed files:\n\n")
+	for _, c := range changes {
+		result.WriteString(fmt.Sprintf("  - %s (%d changes, last: %s)\n", c.FilePath, c.ChangeCount, c.LastChanged.Format("2006-01-02")))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) gitCoChanged(args map[string]any, projectRoot string) (string, error) {
+	if te.gitContext == nil {
+		te.gitContext = git.NewContextBuilder(projectRoot)
+	}
+
+	filePath, _ := args["file_path"].(string)
+	if filePath == "" {
+		return "", fmt.Errorf("file_path is required")
+	}
+	limit := 10
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+	}
+
+	coChanged, err := te.gitContext.GetCoChangedFiles(filePath, limit)
+	if err != nil {
+		return "", fmt.Errorf("failed to get co-changed files: %w", err)
+	}
+
+	if len(coChanged) == 0 {
+		return fmt.Sprintf("No co-changed files found for %s", filePath), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Files often changed with %s:\n\n", filePath))
+	for i, f := range coChanged {
+		result.WriteString(fmt.Sprintf("  %d. %s\n", i+1, f))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) gitSuggestContext(args map[string]any, projectRoot string) (string, error) {
+	if te.gitContext == nil {
+		te.gitContext = git.NewContextBuilder(projectRoot)
+	}
+
+	task, _ := args["task"].(string)
+	var currentFiles []string
+	if files, ok := args["current_files"].([]any); ok {
+		for _, f := range files {
+			if s, ok := f.(string); ok {
+				currentFiles = append(currentFiles, s)
+			}
+		}
+	}
+	limit := 10
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+	}
+
+	suggestions, err := te.gitContext.SuggestContextFiles(task, currentFiles, limit)
+	if err != nil {
+		return "", fmt.Errorf("failed to suggest context files: %w", err)
+	}
+
+	if len(suggestions) == 0 {
+		return "No context suggestions found", nil
+	}
+
+	var result strings.Builder
+	result.WriteString("Suggested files for context:\n\n")
+	for i, f := range suggestions {
+		result.WriteString(fmt.Sprintf("  %d. %s\n", i+1, f))
+	}
+	return result.String(), nil
+}
+
+// ============================================
+// Memory Tools (Phase 7)
+// ============================================
+
+func (te *ToolExecutorImpl) saveContext(args map[string]any, projectRoot string) (string, error) {
+	if te.contextMemory == nil {
+		return "", fmt.Errorf("context memory not initialized")
+	}
+
+	topic, _ := args["topic"].(string)
+	summary, _ := args["summary"].(string)
+	var files []string
+	if f, ok := args["files"].([]any); ok {
+		for _, file := range f {
+			if s, ok := file.(string); ok {
+				files = append(files, s)
+			}
+		}
+	}
+
+	ctx := &domain.ConversationContext{
+		ProjectRoot: projectRoot,
+		Topic:       topic,
+		Summary:     summary,
+		Files:       files,
+	}
+
+	if err := te.contextMemory.SaveContext(ctx); err != nil {
+		return "", fmt.Errorf("failed to save context: %w", err)
+	}
+
+	return fmt.Sprintf("Context saved: %s", topic), nil
+}
+
+func (te *ToolExecutorImpl) findContext(args map[string]any, projectRoot string) (string, error) {
+	if te.contextMemory == nil {
+		return "", fmt.Errorf("context memory not initialized")
+	}
+
+	topic, _ := args["topic"].(string)
+	if topic == "" {
+		return "", fmt.Errorf("topic is required")
+	}
+
+	contexts, err := te.contextMemory.FindContextByTopic(projectRoot, topic)
+	if err != nil {
+		return "", fmt.Errorf("failed to find context: %w", err)
+	}
+
+	if len(contexts) == 0 {
+		return fmt.Sprintf("No contexts found for topic: %s", topic), nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Contexts matching '%s':\n\n", topic))
+	for _, c := range contexts {
+		result.WriteString(fmt.Sprintf("  - %s: %s (%d files)\n", c.Topic, c.Summary, len(c.Files)))
+	}
+	return result.String(), nil
+}
+
+func (te *ToolExecutorImpl) getRecentContexts(args map[string]any, projectRoot string) (string, error) {
+	if te.contextMemory == nil {
+		return "", fmt.Errorf("context memory not initialized")
+	}
+
+	limit := 10
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+	}
+
+	contexts, err := te.contextMemory.GetRecentContexts(projectRoot, limit)
+	if err != nil {
+		return "", fmt.Errorf("failed to get recent contexts: %w", err)
+	}
+
+	if len(contexts) == 0 {
+		return "No recent contexts found", nil
+	}
+
+	var result strings.Builder
+	result.WriteString("Recent contexts:\n\n")
+	for _, c := range contexts {
+		result.WriteString(fmt.Sprintf("  - %s: %s (last accessed: %s)\n", c.Topic, c.Summary, c.LastAccessed.Format("2006-01-02")))
+	}
+	return result.String(), nil
+}
+
+// ============================================
+// Semantic Search Tool (Phase 4)
+// ============================================
+
+func (te *ToolExecutorImpl) doSemanticSearch(args map[string]any, projectRoot string) (string, error) {
+	query, _ := args["query"].(string)
+	if query == "" {
+		return "", fmt.Errorf("query is required")
+	}
+
+	limit := 10
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+	}
+
+	filePattern, _ := args["file_pattern"].(string)
+
+	// Use semantic search service if available
+	if te.hasSemanticSearch && te.semanticSearcherService != nil {
+		results, err := te.semanticSearcherService.Search(query, limit)
+		if err != nil {
+			te.logger.Warning(fmt.Sprintf("Semantic search failed, falling back to keyword search: %v", err))
+		} else if len(results) > 0 {
+			return te.formatSemanticSearchResults(results, query, filePattern), nil
+		}
+	}
+
+	// Fallback to keyword-based search using symbols and content
+	return te.fallbackSemanticSearch(query, filePattern, limit, projectRoot)
+}
+
+func (te *ToolExecutorImpl) formatSemanticSearchResults(results []SemanticSearchResult, query, filePattern string) string {
+	var filtered []SemanticSearchResult
+	for _, r := range results {
+		if filePattern == "" || matchesPattern(r.FilePath, filePattern) {
+			filtered = append(filtered, r)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return fmt.Sprintf("No semantic matches found for: %s", query)
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Semantic search results for '%s':\n\n", query))
+	for i, r := range filtered {
+		result.WriteString(fmt.Sprintf("%d. %s (score: %.2f)\n", i+1, r.FilePath, r.Score))
+		if r.Snippet != "" {
+			result.WriteString(fmt.Sprintf("   %s\n", truncateSnippet(r.Snippet, 100)))
+		}
+		result.WriteString("\n")
+	}
+	return result.String()
+}
+
+func (te *ToolExecutorImpl) fallbackSemanticSearch(query, filePattern string, limit int, projectRoot string) (string, error) {
+	// Extract keywords from query
+	keywords := extractSemanticKeywords(query)
+	if len(keywords) == 0 {
+		return "Could not extract meaningful keywords from query", nil
+	}
+
+	var allResults []string
+	seen := make(map[string]bool)
+
+	// Search symbols by keywords
+	for _, kw := range keywords {
+		symbols := te.symbolIndex.SearchByName(kw)
+		for _, sym := range symbols {
+			if filePattern != "" && !matchesPattern(sym.FilePath, filePattern) {
+				continue
+			}
+			key := fmt.Sprintf("%s:%s", sym.FilePath, sym.Name)
+			if !seen[key] {
+				seen[key] = true
+				allResults = append(allResults, fmt.Sprintf("  - %s (%s) in %s:%d", sym.Name, sym.Kind, sym.FilePath, sym.StartLine))
+			}
+		}
+	}
+
+	// Also search content
+	for _, kw := range keywords {
+		contentResults := te.searchInFiles(projectRoot, filePattern, te.compileSearchPattern(kw), limit)
+		for _, cr := range contentResults {
+			if !seen[cr] {
+				seen[cr] = true
+				allResults = append(allResults, fmt.Sprintf("  - %s", cr))
+			}
+		}
+	}
+
+	if len(allResults) == 0 {
+		return fmt.Sprintf("No results found for: %s", query), nil
+	}
+
+	// Limit results
+	if len(allResults) > limit {
+		allResults = allResults[:limit]
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Search results for '%s' (keywords: %s):\n\n", query, strings.Join(keywords, ", ")))
+	for _, r := range allResults {
+		result.WriteString(r + "\n")
+	}
+	return result.String(), nil
+}
+
+func extractSemanticKeywords(query string) []string {
+	// Simple keyword extraction - split by spaces and filter common words
+	stopWords := map[string]bool{
+		"the": true, "a": true, "an": true, "is": true, "are": true,
+		"in": true, "on": true, "at": true, "to": true, "for": true,
+		"of": true, "and": true, "or": true, "with": true, "that": true,
+		"this": true, "it": true, "from": true, "by": true, "as": true,
+		"all": true, "any": true, "find": true, "show": true, "get": true,
+		"where": true, "how": true, "what": true, "which": true, "code": true,
+	}
+
+	words := strings.Fields(strings.ToLower(query))
+	var keywords []string
+	for _, w := range words {
+		w = strings.Trim(w, ".,!?\"'")
+		if len(w) > 2 && !stopWords[w] {
+			keywords = append(keywords, w)
+		}
+	}
+	return keywords
+}
+
+func matchesPattern(path, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	matched, _ := filepath.Match(pattern, filepath.Base(path))
+	return matched
+}
+
+func truncateSnippet(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

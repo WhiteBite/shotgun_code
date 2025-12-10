@@ -6,26 +6,24 @@
         <div class="section-title">
           <div class="section-icon section-icon-orange">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
             </svg>
           </div>
           <h2 class="section-title-text">{{ t('git.title') }}</h2>
         </div>
         <!-- Recent repos dropdown -->
         <div v-if="recentRepos.length > 0" class="relative">
-          <button
-            @click="showRecentRepos = !showRecentRepos"
-            class="text-xs text-gray-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-700/50"
-          >
+          <button @click="showRecentRepos = !showRecentRepos"
+            class="text-xs text-gray-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-700/50">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {{ t('git.recent') }}
           </button>
-          <div
-            v-if="showRecentRepos"
-            class="absolute right-0 top-full mt-1 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden"
-          >
+          <div v-if="showRecentRepos"
+            class="absolute right-0 top-full mt-1 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
             <div class="p-2 border-b border-gray-700 flex items-center justify-between">
               <span class="text-xs text-gray-400">{{ t('git.recentRepos') }}</span>
               <button @click="clearRecentRepos" class="text-xs text-red-400 hover:text-red-300">
@@ -33,17 +31,17 @@
               </button>
             </div>
             <div class="max-h-48 overflow-y-auto">
-              <button
-                v-for="repo in recentRepos"
-                :key="repo.url"
-                @click="loadRecentRepo(repo)"
-                class="w-full px-3 py-2 text-left hover:bg-gray-700/50 flex items-center gap-2"
-              >
-                <svg v-if="repo.isGitHub" class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              <button v-for="repo in recentRepos" :key="repo.url" @click="loadRecentRepo(repo)"
+                class="w-full px-3 py-2 text-left hover:bg-gray-700/50 flex items-center gap-2">
+                <svg v-if="repo.isGitHub" class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor"
+                  viewBox="0 0 24 24">
+                  <path
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                 </svg>
-                <svg v-else class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                <svg v-else class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor"
+                  viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                 </svg>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm text-white truncate">{{ repo.name }}</p>
@@ -54,24 +52,22 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Source Type Tabs -->
       <div class="flex gap-1 px-2 pb-2">
-        <button
-          @click="sourceType = 'local'"
-          :class="['tab-btn', sourceType === 'local' ? 'tab-btn-active tab-btn-active-indigo' : 'tab-btn-inactive']"
-        >
+        <button @click="sourceType = 'local'"
+          :class="['tab-btn', sourceType === 'local' ? 'tab-btn-active tab-btn-active-indigo' : 'tab-btn-inactive']">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
           {{ t('git.localGit') }}
         </button>
-        <button
-          @click="sourceType = 'remote'"
-          :class="['tab-btn', sourceType === 'remote' ? 'tab-btn-active tab-btn-active-purple' : 'tab-btn-inactive']"
-        >
+        <button @click="sourceType = 'remote'"
+          :class="['tab-btn', sourceType === 'remote' ? 'tab-btn-active tab-btn-active-purple' : 'tab-btn-inactive']">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
           </svg>
           {{ t('git.remoteUrl') }}
         </button>
@@ -82,7 +78,8 @@
     <div v-if="sourceType === 'local'" class="flex-1 overflow-auto">
       <div v-if="!isGitRepo" class="p-4 text-center text-gray-400">
         <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <p>{{ t('git.notGitRepo') }}</p>
         <p class="text-sm mt-2">{{ t('git.openGitProject') }}</p>
@@ -98,11 +95,8 @@
             <span class="text-xs text-gray-400">{{ t('git.currentBranch') }}:</span>
             <span class="ml-2 text-sm text-white font-medium">{{ currentBranch }}</span>
           </div>
-          <button 
-            @click="selectRef(currentBranch)" 
-            class="btn btn-primary btn-sm"
-            :disabled="selectedRef === currentBranch"
-          >
+          <button @click="selectRef(currentBranch)" class="btn btn-primary btn-sm"
+            :disabled="selectedRef === currentBranch">
             {{ t('git.load') }}
           </button>
         </div>
@@ -110,25 +104,19 @@
         <!-- Branch/Commit Selection -->
         <div class="space-y-3">
           <div class="flex border-b border-gray-700">
-            <button
-              @click="switchToRefType('branches')"
-              :class="['tab-btn text-sm', refType === 'branches' ? 'tab-btn-active' : 'tab-btn-inactive']"
-            >
+            <button @click="switchToRefType('branches')"
+              :class="['tab-btn text-sm', refType === 'branches' ? 'tab-btn-active' : 'tab-btn-inactive']">
               {{ t('git.branches') }} ({{ branches.length }})
             </button>
-            <button
-              @click="switchToRefType('commits')"
-              :class="['tab-btn text-sm', refType === 'commits' ? 'tab-btn-active' : 'tab-btn-inactive']"
-            >
+            <button @click="switchToRefType('commits')"
+              :class="['tab-btn text-sm', refType === 'commits' ? 'tab-btn-active' : 'tab-btn-inactive']">
               {{ t('git.commits') }} {{ commitsLoaded ? `(${commits.length})` : '' }}
             </button>
-            <button
-              v-if="branches.length >= 2"
-              @click="openDiffModal"
-              class="ml-auto px-2 py-1 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-colors flex items-center gap-1"
-            >
+            <button v-if="branches.length >= 2" @click="openDiffModal"
+              class="ml-auto px-2 py-1 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-colors flex items-center gap-1">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
               {{ t('git.diff') }}
             </button>
@@ -140,7 +128,8 @@
               <div>
                 <span class="text-xs text-indigo-300">{{ t('git.buildingFrom') }}:</span>
                 <span class="ml-2 text-sm text-white font-medium">{{ selectedRef }}</span>
-                <span v-if="selectedRef === currentBranch" class="text-xs text-emerald-400 ml-2">({{ t('git.current') }})</span>
+                <span v-if="selectedRef === currentBranch" class="text-xs text-emerald-400 ml-2">({{ t('git.current')
+                }})</span>
               </div>
               <button @click="clearSelectedRef" class="text-xs text-gray-400 hover:text-white">
                 {{ t('git.clear') }}
@@ -151,41 +140,33 @@
 
           <!-- Branches List -->
           <div v-if="refType === 'branches'" class="max-h-64 overflow-y-auto space-y-1">
-            <button
-              v-for="branch in branches"
-              :key="branch"
-              @click="selectRef(branch)"
-              :class="[
-                'w-full px-3 py-2 text-left text-sm rounded transition-colors flex items-center gap-2',
-                selectedRef === branch
-                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                  : branch === currentBranch
-                    ? 'bg-emerald-900/20 text-emerald-300 border border-emerald-500/20'
-                    : 'text-gray-300 hover:bg-gray-700'
-              ]"
-            >
+            <button v-for="branch in branches" :key="branch" @click="selectRef(branch)" :class="[
+              'w-full px-3 py-2 text-left text-sm rounded transition-colors flex items-center gap-2',
+              selectedRef === branch
+                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                : branch === currentBranch
+                  ? 'bg-emerald-900/20 text-emerald-300 border border-emerald-500/20'
+                  : 'text-gray-300 hover:bg-gray-700'
+            ]">
               <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               <span class="truncate">{{ branch }}</span>
-              <span v-if="branch === currentBranch" class="text-xs text-emerald-400 ml-auto">({{ t('git.current') }})</span>
-              <span v-else-if="selectedRef === branch" class="text-xs text-indigo-400 ml-auto">({{ t('git.selected') }})</span>
+              <span v-if="branch === currentBranch" class="text-xs text-emerald-400 ml-auto">({{ t('git.current')
+              }})</span>
+              <span v-else-if="selectedRef === branch" class="text-xs text-indigo-400 ml-auto">({{ t('git.selected')
+              }})</span>
             </button>
           </div>
 
           <!-- Commits List -->
           <div v-if="refType === 'commits'" class="max-h-64 overflow-y-auto space-y-1">
-            <button
-              v-for="commit in commits"
-              :key="commit.hash"
-              @click="selectRef(commit.hash)"
-              :class="[
-                'w-full px-3 py-2 text-left text-sm rounded transition-colors',
-                selectedRef === commit.hash
-                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                  : 'text-gray-300 hover:bg-gray-700'
-              ]"
-            >
+            <button v-for="commit in commits" :key="commit.hash" @click="selectRef(commit.hash)" :class="[
+              'w-full px-3 py-2 text-left text-sm rounded transition-colors',
+              selectedRef === commit.hash
+                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                : 'text-gray-300 hover:bg-gray-700'
+            ]">
               <div class="flex items-start gap-2">
                 <code class="text-xs text-amber-400 font-mono flex-shrink-0">{{ commit.hash.slice(0, 7) }}</code>
                 <div class="flex-1 min-w-0">
@@ -203,56 +184,42 @@
             <span class="text-sm text-gray-300">{{ t('git.filesAtRef') }} {{ selectedRef?.slice(0, 7) }}</span>
             <span class="text-xs text-gray-500">{{ filteredLocalFiles.length }}/{{ filesAtRef?.length || 0 }}</span>
           </div>
-          
+
           <!-- Search & Filter Bar -->
           <div class="space-y-2">
             <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <input
-                v-model="localSearchQuery"
-                type="text"
-                :placeholder="t('git.searchFiles')"
-                class="input pl-10 py-1.5 text-sm"
-              />
-              <button
-                v-if="localSearchQuery"
-                @click="localSearchQuery = ''"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
-              >
+              <input v-model="localSearchQuery" type="text" :placeholder="t('git.searchFiles')"
+                class="input pl-10 py-1.5 text-sm" />
+              <button v-if="localSearchQuery" @click="localSearchQuery = ''"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
+
             <!-- File Type Filters -->
-            <div class="flex flex-wrap gap-1">
-              <button
-                v-for="filter in fileTypeFilters"
-                :key="filter.id"
-                @click="toggleLocalFilter(filter.id)"
-                :class="[
-                  'px-2 py-0.5 text-xs rounded-full transition-colors',
-                  localActiveFilters.has(filter.id)
-                    ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-500/50'
-                    : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50'
-                ]"
-              >
-                {{ filter.label }} ({{ getLocalFilterCount(filter.id) }})
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="filter in fileTypeFilters" :key="filter.id" @click="toggleLocalFilter(filter.id)" :class="[
+                'git-filter-chip',
+                localActiveFilters.has(filter.id) ? 'git-filter-chip-active' : ''
+              ]">
+                <span class="git-filter-icon">{{ filter.icon }}</span>
+                <span>{{ filter.label }}</span>
+                <span class="git-filter-count">{{ getLocalFilterCount(filter.id) }}</span>
               </button>
             </div>
           </div>
-          
+
           <div class="file-list-container">
-            <SimpleFileTree
-              :files="filteredLocalFiles"
-              :selected-paths="selectedFiles"
-              @toggle-select="toggleFileSelection"
-              @select-folder="selectFolderFiles"
-              @preview-file="handlePreviewFile"
-            />
+            <SimpleFileTree :files="filteredLocalFiles" :selected-paths="selectedFiles"
+              @toggle-select="toggleFileSelection" @select-folder="selectFolderFiles"
+              @preview-file="handlePreviewFile" />
           </div>
           <div class="flex gap-2">
             <button @click="selectAllFiles" class="action-btn action-btn-success btn-sm flex-1">
@@ -273,18 +240,9 @@
         <div>
           <label class="block text-sm text-gray-300 mb-2">{{ t('git.repoUrl') }}</label>
           <div class="flex gap-2">
-            <input
-              v-model="remoteUrl"
-              type="text"
-              :placeholder="t('git.urlPlaceholder')"
-              class="input flex-1"
-              @keydown.enter="loadRemoteRepo"
-            />
-            <button
-              @click="loadRemoteRepo"
-              :disabled="!remoteUrl || isLoadingRemote"
-              class="btn btn-primary"
-            >
+            <input v-model="remoteUrl" type="text" :placeholder="t('git.urlPlaceholder')" class="input flex-1"
+              @keydown.enter="loadRemoteRepo" />
+            <button @click="loadRemoteRepo" :disabled="!remoteUrl || isLoadingRemote" class="btn btn-primary">
               <svg v-if="isLoadingRemote" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -322,56 +280,40 @@
             <span class="text-sm text-gray-300">{{ t('git.filesAtRef') }} {{ remoteSelectedBranch }}</span>
             <span class="text-xs text-gray-500">{{ filteredRemoteFiles.length }}/{{ remoteFiles?.length || 0 }}</span>
           </div>
-          
+
           <!-- Search & Filter Bar for Remote -->
           <div class="space-y-2">
             <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <input
-                v-model="remoteSearchQuery"
-                type="text"
-                :placeholder="t('git.searchFiles')"
-                class="input pl-10 py-1.5 text-sm"
-              />
-              <button
-                v-if="remoteSearchQuery"
-                @click="remoteSearchQuery = ''"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
-              >
+              <input v-model="remoteSearchQuery" type="text" :placeholder="t('git.searchFiles')"
+                class="input pl-10 py-1.5 text-sm" />
+              <button v-if="remoteSearchQuery" @click="remoteSearchQuery = ''"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
+
             <!-- File Type Filters -->
-            <div class="flex flex-wrap gap-1">
-              <button
-                v-for="filter in fileTypeFilters"
-                :key="filter.id"
-                @click="toggleRemoteFilter(filter.id)"
-                :class="[
-                  'px-2 py-0.5 text-xs rounded-full transition-colors',
-                  remoteActiveFilters.has(filter.id)
-                    ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-500/50'
-                    : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50'
-                ]"
-              >
-                {{ filter.label }} ({{ getRemoteFilterCount(filter.id) }})
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="filter in fileTypeFilters" :key="filter.id" @click="toggleRemoteFilter(filter.id)"
+                :class="['git-filter-chip', remoteActiveFilters.has(filter.id) ? 'git-filter-chip-active' : '']">
+                <span class="git-filter-icon">{{ filter.icon }}</span>
+                <span>{{ filter.label }}</span>
+                <span class="git-filter-count">{{ getRemoteFilterCount(filter.id) }}</span>
               </button>
             </div>
           </div>
-          
+
           <div class="file-list-container">
-            <SimpleFileTree
-              :files="filteredRemoteFiles"
-              :selected-paths="remoteSelectedFiles"
-              @toggle-select="toggleRemoteFileSelection"
-              @select-folder="selectRemoteFolderFiles"
-              @preview-file="handlePreviewFile"
-            />
+            <SimpleFileTree :files="filteredRemoteFiles" :selected-paths="remoteSelectedFiles"
+              @toggle-select="toggleRemoteFileSelection" @select-folder="selectRemoteFolderFiles"
+              @preview-file="handlePreviewFile" />
           </div>
           <div class="flex gap-2">
             <button @click="selectAllRemoteFiles" class="action-btn action-btn-success btn-sm flex-1">
@@ -385,13 +327,10 @@
       </div>
 
       <!-- Fallback: Clone option for non-GitHub/GitLab repos -->
-      <div v-if="!isGitHubRepo && !isGitLabRepo && remoteUrl && !remoteRepoLoaded" class="p-3 bg-amber-900/20 rounded-lg border border-amber-500/30">
+      <div v-if="!isGitHubRepo && !isGitLabRepo && remoteUrl && !remoteRepoLoaded"
+        class="p-3 bg-amber-900/20 rounded-lg border border-amber-500/30">
         <p class="text-xs text-amber-300 mb-2">{{ t('git.cloneRequired') }}</p>
-        <button
-          @click="cloneRemote"
-          :disabled="isCloning"
-          class="action-btn action-btn-accent w-full"
-        >
+        <button @click="cloneRemote" :disabled="isCloning" class="action-btn action-btn-accent w-full">
           {{ isCloning ? t('git.cloning') : t('git.clone') }}
         </button>
       </div>
@@ -421,11 +360,7 @@
       <div class="flex items-center justify-between mb-3">
         <span class="text-sm text-gray-300">{{ remoteSelectedFiles.size }} {{ t('git.filesSelected') }}</span>
       </div>
-      <button
-        @click="buildContextFromRemote"
-        :disabled="isBuilding"
-        class="btn btn-primary w-full"
-      >
+      <button @click="buildContextFromRemote" :disabled="isBuilding" class="btn btn-primary w-full">
         <svg v-if="isBuilding" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -450,11 +385,7 @@
       <div class="flex items-center justify-between mb-3">
         <span class="text-sm text-gray-300">{{ selectedFiles.size }} {{ t('git.filesSelected') }}</span>
       </div>
-      <button
-        @click="buildContextFromRef"
-        :disabled="isBuilding"
-        class="btn btn-primary w-full"
-      >
+      <button @click="buildContextFromRef" :disabled="isBuilding" class="btn btn-primary w-full">
         <svg v-if="isBuilding" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -464,23 +395,12 @@
     </div>
 
     <!-- File Preview Modal -->
-    <FilePreviewModal
-      :is-open="previewOpen"
-      :file-path="previewPath"
-      :content="previewContent"
-      :is-loading="previewLoading"
-      :error="previewError"
-      @close="closePreview"
-    />
+    <FilePreviewModal :is-open="previewOpen" :file-path="previewPath" :content="previewContent"
+      :is-loading="previewLoading" :error="previewError" @close="closePreview" />
 
     <!-- Branch Diff Modal -->
-    <BranchDiffModal
-      :is-open="diffModalOpen"
-      :branches="branches"
-      :project-path="projectPath"
-      :current-branch="currentBranch"
-      @close="closeDiffModal"
-    />
+    <BranchDiffModal :is-open="diffModalOpen" :branches="branches" :project-path="projectPath"
+      :current-branch="currentBranch" @close="closeDiffModal" />
   </div>
 </template>
 
@@ -545,12 +465,12 @@ interface RecentRepo {
 const recentRepos = ref<RecentRepo[]>([])
 const showRecentRepos = ref(false)
 
-// File type filters
+// File type filters with icons
 const fileTypeFilters = [
-  { id: 'code', label: 'Code', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.rs', '.cpp', '.c', '.h', '.cs', '.rb', '.php', '.swift', '.kt'] },
-  { id: 'styles', label: 'Styles', extensions: ['.css', '.scss', '.sass', '.less', '.styl'] },
-  { id: 'config', label: 'Config', extensions: ['.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.env', '.config'] },
-  { id: 'docs', label: 'Docs', extensions: ['.md', '.txt', '.rst', '.adoc'] },
+  { id: 'code', label: 'Code', icon: '💻', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.rs', '.cpp', '.c', '.h', '.cs', '.rb', '.php', '.swift', '.kt'] },
+  { id: 'styles', label: 'Styles', icon: '🎨', extensions: ['.css', '.scss', '.sass', '.less', '.styl'] },
+  { id: 'config', label: 'Config', icon: '⚙️', extensions: ['.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.env', '.config'] },
+  { id: 'docs', label: 'Docs', icon: '📄', extensions: ['.md', '.txt', '.rst', '.adoc'] },
 ]
 
 const projectPath = computed(() => projectStore.currentPath || '')
@@ -558,13 +478,13 @@ const projectPath = computed(() => projectStore.currentPath || '')
 // Filtered files computed
 const filteredLocalFiles = computed(() => {
   let files = filesAtRef.value || []
-  
+
   // Apply search
   if (localSearchQuery.value) {
     const query = localSearchQuery.value.toLowerCase()
     files = files.filter(f => f.toLowerCase().includes(query))
   }
-  
+
   // Apply type filters
   if (localActiveFilters.value.size > 0) {
     const activeExtensions = new Set<string>()
@@ -577,19 +497,19 @@ const filteredLocalFiles = computed(() => {
       return activeExtensions.has(ext)
     })
   }
-  
+
   return files
 })
 
 const filteredRemoteFiles = computed(() => {
   let files = remoteFiles.value || []
-  
+
   // Apply search
   if (remoteSearchQuery.value) {
     const query = remoteSearchQuery.value.toLowerCase()
     files = files.filter(f => f.toLowerCase().includes(query))
   }
-  
+
   // Apply type filters
   if (remoteActiveFilters.value.size > 0) {
     const activeExtensions = new Set<string>()
@@ -602,7 +522,7 @@ const filteredRemoteFiles = computed(() => {
       return activeExtensions.has(ext)
     })
   }
-  
+
   return files
 })
 
@@ -693,18 +613,18 @@ function saveRecentRepo(url: string, name: string, isGitHub: boolean) {
   if (existing >= 0) {
     recentRepos.value.splice(existing, 1)
   }
-  
+
   recentRepos.value.unshift({
     url,
     name,
     isGitHub,
     lastUsed: Date.now()
   })
-  
+
   if (recentRepos.value.length > MAX_RECENT_REPOS) {
     recentRepos.value = recentRepos.value.slice(0, MAX_RECENT_REPOS)
   }
-  
+
   localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(recentRepos.value))
 }
 
@@ -731,19 +651,19 @@ function handleClickOutside(e: MouseEvent) {
 
 async function checkGitRepo() {
   if (!projectPath.value) return
-  
+
   isLoading.value = true
   loadingMessage.value = 'Checking repository...'
-  
+
   // Reset lazy loading flags
   branchesLoaded.value = false
   commitsLoaded.value = false
   branches.value = []
   commits.value = []
-  
+
   try {
     isGitRepo.value = await apiService.isGitRepository(projectPath.value)
-    
+
     if (isGitRepo.value) {
       currentBranch.value = await apiService.getCurrentBranch(projectPath.value)
       await loadBranches()
@@ -761,7 +681,7 @@ const commitsLoaded = ref(false)
 
 async function loadBranches() {
   if (branchesLoaded.value) return
-  
+
   try {
     const result = await apiService.getBranches(projectPath.value)
     branches.value = JSON.parse(result)
@@ -773,7 +693,7 @@ async function loadBranches() {
 
 async function loadCommits() {
   if (commitsLoaded.value) return
-  
+
   try {
     commits.value = await apiService.getCommitHistory(projectPath.value, 50)
     commitsLoaded.value = true
@@ -784,7 +704,7 @@ async function loadCommits() {
 
 function switchToRefType(type: 'branches' | 'commits') {
   refType.value = type
-  
+
   // Lazy load commits when switching to commits tab
   if (type === 'commits' && !commitsLoaded.value) {
     loadCommits()
@@ -803,7 +723,7 @@ async function selectRef(ref: string) {
     const files = await apiService.listFilesAtRef(projectPath.value, ref)
     filesAtRef.value = files || []
     console.log(`[Git] Loaded ${filesAtRef.value.length} files at ref ${ref}`)
-    
+
     // Restore previous selection if available
     const key = `local-${projectPath.value}-${ref}`
     const savedSelection = loadSelectionFromStorage(key)
@@ -860,16 +780,16 @@ function clearFileSelection() {
 
 async function buildContextFromRef() {
   if (!selectedRef.value || selectedFiles.value.size === 0) return
-  
+
   isBuilding.value = true
-  
+
   try {
     const files = Array.from(selectedFiles.value)
     const content = await apiService.buildContextAtRef(projectPath.value, files, selectedRef.value)
-    
+
     // Set context in store
     contextStore.setRawContext(content, files.length)
-    
+
     uiStore.addToast(`Context built from ${selectedRef.value.slice(0, 7)}: ${files.length} files`, 'success')
   } catch (error) {
     console.error('Failed to build context:', error)
@@ -894,7 +814,7 @@ async function loadRemoteRepo() {
   try {
     // Check if it's a GitHub URL
     isGitHubRepo.value = await apiService.isGitHubURL(remoteUrl.value)
-    
+
     if (isGitHubRepo.value) {
       // Use GitHub API (fast, no clone)
       const branches = await apiService.gitHubGetBranches(remoteUrl.value)
@@ -908,18 +828,18 @@ async function loadRemoteRepo() {
       await loadRemoteFiles()
 
       remoteRepoLoaded.value = true
-      
+
       // Save to recent repos
       const repoName = remoteUrl.value.split('/').slice(-2).join('/')
       saveRecentRepo(remoteUrl.value, repoName, true)
-      
+
       uiStore.addToast('Repository loaded via GitHub API', 'success')
       return
     }
-    
+
     // Check if it's a GitLab URL
     isGitLabRepo.value = await apiService.isGitLabURL(remoteUrl.value)
-    
+
     if (isGitLabRepo.value) {
       // Use GitLab API (fast, no clone)
       const branches = await apiService.gitLabGetBranches(remoteUrl.value)
@@ -937,15 +857,15 @@ async function loadRemoteRepo() {
       await loadRemoteFiles()
 
       remoteRepoLoaded.value = true
-      
+
       // Save to recent repos
       const repoName = remoteUrl.value.split('/').slice(-2).join('/')
       saveRecentRepo(remoteUrl.value, repoName, false)
-      
+
       uiStore.addToast('Repository loaded via GitLab API', 'success')
       return
     }
-    
+
     // Neither GitHub nor GitLab
     uiStore.addToast('Non-GitHub/GitLab URL. Use Clone option.', 'warning')
   } catch (error) {
@@ -966,16 +886,16 @@ async function loadRemoteFiles() {
 
   try {
     let files: string[] = []
-    
+
     if (isGitHubRepo.value) {
       files = await apiService.gitHubListFiles(remoteUrl.value, remoteSelectedBranch.value)
     } else if (isGitLabRepo.value) {
       files = await apiService.gitLabListFiles(remoteUrl.value, remoteSelectedBranch.value)
     }
-    
+
     remoteFiles.value = files || []
     console.log(`[Git] Loaded ${remoteFiles.value.length} remote files`)
-    
+
     // Restore previous selection if available
     const key = `remote-${remoteUrl.value}-${remoteSelectedBranch.value}`
     const savedSelection = loadSelectionFromStorage(key)
@@ -1031,7 +951,7 @@ async function buildContextFromRemote() {
     const files = Array.from(remoteSelectedFiles.value)
     let content = ''
     let source = ''
-    
+
     if (isGitHubRepo.value) {
       content = await apiService.gitHubBuildContext(remoteUrl.value, files, remoteSelectedBranch.value)
       source = 'GitHub'
@@ -1143,7 +1063,7 @@ async function handlePreviewFile(filePath: string) {
 
   try {
     let content = ''
-    
+
     if (sourceType.value === 'local' && selectedRef.value) {
       content = await apiService.getFileAtRef(projectPath.value, filePath, selectedRef.value)
     } else if (sourceType.value === 'remote') {
@@ -1153,7 +1073,7 @@ async function handlePreviewFile(filePath: string) {
         content = await apiService.gitLabGetFileContent(remoteUrl.value, filePath, remoteSelectedBranch.value)
       }
     }
-    
+
     previewContent.value = content
   } catch (error) {
     console.error('Failed to load file preview:', error)

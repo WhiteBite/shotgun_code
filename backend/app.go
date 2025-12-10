@@ -126,10 +126,20 @@ func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 func (a *App) domReady(ctx context.Context) {
 	a.ctx = ctx
 	a.bridge.SetWailsContext(ctx)
+
+	// Restore window state after DOM is ready
+	if err := a.LoadWindowState(); err != nil {
+		a.log.Warning("Failed to load window state: " + err.Error())
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
+
+	// Save window state before shutdown
+	if err := a.SaveWindowState(); err != nil {
+		a.log.Warning("Failed to save window state: " + err.Error())
+	}
 
 	// Shutdown container services first
 	if a.container != nil {
@@ -144,6 +154,90 @@ func (a *App) shutdown(ctx context.Context) {
 
 func (a *App) SelectDirectory() (string, error) {
 	return a.bridge.OpenDirectoryDialog()
+}
+
+// --- Window State Management ---
+
+// GetWindowState returns current window state (position, size, maximized, fullscreen)
+func (a *App) GetWindowState() map[string]interface{} {
+	state := a.bridge.GetWindowState()
+	return map[string]interface{}{
+		"x":          state.X,
+		"y":          state.Y,
+		"width":      state.Width,
+		"height":     state.Height,
+		"maximized":  state.Maximized,
+		"fullscreen": state.Fullscreen,
+	}
+}
+
+// SaveWindowState saves current window state to config file
+func (a *App) SaveWindowState() error {
+	state := a.bridge.GetWindowState()
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	configDir := filepath.Join(homeDir, ".shotgun-code")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(configDir, "window-state.json"), data, 0o644)
+}
+
+// LoadWindowState loads and applies saved window state
+func (a *App) LoadWindowState() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(filepath.Join(homeDir, ".shotgun-code", "window-state.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No saved state, use defaults
+		}
+		return err
+	}
+
+	var state wailsbridge.WindowState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return err
+	}
+
+	a.bridge.SetWindowState(state)
+	return nil
+}
+
+// ResetWindowState resets window to default size and position
+func (a *App) ResetWindowState() {
+	state := wailsbridge.WindowState{
+		Width:      1600,
+		Height:     900,
+		X:          100,
+		Y:          100,
+		Maximized:  false,
+		Fullscreen: false,
+	}
+	a.bridge.SetWindowState(state)
+}
+
+// WindowMaximize maximizes the window
+func (a *App) WindowMaximize() {
+	a.bridge.WindowMaximize()
+}
+
+// WindowToggleMaximize toggles maximized state
+func (a *App) WindowToggleMaximize() {
+	a.bridge.WindowToggleMaximize()
 }
 
 // GetCurrentDirectory возвращает текущую рабочую директорию
@@ -165,6 +259,11 @@ func (a *App) PathExists(path string) (bool, error) {
 
 func (a *App) ListFiles(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*domain.FileNode, error) {
 	return a.projectHandler.ListFiles(dirPath, useGitignore, useCustomIgnore)
+}
+
+// ClearFileTreeCache clears the file tree cache (call after changing ignore rules)
+func (a *App) ClearFileTreeCache() {
+	a.projectHandler.ClearCache()
 }
 
 func (a *App) RequestShotgunContextGeneration(rootDir string, includedPaths []string) {
@@ -1027,6 +1126,10 @@ func (a *App) BuildContextFromRequest(projectPath string, includedPaths []string
 	if options == nil {
 		options = &domain.ContextBuildOptions{}
 	}
+
+	// Debug: log received options
+	a.log.Info(fmt.Sprintf("[BuildContextFromRequest] OutputFormat received: '%s', StripComments: %v, MaxTokens: %d",
+		options.OutputFormat, options.StripComments, options.MaxTokens))
 
 	// Note: We allow files from any location, not just within projectPath
 	// This gives users flexibility to include files from multiple projects

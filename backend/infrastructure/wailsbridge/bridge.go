@@ -70,3 +70,74 @@ func (b *Bridge) OpenDirectoryDialog() (string, error) {
 	}
 	return dir, nil
 }
+
+// --- Window Management ---
+
+// WindowState represents the window position and size
+type WindowState struct {
+	X          int  `json:"x"`
+	Y          int  `json:"y"`
+	Width      int  `json:"width"`
+	Height     int  `json:"height"`
+	Maximized  bool `json:"maximized"`
+	Fullscreen bool `json:"fullscreen"`
+}
+
+// GetWindowState returns current window position and size
+func (b *Bridge) GetWindowState() WindowState {
+	x, y := runtime.WindowGetPosition(b.ctx)
+	w, h := runtime.WindowGetSize(b.ctx)
+	maximized := runtime.WindowIsMaximised(b.ctx)
+	fullscreen := runtime.WindowIsFullscreen(b.ctx)
+	return WindowState{
+		X:          x,
+		Y:          y,
+		Width:      w,
+		Height:     h,
+		Maximized:  maximized,
+		Fullscreen: fullscreen,
+	}
+}
+
+// SetWindowState restores window position and size
+func (b *Bridge) SetWindowState(state WindowState) {
+	if state.Fullscreen {
+		runtime.WindowFullscreen(b.ctx)
+		return
+	}
+	if state.Maximized {
+		runtime.WindowMaximise(b.ctx)
+		return
+	}
+	if state.Width > 0 && state.Height > 0 {
+		runtime.WindowSetSize(b.ctx, state.Width, state.Height)
+	}
+	if state.X >= 0 && state.Y >= 0 {
+		runtime.WindowSetPosition(b.ctx, state.X, state.Y)
+	}
+}
+
+// WindowMaximize maximizes the window
+func (b *Bridge) WindowMaximize() {
+	runtime.WindowMaximise(b.ctx)
+}
+
+// WindowUnmaximize restores the window from maximized state
+func (b *Bridge) WindowUnmaximize() {
+	runtime.WindowUnmaximise(b.ctx)
+}
+
+// WindowToggleMaximize toggles between maximized and normal state
+func (b *Bridge) WindowToggleMaximize() {
+	runtime.WindowToggleMaximise(b.ctx)
+}
+
+// WindowFullscreen sets the window to fullscreen
+func (b *Bridge) WindowFullscreen() {
+	runtime.WindowFullscreen(b.ctx)
+}
+
+// WindowUnfullscreen exits fullscreen mode
+func (b *Bridge) WindowUnfullscreen() {
+	runtime.WindowUnfullscreen(b.ctx)
+}

@@ -15,12 +15,12 @@ const activeTab = ref<'architecture' | 'frameworks' | 'conventions' | 'languages
 
 async function loadStructure() {
   if (!projectStore.currentPath) return
-  
+
   loading.value = true
   error.value = null
-  
+
   try {
-    structure.value = await GetProjectStructure(projectStore.currentPath)
+    structure.value = await GetProjectStructure(projectStore.currentPath) as unknown as ProjectStructure
   } catch (e) {
     error.value = String(e)
     console.error('Failed to load project structure:', e)
@@ -81,20 +81,15 @@ watch(() => projectStore.currentPath, (newDir) => {
       <div class="flex items-center gap-2">
         <div class="panel-icon panel-icon-indigo">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
         </div>
         <span class="panel-title">{{ t('projectStructure.title') }}</span>
       </div>
-      <button 
-        @click="loadStructure" 
-        class="action-btn"
-        :disabled="loading"
-        :title="t('projectStructure.refresh')"
-      >
+      <button @click="loadStructure" class="action-btn" :disabled="loading" :title="t('projectStructure.refresh')">
         <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </button>
@@ -114,13 +109,9 @@ watch(() => projectStore.currentPath, (newDir) => {
     <div v-else-if="structure" class="flex-1 overflow-hidden flex flex-col">
       <!-- Tabs -->
       <div class="flex border-b border-gray-700/30 px-2">
-        <button 
-          v-for="tab in ['architecture', 'frameworks', 'conventions', 'languages']" 
-          :key="tab"
-          @click="activeTab = tab as any"
-          class="tab-btn"
-          :class="activeTab === tab ? 'tab-btn-active-indigo' : 'tab-btn-inactive'"
-        >
+        <button v-for="tab in ['architecture', 'frameworks', 'conventions', 'languages']" :key="tab"
+          @click="activeTab = tab as any" class="tab-btn"
+          :class="activeTab === tab ? 'tab-btn-active-indigo' : 'tab-btn-inactive'">
           {{ t(`projectStructure.${tab}`) }}
         </button>
       </div>
@@ -148,7 +139,8 @@ watch(() => projectStore.currentPath, (newDir) => {
             <div v-if="structure.architecture.indicators?.length" class="card p-3">
               <div class="text-xs text-gray-500 mb-2">{{ t('projectStructure.indicators') }}</div>
               <ul class="space-y-1">
-                <li v-for="ind in structure.architecture.indicators" :key="ind" class="text-sm text-gray-300 flex items-start gap-2">
+                <li v-for="ind in structure.architecture.indicators" :key="ind"
+                  class="text-sm text-gray-300 flex items-start gap-2">
                   <span class="text-emerald-400 mt-0.5">✓</span>
                   <span>{{ ind }}</span>
                 </li>
@@ -159,7 +151,8 @@ watch(() => projectStore.currentPath, (newDir) => {
             <div v-if="structure.architecture.layers?.length" class="card p-3">
               <div class="text-xs text-gray-500 mb-2">{{ t('projectStructure.layers') }}</div>
               <div class="space-y-2">
-                <div v-for="layer in structure.architecture.layers" :key="layer.name" class="bg-gray-800/50 rounded p-2">
+                <div v-for="layer in structure.architecture.layers" :key="layer.name"
+                  class="bg-gray-800/50 rounded p-2">
                   <div class="flex items-center justify-between">
                     <span class="font-medium text-indigo-400">{{ layer.name }}</span>
                     <span class="text-xs text-gray-500">{{ layer.path }}</span>
@@ -200,7 +193,7 @@ watch(() => projectStore.currentPath, (newDir) => {
                   <div class="text-xs text-gray-500">{{ fw.language }} • {{ fw.category }}</div>
                 </div>
               </div>
-              
+
               <div v-if="fw.configFiles?.length" class="text-xs text-gray-500 mb-2">
                 Config: {{ fw.configFiles.join(', ') }}
               </div>
@@ -208,7 +201,8 @@ watch(() => projectStore.currentPath, (newDir) => {
               <div v-if="fw.bestPractices?.length" class="mt-2">
                 <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.bestPractices') }}</div>
                 <ul class="space-y-1">
-                  <li v-for="bp in fw.bestPractices.slice(0, 3)" :key="bp" class="text-xs text-gray-400 flex items-start gap-1">
+                  <li v-for="bp in fw.bestPractices.slice(0, 3)" :key="bp"
+                    class="text-xs text-gray-400 flex items-start gap-1">
                     <span class="text-yellow-400">•</span>
                     <span>{{ bp }}</span>
                   </li>
@@ -240,15 +234,18 @@ watch(() => projectStore.currentPath, (newDir) => {
                 <div v-if="structure.conventions.testConventions.framework">
                   Framework: <span class="text-white">{{ structure.conventions.testConventions.framework }}</span>
                 </div>
-                <div>Location: <span class="text-white">{{ structure.conventions.testConventions.location }}</span></div>
-                <div>Suffix: <span class="text-white">{{ structure.conventions.testConventions.fileSuffix }}</span></div>
+                <div>Location: <span class="text-white">{{ structure.conventions.testConventions.location }}</span>
+                </div>
+                <div>Suffix: <span class="text-white">{{ structure.conventions.testConventions.fileSuffix }}</span>
+                </div>
               </div>
             </div>
 
             <div v-if="structure.conventions.codeStyle" class="card p-3">
               <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.codeStyle') }}</div>
               <div class="text-sm text-gray-300">
-                <div>Indent: <span class="text-white">{{ structure.conventions.codeStyle.indentStyle }} ({{ structure.conventions.codeStyle.indentSize }})</span></div>
+                <div>Indent: <span class="text-white">{{ structure.conventions.codeStyle.indentStyle }} ({{
+                  structure.conventions.codeStyle.indentSize }})</span></div>
                 <div v-if="structure.conventions.codeStyle.configFile">
                   Config: <span class="text-white">{{ structure.conventions.codeStyle.configFile }}</span>
                 </div>
@@ -264,16 +261,14 @@ watch(() => projectStore.currentPath, (newDir) => {
               <div class="flex items-center justify-between mb-1">
                 <div class="font-medium text-white">
                   {{ lang.name }}
-                  <span v-if="lang.primary" class="badge badge-success text-xs ml-1">{{ t('projectStructure.primary') }}</span>
+                  <span v-if="lang.primary" class="badge badge-success text-xs ml-1">{{ t('projectStructure.primary')
+                    }}</span>
                 </div>
                 <span class="text-sm text-gray-400">{{ lang.fileCount }} files</span>
               </div>
               <div class="w-full bg-gray-700 rounded-full h-1.5">
-                <div 
-                  class="h-1.5 rounded-full transition-all"
-                  :class="lang.primary ? 'bg-indigo-500' : 'bg-gray-500'"
-                  :style="{ width: `${lang.percentage}%` }"
-                ></div>
+                <div class="h-1.5 rounded-full transition-all" :class="lang.primary ? 'bg-indigo-500' : 'bg-gray-500'"
+                  :style="{ width: `${lang.percentage}%` }"></div>
               </div>
               <div class="text-xs text-gray-500 mt-1">{{ lang.percentage.toFixed(1) }}%</div>
             </div>

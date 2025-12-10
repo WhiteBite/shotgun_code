@@ -79,7 +79,7 @@ function evictIfNeeded(newEntrySize: number) {
     let removed = 0
     const keysToRemove: string[] = []
 
-    cache.forEach((entry, key) => {
+    cache.forEach((_entry, key) => {
       if (removed >= entriesToRemove) return
       keysToRemove.push(key)
       removed++

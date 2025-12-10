@@ -68,7 +68,7 @@
     </div>
 
     <!-- Action Bar -->
-    <ActionBar class="workspace-actionbar" @open-export="handleOpenExport" />
+    <ActionBar class="workspace-actionbar" @open-export="handleOpenExport" @reset-layout="resetPanelSizes" />
 
     <!-- Export Modal -->
     <ExportModal ref="exportModalRef" />
@@ -84,7 +84,7 @@ import { useContextStore } from '@/features/context'
 import { useFileStore } from '@/features/files'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUIStore } from '@/stores/ui.store'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import ActionBar from './ActionBar.vue'
 import CenterWorkspace from './CenterWorkspace.vue'
 import LeftSidebar from './LeftSidebar.vue'
@@ -116,6 +116,12 @@ function toggleRightSidebar() {
   } catch (e) {
     console.warn('Failed to save sidebar state:', e)
   }
+}
+
+function resetPanelSizes() {
+  leftResize.resetToDefault()
+  rightResize.resetToDefault()
+  uiStore.addToast(t('workspace.layoutReset'), 'success')
 }
 
 // Panel resizing
@@ -169,6 +175,57 @@ onUnmounted(() => {
   window.removeEventListener('global-copy-context', handleGlobalCopyContext)
 })
 
+// Watch for format/settings changes and rebuild context automatically
+watch(
+  () => [
+    settingsStore.settings.context.outputFormat,
+    settingsStore.settings.context.stripComments
+  ],
+  async ([newFormat, newStripComments], [oldFormat, oldStripComments]) => {
+    // Only rebuild if context exists and settings actually changed
+    if (!contextStore.hasContext || contextStore.isBuilding) return
+    if (newFormat === oldFormat && newStripComments === oldStripComments) return
+    
+    // Get the files from current context summary
+    const currentFiles = contextStore.summary?.files
+    if (!currentFiles || currentFiles.length === 0) {
+      // Fallback to selected files if no files in summary
+      if (fileStore.selectedPaths.size === 0) return
+    }
+    
+    const filePaths = currentFiles && currentFiles.length > 0 
+      ? currentFiles 
+      : Array.from(fileStore.selectedPaths)
+    
+    console.log('[MainWorkspace] Settings changed, rebuilding context:', { 
+      format: newFormat, 
+      stripComments: newStripComments,
+      fileCount: filePaths.length 
+    })
+    
+    try {
+      const options = {
+        maxTokens: settingsStore.settings.context.maxTokens,
+        stripComments: settingsStore.settings.context.stripComments,
+        includeTests: settingsStore.settings.context.includeTests,
+        splitStrategy: settingsStore.settings.context.splitStrategy,
+        outputFormat: settingsStore.settings.context.outputFormat,
+        // Content optimization options
+        excludeTests: settingsStore.settings.context.excludeTests,
+        collapseEmptyLines: settingsStore.settings.context.collapseEmptyLines,
+        stripLicense: settingsStore.settings.context.stripLicense,
+        compactDataFiles: settingsStore.settings.context.compactDataFiles,
+        trimWhitespace: settingsStore.settings.context.trimWhitespace
+      }
+      
+      await contextStore.buildContext(filePaths, options)
+      uiStore.addToast(t('context.rebuilt'), 'success')
+    } catch (error) {
+      console.error('[MainWorkspace] Failed to rebuild context:', error)
+    }
+  }
+)
+
 async function handleBuildContext() {
   if (fileStore.selectedPaths.size === 0) {
     uiStore.addToast('Выберите файлы для построения контекста', 'warning')
@@ -183,15 +240,42 @@ async function handleBuildContext() {
       maxTokens: settingsStore.settings.context.maxTokens,
       stripComments: settingsStore.settings.context.stripComments,
       includeTests: settingsStore.settings.context.includeTests,
-      splitStrategy: settingsStore.settings.context.splitStrategy
+      splitStrategy: settingsStore.settings.context.splitStrategy,
+      outputFormat: settingsStore.settings.context.outputFormat,
+      // Content optimization options
+      excludeTests: settingsStore.settings.context.excludeTests,
+      collapseEmptyLines: settingsStore.settings.context.collapseEmptyLines,
+      stripLicense: settingsStore.settings.context.stripLicense,
+      compactDataFiles: settingsStore.settings.context.compactDataFiles,
+      trimWhitespace: settingsStore.settings.context.trimWhitespace
     }
     
     await contextStore.buildContext(filePaths, options)
-    uiStore.addToast('Контекст успешно построен', 'success')
+    uiStore.addToast(t('toast.contextBuilt'), 'success')
   } catch (error) {
     console.error('Failed to build context:', error)
+    
+    // Handle token limit exceeded error with detailed message
+    if (error instanceof Error && error.message === 'TOKEN_LIMIT_EXCEEDED') {
+      const storeError = contextStore.error
+      if (storeError?.startsWith('TOKEN_LIMIT_EXCEEDED:')) {
+        const parts = storeError.split(':')
+        const actual = Number(parts[1])
+        const limit = Number(parts[2])
+        const actualK = Math.round(actual / 1000)
+        const limitK = Math.round(limit / 1000)
+        uiStore.addToast(
+          t('error.tokenLimitExceeded', { actual: actualK, limit: limitK }),
+          'error'
+        )
+      } else {
+        uiStore.addToast(t('error.tokenLimitGeneric'), 'error')
+      }
+      return
+    }
+    
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-    uiStore.addToast(`Ошибка при построении контекста: ${errorMsg}`, 'error')
+    uiStore.addToast(`${t('toast.contextError')}: ${errorMsg}`, 'error')
   }
 }
 

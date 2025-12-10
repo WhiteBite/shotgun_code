@@ -7,8 +7,19 @@ export interface ContextSettings {
     maxTokens: number
     stripComments: boolean
     includeTests: boolean
-    splitStrategy: 'semantic' | 'fixed' | 'adaptive'
+    splitStrategy: 'smart' | 'file' | 'token'
     outputFormat: OutputFormat
+    // Content optimization options
+    excludeTests: boolean
+    collapseEmptyLines: boolean
+    stripLicense: boolean
+    compactDataFiles: boolean
+    trimWhitespace: boolean
+    // Export options (previously in useExport)
+    includeManifest: boolean
+    includeLineNumbers: boolean
+    enableAutoSplit: boolean
+    maxTokensPerChunk: number
 }
 
 export interface QuickFilterConfig {
@@ -17,6 +28,8 @@ export interface QuickFilterConfig {
     extensions: string[]
     patterns: string[]  // glob patterns like '**/Test/**'
     enabled: boolean
+    isDynamic?: boolean  // true for auto-detected filters based on project structure
+    language?: string    // language name for dynamic filters
 }
 
 export interface FileExplorerSettings {
@@ -49,8 +62,19 @@ const DEFAULT_SETTINGS: AppSettings = {
         maxTokens: 100000, // 100K tokens by default (reasonable for most projects)
         stripComments: false,
         includeTests: true,
-        splitStrategy: 'semantic',
-        outputFormat: 'markdown' // Default format
+        splitStrategy: 'smart',
+        outputFormat: 'xml', // Default format - XML is best for AI context
+        // Content optimization - disabled by default for safety
+        excludeTests: false,
+        collapseEmptyLines: false,
+        stripLicense: false,
+        compactDataFiles: false,
+        trimWhitespace: false,
+        // Export options
+        includeManifest: true,
+        includeLineNumbers: true,
+        enableAutoSplit: false,
+        maxTokensPerChunk: 4000
     },
     contextStorage: {
         maxContexts: 20,
@@ -66,7 +90,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         showIgnoredFiles: true,
         customIgnoreRules: '',
         quickFilters: [
-            { id: 'source', label: 'Исходный код', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.cpp', '.c', '.rs'], patterns: [], enabled: true },
+            { id: 'source', label: 'Исходники', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.cpp', '.c', '.rs'], patterns: [], enabled: true },
             { id: 'tests', label: 'Тесты', extensions: [], patterns: ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/Test/**'], enabled: true },
             { id: 'config', label: 'Конфигурация', extensions: ['.json', '.yaml', '.yml', '.toml', '.ini', '.env'], patterns: [], enabled: true },
             { id: 'docs', label: 'Документация', extensions: ['.md', '.txt', '.rst', '.adoc'], patterns: [], enabled: true },

@@ -1,5 +1,5 @@
-import type { ContextSummary } from '../model/context.store'
 import type { domain } from '#wailsjs/go/models'
+import type { ContextSummary } from '../model/context.store'
 
 export interface ValidationResult {
     valid: boolean
@@ -37,7 +37,7 @@ export function validateContextOptions(options: Partial<domain.ContextBuildOptio
         errors.push('Max tokens cannot exceed 1,000,000')
     }
 
-    if (options.splitStrategy && !['semantic', 'fixed', 'adaptive'].includes(options.splitStrategy)) {
+    if (options.splitStrategy && !['smart', 'file', 'token'].includes(options.splitStrategy)) {
         errors.push('Invalid split strategy')
     }
 

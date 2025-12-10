@@ -24,6 +24,7 @@ export const useFileStore = defineStore('file', () => {
     const error = ref<string | null>(null)
     const searchQuery = ref('')
     const filterExtensions = ref<string[]>([])
+    const excludeExtensions = ref<string[]>([])
     const currentDirectory = ref<string>('')
     const directoryHistory = ref<string[]>([])
     const rootPath = ref<string>('')
@@ -36,45 +37,35 @@ export const useFileStore = defineStore('file', () => {
     // Using plain Map instead of ref to prevent Vue from creating proxies for 5000+ entries
     const allFilesCache = new Map<string, string[]>()
 
+    // Cache for findNode - path → node lookup for O(1) access
+    const nodePathCache = new Map<string, FileNode>()
+
     // Computed
     const hasSelectedFiles = computed(() => selectedPaths.value.size > 0)
     const selectedCount = computed(() => selectedPaths.value.size)
     const selectedFilesList = computed(() => Array.from(selectedPaths.value))
 
-    // Estimated token count for selected files (1 token ≈ 4 bytes)
-    const estimatedTokenCount = computed(() => {
+    // Cached total size of selected files (computed once, reused)
+    const selectedFilesTotalSize = computed(() => {
         let totalSize = 0
         selectedPaths.value.forEach(path => {
-            const node = findNode(nodes.value, path)
-            if (node && !node.isDir && node.size) {
-                totalSize += node.size
-            }
-        })
-        return Math.round(totalSize / 4)
-    })
-
-    // Estimated context size in MB
-    const estimatedContextSize = computed(() => {
-        let totalSize = 0
-        selectedPaths.value.forEach(path => {
-            const node = findNode(nodes.value, path)
-            if (node && !node.isDir && node.size) {
-                totalSize += node.size
-            }
-        })
-        return totalSize / (1024 * 1024)
-    })
-
-    // Get total size of selected files in bytes
-    function getSelectedFilesSize(): number {
-        let totalSize = 0
-        selectedPaths.value.forEach(path => {
-            const node = findNode(nodes.value, path)
+            const node = nodePathCache.get(path) // O(1) lookup
             if (node && !node.isDir && node.size) {
                 totalSize += node.size
             }
         })
         return totalSize
+    })
+
+    // Estimated token count for selected files (1 token ≈ 4 bytes)
+    const estimatedTokenCount = computed(() => Math.round(selectedFilesTotalSize.value / 4))
+
+    // Estimated context size in MB
+    const estimatedContextSize = computed(() => selectedFilesTotalSize.value / (1024 * 1024))
+
+    // Get total size of selected files in bytes
+    function getSelectedFilesSize(): number {
+        return selectedFilesTotalSize.value
     }
 
     const breadcrumbs = computed(() => {
@@ -129,16 +120,71 @@ export const useFileStore = defineStore('file', () => {
 
     // Filtered nodes
     const filteredNodes = computed(() => {
-        if (filterExtensions.value.length === 0) return nodes.value
-        return filterTreeByExtensions(nodes.value, filterExtensions.value)
+        if (filterExtensions.value.length === 0 && excludeExtensions.value.length === 0) return nodes.value
+        return filterTreeByExtensions(nodes.value, filterExtensions.value, excludeExtensions.value)
     })
 
     // Actions
+
+    // Remove a node from tree without full reload (for ignore operations)
+    function removeNode(path: string): boolean {
+        const removeFromTree = (tree: FileNode[], targetPath: string): boolean => {
+            for (let i = 0; i < tree.length; i++) {
+                if (tree[i].path === targetPath) {
+                    // Also deselect all files in this node before removing
+                    if (tree[i].isDir) {
+                        const filesToDeselect = getAllFilesInNode(tree[i])
+                        filesToDeselect.forEach(p => selectedPaths.value.delete(p))
+                    } else {
+                        selectedPaths.value.delete(targetPath)
+                    }
+                    tree.splice(i, 1)
+                    return true
+                }
+                if (tree[i].children) {
+                    if (removeFromTree(tree[i].children!, targetPath)) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        const removed = removeFromTree(nodes.value, path)
+        if (removed) {
+            // Clear caches for removed path and its children
+            nodePathCache.delete(path)
+            allFilesCache.delete(path)
+            // Clear parent caches too
+            const parentPath = path.substring(0, path.lastIndexOf('/')) || path.substring(0, path.lastIndexOf('\\'))
+            if (parentPath) {
+                allFilesCache.delete(parentPath)
+            }
+            flattenedNodesCache.value = null
+            triggerRef(selectedPaths)
+            // Force Vue to detect the change in nodes array
+            nodes.value = [...nodes.value]
+        }
+        return removed
+    }
+
     function setFileTree(tree: FileNode[] | domain.FileNode[]) {
+        // Preserve expanded state before updating
+        const expandedPaths = getExpandedPaths()
+
         nodes.value = convertDomainNodes(tree)
-        // Clear cache when tree changes (direct access, no .value)
+        // Clear caches when tree changes
         allFilesCache.clear()
+        nodePathCache.clear()
         flattenedNodesCache.value = null
+
+        // Build path cache for O(1) node lookups
+        buildNodePathCache(nodes.value)
+
+        // Restore expanded state after updating
+        if (expandedPaths.length > 0) {
+            restoreExpandedPaths(expandedPaths)
+        }
     }
 
     async function loadFileTree(projectPath: string, directory?: string) {
@@ -147,7 +193,7 @@ export const useFileStore = defineStore('file', () => {
 
         try {
             const targetPath = directory || projectPath
-            const files = await filesApi.listFiles(targetPath, false, true)
+            const files = await filesApi.listFiles(targetPath, true, true)
             setFileTree(files)
 
             // Set root path on first load
@@ -155,17 +201,13 @@ export const useFileStore = defineStore('file', () => {
                 rootPath.value = projectPath
                 currentDirectory.value = projectPath
 
-                // Load expanded state or auto-expand root folders
+                // Load expanded state or auto-expand to show files
                 loadExpandedState()
 
-                // If no saved state, auto-expand root folders
+                // If no saved state, auto-expand folders to reveal files
                 const hasExpandedState = nodes.value.some(n => n.isDir && n.isExpanded)
                 if (!hasExpandedState) {
-                    nodes.value.forEach(node => {
-                        if (node.isDir) {
-                            node.isExpanded = true
-                        }
-                    })
+                    autoExpandToFiles(nodes.value, 3) // Expand up to 3 levels deep
                 }
 
                 // Load saved selection for this project
@@ -453,8 +495,9 @@ export const useFileStore = defineStore('file', () => {
         searchQuery.value = query
     }
 
-    function setFilterExtensions(extensions: string[]) {
+    function setFilterExtensions(extensions: string[], exclude: string[] = []) {
         filterExtensions.value = extensions
+        excludeExtensions.value = exclude
     }
 
     async function refreshFileTree(): Promise<void> {
@@ -494,14 +537,18 @@ export const useFileStore = defineStore('file', () => {
         directoryHistory.value = []
         searchQuery.value = ''
         filterExtensions.value = []
+        excludeExtensions.value = []
         error.value = null
         isLoading.value = false
         flattenedNodesCache.value = null
+        // Clear all caches
+        allFilesCache.clear()
+        nodePathCache.clear()
 
         // Force garbage collection
         if (typeof window !== 'undefined' && (window as any).gc) {
             try {
-                (window as any).gc()
+                (window as unknown).gc()
             } catch (e) {
                 // Ignore
             }
@@ -533,6 +580,9 @@ export const useFileStore = defineStore('file', () => {
 
         // allFilesCache: estimate based on cache size (direct access, no .value)
         size += allFilesCache.size * 150
+
+        // nodePathCache: ~50 bytes per entry (just path string + reference)
+        size += nodePathCache.size * 50
         return size
     }
 
@@ -543,15 +593,61 @@ export const useFileStore = defineStore('file', () => {
     }
 
     // Helper functions
-    function findNode(tree: FileNode[], path: string): FileNode | null {
+
+    // Auto-expand folders to reveal files (smart expand)
+    function autoExpandToFiles(tree: FileNode[], maxDepth: number = 3, currentDepth: number = 0): void {
+        if (currentDepth >= maxDepth) return
+
         for (const node of tree) {
-            if (node.path === path) return node
+            if (node.isDir && node.children && node.children.length > 0) {
+                // Check if this folder has any files directly
+                const hasFiles = node.children.some(child => !child.isDir)
+                // Check if this folder has only folders (need to go deeper)
+                const hasOnlyFolders = node.children.every(child => child.isDir)
+
+                // Expand if:
+                // 1. Has files to show, OR
+                // 2. Has only folders and we haven't reached max depth
+                if (hasFiles || (hasOnlyFolders && currentDepth < maxDepth - 1)) {
+                    node.isExpanded = true
+                    // Continue expanding children
+                    autoExpandToFiles(node.children, maxDepth, currentDepth + 1)
+                } else if (currentDepth === 0) {
+                    // Always expand root level
+                    node.isExpanded = true
+                    autoExpandToFiles(node.children, maxDepth, currentDepth + 1)
+                }
+            }
+        }
+    }
+
+    function findNode(tree: FileNode[], path: string): FileNode | null {
+        // Check cache first - O(1) lookup
+        const cached = nodePathCache.get(path)
+        if (cached) return cached
+
+        // Fallback to tree traversal
+        for (const node of tree) {
+            if (node.path === path) {
+                nodePathCache.set(path, node)
+                return node
+            }
             if (node.children) {
                 const found = findNode(node.children, path)
                 if (found) return found
             }
         }
         return null
+    }
+
+    // Build path cache for entire tree - call after setFileTree
+    function buildNodePathCache(tree: FileNode[]) {
+        for (const node of tree) {
+            nodePathCache.set(node.path, node)
+            if (node.children) {
+                buildNodePathCache(node.children)
+            }
+        }
     }
 
     function walkTree(tree: FileNode[], fn: (node: FileNode) => void) {
@@ -576,7 +672,7 @@ export const useFileStore = defineStore('file', () => {
         return result
     }
 
-    function convertDomainNodes(domainNodes: any[]): FileNode[] {
+    function convertDomainNodes(domainNodes: unknown[]): FileNode[] {
         return domainNodes.map(node => ({
             name: node.name,
             path: node.path,
@@ -589,16 +685,23 @@ export const useFileStore = defineStore('file', () => {
         }))
     }
 
-    function filterTreeByExtensions(tree: FileNode[], extensions: string[]): FileNode[] {
+    function filterTreeByExtensions(tree: FileNode[], include: string[], exclude: string[] = []): FileNode[] {
         return tree.filter(node => {
             if (node.isDir) {
-                const filteredChildren = node.children ? filterTreeByExtensions(node.children, extensions) : []
+                const filteredChildren = node.children ? filterTreeByExtensions(node.children, include, exclude) : []
                 return filteredChildren.length > 0
             }
-            return extensions.some(ext => node.name.endsWith(ext))
+            // If exclude list has items, exclude those extensions
+            if (exclude.length > 0 && exclude.some(ext => node.name.endsWith(ext))) {
+                return false
+            }
+            // If include list is empty (only excluding), show all non-excluded
+            if (include.length === 0) return true
+            // Otherwise filter by include list
+            return include.some(ext => node.name.endsWith(ext))
         }).map(node => ({
             ...node,
-            children: node.children ? filterTreeByExtensions(node.children, extensions) : undefined
+            children: node.children ? filterTreeByExtensions(node.children, include, exclude) : undefined
         }))
     }
 
@@ -740,6 +843,7 @@ export const useFileStore = defineStore('file', () => {
         error,
         searchQuery,
         filterExtensions,
+        excludeExtensions,
         currentDirectory,
         directoryHistory,
         rootPath,
@@ -756,6 +860,7 @@ export const useFileStore = defineStore('file', () => {
         // Actions
         setFileTree,
         loadFileTree,
+        removeNode,
         toggleSelect,
         selectPath,
         deselectPath,
@@ -797,6 +902,8 @@ export const useFileStore = defineStore('file', () => {
         loadExpandedState,
         getExpandedPaths,
         restoreExpandedPaths,
-        nodeExists
+        nodeExists,
+        // Auto-expand utility
+        autoExpandToFiles: () => autoExpandToFiles(nodes.value, 3)
     }
 })

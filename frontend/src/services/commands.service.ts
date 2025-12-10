@@ -3,18 +3,18 @@
  * Provides context-aware commands with real actions
  */
 
+import { useFileStore } from '@/features/files/model/file.store'
 import { useProjectStore } from '@/stores/project.store'
-import { useFileStore } from '@/stores/file.store'
 import { useUIStore } from '@/stores/ui.store'
 import {
-  MagnifyingGlassIcon,
-  DocumentTextIcon,
-  CogIcon,
-  FolderOpenIcon,
   ArrowPathIcon,
-  QuestionMarkCircleIcon,
-  HomeIcon,
   CodeBracketIcon,
+  CogIcon,
+  DocumentTextIcon,
+  FolderOpenIcon,
+  HomeIcon,
+  MagnifyingGlassIcon,
+  QuestionMarkCircleIcon,
   Squares2X2Icon
 } from '@heroicons/vue/24/outline'
 

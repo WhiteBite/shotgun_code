@@ -29,6 +29,13 @@ func NewAnalyzerRegistry() *AnalyzerRegistryImpl {
 	registry.Register(NewJavaScriptAnalyzer())
 	registry.Register(NewJavaAnalyzer())
 	registry.Register(NewKotlinAnalyzer())
+	// Phase 2: Vue and Dart analyzers
+	registry.Register(NewVueAnalyzer())
+	registry.Register(NewDartAnalyzer())
+	// New language analyzers
+	registry.Register(NewPythonAnalyzer())
+	registry.Register(NewRustAnalyzer())
+	registry.Register(NewCSharpAnalyzer())
 
 	return registry
 }

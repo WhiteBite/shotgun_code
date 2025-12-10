@@ -1,5 +1,5 @@
-import { ref, computed } from 'vue'
-import { ReadFileContent, GetFileStats } from '#wailsjs/go/main/App'
+import { GetFileStats, ReadFileContent } from '#wailsjs/go/main/App'
+import { computed, ref } from 'vue'
 
 /**
  * QuickLook modal composable for file preview
@@ -27,7 +27,7 @@ export function useQuickLook() {
     try {
       // Load file content and stats in parallel
       const [content, statsJson] = await Promise.all([
-        ReadFileContent(filePath),
+        ReadFileContent(filePath, ''),
         GetFileStats(filePath)
       ])
 
@@ -79,7 +79,7 @@ export function useQuickLook() {
     fileStats,
     error,
     hasFile,
-    
+
     // Actions
     open,
     close,

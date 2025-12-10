@@ -91,3 +91,58 @@ func (a *DartAnalyzer) GetImports(ctx context.Context, filePath string, content 
 	}
 	return imports, nil
 }
+
+// GetExports extracts exported symbols from Dart files
+// In Dart, all public symbols (not starting with _) are exported by default
+func (a *DartAnalyzer) GetExports(ctx context.Context, filePath string, content []byte) ([]analysis.Export, error) {
+	symbols, err := a.ExtractSymbols(ctx, filePath, content)
+	if err != nil {
+		return nil, err
+	}
+
+	exports := make([]analysis.Export, 0, len(symbols))
+	for _, sym := range symbols {
+		// In Dart, symbols starting with _ are private
+		if !strings.HasPrefix(sym.Name, "_") {
+			exports = append(exports, analysis.Export{
+				Name: sym.Name,
+				Kind: string(sym.Kind),
+				Line: sym.StartLine,
+			})
+		}
+	}
+	return exports, nil
+}
+
+// GetFunctionBody returns the body of a function by name
+func (a *DartAnalyzer) GetFunctionBody(ctx context.Context, filePath string, content []byte, funcName string) (string, int, int, error) {
+	text := string(content)
+	lines := strings.Split(text, "\n")
+
+	// Find function by name
+	funcRe := regexp.MustCompile(`(?m)^[\t ]*[\w<>?]+\s+` + regexp.QuoteMeta(funcName) + `\s*\(`)
+
+	startLine := -1
+	for i, line := range lines {
+		if funcRe.MatchString(line) {
+			startLine = i
+			break
+		}
+	}
+
+	if startLine < 0 {
+		return "", 0, 0, nil
+	}
+
+	endLine := findBlockEndLine(lines, startLine)
+
+	var body strings.Builder
+	for i := startLine; i < endLine && i < len(lines); i++ {
+		body.WriteString(lines[i])
+		if i < endLine-1 {
+			body.WriteString("\n")
+		}
+	}
+
+	return body.String(), startLine + 1, endLine, nil
+}

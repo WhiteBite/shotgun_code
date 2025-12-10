@@ -1,83 +1,52 @@
 # Shotgun Code - Development Script
-# Быстрый запуск в режиме разработки
-
+# Node.js память ограничена по умолчанию из-за утечки в Vite dev server
 param(
     [switch]$Verbose,
-    [switch]$NoHMR
+    [int]$NodeMemory = 1024  # MB, по умолчанию 1GB
 )
 
-Write-Host "🚀 Запуск Shotgun Code в режиме разработки..." -ForegroundColor Green
+Write-Host "🚀 Запуск Shotgun Code..." -ForegroundColor Green
 
-# Проверяем наличие Wails
-$wailsPath = $null
-if (Test-Path "$env:USERPROFILE\go\bin\wails.exe") {
-    $wailsPath = "$env:USERPROFILE\go\bin\wails.exe"
-} elseif (Get-Command wails -ErrorAction SilentlyContinue) {
-    $wailsPath = "wails"
-} else {
-    Write-Host "❌ Wails не установлен. Установите: go install github.com/wailsapp/wails/v2/cmd/wails@latest" -ForegroundColor Red
+# Найти wails
+$wails = Get-Command wails -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+if (-not $wails) {
+    $gopath = $env:GOPATH
+    if (-not $gopath) { $gopath = "$env:USERPROFILE\go" }
+    $wailsPath = "$gopath\bin\wails.exe"
+    if (Test-Path $wailsPath) { $wails = $wailsPath }
+}
+
+# Проверка зависимостей
+$missing = @()
+if (-not $wails) { $missing += "wails (go install github.com/wailsapp/wails/v2/cmd/wails@latest)" }
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { $missing += "node" }
+if (-not (Get-Command go -ErrorAction SilentlyContinue)) { $missing += "go" }
+
+if ($missing.Count -gt 0) {
+    Write-Host "❌ Не установлено: $($missing -join ', ')" -ForegroundColor Red
     exit 1
 }
 
-# Проверяем наличие Node.js
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Node.js не установлен" -ForegroundColor Red
-    exit 1
-}
+Push-Location backend
+$env:GOGC = "50"
 
-# Проверяем наличие Go
-if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Go не установлен" -ForegroundColor Red
-    exit 1
-}
+# Ограничиваем память Node.js (Vite dev server имеет утечку)
+$env:NODE_OPTIONS = "--max-old-space-size=$NodeMemory"
+Write-Host "📦 Node.js heap limit: ${NodeMemory}MB" -ForegroundColor Cyan
 
-Write-Host "✅ Все зависимости установлены" -ForegroundColor Green
-
-# Запускаем wails dev из директории backend
-Write-Host "📁 Временно переходим в backend/ и запускаем wails dev..." -ForegroundColor Yellow
-
-# Сохраняем текущую директорию
-$currentDir = Get-Location
-
-# Set environment to reduce memory usage
-$env:GOGC = "50"  # More aggressive GC
-
-# Переходим в backend, запускаем wails dev и возвращаемся обратно
 try {
-    Set-Location -Path "backend"
-    Write-Host "🔥 Запускаем wails dev..." -ForegroundColor Cyan
+    $wailsArgs = @("dev", "-loglevel", "error")
     
-    if (-not $Verbose) {
-        Write-Host "ℹ️  Отладочный вывод Wails фильтруется. Используйте -Verbose для полного вывода." -ForegroundColor Gray
-        if ($NoHMR) {
-            Write-Host "⚠️  HMR отключен для экономии памяти" -ForegroundColor Yellow
-        } else {
-            Write-Host "ℹ️  Используйте -NoHMR если память растёт слишком быстро." -ForegroundColor Gray
-        }
-        # MEMORY FIX: Use -loglevel error to disable DEB logs that accumulate in memory
-        # FIX: Redirect stderr properly to avoid RemoteException spam
-        $ErrorActionPreference = "Continue"
-        if ($NoHMR) {
-            & $wailsPath dev -loglevel error -skipbindings 2>&1 | ForEach-Object {
-                $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
-                if ($line -and -not ($line -match "KnownStructs:" -or $line -match "Not found: time\.Time" -or $line -match "^\s*$")) {
-                    Write-Host $line
-                }
-            }
-        } else {
-            & $wailsPath dev -loglevel error 2>&1 | ForEach-Object {
-                $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
-                if ($line -and -not ($line -match "KnownStructs:" -or $line -match "Not found: time\.Time" -or $line -match "^\s*$")) {
-                    Write-Host $line
-                }
-            }
-        }
+    if ($Verbose) {
+        & $wails dev
     } else {
-        & $wailsPath dev
+        Write-Host "ℹ️  Флаги: -Verbose, -NodeMemory <MB> (default 1024)" -ForegroundColor Gray
+        & $wails @wailsArgs 2>&1 | Where-Object { 
+            $_ -and $_ -notmatch "KnownStructs:|Not found: time\.Time|^\s*$" 
+        }
     }
 } finally {
-    # Возвращаемся в исходную директорию
-    Set-Location -Path $currentDir
-    # Reset GOGC
+    Pop-Location
     Remove-Item Env:GOGC -ErrorAction SilentlyContinue
+    Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
 }

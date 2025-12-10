@@ -381,3 +381,84 @@ func hashContent(content []byte) string {
 	h := md5.Sum(content) //nolint:gosec // MD5 used for content hashing, not security
 	return hex.EncodeToString(h[:])
 }
+
+// OnFileChanged handles file change events from file watcher
+// This method is designed to be called when a file is created, modified, or deleted
+func (idx *CachedSymbolIndex) OnFileChanged(ctx context.Context, filePath string, projectRoot string) error {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
+	// Get relative path
+	relPath, err := filepath.Rel(projectRoot, filePath)
+	if err != nil {
+		relPath = filePath
+	}
+
+	// Check if file exists
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		// File was deleted - remove from index
+		idx.removeSymbolsForFile(relPath)
+		idx.removeFileFromCache(relPath)
+		return nil
+	}
+
+	// Check if we can analyze this file
+	analyzer := idx.registry.GetAnalyzer(filePath)
+	if analyzer == nil {
+		return nil
+	}
+
+	// Check if file actually changed (compare hash)
+	cachedFiles := idx.loadCachedFileHashes()
+	currentHash := hashContent(content)
+	if cachedHash, exists := cachedFiles[relPath]; exists && cachedHash == currentHash {
+		// File hasn't changed
+		return nil
+	}
+
+	// Remove old symbols from memory index
+	idx.removeSymbolsForFile(relPath)
+
+	// Index with cache
+	if err := idx.indexFileWithCache(ctx, relPath, content); err != nil {
+		return err
+	}
+
+	// Add to memory index
+	symbols, err := analyzer.ExtractSymbols(ctx, relPath, content)
+	if err != nil {
+		return err
+	}
+
+	for _, sym := range symbols {
+		idx.addSymbolLocked(sym)
+	}
+
+	return nil
+}
+
+// OnFileDeleted handles file deletion events
+func (idx *CachedSymbolIndex) OnFileDeleted(filePath string, projectRoot string) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
+	relPath, err := filepath.Rel(projectRoot, filePath)
+	if err != nil {
+		relPath = filePath
+	}
+
+	idx.removeSymbolsForFile(relPath)
+	idx.removeFileFromCache(relPath)
+}
+
+// OnDirectoryChanged handles directory change events (batch reindex)
+func (idx *CachedSymbolIndex) OnDirectoryChanged(ctx context.Context, dirPath string, projectRoot string) error {
+	// Walk directory and reindex all files
+	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		return idx.OnFileChanged(ctx, path, projectRoot)
+	})
+}

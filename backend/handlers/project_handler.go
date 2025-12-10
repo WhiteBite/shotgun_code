@@ -136,6 +136,7 @@ func (h *ProjectHandler) GetCurrentBranch(projectRoot string) (string, error) {
 	return h.gitRepo.GetCurrentBranch(projectRoot)
 }
 
-// ClearCache clears the file tree cache (no-op, cache removed)
+// ClearCache clears the file tree cache
 func (h *ProjectHandler) ClearCache() {
+	h.projectService.InvalidateCache()
 }

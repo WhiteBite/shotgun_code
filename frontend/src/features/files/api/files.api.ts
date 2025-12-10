@@ -1,13 +1,13 @@
-import { apiService } from '@/services/api.service'
-import type { domain } from '#wailsjs/go/models'
+import type { domain } from '#wailsjs/go/models';
+import { apiService } from '@/services/api.service';
 
 class FilesApi {
     private fileTreeCache: Map<string, { data: domain.FileNode[]; timestamp: number }> = new Map()
     private readonly CACHE_TTL = 60000 // 1 minute
     private readonly MAX_CACHE_ENTRIES = 20 // Limit cache entries
 
-    async listFiles(path: string, includeHidden: boolean = false, sortByName: boolean = true): Promise<domain.FileNode[]> {
-        const cacheKey = `${path}-${includeHidden}-${sortByName}`
+    async listFiles(path: string, useGitignore: boolean = true, useCustomIgnore: boolean = true): Promise<domain.FileNode[]> {
+        const cacheKey = `${path}-${useGitignore}-${useCustomIgnore}`
         const cached = this.fileTreeCache.get(cacheKey)
 
         if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
@@ -18,12 +18,12 @@ class FilesApi {
         }
 
         try {
-            const files = await apiService.listFiles(path, includeHidden, sortByName)
+            const files = await apiService.listFiles(path, useGitignore, useCustomIgnore)
 
             // Evict oldest entry if cache is full
             if (this.fileTreeCache.size >= this.MAX_CACHE_ENTRIES) {
                 const firstKey = this.fileTreeCache.keys().next().value
-                this.fileTreeCache.delete(firstKey)
+                if (firstKey) this.fileTreeCache.delete(firstKey)
             }
 
             this.fileTreeCache.set(cacheKey, { data: files, timestamp: Date.now() })

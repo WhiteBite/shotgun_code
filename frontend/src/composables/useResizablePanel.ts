@@ -4,8 +4,8 @@
  * Saves panel width to localStorage for persistence
  */
 
-import { ref, onUnmounted } from 'vue'
 import { useStorage } from '@vueuse/core'
+import { onUnmounted, ref } from 'vue'
 
 export interface ResizablePanelOptions {
   minWidth?: number
@@ -42,22 +42,22 @@ export function useResizablePanel(options: ResizablePanelOptions) {
 
   const onMouseDown = (e: MouseEvent) => {
     if (!panelRef.value) return
-    
+
     isResizing.value = true
     startX = e.clientX
     startWidth = width.value
-    
+
     // Prevent text selection during resize
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
-    
+
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }
 
   const onMouseMove = (e: MouseEvent) => {
     if (!isResizing.value) return
-    
+
     const delta = e.clientX - startX
     const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta))
     width.value = newWidth
@@ -65,15 +65,15 @@ export function useResizablePanel(options: ResizablePanelOptions) {
 
   const onMouseUp = () => {
     if (!isResizing.value) return
-    
+
     isResizing.value = false
-    
+
     // Restore default cursor and text selection
     document.body.style.userSelect = ''
     document.body.style.cursor = ''
-    
+
     // useStorage автоматически сохраняет изменения - ручное сохранение удалено
-    
+
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
   }
@@ -83,10 +83,17 @@ export function useResizablePanel(options: ResizablePanelOptions) {
     document.removeEventListener('mouseup', onMouseUp)
   })
 
+  // Reset to default width
+  const resetToDefault = () => {
+    width.value = defaultWidth
+  }
+
   return {
     panelRef,
     width,
     isResizing,
-    onMouseDown
+    onMouseDown,
+    resetToDefault,
+    defaultWidth
   }
 }

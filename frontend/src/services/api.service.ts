@@ -73,12 +73,20 @@ class ApiService {
   // Работа с файлами
   // ============================================
 
-  async listFiles(path: string, includeHidden: boolean = false, sortByName: boolean = true): Promise<domain.FileNode[]> {
+  async listFiles(path: string, useGitignore: boolean = true, useCustomIgnore: boolean = true): Promise<domain.FileNode[]> {
     try {
-      return await wails.ListFiles(path, includeHidden, sortByName)
+      return await wails.ListFiles(path, useGitignore, useCustomIgnore)
     } catch (error) {
       console.error(`[ApiService] Error listing files for path "${path}":`, error)
       throw new Error('Failed to load file tree.')
+    }
+  }
+
+  async clearFileTreeCache(): Promise<void> {
+    try {
+      await wails.ClearFileTreeCache()
+    } catch (error) {
+      console.error('[ApiService] Error clearing file tree cache:', error)
     }
   }
 
@@ -117,7 +125,7 @@ class ApiService {
     projectPath: string,
     files: string[],
     options: domain.ContextBuildOptions
-  ): Promise<domain.ContextSummaryInfo> {
+  ): Promise<domain.ContextSummary> {
     try {
       return await wails.BuildContextFromRequest(projectPath, files, options)
     } catch (error) {
@@ -144,12 +152,13 @@ class ApiService {
         if (match) {
           const actual = Number(match[1])
           const limit = Number(match[2])
-          const actualK = Math.round(actual / 1000)
-          const limitK = Math.round(limit / 1000)
-          throw new Error(`Context exceeds token limit: ${actualK}K tokens (limit: ${limitK}K). Please reduce file selection.`)
+          // Create structured error with token info for UI to parse
+          const error = new Error('TOKEN_LIMIT_EXCEEDED')
+            ; (error as any).tokenInfo = { actual, limit }
+          throw error
         }
         // If no match but contains "token limit", throw generic message
-        throw new Error(`Context exceeds token limit. Please reduce file selection.`)
+        throw new Error('TOKEN_LIMIT_EXCEEDED')
       }
 
       throw new Error('Failed to build context.')
@@ -319,7 +328,7 @@ class ApiService {
     }
   }
 
-  async getSupportedAnalyzers(): Promise<domain.StaticAnalyzerType[]> {
+  async getSupportedAnalyzers(): Promise<string[]> {
     try {
       return await wails.GetSupportedAnalyzers()
     } catch (error) {
@@ -730,7 +739,7 @@ class ApiService {
   // Diff и Apply
   // ============================================
 
-  async generateDiff(original: string, modified: string, format: domain.DiffFormat): Promise<domain.DiffResult> {
+  async generateDiff(original: string, modified: string, format: string): Promise<domain.DiffResult> {
     try {
       return await wails.GenerateDiff(original, modified, format)
     } catch (error) {
@@ -895,22 +904,6 @@ class ApiService {
   }
 
   // ============================================
-  // Agentic Chat
-  // ============================================
-
-  /**
-   * Execute agentic chat with tool use
-   */
-  async agenticChat(request: AgenticChatRequest): Promise<AgenticChatResponse> {
-    try {
-      const result = await wails.AgenticChat(JSON.stringify(request))
-      return JSON.parse(result)
-    } catch (error) {
-      console.error('[ApiService] Error in agentic chat:', error)
-      throw new Error('Failed to execute agentic chat.')
-    }
-  }
-
   // ============================================
   // Semantic Search
   // ============================================

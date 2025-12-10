@@ -54,8 +54,15 @@ export class MemoryMonitor {
     getCacheStats?: any;
   } = {};
 
+  // Track if we're in dev mode to reduce monitoring overhead
+  private isDevMode = import.meta.env.DEV;
+
   private constructor(options: MemoryWarningOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    // In dev mode, use much longer polling interval to reduce overhead
+    const devOptions = this.isDevMode ? {
+      pollingInterval: 30000, // 30 seconds in dev (was 10s)
+    } : {};
+    this.options = { ...DEFAULT_OPTIONS, ...devOptions, ...options };
   }
 
   /**
@@ -104,6 +111,7 @@ export class MemoryMonitor {
 
   /**
    * Collect memory metrics from all stores
+   * In dev mode, skip detailed metrics to reduce memory overhead
    */
   private async collectStoreMetrics(): Promise<StoreMetrics> {
     const metrics: StoreMetrics = {
@@ -111,6 +119,11 @@ export class MemoryMonitor {
       contextStore: { cacheSize: 0, chunkSize: 0 },
       apiCache: { entries: 0, totalSize: 0 }
     };
+
+    // Skip detailed store metrics in dev mode to reduce dynamic import overhead
+    if (this.isDevMode) {
+      return metrics;
+    }
 
     try {
       // Import stores once and cache them to avoid repeated dynamic imports

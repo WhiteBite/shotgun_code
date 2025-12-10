@@ -1,23 +1,20 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75"
-        @click.self="$emit('close')"
-        @keydown.esc="$emit('close')"
-      >
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75"
+        @click.self="$emit('close')" @keydown.esc="$emit('close')">
         <div
           class="bg-gray-900 rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-gray-700"
-          @click.stop
-        >
+          @click.stop>
           <!-- Header -->
           <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <!-- File Icon -->
               <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              
+
               <!-- File Info -->
               <div class="flex-1 min-w-0">
                 <h3 class="text-sm font-semibold text-white truncate" :title="filePath">
@@ -31,23 +28,18 @@
 
             <!-- Actions -->
             <div class="flex items-center gap-2">
-              <button
-                v-if="!isLoading && !error"
-                @click="copyToClipboard"
-                class="p-2 hover:bg-gray-800 rounded transition-colors"
-                title="Копировать"
-              >
-                <svg class="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <button v-if="!isLoading && !error" @click="copyToClipboard"
+                class="p-2 hover:bg-gray-800 rounded transition-colors" title="Копировать">
+                <svg class="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor"
+                  viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </button>
-              
-              <button
-                @click="$emit('close')"
-                class="p-2 hover:bg-gray-800 rounded transition-colors"
-                title="Закрыть"
-              >
-                <svg class="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+              <button @click="$emit('close')" class="p-2 hover:bg-gray-800 rounded transition-colors" title="Закрыть">
+                <svg class="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor"
+                  viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -90,7 +82,8 @@
             <div v-else-if="error" class="flex items-center justify-center h-full">
               <div class="text-center text-red-400">
                 <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p class="text-sm font-semibold mb-1">Ошибка загрузки файла</p>
                 <p class="text-xs text-gray-400">{{ error }}</p>
@@ -99,7 +92,8 @@
 
             <!-- File Content -->
             <div v-else class="h-full overflow-auto bg-gray-900">
-              <pre class="p-4 text-sm font-mono text-gray-300 whitespace-pre-wrap break-words"><code>{{ content }}</code></pre>
+              <pre
+                class="p-4 text-sm font-mono text-gray-300 whitespace-pre-wrap break-words"><code>{{ content }}</code></pre>
             </div>
           </div>
 
@@ -109,10 +103,8 @@
               ESC для закрытия
             </div>
             <div class="flex items-center gap-2">
-              <button
-                @click="close"
-                class="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors"
-              >
+              <button @click="close"
+                class="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors">
                 Закрыть
               </button>
             </div>
@@ -124,9 +116,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { ReadFileContent } from '../wailsjs/go/main/App'
 import { useProjectStore } from '@/stores/project.store'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ReadFileContent } from '../../wailsjs/go/main/App'
 
 interface Props {
   filePath?: string
@@ -186,11 +178,11 @@ onUnmounted(() => {
  */
 async function open(filePath?: string) {
   isOpen.value = true
-  
+
   // Use provided paths or props
   const targetPath = filePath || props.filePath
   const targetProject = projectStore.projectPath
-  
+
   if (targetPath && targetProject) {
     await loadFile(targetPath)
   }
@@ -210,7 +202,7 @@ function close() {
 async function loadFile(filePath?: string) {
   const targetPath = filePath || props.filePath
   const targetProject = projectStore.projectPath
-  
+
   if (!targetPath || !targetProject) {
     error.value = 'Путь к файлу не указан'
     return
@@ -224,7 +216,7 @@ async function loadFile(filePath?: string) {
   try {
     // Get relative path
     const relPath = targetPath.replace(targetProject, '').replace(/^[\\/]+/, '')
-    
+
     // Load file content
     const fileContent = await ReadFileContent(targetProject, relPath)
     content.value = fileContent
@@ -233,7 +225,7 @@ async function loadFile(filePath?: string) {
     const lines = fileContent.split('\n').length
     const size = new Blob([fileContent]).size
     const tokens = Math.floor(fileContent.length / 4) // Rough estimate
-    
+
     // Detect language from extension
     const ext = targetPath.split('.').pop()?.toLowerCase()
     const language = detectLanguage(ext || '')
@@ -257,7 +249,7 @@ async function loadFile(filePath?: string) {
  */
 async function copyToClipboard() {
   if (!content.value) return
-  
+
   try {
     await navigator.clipboard.writeText(content.value)
     // TODO: Show toast notification
@@ -298,7 +290,7 @@ function detectLanguage(ext: string): string {
     'sh': 'Shell',
     'bash': 'Bash'
   }
-  
+
   return langMap[ext] || ext.toUpperCase()
 }
 
@@ -325,14 +317,13 @@ defineExpose({
 </script>
 
 <style scoped>
-
-.modal-enter-active > div,
-.modal-leave-active > div {
+.modal-enter-active>div,
+.modal-leave-active>div {
   transition: transform 0.2s ease;
 }
 
-.modal-enter-from > div,
-.modal-leave-to > div {
+.modal-enter-from>div,
+.modal-leave-to>div {
   transform: scale(0.95);
 }
 

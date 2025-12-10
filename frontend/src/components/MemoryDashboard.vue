@@ -4,11 +4,7 @@
       <h3 class="text-lg font-semibold text-white flex items-center gap-2">
         🧠 Memory Monitor
       </h3>
-      <button
-        @click="$emit('close')"
-        class="text-gray-400 hover:text-white transition-colors"
-        title="Close"
-      >
+      <button @click="$emit('close')" class="text-gray-400 hover:text-white transition-colors" title="Close">
         ✕
       </button>
     </div>
@@ -21,15 +17,12 @@
           <span class="font-mono">{{ stats.used }}MB / {{ stats.total }}MB</span>
         </div>
         <div class="w-full bg-gray-700 rounded-full h-2">
-          <div
-            :class="[
-              'h-2 rounded-full transition-all duration-300',
-              stats.percentage >= 90 ? 'bg-red-500' :
+          <div :class="[
+            'h-2 rounded-full transition-all duration-300',
+            stats.percentage >= 90 ? 'bg-red-500' :
               stats.percentage >= 75 ? 'bg-yellow-500' :
-              'bg-green-500'
-            ]"
-            :style="{ width: `${stats.percentage}%` }"
-          ></div>
+                'bg-green-500'
+          ]" :style="{ width: `${stats.percentage}%` }"></div>
         </div>
         <div class="text-xs text-gray-400 mt-1">{{ stats.percentage }}%</div>
       </div>
@@ -38,17 +31,17 @@
       <div v-if="storeMetrics" class="border-t border-gray-700 pt-3 space-y-2">
         <div class="text-gray-300">
           <div class="font-semibold mb-1">Store Metrics</div>
-          
+
           <div class="flex justify-between text-xs">
             <span>File Store:</span>
             <span class="font-mono">{{ storeMetrics.fileStore.nodesCount }} nodes</span>
           </div>
-          
+
           <div class="flex justify-between text-xs">
             <span>Context Cache:</span>
             <span class="font-mono">{{ formatBytes(storeMetrics.contextStore.cacheSize) }}</span>
           </div>
-          
+
           <div class="flex justify-between text-xs">
             <span>API Cache:</span>
             <span class="font-mono">{{ storeMetrics.apiCache.entries }} entries</span>
@@ -74,26 +67,20 @@
       <!-- Actions -->
       <div class="border-t border-gray-700 pt-3 space-y-2">
         <div class="flex gap-2">
-          <button
-            @click="dumpSnapshot"
+          <button @click="dumpSnapshot"
             class="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition-colors"
-            title="Create heap snapshot for Chrome DevTools"
-          >
+            title="Create heap snapshot for Chrome DevTools">
             📸 Dump Heap
           </button>
-          <button
-            @click="forceCleanup"
+          <button @click="forceCleanup"
             class="flex-1 px-3 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded text-xs font-medium transition-colors"
-            title="Force garbage collection and cleanup"
-          >
+            title="Force garbage collection and cleanup">
             🧹 Cleanup
           </button>
         </div>
-        <button
-          @click="saveReport"
+        <button @click="saveReport"
           class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-medium transition-colors"
-          title="Save diagnostic report for AI analysis"
-        >
+          title="Save diagnostic report for AI analysis">
           💾 Save Report (for AI)
         </button>
       </div>
@@ -111,11 +98,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useMemoryMonitor } from '@/utils/memory-monitor'
-import { useMemoryDiagnostics } from '@/utils/memory-diagnostics'
 import { useUIStore } from '@/stores/ui.store'
-import type { MemoryStats, StoreMetrics } from '@/utils/memory-monitor'
+import { useMemoryDiagnostics } from '@/utils/memory-diagnostics'
+import type { MemoryStats } from '@/utils/memory-monitor'
+import { useMemoryMonitor } from '@/utils/memory-monitor'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 defineEmits<{
   close: []
@@ -181,17 +168,23 @@ function formatBytes(bytes: number): string {
 
 onMounted(() => {
   void updateStats()
-  
+
   // Start diagnostics collection (protected from double start)
-  diagnostics.startCollection(30000) // Every 30 seconds (reduced frequency)
-  
-  // Update stats every 5 seconds (reduced frequency)
-  updateInterval = window.setInterval(() => void updateStats(), 5000)
-  
-  // Update time counter every 2 seconds (reduced frequency)
+  // In dev mode, diagnostics will automatically use longer intervals
+  diagnostics.startCollection(30000)
+
+  // In dev mode, use longer intervals to reduce memory overhead
+  const isDevMode = import.meta.env.DEV
+  const statsInterval = isDevMode ? 15000 : 5000 // 15s in dev, 5s in prod
+  const timeCounterInterval = isDevMode ? 5000 : 2000 // 5s in dev, 2s in prod
+
+  // Update stats periodically
+  updateInterval = window.setInterval(() => void updateStats(), statsInterval)
+
+  // Update time counter
   timeInterval = window.setInterval(() => {
     timeSinceUpdate.value = Math.floor((Date.now() - lastUpdate.value) / 1000)
-  }, 2000)
+  }, timeCounterInterval)
 })
 
 onUnmounted(() => {

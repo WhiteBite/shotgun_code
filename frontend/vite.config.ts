@@ -1,6 +1,6 @@
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [vue()],
@@ -14,16 +14,28 @@ export default defineConfig({
     port: 3000,
     host: true,
     hmr: {
-      overlay: false // Disable error overlay to reduce memory usage
+      overlay: false
     },
     watch: {
-      // Reduce file watching overhead
-      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**']
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/dist/**',
+        '**/backend/**',
+        '**/*.go',
+        '**/*.sum',
+        '**/*.mod',
+        '**/build/**'
+      ]
+    },
+    // Reduce memory by not pre-warming
+    warmup: {
+      clientFiles: []
     }
   },
   build: {
     outDir: 'dist',
-    sourcemap: process.env.NODE_ENV !== 'production', // Sourcemaps only in dev
+    sourcemap: false, // Disabled - causes memory leaks in dev
     minify: 'terser',
     terserOptions: {
       compress: {
@@ -78,9 +90,10 @@ export default defineConfig({
       '@headlessui/vue',
       'fuse.js'
     ],
-    exclude: [
-      // Exclude any packages that should not be pre-bundled
-    ]
+    // Reduce memory usage
+    holdUntilCrawlEnd: false,
+    // Don't force re-optimization
+    force: false
   },
 
   test: {

@@ -433,16 +433,29 @@
     @apply pl-10;
 }
 
+/* Input sizes */
+.input-xs {
+    @apply py-1.5 text-xs;
+}
+
+.input-sm {
+    @apply py-2 text-xs;
+}
+
+.input-md {
+    @apply py-2.5 text-sm;
+}
+
 .search-input {
     @apply w-full px-3 py-2.5 pl-10 text-sm rounded-xl;
-    background: var(--bg-1);
-    border: 1px solid var(--border-default);
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
     color: var(--text-primary);
     transition: all 150ms ease-out;
 }
 
 .search-input::placeholder {
-    color: var(--text-subtle);
+    color: var(--text-muted);
 }
 
 .search-input:focus {
@@ -463,6 +476,11 @@
 
 .textarea::placeholder {
     color: var(--text-subtle);
+}
+
+/* Textarea sizes */
+.textarea-sm {
+    @apply py-2 text-xs;
 }
 
 .textarea:focus {
@@ -1973,6 +1991,12 @@
     animation: progressShimmer 2s ease-in-out infinite;
 }
 
+.progress-bar-fill-folder {
+    @apply h-full rounded-full;
+    background: rgba(59, 130, 246, 0.6);
+    transition: width 500ms ease-out;
+}
+
 @keyframes progressShimmer {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
@@ -2077,4 +2101,1172 @@
         opacity: 1;
         transform: translateX(0);
     }
+}
+
+
+/* ============================================
+   AWESOME FILE TREE - PREMIUM TREE VIEW
+   ============================================ */
+
+:root {
+    /* Tree line colors by depth */
+    --tree-line-1: rgba(99, 102, 241, 0.5);
+    --tree-line-2: rgba(168, 85, 247, 0.5);
+    --tree-line-3: rgba(236, 72, 153, 0.5);
+    --tree-line-4: rgba(56, 189, 248, 0.4);
+    --tree-line-5: rgba(148, 163, 184, 0.3);
+    --tree-indent: 16px;
+    --tree-line-width: 1.5px;
+}
+
+/* Tree Row */
+.tree-row {
+    @apply flex items-center gap-2 py-1.5 rounded-lg;
+    @apply cursor-pointer select-none;
+    position: relative;
+    color: var(--text-secondary);
+    transition: all 150ms ease-out;
+    min-height: 32px;
+    margin: 1px 0;
+}
+
+.tree-row:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--text-primary);
+}
+
+.tree-row-selected {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: white !important;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4);
+    border-radius: 6px;
+}
+
+.tree-row-selected:hover {
+    background: rgba(99, 102, 241, 0.28) !important;
+}
+
+/* Tree Guide Lines (SVG) */
+.tree-guides {
+    position: absolute;
+    top: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.tree-guide-line {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.6;
+    transition: opacity 150ms ease-out;
+}
+
+.tree-row:hover .tree-guide-line {
+    opacity: 1;
+}
+
+/* Guide colors by depth - distinct colors for debugging */
+.tree-guide-1 { stroke: #60a5fa; } /* blue */
+.tree-guide-2 { stroke: #a78bfa; } /* purple */
+.tree-guide-3 { stroke: #f472b6; } /* pink */
+.tree-guide-4 { stroke: #34d399; } /* green */
+.tree-guide-5 { stroke: #94a3b8; } /* gray */
+
+/* Expand Icon */
+.tree-expand {
+    @apply flex-shrink-0 w-5 h-5 rounded;
+    @apply flex items-center justify-center cursor-pointer;
+    color: #64748b;
+    transition: all 150ms ease-out;
+}
+
+.tree-expand:hover {
+    color: #94a3b8;
+    background: rgba(100, 116, 139, 0.15);
+}
+
+.tree-expand-icon {
+    @apply w-[14px] h-[14px];
+    transition: transform 150ms ease-out;
+}
+
+.tree-expand-open .tree-expand-icon {
+    transform: rotate(90deg);
+}
+
+.tree-expand-pulse {
+    animation: treeExpandPulse 300ms ease-out;
+}
+
+@keyframes treeExpandPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Tree Checkbox */
+.tree-cb {
+    @apply flex-shrink-0 w-[18px] h-[18px] rounded;
+    @apply flex items-center justify-center cursor-pointer;
+    border: 2px solid rgba(148, 163, 184, 0.5);
+    background: rgba(30, 40, 66, 0.5);
+    transition: all 150ms ease-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.tree-cb:hover {
+    border-color: rgba(99, 102, 241, 0.7);
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.tree-cb-checked {
+    background: #6366f1;
+    border-color: #6366f1;
+    box-shadow: 0 0 6px rgba(99, 102, 241, 0.5);
+}
+
+.tree-cb-partial {
+    background: rgba(99, 102, 241, 0.4);
+    border-color: rgba(99, 102, 241, 0.7);
+}
+
+.tree-cb-icon {
+    @apply w-3 h-3 text-white;
+    transform: scale(0);
+    transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tree-cb-checked .tree-cb-icon {
+    transform: scale(1);
+}
+
+.tree-cb-ripple {
+    animation: treeCbRipple 400ms ease-out;
+}
+
+@keyframes treeCbRipple {
+    0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+    100% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+}
+
+/* Tree Icons */
+.tree-icon {
+    @apply flex-shrink-0 w-5 h-5 flex items-center justify-center;
+}
+
+.tree-folder-icon {
+    @apply w-[18px] h-[18px];
+    color: #93c5fd;
+    transition: all 150ms ease-out;
+}
+
+.tree-row:hover .tree-folder-icon {
+    color: #bfdbfe;
+}
+
+.tree-file-icon {
+    @apply text-sm;
+}
+
+/* Tree Name */
+.tree-name {
+    @apply flex-1 truncate text-sm font-medium;
+}
+
+/* Tree Count Badge */
+.tree-count {
+    @apply text-[10px] px-1.5 py-0.5 rounded-md font-medium;
+    background: rgba(100, 116, 139, 0.25);
+    color: #94a3b8;
+    transition: all 150ms ease-out;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1;
+}
+
+.tree-row:hover .tree-count {
+    background: rgba(100, 116, 139, 0.35);
+    color: #cbd5e1;
+}
+
+.tree-row-selected .tree-count {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.tree-count-bounce {
+    animation: treeCountBounce 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes treeCountBounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+/* Tree Size */
+.tree-size {
+    @apply text-[11px] font-medium;
+    color: #64748b;
+}
+
+.tree-row:hover .tree-size {
+    color: #94a3b8;
+}
+
+/* Children Animation */
+.tree-children-enter-active {
+    animation: treeChildrenExpand 250ms ease-out;
+}
+
+.tree-children-leave-active {
+    animation: treeChildrenExpand 200ms ease-in reverse;
+}
+
+@keyframes treeChildrenExpand {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 2000px; }
+}
+
+/* Child Stagger */
+.tree-stagger { animation: treeStaggerIn 200ms ease-out backwards; }
+.tree-stagger:nth-child(1) { animation-delay: 0ms; }
+.tree-stagger:nth-child(2) { animation-delay: 25ms; }
+.tree-stagger:nth-child(3) { animation-delay: 50ms; }
+.tree-stagger:nth-child(4) { animation-delay: 75ms; }
+.tree-stagger:nth-child(5) { animation-delay: 100ms; }
+.tree-stagger:nth-child(6) { animation-delay: 125ms; }
+.tree-stagger:nth-child(7) { animation-delay: 150ms; }
+.tree-stagger:nth-child(8) { animation-delay: 175ms; }
+.tree-stagger:nth-child(9) { animation-delay: 200ms; }
+.tree-stagger:nth-child(10) { animation-delay: 225ms; }
+
+@keyframes treeStaggerIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Depth Background */
+.tree-depth-1 { background: rgba(99, 102, 241, 0.02); }
+.tree-depth-2 { background: rgba(168, 85, 247, 0.02); }
+.tree-depth-3 { background: rgba(236, 72, 153, 0.02); }
+.tree-depth-4 { background: rgba(56, 189, 248, 0.02); }
+
+/* Preview Button */
+.tree-preview {
+    @apply p-1 rounded-md opacity-0;
+    color: var(--text-muted);
+    transition: all 150ms ease-out;
+}
+
+.tree-row:hover .tree-preview { opacity: 1; }
+
+.tree-preview:hover {
+    color: var(--text-primary);
+    background: var(--bg-3);
+}
+
+/* Git Status */
+.tree-git { @apply w-2 h-2 rounded-full flex-shrink-0; }
+.tree-git-tracked { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+.tree-git-modified { background: var(--color-warning); box-shadow: 0 0 6px var(--color-warning); }
+.tree-git-untracked { background: var(--color-danger); box-shadow: 0 0 6px var(--color-danger); }
+.tree-git-ignored { background: var(--text-subtle); }
+
+/* Search Highlight */
+.tree-highlight {
+    background: rgba(251, 191, 36, 0.3);
+    color: white;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* Keyboard Focus */
+.tree-row:focus-visible {
+    @apply outline-none;
+    box-shadow: 0 0 0 2px var(--accent-indigo), 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+
+/* Tree Tooltip */
+.tree-tooltip {
+    @apply absolute z-50 px-2 py-1 text-xs rounded-lg whitespace-nowrap pointer-events-none;
+    background: var(--bg-3);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-lg);
+    animation: treeTooltipIn 150ms ease-out;
+}
+
+@keyframes treeTooltipIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tree Children Transition */
+.tree-children-enter-active {
+    animation: treeChildrenExpand 250ms ease-out;
+}
+
+.tree-children-leave-active {
+    animation: treeChildrenExpand 200ms ease-in reverse;
+}
+
+
+/* ============================================
+   GIT FILTER CHIPS
+   ============================================ */
+
+.git-filter-chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl;
+    @apply cursor-pointer select-none;
+    background: var(--bg-2);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+    transition: all 150ms ease-out;
+}
+
+.git-filter-chip:hover {
+    background: var(--bg-3);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+}
+
+.git-filter-chip-active {
+    background: var(--accent-indigo-bg);
+    color: white;
+    border-color: var(--accent-indigo-border);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.git-filter-chip-active:hover {
+    background: rgba(99, 102, 241, 0.35);
+}
+
+.git-filter-icon {
+    @apply text-sm;
+}
+
+.git-filter-count {
+    @apply px-1.5 py-0.5 rounded-full text-[10px] font-bold;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ============================================
+   UNIFIED BUTTON RADIUS FIX
+   All buttons should use rounded-xl (14px)
+   ============================================ */
+
+.btn, .btn-primary, .btn-secondary, .btn-ghost, .btn-sm,
+.action-btn, .action-btn-primary, .action-btn-success, .action-btn-danger,
+.tab-btn, .tab-btn-inactive,
+.git-filter-chip, button[class*="btn"] {
+    border-radius: var(--radius-xl) !important;
+}
+
+/* Action button accent variant */
+.action-btn-accent {
+    background: var(--accent-orange-bg);
+    color: var(--accent-orange);
+    border: 1px solid var(--accent-orange-border);
+}
+
+.action-btn-accent:hover:not(:disabled) {
+    background: rgba(249, 115, 22, 0.35);
+    box-shadow: var(--shadow-glow-orange);
+}
+
+/* Branch info card */
+.branch-info {
+    @apply flex items-center gap-3 p-3 rounded-xl;
+    background: var(--bg-2);
+    border: 1px solid var(--border-default);
+}
+
+/* File list container */
+.file-list-container {
+    @apply max-h-64 overflow-y-auto rounded-xl;
+    background: var(--bg-1);
+    border: 1px solid var(--border-subtle);
+}
+
+
+/* ============================================
+   FILTERS BAR (QuickFiltersBar)
+   ============================================ */
+
+.filters-bar {
+    @apply flex items-center gap-2 px-3 py-2;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-1);
+    flex-wrap: wrap;
+    min-height: 44px;
+}
+
+.filter-groups {
+    @apply flex items-center gap-2;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.filter-actions {
+    @apply flex items-center gap-2;
+    flex-shrink: 0;
+}
+
+.active-filters {
+    @apply flex items-center gap-1.5;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+}
+
+
+/* ============================================
+   SYNTAX HIGHLIGHTING (Context Preview)
+   ============================================ */
+
+/* XML Format */
+.syntax-tag {
+    color: #7dd3fc; /* sky-300 */
+}
+
+.syntax-attr {
+    color: #c4b5fd; /* violet-300 */
+}
+
+.syntax-string {
+    color: #86efac; /* green-300 */
+}
+
+.syntax-punct {
+    color: #94a3b8; /* slate-400 */
+}
+
+/* Markdown Format */
+.syntax-heading {
+    color: #f472b6; /* pink-400 */
+    font-weight: 600;
+}
+
+.syntax-fence {
+    color: #fbbf24; /* amber-400 */
+    background: rgba(251, 191, 36, 0.1);
+    padding: 0 4px;
+    border-radius: 4px;
+}
+
+/* JSON Format */
+.syntax-key {
+    color: #a5b4fc; /* indigo-300 */
+}
+
+.syntax-value {
+    color: #fca5a5; /* red-300 */
+}
+
+/* Plain Text Format */
+.syntax-separator {
+    color: #fbbf24; /* amber-400 */
+    font-weight: 600;
+    background: rgba(251, 191, 36, 0.1);
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+}
+
+
+/* ============================================
+   DROP ZONE (Drag & Drop)
+   ============================================ */
+
+.drop-zone-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 14, 26, 0.9);
+    border: 2px dashed var(--accent-indigo);
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+    animation: dropZonePulse 1.5s ease-in-out infinite;
+}
+
+.drop-zone-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+@keyframes dropZonePulse {
+    0%, 100% {
+        border-color: var(--accent-indigo);
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+    50% {
+        border-color: var(--accent-purple);
+        box-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+    }
+}
+
+
+/* ============================================
+   QUICKLOOK MODAL
+   ============================================ */
+
+.quicklook-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.quicklook-modal {
+    width: 100%;
+    max-width: 56rem;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: var(--bg-1);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-xl);
+}
+
+.quicklook-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.quicklook-filename {
+    font-weight: 600;
+    color: white;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quicklook-path {
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.quicklook-content {
+    flex: 1;
+    overflow: auto;
+    min-height: 200px;
+    max-height: 60vh;
+}
+
+.quicklook-loading,
+.quicklook-error,
+.quicklook-binary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 3rem 0;
+    color: var(--text-secondary);
+}
+
+.quicklook-code {
+    padding: 1rem;
+    margin: 0;
+    font-size: 0.875rem;
+    font-family: ui-monospace, monospace;
+    background: var(--bg-0);
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.quicklook-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border-default);
+}
+
+
+/* ============================================
+   TOGGLE SWITCH
+   ============================================ */
+
+.toggle-label {
+    @apply flex items-center gap-3 cursor-pointer;
+    color: var(--text-secondary);
+}
+
+.toggle-label:hover .toggle-text {
+    color: var(--text-primary);
+}
+
+.toggle-container {
+    @apply relative w-9 h-5 flex-shrink-0;
+}
+
+.toggle-track {
+    @apply absolute inset-0 rounded-full;
+    background: var(--bg-3);
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-container:hover .toggle-track {
+    background: rgba(148, 163, 184, 0.35);
+}
+
+.peer:checked ~ .toggle-track {
+    background: var(--accent-indigo);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+}
+
+.toggle-thumb {
+    @apply absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.peer:checked ~ .toggle-thumb {
+    transform: translateX(16px);
+}
+
+.toggle-text {
+    @apply text-xs;
+    transition: color 150ms ease-out;
+}
+
+
+/* ============================================
+   SIDEBAR TABS INDICATOR
+   ============================================ */
+
+.tabs-indicator-icon {
+    @apply absolute top-2 bottom-2 rounded-xl;
+    width: calc(20% - 4px);
+    left: 4px;
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                background 200ms ease-out,
+                box-shadow 200ms ease-out;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.tabs-indicator-indigo {
+    background: rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.tabs-indicator-emerald {
+    background: rgba(16, 185, 129, 0.25);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+.tabs-indicator-orange {
+    background: rgba(249, 115, 22, 0.25);
+    border: 1px solid rgba(249, 115, 22, 0.4);
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.3);
+}
+
+.tabs-indicator-purple {
+    background: rgba(168, 85, 247, 0.25);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}
+
+.sidebar-tab-icon {
+    @apply flex-1 flex items-center justify-center p-2.5 rounded-xl relative z-10;
+    color: var(--text-muted);
+    transition: color 150ms ease-out, transform 100ms ease-out;
+}
+
+.sidebar-tab-icon:hover:not(.sidebar-tab-icon-active) {
+    color: var(--text-secondary);
+}
+
+.sidebar-tab-icon:active {
+    transform: scale(0.93);
+}
+
+.sidebar-tab-icon-active {
+    @apply font-semibold;
+}
+
+
+/* ============================================
+   SECTION ICONS (colored squares)
+   ============================================ */
+
+.section-icon {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0;
+    transition: all 150ms ease-out;
+}
+
+.section-icon-indigo {
+    background: var(--accent-indigo-bg);
+    border: 1px solid var(--accent-indigo-border);
+    color: var(--accent-indigo);
+}
+
+.section-icon-purple {
+    background: var(--accent-purple-bg);
+    border: 1px solid var(--accent-purple-border);
+    color: var(--accent-purple);
+}
+
+.section-icon-orange {
+    background: var(--accent-orange-bg);
+    border: 1px solid var(--accent-orange-border);
+    color: var(--accent-orange);
+}
+
+.section-icon-emerald {
+    background: var(--accent-emerald-bg);
+    border: 1px solid var(--accent-emerald-border);
+    color: var(--accent-emerald);
+}
+
+
+/* ============================================
+   INFO BOX VARIANTS
+   ============================================ */
+
+.info-box-purple {
+    @apply p-3 rounded-xl;
+    background: var(--accent-purple-bg);
+    border: 1px solid var(--accent-purple-border);
+}
+
+.info-box-indigo {
+    @apply p-3 rounded-xl;
+    background: var(--accent-indigo-bg);
+    border: 1px solid var(--accent-indigo-border);
+}
+
+
+/* ============================================
+   TEXT SIZE UTILITIES
+   ============================================ */
+
+.text-2xs {
+    font-size: 10px;
+    line-height: 14px;
+}
+
+
+/* ============================================
+   BORDER ACCENT UTILITIES
+   ============================================ */
+
+.border-l-accent-indigo {
+    border-left: 2px solid var(--accent-indigo-border);
+}
+
+.border-l-accent-purple {
+    border-left: 2px solid var(--accent-purple-border);
+}
+
+
+/* ============================================
+   STATUS MESSAGE
+   ============================================ */
+
+.status-message {
+    @apply text-xs p-2.5 rounded-lg flex items-center gap-2;
+}
+
+.status-message-success {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+    border: 1px solid var(--color-success-border);
+}
+
+.status-message-error {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger-border);
+}
+
+
+/* ============================================
+   COLLAPSIBLE SECTION
+   ============================================ */
+
+.collapsible-section {
+    @apply rounded-xl overflow-hidden;
+    background: var(--bg-1);
+    border: 1px solid var(--border-subtle);
+    transition: border-color 200ms ease-out;
+}
+
+.collapsible-section:hover {
+    border-color: var(--border-default);
+}
+
+.collapsible-header {
+    @apply w-full px-3 py-2.5 flex items-center justify-between;
+    @apply cursor-pointer select-none;
+    background: transparent;
+    transition: background 150ms ease-out;
+}
+
+.collapsible-header:hover {
+    background: var(--bg-2);
+}
+
+.collapsible-header-open {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.collapsible-title {
+    @apply flex items-center gap-2;
+}
+
+.collapsible-icon {
+    @apply w-6 h-6 rounded-md flex items-center justify-center;
+    transition: transform 200ms ease-out;
+}
+
+.collapsible-icon-indigo {
+    background: var(--accent-indigo-bg);
+    color: #a5b4fc;
+}
+
+.collapsible-icon-purple {
+    background: var(--accent-purple-bg);
+    color: #d8b4fe;
+}
+
+.collapsible-icon-emerald {
+    background: var(--accent-emerald-bg);
+    color: #6ee7b7;
+}
+
+.collapsible-icon-orange {
+    background: var(--accent-orange-bg);
+    color: #fdba74;
+}
+
+.collapsible-icon-pink {
+    background: rgba(236, 72, 153, 0.25);
+    color: #f9a8d4;
+}
+
+.collapsible-label {
+    @apply text-xs font-semibold;
+    color: var(--text-primary);
+}
+
+.collapsible-arrow {
+    @apply w-4 h-4;
+    color: var(--text-muted);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapsible-arrow-open {
+    transform: rotate(180deg);
+}
+
+.collapsible-content {
+    @apply px-3 py-3 space-y-2;
+}
+
+/* Collapsible Transition */
+.collapsible-enter-active {
+    transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.collapsible-leave-active {
+    transition: all 200ms cubic-bezier(0.4, 0, 1, 1);
+    overflow: hidden;
+}
+
+.collapsible-enter-from,
+.collapsible-leave-to {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.collapsible-enter-to,
+.collapsible-leave-from {
+    opacity: 1;
+    max-height: 500px;
+}
+
+
+/* ============================================
+   ENHANCED TOGGLE SWITCH
+   ============================================ */
+
+.toggle-label {
+    @apply flex items-center gap-3 cursor-pointer;
+}
+
+.toggle-switch {
+    @apply relative w-9 h-5 rounded-full;
+    @apply flex-shrink-0;
+    background: var(--bg-3);
+    transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.toggle-switch:hover {
+    background: rgba(148, 163, 184, 0.35);
+}
+
+.toggle-switch-active {
+    background: var(--accent-indigo);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+}
+
+.toggle-switch-active:hover {
+    background: rgba(99, 102, 241, 0.85);
+}
+
+.toggle-switch-thumb {
+    @apply absolute top-0.5 left-0.5 w-4 h-4 rounded-full;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 200ms ease-out;
+}
+
+.toggle-switch-thumb-active {
+    transform: translateX(16px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-text {
+    @apply text-xs;
+    color: var(--text-secondary);
+    transition: color 150ms ease-out;
+}
+
+.toggle-label:hover .toggle-text {
+    color: var(--text-primary);
+}
+
+
+/* ============================================
+   CHUNK COPY BAR
+   ============================================ */
+
+.chunk-copy-bar {
+    @apply p-3 rounded-xl space-y-3;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.chunk-copy-header {
+    @apply flex items-center gap-2;
+    @apply text-xs font-semibold;
+    color: var(--color-warning);
+}
+
+/* Main copy button - prominent CTA */
+.chunk-copy-main-btn {
+    @apply w-full flex items-center justify-center gap-2;
+    @apply px-4 py-2.5 rounded-lg;
+    @apply text-sm font-semibold;
+    background: var(--accent-indigo);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    transition: all 200ms ease-out;
+    cursor: pointer;
+}
+
+.chunk-copy-main-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.9);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    transform: translateY(-1px);
+}
+
+.chunk-copy-main-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.chunk-copy-main-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+}
+
+/* Done state */
+.chunk-copy-done {
+    @apply w-full flex items-center justify-center gap-2;
+    @apply px-4 py-2.5 rounded-lg;
+    @apply text-sm font-semibold;
+    background: var(--color-success-soft);
+    color: var(--color-success);
+    border: 1px solid var(--color-success-border);
+}
+
+/* Progress bar */
+.chunk-copy-progress {
+    @apply w-full h-1.5 rounded-full overflow-hidden;
+    background: var(--bg-2);
+}
+
+.chunk-copy-progress-bar {
+    @apply h-full rounded-full;
+    background: linear-gradient(90deg, var(--color-success), #6ee7b7);
+    transition: width 300ms ease-out;
+}
+
+/* Chunk buttons grid */
+.chunk-copy-grid {
+    @apply flex flex-wrap gap-1.5;
+}
+
+.chunk-btn {
+    @apply relative flex flex-col items-center justify-center;
+    @apply px-3 py-2 rounded-lg;
+    min-width: 52px;
+    min-height: 44px;
+    background: var(--bg-2);
+    border: 2px solid var(--border-default);
+    color: var(--text-muted);
+    transition: all 150ms ease-out;
+    cursor: pointer;
+}
+
+.chunk-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.chunk-btn:active {
+    transform: translateY(0);
+}
+
+/* Pending state - not yet copied, not next */
+.chunk-btn-pending {
+    @apply opacity-60;
+}
+
+.chunk-btn-pending:hover {
+    @apply opacity-100;
+}
+
+/* Next to copy - highlighted */
+.chunk-btn-next {
+    background: var(--accent-indigo-bg);
+    border-color: var(--accent-indigo-border);
+    color: white;
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+    animation: chunkPulse 2s ease-in-out infinite;
+}
+
+.chunk-btn-next:hover {
+    background: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
+}
+
+@keyframes chunkPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(99, 102, 241, 0.4); }
+    50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
+}
+
+/* Copied state - green checkmark */
+.chunk-btn-copied {
+    background: var(--color-success-soft);
+    border-color: var(--color-success-border);
+    color: var(--color-success);
+}
+
+.chunk-btn-copied:hover {
+    background: rgba(74, 222, 128, 0.25);
+    border-color: rgba(74, 222, 128, 0.55);
+}
+
+.chunk-btn-icon {
+    @apply w-4 h-4;
+}
+
+.chunk-btn-index {
+    @apply font-bold;
+    font-size: 13px;
+}
+
+.chunk-btn-tokens {
+    @apply font-medium;
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+/* Footer with status and reset */
+.chunk-copy-footer {
+    @apply flex items-center justify-between;
+    @apply pt-2 border-t;
+    border-color: rgba(245, 158, 11, 0.15);
+}
+
+.chunk-copy-status {
+    @apply text-2xs;
+    color: var(--text-muted);
+}
+
+.chunk-copy-reset {
+    @apply flex items-center gap-1 px-2 py-1 rounded-md;
+    @apply text-2xs font-medium;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: all 150ms ease-out;
+    cursor: pointer;
+}
+
+.chunk-copy-reset:hover {
+    color: var(--text-primary);
+    background: var(--bg-2);
+    border-color: var(--border-default);
+}
+
+/* Generate button */
+.chunk-generate-btn {
+    @apply w-full flex items-center justify-center gap-2;
+    @apply px-4 py-2.5 rounded-lg;
+    @apply text-sm font-medium;
+    background: var(--bg-2);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    transition: all 150ms ease-out;
+    cursor: pointer;
+}
+
+.chunk-generate-btn:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.chunk-generate-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
 }

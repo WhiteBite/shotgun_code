@@ -19,12 +19,12 @@
         <input
           v-model="newTemplate.name"
           type="text"
-          class="input text-xs !py-2"
+          class="input input-sm"
           :placeholder="t('prompts.name')"
         />
         <textarea
           v-model="newTemplate.content"
-          class="textarea text-xs !py-2 h-24"
+          class="textarea textarea-sm h-24"
           :placeholder="t('prompts.placeholder')"
         ></textarea>
         <p class="text-[10px] text-gray-500">{{ t('prompts.variables') }}</p>
@@ -79,7 +79,7 @@
 
     <!-- Custom Templates -->
     <div v-if="customTemplates.length > 0" class="space-y-2 pt-2 border-t border-gray-700/30">
-      <p class="text-[10px] text-gray-500 uppercase tracking-wider">Custom</p>
+      <p class="text-2xs text-gray-500 uppercase tracking-wider">{{ t('prompts.custom') }}</p>
       <div
         v-for="template in customTemplates"
         :key="template.id"

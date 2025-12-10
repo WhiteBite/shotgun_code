@@ -173,9 +173,27 @@ export const useContextStore = defineStore('context', () => {
 
             const buildOptions = {
                 maxTokens: options?.maxTokens || 100000, // Default 100K tokens (reasonable for most projects)
+                maxMemoryMB: options?.maxMemoryMB || 50,
                 stripComments: options?.stripComments ?? false,
-                includeManifest: options?.includeManifest ?? false
+                includeManifest: options?.includeManifest ?? false,
+                includeTests: options?.includeTests ?? true,
+                splitStrategy: options?.splitStrategy || 'smart',
+                forceStream: true,
+                enableProgressEvents: true,
+                outputFormat: options?.outputFormat || 'xml',
+                // Content optimization options
+                excludeTests: options?.excludeTests ?? false,
+                collapseEmptyLines: options?.collapseEmptyLines ?? false,
+                stripLicense: options?.stripLicense ?? false,
+                compactDataFiles: options?.compactDataFiles ?? false,
+                trimWhitespace: options?.trimWhitespace ?? false
             } as domain.ContextBuildOptions
+
+            console.log('[ContextStore] Building context with options:', {
+                outputFormat: buildOptions.outputFormat,
+                stripComments: buildOptions.stripComments,
+                maxTokens: buildOptions.maxTokens
+            })
 
             buildProgress.value = 30
 
@@ -241,13 +259,28 @@ export const useContextStore = defineStore('context', () => {
                 await loadContextContent(contextId.value, 0, 100)
             }
         } catch (err) {
+            // Handle token limit exceeded error specially
+            if (err instanceof Error && err.message === 'TOKEN_LIMIT_EXCEEDED') {
+                const tokenInfo = (err as any).tokenInfo
+                const settingsStore = useSettingsStore()
+                const currentLimit = settingsStore.settings.context.maxTokens
+
+                if (tokenInfo) {
+                    const actualK = Math.round(tokenInfo.actual / 1000)
+                    const limitK = Math.round(tokenInfo.limit / 1000)
+                    error.value = `TOKEN_LIMIT_EXCEEDED:${tokenInfo.actual}:${tokenInfo.limit}`
+                    console.error('[ContextStore] Token limit exceeded:', { actual: tokenInfo.actual, limit: tokenInfo.limit, currentSetting: currentLimit })
+                } else {
+                    error.value = `TOKEN_LIMIT_EXCEEDED:0:${currentLimit}`
+                }
+                throw err
+            }
+
             // Enhance error message to include hint about path issues
             let errorMessage = err instanceof Error ? err.message : 'Failed to build context'
 
             // Add specific tips for different error types
-            if (errorMessage.includes('token limit')) {
-                errorMessage += '\n\nTip: Try selecting fewer files or enable "Strip Comments" option to reduce context size.'
-            } else if (errorMessage.includes('path traversal') || errorMessage.includes('invalid path')) {
+            if (errorMessage.includes('path traversal') || errorMessage.includes('invalid path')) {
                 errorMessage += ' Make sure all selected files are within the project directory.'
             }
 

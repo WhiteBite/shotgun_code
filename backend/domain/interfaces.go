@@ -33,6 +33,7 @@ type EventBus interface {
 // TreeBuilder определяет интерфейс для построения дерева файлов
 type TreeBuilder interface {
 	BuildTree(dirPath string, useGitignore bool, useCustomIgnore bool) ([]*FileNode, error)
+	InvalidateCache()
 }
 
 // FileContentReader определяет интерфейс для чтения содержимого файлов
@@ -125,6 +126,28 @@ type ContextSplitter interface {
 type CommentStripper interface {
 	// Strip удаляет комментарии из содержимого файла, опираясь на расширение filePath
 	Strip(content string, filePath string) string
+}
+
+// ContentOptimizer определяет интерфейс для оптимизации контента файлов для AI-контекста
+type ContentOptimizer interface {
+	// Optimize применяет оптимизации к контенту файла
+	Optimize(ctx context.Context, content, filePath string, opts ContentOptimizeOptions) string
+
+	// OptimizeWithDefaults применяет оптимизации с настройками по умолчанию
+	OptimizeWithDefaults(ctx context.Context, content, filePath string) string
+
+	// CanGenerateSkeleton проверяет возможность генерации скелета для файла
+	CanGenerateSkeleton(filePath string) bool
+}
+
+// ContentOptimizeOptions опции оптимизации контента для AI
+type ContentOptimizeOptions struct {
+	CollapseEmptyLines bool `json:"collapseEmptyLines"` // Схлопывать множественные пустые строки
+	StripLicense       bool `json:"stripLicense"`       // Удалять лицензионные заголовки
+	StripComments      bool `json:"stripComments"`      // Удалять комментарии
+	CompactDataFiles   bool `json:"compactDataFiles"`   // Сжимать JSON/YAML файлы
+	SkeletonMode       bool `json:"skeletonMode"`       // Генерировать только скелет кода (AST-based)
+	TrimWhitespace     bool `json:"trimWhitespace"`     // Удалять trailing whitespace
 }
 
 // AIProviderFactory is a function type that creates an AIProvider.

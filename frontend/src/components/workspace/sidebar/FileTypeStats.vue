@@ -56,9 +56,8 @@
               <span class="text-gray-300 truncate">{{ stat.folder || '/' }}</span>
               <span class="text-gray-500">{{ stat.count }}</span>
             </div>
-            <div class="h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500/60 rounded-full transition-all duration-500"
-                :style="{ width: `${stat.percentage}%` }"></div>
+            <div class="progress-bar-enhanced">
+              <div class="progress-bar-fill-folder" :style="{ width: `${stat.percentage}%` }"></div>
             </div>
           </div>
         </div>
@@ -83,6 +82,7 @@
 import { useI18n } from '@/composables/useI18n'
 import { useContextStore } from '@/features/context'
 import { useFileStore } from '@/features/files'
+import { FILE_TYPE_CONFIG } from '@/utils/fileIcons'
 import { computed } from 'vue'
 
 const { t } = useI18n()
@@ -94,8 +94,6 @@ const fileCount = computed(() => contextStore.fileCount)
 const lineCount = computed(() => contextStore.lineCount)
 const tokenCount = computed(() => contextStore.tokenCount)
 const estimatedCost = computed(() => contextStore.estimatedCost)
-
-// Используем единый конфиг из fileIcons.ts
 
 const fileTypeStats = computed(() => {
   const selected = Array.from(fileStore.selectedPaths)
@@ -111,13 +109,13 @@ const fileTypeStats = computed(() => {
   const total = selected.length
   return Array.from(counts.entries())
     .map(([extension, count]) => {
-      const config = FILE_TYPE_CONFIG[extension] || FILE_TYPE_CONFIG.default
+      const info = FILE_TYPE_CONFIG[extension] || FILE_TYPE_CONFIG.default
       return {
         extension,
         count,
         percentage: Math.round((count / total) * 100),
-        icon: config.icon,
-        colorClass: config.colorClass
+        icon: info.icon,
+        colorClass: info.colorClass
       }
     })
     .sort((a, b) => b.count - a.count)

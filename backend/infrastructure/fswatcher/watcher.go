@@ -8,26 +8,37 @@ import (
 	"shotgun_code/domain"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+const (
+	// debounceDelay is the time to wait before emitting file change events
+	// This prevents multiple rapid events from triggering multiple reindexes
+	debounceDelay = 500 * time.Millisecond
+)
+
 type Watcher struct {
-	log       domain.Logger
-	bus       domain.EventBus
-	fsWatcher *fsnotify.Watcher
-	mu        sync.Mutex
-	cancel    context.CancelFunc
-	rootDir   string
-	appCtx    context.Context
+	log           domain.Logger
+	bus           domain.EventBus
+	fsWatcher     *fsnotify.Watcher
+	mu            sync.Mutex
+	cancel        context.CancelFunc
+	rootDir       string
+	appCtx        context.Context
+	debounceTimer *time.Timer
+	pendingFiles  map[string]struct{}
+	debounceMu    sync.Mutex
 }
 
 func New(ctx context.Context, bus domain.EventBus) (*Watcher, error) {
 	return &Watcher{
-		appCtx: ctx,
-		log:    wailsLogger{ctx: ctx},
-		bus:    bus,
+		appCtx:       ctx,
+		log:          wailsLogger{ctx: ctx},
+		bus:          bus,
+		pendingFiles: make(map[string]struct{}),
 	}, nil
 }
 
@@ -121,14 +132,51 @@ func (w *Watcher) run(ctx context.Context) {
 				continue
 			}
 
-			// MEMORY OPTIMIZATION: Removed debug logging to prevent log accumulation
-			// File system events can fire hundreds of times per second
-			w.bus.Emit("projectFilesChanged", w.rootDir)
+			// Debounce: collect events and emit after delay
+			w.scheduleDebounce(name)
 		case err, ok := <-w.fsWatcher.Errors:
 			if !ok {
 				return
 			}
 			w.log.Error(fmt.Sprintf("Ошибка наблюдателя: %v", err))
+		}
+	}
+}
+
+// scheduleDebounce collects file change events and emits them after a delay
+func (w *Watcher) scheduleDebounce(filePath string) {
+	w.debounceMu.Lock()
+	defer w.debounceMu.Unlock()
+
+	// Add file to pending set
+	w.pendingFiles[filePath] = struct{}{}
+
+	// Reset or create timer
+	if w.debounceTimer != nil {
+		w.debounceTimer.Stop()
+	}
+
+	w.debounceTimer = time.AfterFunc(debounceDelay, func() {
+		w.flushPendingEvents()
+	})
+}
+
+// flushPendingEvents emits all pending file change events
+func (w *Watcher) flushPendingEvents() {
+	w.debounceMu.Lock()
+	files := make([]string, 0, len(w.pendingFiles))
+	for f := range w.pendingFiles {
+		files = append(files, f)
+	}
+	w.pendingFiles = make(map[string]struct{})
+	w.debounceMu.Unlock()
+
+	if len(files) > 0 {
+		// Emit single event with all changed files
+		w.bus.Emit("projectFilesChanged", w.rootDir)
+		// Also emit individual file events for fine-grained updates
+		for _, f := range files {
+			w.bus.Emit("fileChanged", f)
 		}
 	}
 }

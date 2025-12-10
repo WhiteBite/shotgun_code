@@ -37,6 +37,11 @@ const translations = {
         'files.clear': 'Очистить',
         'files.expandAll': 'Развернуть всё',
         'files.collapseAll': 'Свернуть всё',
+        'files.loading': 'Загрузка...',
+        'files.binaryFile': 'Бинарный файл',
+        'files.cannotPreview': 'Невозможно отобразить содержимое',
+        'files.addToContext': 'Добавить в контекст',
+        'files.quickLook': 'Быстрый просмотр',
 
         // Context Builder
         'context.builder': 'Построитель контекста',
@@ -46,6 +51,13 @@ const translations = {
         'context.default': 'По умолчанию',
         'context.stripComments': 'Удалить комментарии',
         'context.includeTests': 'Включить тесты',
+        // Content optimization
+        'context.optimization': 'Оптимизация контента',
+        'context.excludeTests': 'Исключить тесты',
+        'context.collapseEmptyLines': 'Схлопнуть пустые строки',
+        'context.stripLicense': 'Удалить лицензии',
+        'context.compactDataFiles': 'Сжать JSON/YAML',
+        'context.trimWhitespace': 'Удалить trailing пробелы',
         'context.splitStrategy': 'Стратегия разбиения',
         'context.semantic': 'Семантическая',
         'context.fixed': 'Фиксированная',
@@ -58,6 +70,7 @@ const translations = {
         'context.showOptions': 'Показать опции',
         'context.hideOptions': 'Скрыть опции',
         'context.outputFormat': 'Формат вывода',
+        'context.currentFormat': 'Текущий формат',
         'context.preview': 'Превью контекста',
         'context.copy': 'Копировать',
         'context.export': 'Экспорт',
@@ -81,6 +94,8 @@ const translations = {
         'context.search': 'Поиск в контексте...',
         'context.searchResults': 'найдено',
         'context.noResults': 'Ничего не найдено',
+        'context.dropFiles': 'Перетащите файлы сюда',
+        'context.dropFilesHint': 'Файлы будут добавлены в контекст',
         'context.doubleClickToView': 'Двойной клик для просмотра',
         'context.settings': 'Настройки хранения',
         'context.maxContexts': 'Макс. контекстов',
@@ -107,6 +122,7 @@ const translations = {
         'context.merged': 'Контексты объединены',
         'context.mergedName': 'Объединённый контекст',
         'context.selectToMerge': 'Выберите 2+ контекста для объединения',
+        'context.rebuilt': 'Контекст пересобран',
         'context.dragHint': 'Перетащите для изменения порядка',
         'context.selectHint': 'Выберите файлы',
         'context.chatHint': 'Спросите AI',
@@ -143,6 +159,10 @@ const translations = {
         'sidebar.settings': 'Настройки AI',
         'sidebar.toggle': 'Панель инструментов',
 
+        // Workspace
+        'workspace.resetLayout': 'Сбросить размеры панелей',
+        'workspace.layoutReset': 'Размеры панелей сброшены',
+
         // File Stats
         'stats.byType': 'По типам файлов',
         'stats.byFolder': 'По папкам',
@@ -174,6 +194,29 @@ const translations = {
         'export.wrapInCodeBlocks': 'Обернуть в code blocks',
         'export.maxLineLength': 'Макс. длина строки',
         'export.unlimited': 'Без ограничений',
+        'export.autoSplit': 'Авто-разбиение на чанки',
+        'export.tokensPerChunk': 'Токенов на чанк',
+        'export.strategy': 'Стратегия',
+        'export.strategySmart': 'Smart',
+        'export.strategyFile': 'По файлам',
+        'export.strategyToken': 'По токенам',
+        'export.tokenLimit': 'Лимит токенов',
+        // Chunk Copy
+        'chunks.parts': 'частей',
+        'chunks.part': 'Часть',
+        'chunks.copyNext': 'Далее',
+        'chunks.copyPart': 'Копировать часть',
+        'chunks.generate': 'Разбить на части',
+        'chunks.copied': 'скопировано',
+        'chunks.allCopied': 'Все части скопированы!',
+        'chunks.reset': 'Сбросить',
+        'chunks.clickToCopy': 'Клик для копирования',
+        // Export Sections
+        'export.section.format': 'Формат вывода',
+        'export.section.output': 'Параметры вывода',
+        'export.section.optimization': 'Оптимизация',
+        'export.section.chunking': 'Разбиение на чанки',
+        'export.section.tokenLimit': 'Лимит токенов',
 
         // Prompt Templates
         'prompts.title': 'Шаблоны промптов',
@@ -194,6 +237,7 @@ const translations = {
         'prompts.default.explain': 'Объяснить код',
         'prompts.default.refactor': 'Рефакторинг',
         'prompts.default.tests': 'Написать тесты',
+        'prompts.custom': 'Пользовательские',
 
         // AI Chat
         'chat.title': 'AI Чат',
@@ -236,6 +280,9 @@ const translations = {
         'limits.nearLimit': 'Приближаетесь к лимиту контекста',
         'limits.criticalWarning': 'Критически мало места! Уменьшите контекст',
 
+        // Token Limit
+        'tokenLimit.hint': 'можно ввести вручную до 1M',
+
         // AI Settings
         'settings.aiProvider': 'AI Провайдер',
         'settings.selectProvider': 'Выберите провайдера',
@@ -247,6 +294,24 @@ const translations = {
         'settings.saving': 'Сохранение...',
         'settings.saved': 'Настройки сохранены',
         'settings.saveFailed': 'Ошибка сохранения',
+        'settings.showKey': 'Показать',
+        'settings.hideKey': 'Скрыть',
+        'settings.clearKey': 'Очистить',
+        'settings.qwenCliTitle': 'Qwen Code CLI',
+        'settings.qwenCliDescription': 'Использует локально установленный qwen-coder-cli. API ключ не требуется.',
+        // Provider descriptions
+        'settings.provider.openai': 'GPT-4o, GPT-4, GPT-3.5',
+        'settings.provider.gemini': 'Gemini Pro, Gemini Flash',
+        'settings.provider.qwen': 'Qwen-Max, Qwen-Plus (API)',
+        'settings.provider.qwenCli': 'Локальный CLI, без API ключа',
+        'settings.provider.openrouter': 'Множество провайдеров',
+        'settings.provider.localai': 'Локальные модели',
+        // API key hints
+        'settings.hint.openai': 'Получить ключ на platform.openai.com',
+        'settings.hint.gemini': 'Получить ключ на aistudio.google.com',
+        'settings.hint.qwen': 'Получить ключ на dashscope.console.aliyun.com',
+        'settings.hint.openrouter': 'Получить ключ на openrouter.ai',
+        'settings.hint.localai': 'Опционально для локальных моделей',
 
         // Tabs
         'tabs.files': 'Файлы',
@@ -325,6 +390,8 @@ const translations = {
         'error.checkPaths': 'Убедитесь, что пути не содержат ".." или абсолютных путей',
         'error.tryRefresh': 'Попробуйте обновить дерево файлов',
         'error.emptyContext': 'Контекст построен, но пуст',
+        'error.tokenLimitExceeded': 'Контекст превышает лимит токенов: {actual}K (лимит: {limit}K). Уменьшите выбор файлов или увеличьте лимит в настройках.',
+        'error.tokenLimitGeneric': 'Контекст превышает лимит токенов. Уменьшите выбор файлов или увеличьте лимит в настройках.',
 
         // Hotkeys
         'hotkey.buildContext': 'Построить контекст (Ctrl+B)',
@@ -394,6 +461,38 @@ const translations = {
         'quick.styles': 'Стили',
         'quick.modified': 'Изменённые',
         'quick.clear': 'Очистить',
+
+        // Quick Filters Bar
+        'quickFilters.label': 'Фильтры',
+        'quickFilters.filter': 'Фильтр',
+        'quickFilters.files': 'файлов',
+        'quickFilters.filesCount': 'файлов',
+        'quickFilters.clickToToggle': 'Клик для переключения',
+        'quickFilters.clearFilter': 'Сбросить фильтр',
+        'quickFilters.settings': 'Настроить фильтры',
+        'quickFilters.settingsTitle': 'Настройка фильтров',
+        'quickFilters.staticFilters': 'Пользовательские фильтры',
+        'quickFilters.dynamicFilters': 'Автоматические фильтры',
+        'quickFilters.dynamicHint': 'на основе языков проекта',
+        'quickFilters.autoDetected': 'Автоопределено',
+        'quickFilters.extensions': 'Расширения (через запятую)',
+        'quickFilters.patterns': 'Паттерны (через запятую)',
+        'quickFilters.reset': 'Сбросить',
+        'quickFilters.done': 'Готово',
+        'quickFilters.types': 'Типы',
+        'quickFilters.languages': 'Языки',
+        'quickFilters.fileTypes': 'Типы файлов',
+        'quickFilters.projectLanguages': 'Языки проекта',
+        'quickFilters.clearAll': 'Очистить',
+        'quickFilters.clear': 'Сбросить',
+        'quickFilters.clickMultiple': 'клик для множественного выбора',
+        'quickFilters.customFilters': 'Пользовательские фильтры',
+        'quickFilters.extensionsPlaceholder': '.ts, .js, .vue',
+        'quickFilters.smart': 'Умные',
+        'quickFilters.smartFilters': 'Умные фильтры',
+        'quickFilters.basedOnFramework': 'На основе фреймворка',
+        'quickFilters.multiSelect': 'мульти-выбор',
+        'quickFilters.exclude': 'исключить',
 
         // Presets Modal
         'presets.title': 'Пресеты выбора',
@@ -591,6 +690,11 @@ const translations = {
         'files.clear': 'Clear',
         'files.expandAll': 'Expand all',
         'files.collapseAll': 'Collapse all',
+        'files.loading': 'Loading...',
+        'files.binaryFile': 'Binary file',
+        'files.cannotPreview': 'Cannot preview content',
+        'files.addToContext': 'Add to context',
+        'files.quickLook': 'Quick Look',
 
         // Context Builder
         'context.builder': 'Context Builder',
@@ -600,6 +704,13 @@ const translations = {
         'context.default': 'Default',
         'context.stripComments': 'Strip comments',
         'context.includeTests': 'Include tests',
+        // Content optimization
+        'context.optimization': 'Content Optimization',
+        'context.excludeTests': 'Exclude tests',
+        'context.collapseEmptyLines': 'Collapse empty lines',
+        'context.stripLicense': 'Strip licenses',
+        'context.compactDataFiles': 'Compact JSON/YAML',
+        'context.trimWhitespace': 'Trim trailing whitespace',
         'context.splitStrategy': 'Split Strategy',
         'context.semantic': 'Semantic',
         'context.fixed': 'Fixed',
@@ -610,6 +721,7 @@ const translations = {
         'context.build': 'Build Context',
         'context.building': 'Building...',
         'context.outputFormat': 'Output Format',
+        'context.currentFormat': 'Current format',
         'context.preview': 'Context Preview',
         'context.copy': 'Copy',
         'context.export': 'Export',
@@ -633,6 +745,8 @@ const translations = {
         'context.search': 'Search in context...',
         'context.searchResults': 'found',
         'context.noResults': 'Nothing found',
+        'context.dropFiles': 'Drop files here',
+        'context.dropFilesHint': 'Files will be added to context',
         'context.doubleClickToView': 'Double-click to view',
         'context.settings': 'Storage settings',
         'context.maxContexts': 'Max contexts',
@@ -659,6 +773,7 @@ const translations = {
         'context.merged': 'Contexts merged',
         'context.mergedName': 'Merged context',
         'context.selectToMerge': 'Select 2+ contexts to merge',
+        'context.rebuilt': 'Context rebuilt',
         'context.dragHint': 'Drag to reorder',
         'context.selectHint': 'Select files',
         'context.chatHint': 'Ask AI',
@@ -695,6 +810,10 @@ const translations = {
         'sidebar.settings': 'AI Settings',
         'sidebar.toggle': 'Tools Panel',
 
+        // Workspace
+        'workspace.resetLayout': 'Reset panel sizes',
+        'workspace.layoutReset': 'Panel sizes reset',
+
         // File Stats
         'stats.byType': 'By file type',
         'stats.byFolder': 'By folder',
@@ -726,6 +845,29 @@ const translations = {
         'export.wrapInCodeBlocks': 'Wrap in code blocks',
         'export.maxLineLength': 'Max line length',
         'export.unlimited': 'Unlimited',
+        'export.autoSplit': 'Auto-split into chunks',
+        'export.tokensPerChunk': 'Tokens per chunk',
+        'export.strategy': 'Strategy',
+        'export.strategySmart': 'Smart',
+        'export.strategyFile': 'By files',
+        'export.strategyToken': 'By tokens',
+        'export.tokenLimit': 'Token limit',
+        // Chunk Copy
+        'chunks.parts': 'parts',
+        'chunks.part': 'Part',
+        'chunks.copyNext': 'Next',
+        'chunks.copyPart': 'Copy part',
+        'chunks.generate': 'Split into parts',
+        'chunks.copied': 'copied',
+        'chunks.allCopied': 'All parts copied!',
+        'chunks.reset': 'Reset',
+        'chunks.clickToCopy': 'Click to copy',
+        // Export Sections
+        'export.section.format': 'Output Format',
+        'export.section.output': 'Output Options',
+        'export.section.optimization': 'Optimization',
+        'export.section.chunking': 'Chunking',
+        'export.section.tokenLimit': 'Token Limit',
 
         // Prompt Templates
         'prompts.title': 'Prompt Templates',
@@ -746,6 +888,7 @@ const translations = {
         'prompts.default.explain': 'Explain Code',
         'prompts.default.refactor': 'Refactor',
         'prompts.default.tests': 'Write Tests',
+        'prompts.custom': 'Custom',
 
         // AI Chat
         'chat.title': 'AI Chat',
@@ -788,6 +931,9 @@ const translations = {
         'limits.nearLimit': 'Approaching context limit',
         'limits.criticalWarning': 'Critical! Reduce context size',
 
+        // Token Limit
+        'tokenLimit.hint': 'manual input up to 1M',
+
         // AI Settings
         'settings.aiProvider': 'AI Provider',
         'settings.selectProvider': 'Select provider',
@@ -799,6 +945,24 @@ const translations = {
         'settings.saving': 'Saving...',
         'settings.saved': 'Settings saved',
         'settings.saveFailed': 'Failed to save',
+        'settings.showKey': 'Show',
+        'settings.hideKey': 'Hide',
+        'settings.clearKey': 'Clear',
+        'settings.qwenCliTitle': 'Qwen Code CLI',
+        'settings.qwenCliDescription': 'Uses locally installed qwen-coder-cli. No API key required.',
+        // Provider descriptions
+        'settings.provider.openai': 'GPT-4o, GPT-4, GPT-3.5',
+        'settings.provider.gemini': 'Gemini Pro, Gemini Flash',
+        'settings.provider.qwen': 'Qwen-Max, Qwen-Plus (API)',
+        'settings.provider.qwenCli': 'Local CLI, no API key',
+        'settings.provider.openrouter': 'Multiple providers',
+        'settings.provider.localai': 'Self-hosted models',
+        // API key hints
+        'settings.hint.openai': 'Get key at platform.openai.com',
+        'settings.hint.gemini': 'Get key at aistudio.google.com',
+        'settings.hint.qwen': 'Get key at dashscope.console.aliyun.com',
+        'settings.hint.openrouter': 'Get key at openrouter.ai',
+        'settings.hint.localai': 'Optional for local models',
 
         // Tabs
         'tabs.files': 'Files',
@@ -877,6 +1041,8 @@ const translations = {
         'error.checkPaths': 'Verify file paths don\'t contain ".." or absolute paths',
         'error.tryRefresh': 'Try refreshing the file tree',
         'error.emptyContext': 'Context built but empty',
+        'error.tokenLimitExceeded': 'Context exceeds token limit: {actual}K (limit: {limit}K). Reduce file selection or increase limit in settings.',
+        'error.tokenLimitGeneric': 'Context exceeds token limit. Reduce file selection or increase limit in settings.',
 
         // Hotkeys
         'hotkey.buildContext': 'Build Context (Ctrl+B)',
@@ -946,6 +1112,38 @@ const translations = {
         'quick.styles': 'Styles',
         'quick.modified': 'Recently Modified',
         'quick.clear': 'Clear',
+
+        // Quick Filters Bar
+        'quickFilters.label': 'Filters',
+        'quickFilters.filter': 'Filter',
+        'quickFilters.files': 'files',
+        'quickFilters.filesCount': 'files',
+        'quickFilters.clickToToggle': 'Click to toggle',
+        'quickFilters.clearFilter': 'Clear filter',
+        'quickFilters.settings': 'Configure filters',
+        'quickFilters.settingsTitle': 'Filter Settings',
+        'quickFilters.staticFilters': 'Custom Filters',
+        'quickFilters.dynamicFilters': 'Auto-detected Filters',
+        'quickFilters.dynamicHint': 'based on project languages',
+        'quickFilters.autoDetected': 'Auto-detected',
+        'quickFilters.extensions': 'Extensions (comma-separated)',
+        'quickFilters.patterns': 'Patterns (comma-separated)',
+        'quickFilters.reset': 'Reset',
+        'quickFilters.done': 'Done',
+        'quickFilters.types': 'Types',
+        'quickFilters.languages': 'Languages',
+        'quickFilters.fileTypes': 'File Types',
+        'quickFilters.projectLanguages': 'Project Languages',
+        'quickFilters.clearAll': 'Clear',
+        'quickFilters.clear': 'Clear',
+        'quickFilters.clickMultiple': 'click for multiple selection',
+        'quickFilters.customFilters': 'Custom Filters',
+        'quickFilters.extensionsPlaceholder': '.ts, .js, .vue',
+        'quickFilters.smart': 'Smart',
+        'quickFilters.smartFilters': 'Smart Filters',
+        'quickFilters.basedOnFramework': 'Based on framework',
+        'quickFilters.multiSelect': 'multi-select',
+        'quickFilters.exclude': 'exclude',
 
         // Presets Modal
         'presets.title': 'Selection Presets',
@@ -1114,10 +1312,19 @@ const translations = {
 const currentLocale = ref<Locale>((localStorage.getItem('app-locale') as Locale) || 'ru')
 
 export function useI18n() {
-    const t = (key: string): string => {
+    const t = (key: string, params?: Record<string, string | number>): string => {
         const locale = currentLocale.value
         const dict = translations[locale] as Record<string, string>
-        return dict[key] || key
+        let result = dict[key] || key
+
+        // Support interpolation: {param} -> value
+        if (params) {
+            for (const [paramKey, paramValue] of Object.entries(params)) {
+                result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue))
+            }
+        }
+
+        return result
     }
 
     const setLocale = (locale: Locale) => {

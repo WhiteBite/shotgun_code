@@ -1,61 +1,41 @@
-import { ref, reactive } from 'vue'
 import { useContextStore } from '@/features/context/model/context.store'
 import { apiService } from '@/services/api.service'
+import { useSettingsStore } from '@/stores/settings.store'
+import { computed, ref } from 'vue'
 
 export type ExportMode = 'clipboard' | 'ai' | 'human'
 
-export interface ExportSettings {
-  // Clipboard
-  exportFormat: 'plain' | 'manifest' | 'json'
-  stripComments: boolean
-  includeManifest: boolean
-  
-  // AI
-  aiProfile: string
-  tokenLimit: number
-  enableAutoSplit: boolean
-  maxTokensPerChunk: number
-  overlapTokens: number
-  splitStrategy: 'smart' | 'file' | 'token'
-  
-  // Human
-  theme: string
-  includeLineNumbers: boolean
-  includePageNumbers: boolean
-}
-
 /**
  * Export modal composable for managing export functionality
- * Handles export settings, modal state, and export execution
+ * Uses settingsStore as single source of truth for export settings
  */
 export function useExport() {
   const contextStore = useContextStore()
-  
+  const settingsStore = useSettingsStore()
+
   const isOpen = ref(false)
   const isExporting = ref(false)
   const selectedMode = ref<ExportMode>('clipboard')
   const exportResult = ref<any>(null)
   const error = ref<string | null>(null)
 
-  const settings = reactive<ExportSettings>({
-    // Clipboard defaults
-    exportFormat: 'manifest',
-    stripComments: false,
-    includeManifest: true,
-    
-    // AI defaults
-    aiProfile: 'gpt-4',
-    tokenLimit: 8000,
-    enableAutoSplit: false,
-    maxTokensPerChunk: 4000,
+  // Computed settings from settingsStore (single source of truth)
+  const settings = computed(() => ({
+    // From settingsStore.context
+    exportFormat: settingsStore.settings.context.outputFormat === 'xml' ? 'manifest' : 'plain',
+    stripComments: settingsStore.settings.context.stripComments,
+    includeManifest: settingsStore.settings.context.includeManifest,
+    tokenLimit: settingsStore.settings.context.maxTokens,
+    enableAutoSplit: settingsStore.settings.context.enableAutoSplit,
+    maxTokensPerChunk: settingsStore.settings.context.maxTokensPerChunk,
+    includeLineNumbers: settingsStore.settings.context.includeLineNumbers,
+    // Fixed values
+    aiProfile: settingsStore.settings.aiModel,
     overlapTokens: 200,
-    splitStrategy: 'smart',
-    
-    // Human defaults
+    splitStrategy: settingsStore.settings.context.splitStrategy,
     theme: 'default',
-    includeLineNumbers: true,
     includePageNumbers: true
-  })
+  }))
 
   /**
    * Open export modal
@@ -65,7 +45,7 @@ export function useExport() {
       error.value = 'Сначала соберите контекст'
       return false
     }
-    
+
     isOpen.value = true
     exportResult.value = null
     error.value = null
@@ -94,30 +74,31 @@ export function useExport() {
     try {
       // Get full context content (warning: can be large)
       const contextContent = await contextStore.getFullContextContent()
-      
+
       // Build export settings JSON
+      const s = settings.value
       const exportSettingsJson = {
         mode: selectedMode.value,
         context: contextContent,
-        
+
         // Clipboard settings
-        stripComments: settings.stripComments,
-        includeManifest: settings.includeManifest,
-        exportFormat: settings.exportFormat,
-        
+        stripComments: s.stripComments,
+        includeManifest: s.includeManifest,
+        exportFormat: s.exportFormat,
+
         // AI settings
-        aiProfile: settings.aiProfile,
-        tokenLimit: settings.tokenLimit,
+        aiProfile: s.aiProfile,
+        tokenLimit: s.tokenLimit,
         fileSizeLimitKB: 5120, // 5 MB
-        enableAutoSplit: settings.enableAutoSplit,
-        maxTokensPerChunk: settings.maxTokensPerChunk,
-        overlapTokens: settings.overlapTokens,
-        splitStrategy: settings.splitStrategy,
-        
+        enableAutoSplit: s.enableAutoSplit,
+        maxTokensPerChunk: s.maxTokensPerChunk,
+        overlapTokens: s.overlapTokens,
+        splitStrategy: s.splitStrategy,
+
         // Human settings
-        theme: settings.theme,
-        includeLineNumbers: settings.includeLineNumbers,
-        includePageNumbers: settings.includePageNumbers
+        theme: s.theme,
+        includeLineNumbers: s.includeLineNumbers,
+        includePageNumbers: s.includePageNumbers
       }
 
       const result = await apiService.exportContext(exportSettingsJson)
@@ -160,7 +141,7 @@ export function useExport() {
     }
     const byteArray = new Uint8Array(byteNumbers)
     const blob = new Blob([byteArray])
-    
+
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -181,7 +162,7 @@ export function useExport() {
     error,
     // Include context store for use in components
     contextStore,
-    
+
     // Actions
     open,
     close,

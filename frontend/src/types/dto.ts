@@ -70,7 +70,7 @@ export interface SettingsDTO {
   // Context splitting settings
   maxTokensPerChunk?: number;
   overlapTokens?: number;
-  splitStrategy?: 'semantic' | 'fixed' | 'adaptive';
+  splitStrategy?: 'smart' | 'file' | 'token';
   // Code generation settings
   temperature?: number;
   maxTokens?: number;
@@ -284,7 +284,7 @@ export interface LayerInfo {
 }
 
 export interface ArchitectureInfo {
-  type: ArchitectureType;
+  type: ArchitectureType | string;
   confidence: number;
   description: string;
   indicators: string[];
@@ -357,8 +357,8 @@ export interface ConventionInfo {
 }
 
 export interface ProjectStructure {
-  architecture: ArchitectureInfo | null;
-  conventions: ConventionInfo | null;
+  architecture?: ArchitectureInfo;
+  conventions?: ConventionInfo;
   frameworks: FrameworkInfo[];
   buildSystems: BuildSystemInfo[];
   languages: LanguageInfo[];
