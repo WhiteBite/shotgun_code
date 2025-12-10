@@ -460,7 +460,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 }
 
 function handleAddToContext(path: string) {
-  fileStore.toggleSelection(path)
+  fileStore.toggleSelect(path)
   uiStore.addToast(t('files.addToContext'), 'success')
 }
 

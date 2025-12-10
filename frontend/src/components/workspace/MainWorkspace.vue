@@ -131,7 +131,6 @@ const leftResize = useResizablePanel({
   defaultWidth: 380,
   storageKey: 'workspace-left-width'
 })
-const leftPanelRef = leftResize.panelRef
 const leftWidth = leftResize.width
 
 const rightResize = useResizablePanel({
@@ -140,6 +139,8 @@ const rightResize = useResizablePanel({
   defaultWidth: 420,
   storageKey: 'workspace-right-width'
 })
+// Panel refs are used in template via ref="leftPanelRef" and ref="rightPanelRef"
+const leftPanelRef = leftResize.panelRef
 const rightPanelRef = rightResize.panelRef
 const rightWidth = rightResize.width
 
@@ -286,6 +287,9 @@ function handleOpenExport() {
   }
   exportModalRef.value?.open()
 }
+
+// Expose refs used in template
+defineExpose({ leftPanelRef, rightPanelRef })
 </script>
 
 

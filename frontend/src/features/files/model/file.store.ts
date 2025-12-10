@@ -1,4 +1,3 @@
-import type { domain } from '#wailsjs/go/models'
 import { useSettingsStore } from '@/stores/settings.store'
 import Fuse from 'fuse.js'
 import { defineStore } from 'pinia'
@@ -168,11 +167,11 @@ export const useFileStore = defineStore('file', () => {
         return removed
     }
 
-    function setFileTree(tree: FileNode[] | domain.FileNode[]) {
+    function setFileTree(tree: FileNode[] | DomainNode[]) {
         // Preserve expanded state before updating
         const expandedPaths = getExpandedPaths()
 
-        nodes.value = convertDomainNodes(tree)
+        nodes.value = convertDomainNodes(tree as DomainNode[])
         // Clear caches when tree changes
         allFilesCache.clear()
         nodePathCache.clear()
@@ -546,10 +545,10 @@ export const useFileStore = defineStore('file', () => {
         nodePathCache.clear()
 
         // Force garbage collection
-        if (typeof window !== 'undefined' && (window as any).gc) {
+        if (typeof window !== 'undefined' && 'gc' in window) {
             try {
-                (window as unknown).gc()
-            } catch (e) {
+                (window as unknown as { gc?: () => void }).gc?.()
+            } catch {
                 // Ignore
             }
         }
@@ -672,7 +671,18 @@ export const useFileStore = defineStore('file', () => {
         return result
     }
 
-    function convertDomainNodes(domainNodes: unknown[]): FileNode[] {
+    interface DomainNode {
+        name: string
+        path: string
+        isDir: boolean
+        children?: DomainNode[]
+        size?: number
+        isIgnored?: boolean
+        isGitignored?: boolean
+        isCustomIgnored?: boolean
+    }
+
+    function convertDomainNodes(domainNodes: DomainNode[]): FileNode[] {
         return domainNodes.map(node => ({
             name: node.name,
             path: node.path,

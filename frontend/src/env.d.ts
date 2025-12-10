@@ -10,3 +10,17 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Wails Go bindings
+interface Window {
+  go?: {
+    main?: {
+      App?: {
+        ResetWindowState?: () => Promise<void>;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+}

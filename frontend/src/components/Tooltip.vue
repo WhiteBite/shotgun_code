@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 interface Props {
   content?: string
@@ -49,7 +49,7 @@ const props = withDefaults(defineProps<Props>(), {
 const isVisible = ref(false)
 const position = ref({ x: 0, y: 0 })
 const actualPlacement = ref(props.placement)
-const tooltipRef = ref<HTMLElement>()
+const tooltipRef = ref<HTMLElement>() // Used in template via ref="tooltipRef"
 const wrapperRef = ref<HTMLElement>()
 
 let showTimer: ReturnType<typeof setTimeout> | null = null
@@ -161,6 +161,9 @@ function handleMouseLeave() {
 onMounted(() => {
   wrapperRef.value = document.querySelector('.tooltip-wrapper') as HTMLElement
 })
+
+// Expose refs used in template
+defineExpose({ tooltipRef })
 </script>
 
 <style scoped>

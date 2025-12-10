@@ -266,10 +266,14 @@ export const useContextStore = defineStore('context', () => {
                 const currentLimit = settingsStore.settings.context.maxTokens
 
                 if (tokenInfo) {
-                    const actualK = Math.round(tokenInfo.actual / 1000)
-                    const limitK = Math.round(tokenInfo.limit / 1000)
                     error.value = `TOKEN_LIMIT_EXCEEDED:${tokenInfo.actual}:${tokenInfo.limit}`
-                    console.error('[ContextStore] Token limit exceeded:', { actual: tokenInfo.actual, limit: tokenInfo.limit, currentSetting: currentLimit })
+                    console.error('[ContextStore] Token limit exceeded:', {
+                        actual: tokenInfo.actual,
+                        limit: tokenInfo.limit,
+                        actualK: Math.round(tokenInfo.actual / 1000),
+                        limitK: Math.round(tokenInfo.limit / 1000),
+                        currentSetting: currentLimit
+                    })
                 } else {
                     error.value = `TOKEN_LIMIT_EXCEEDED:0:${currentLimit}`
                 }
