@@ -18,6 +18,11 @@ type SymbolIndexImpl struct {
 	byKind   map[analysis.SymbolKind][]int
 	registry analysis.AnalyzerRegistry
 	indexed  bool
+
+	// Caching fields for one-time initialization
+	indexOnce    sync.Once
+	lastIndexErr error
+	projectRoot  string
 }
 
 // NewSymbolIndex creates a new symbol index
@@ -28,6 +33,83 @@ func NewSymbolIndex(registry analysis.AnalyzerRegistry) *SymbolIndexImpl {
 		byFile:   make(map[string][]int),
 		byKind:   make(map[analysis.SymbolKind][]int),
 		registry: registry,
+	}
+}
+
+// EnsureIndexed ensures the project is indexed exactly once.
+// Subsequent calls return immediately with cached result.
+// Use Invalidate() to force re-indexing.
+func (idx *SymbolIndexImpl) EnsureIndexed(ctx context.Context, projectRoot string) error {
+	// Check if project changed - need to re-index
+	idx.mu.RLock()
+	needsReindex := idx.projectRoot != "" && idx.projectRoot != projectRoot
+	idx.mu.RUnlock()
+
+	if needsReindex {
+		idx.Invalidate()
+	}
+
+	idx.indexOnce.Do(func() {
+		idx.mu.Lock()
+		idx.projectRoot = projectRoot
+		idx.mu.Unlock()
+		idx.lastIndexErr = idx.IndexProject(ctx, projectRoot)
+	})
+	return idx.lastIndexErr
+}
+
+// Invalidate resets the index, forcing re-indexing on next EnsureIndexed call.
+func (idx *SymbolIndexImpl) Invalidate() {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	idx.symbols = make([]analysis.Symbol, 0)
+	idx.byName = make(map[string][]int)
+	idx.byFile = make(map[string][]int)
+	idx.byKind = make(map[analysis.SymbolKind][]int)
+	idx.indexed = false
+	idx.indexOnce = sync.Once{} // Reset sync.Once
+	idx.lastIndexErr = nil
+	idx.projectRoot = ""
+}
+
+// InvalidateFile removes symbols from a specific file and marks for partial re-index.
+// Useful for incremental updates when a single file changes.
+func (idx *SymbolIndexImpl) InvalidateFile(filePath string) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
+	// Get indices of symbols in this file
+	fileIndices := idx.byFile[filePath]
+	if len(fileIndices) == 0 {
+		return
+	}
+
+	// Mark symbols as removed (we'll rebuild indices)
+	toRemove := make(map[int]bool)
+	for _, i := range fileIndices {
+		toRemove[i] = true
+	}
+
+	// Rebuild symbols slice without removed ones
+	newSymbols := make([]analysis.Symbol, 0, len(idx.symbols)-len(toRemove))
+	oldToNew := make(map[int]int) // old index -> new index
+	for i, sym := range idx.symbols {
+		if !toRemove[i] {
+			oldToNew[i] = len(newSymbols)
+			newSymbols = append(newSymbols, sym)
+		}
+	}
+	idx.symbols = newSymbols
+
+	// Rebuild all indices
+	idx.byName = make(map[string][]int)
+	idx.byFile = make(map[string][]int)
+	idx.byKind = make(map[analysis.SymbolKind][]int)
+	for i, sym := range idx.symbols {
+		nameLower := strings.ToLower(sym.Name)
+		idx.byName[nameLower] = append(idx.byName[nameLower], i)
+		idx.byFile[sym.FilePath] = append(idx.byFile[sym.FilePath], i)
+		idx.byKind[sym.Kind] = append(idx.byKind[sym.Kind], i)
 	}
 }
 

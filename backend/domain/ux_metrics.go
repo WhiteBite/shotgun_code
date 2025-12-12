@@ -86,7 +86,7 @@ type PerformanceMetrics struct {
 	APIRequests    int
 	CacheHits      int
 	CacheMisses    int
-	Timestamps     []time.Time
+	Timestamps     []string // ISO 8601 formatted timestamps (Wails doesn't support time.Time in TS bindings)
 	Values         []float64
 }
 

@@ -17,13 +17,14 @@ import {
   QuestionMarkCircleIcon,
   Squares2X2Icon
 } from '@heroicons/vue/24/outline'
+import type { Component } from 'vue'
 
 export interface Command {
   id: string
   name: string
   description: string
   shortcut?: string
-  icon: any
+  icon: Component
   action: () => void | Promise<void>
   category?: string
   when?: () => boolean // Conditional visibility
@@ -89,7 +90,7 @@ export class CommandService {
         category: 'Files',
         when: () => projectStore.hasProject,
         action: () => {
-          // TODO: Implement file search modal
+          // TODO [Q1-1]: Implement file search modal - see TODO-refactoring.txt
           uiStore.addToast('File search coming soon!', 'info')
         }
       },
@@ -121,7 +122,7 @@ export class CommandService {
         category: 'Code',
         when: () => projectStore.hasProject,
         action: () => {
-          // TODO: Trigger code analysis
+          // TODO [Q1-2]: Trigger code analysis - see TODO-refactoring.txt
           uiStore.addToast('Code analysis started...', 'info')
         }
       },
@@ -134,7 +135,7 @@ export class CommandService {
         category: 'Code',
         when: () => projectStore.hasProject,
         action: () => {
-          // TODO: Open code generation dialog
+          // TODO [Q1-3]: Open code generation dialog - see TODO-refactoring.txt
           uiStore.addToast('Code generation coming soon!', 'info')
         }
       },
@@ -159,8 +160,7 @@ export class CommandService {
         icon: CogIcon,
         category: 'App',
         action: () => {
-          // TODO: Open settings modal
-          uiStore.addToast('Settings coming soon!', 'info')
+          uiStore.openSettingsModal()
         }
       },
       {
@@ -171,8 +171,7 @@ export class CommandService {
         icon: QuestionMarkCircleIcon,
         category: 'Help',
         action: () => {
-          // TODO: Trigger KeyboardShortcutsModal
-          uiStore.addToast('Press Ctrl+/ to see shortcuts', 'info')
+          uiStore.openKeyboardShortcutsModal()
         }
       },
       {
@@ -183,7 +182,7 @@ export class CommandService {
         icon: DocumentTextIcon,
         category: 'Files',
         action: () => {
-          // TODO: Create new document
+          // TODO [Q1-5]: Create new document - see TODO-refactoring.txt
           uiStore.addToast('New document feature coming soon!', 'info')
         }
       }

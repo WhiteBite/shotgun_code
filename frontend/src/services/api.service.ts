@@ -136,7 +136,7 @@ class ApiService {
 
       if (error && typeof error === 'object') {
         // Handle domain_error format: {"cause":"...", "message":"..."}
-        const err = error as any
+        const err = error as { cause?: string; message?: string }
         errorMsg = err.cause || err.message || String(error)
       } else if (error instanceof Error) {
         errorMsg = error.message
@@ -153,9 +153,9 @@ class ApiService {
           const actual = Number(match[1])
           const limit = Number(match[2])
           // Create structured error with token info for UI to parse
-          const error = new Error('TOKEN_LIMIT_EXCEEDED')
-            ; (error as any).tokenInfo = { actual, limit }
-          throw error
+          const tokenError = new Error('TOKEN_LIMIT_EXCEEDED') as Error & { tokenInfo: { actual: number; limit: number } }
+          tokenError.tokenInfo = { actual, limit }
+          throw tokenError
         }
         // If no match but contains "token limit", throw generic message
         throw new Error('TOKEN_LIMIT_EXCEEDED')
@@ -216,6 +216,58 @@ class ApiService {
     } catch (error) {
       console.error('[ApiService] Error suggesting context files:', error)
       throw new Error('Failed to suggest context files.')
+    }
+  }
+
+  /**
+   * Get smart file suggestions from multiple sources (git, architecture, semantic)
+   */
+  async getSmartSuggestions(
+    projectPath: string,
+    currentFiles: string[],
+    task: string = ''
+  ): Promise<SmartSuggestionsResult> {
+    try {
+      const result = await wails.GetSmartSuggestions(projectPath, currentFiles, task)
+      // Map backend result to our interface with proper source type
+      return {
+        suggestions: result.suggestions?.map(s => ({
+          path: s.path,
+          source: s.source as 'git' | 'arch' | 'semantic',
+          reason: s.reason,
+          confidence: s.confidence
+        })) || [],
+        total: result.total || 0
+      }
+    } catch (error) {
+      console.error('[ApiService] Error getting smart suggestions:', error)
+      return { suggestions: [], total: 0 }
+    }
+  }
+
+  /**
+   * Get quick info for a file (symbols, imports, dependents, risk)
+   */
+  async getFileQuickInfo(projectPath: string, filePath: string): Promise<FileQuickInfo> {
+    try {
+      // @ts-ignore - method may not exist in wails bindings yet
+      return await wails.GetFileQuickInfo(projectPath, filePath)
+    } catch (error) {
+      console.error('[ApiService] Error getting file quick info:', error)
+      return { symbolCount: 0, importCount: 0, dependentCount: 0, changeRisk: 0, riskLevel: 'low' }
+    }
+  }
+
+  /**
+   * Get impact preview for selected files
+   */
+  async getImpactPreview(projectPath: string, filePaths: string[]): Promise<ImpactPreviewResult> {
+    try {
+      // @ts-ignore - method may not exist in wails bindings yet
+      return await wails.GetImpactPreview(projectPath, filePaths)
+    } catch (error) {
+      console.error('[ApiService] Error getting impact preview:', error)
+      return { totalDependents: 0, aggregateRisk: 0, riskLevel: 'low', affectedFiles: [], relatedTests: [] }
     }
   }
 
@@ -1029,6 +1081,49 @@ class ApiService {
       throw new Error('Failed to perform hybrid search.')
     }
   }
+
+  // ============================================
+  // Context Memory (Phase 6)
+  // ============================================
+
+  /**
+   * Get recently saved contexts
+   */
+  async getRecentContexts(projectPath: string, limit: number = 10): Promise<ContextMemoryEntry[]> {
+    try {
+      // @ts-ignore
+      return await wails.GetRecentContexts(projectPath, limit)
+    } catch (error) {
+      console.error('[ApiService] Error getting recent contexts:', error)
+      return []
+    }
+  }
+
+  /**
+   * Find contexts by topic
+   */
+  async findContextByTopic(projectPath: string, topic: string): Promise<ContextMemoryEntry[]> {
+    try {
+      // @ts-ignore
+      return await wails.FindContextByTopic(projectPath, topic)
+    } catch (error) {
+      console.error('[ApiService] Error finding contexts:', error)
+      return []
+    }
+  }
+
+  /**
+   * Save current context to memory
+   */
+  async saveContextMemory(projectPath: string, topic: string, summary: string, files: string[]): Promise<void> {
+    try {
+      // @ts-ignore
+      await wails.SaveContextMemory(projectPath, topic, summary, files)
+    } catch (error) {
+      console.error('[ApiService] Error saving context:', error)
+      throw new Error('Failed to save context.')
+    }
+  }
 }
 
 // Agentic Chat types
@@ -1226,6 +1321,52 @@ export interface ToolCallLog {
   tool: string
   arguments: string
   result: string
+}
+
+// Smart Suggestions types
+export interface SmartSuggestion {
+  path: string
+  source: 'git' | 'arch' | 'semantic'
+  reason: string
+  confidence: number
+}
+
+export interface SmartSuggestionsResult {
+  suggestions: SmartSuggestion[]
+  total: number
+}
+
+// File Quick Info types (Phase 4)
+export interface FileQuickInfo {
+  symbolCount: number
+  importCount: number
+  dependentCount: number
+  changeRisk: number
+  riskLevel: 'low' | 'medium' | 'high'
+}
+
+// Impact Preview types (Phase 5)
+export interface ImpactPreviewResult {
+  totalDependents: number
+  aggregateRisk: number
+  riskLevel: 'low' | 'medium' | 'high'
+  affectedFiles: AffectedFile[]
+  relatedTests: string[]
+}
+
+export interface AffectedFile {
+  path: string
+  type: 'direct' | 'transitive'
+  dependents: number
+}
+
+// Context Memory types (Phase 6)
+export interface ContextMemoryEntry {
+  id: string
+  topic: string
+  summary: string
+  files: string[]
+  createdAt: string
 }
 
 // Экспортируем синглтон экземпляр сервиса

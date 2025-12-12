@@ -226,6 +226,39 @@ export interface DerivedDiffReport {
   createdAt: string;
 }
 
+export interface GuardrailsReport {
+  taskId: string;
+  violations: Array<{
+    rule: string;
+    severity: "error" | "warning" | "info";
+    message: string;
+    file?: string;
+    line?: number;
+  }>;
+  passed: boolean;
+  createdAt: string;
+}
+
+export interface SbomLicensingReport {
+  taskId: string;
+  dependencies: Array<{
+    name: string;
+    version: string;
+    license: string;
+    isCompatible: boolean;
+  }>;
+  incompatibleLicenses: string[];
+  createdAt: string;
+}
+
+/** Union type for all report data types */
+export type ReportData =
+  | WhyViewReport
+  | TimeToGreenReport
+  | DerivedDiffReport
+  | GuardrailsReport
+  | SbomLicensingReport;
+
 export interface GenericReport {
   id: string;
   type:
@@ -237,7 +270,7 @@ export interface GenericReport {
   taskId: string;
   title: string;
   summary: string;
-  data: WhyViewReport | TimeToGreenReport | DerivedDiffReport | any;
+  data: ReportData;
   createdAt: string;
   updatedAt: string;
 }

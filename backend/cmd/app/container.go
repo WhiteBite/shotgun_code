@@ -7,8 +7,24 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/application"
+	appai "shotgun_code/application/ai"
+	"shotgun_code/application/analysis"
+	"shotgun_code/application/build"
+	"shotgun_code/application/diff"
+	"shotgun_code/application/export"
+	"shotgun_code/application/guardrails"
+	"shotgun_code/application/protocol"
+	"shotgun_code/application/rag"
+	"shotgun_code/application/repair"
+	"shotgun_code/application/router"
+	"shotgun_code/application/sbom"
+	"shotgun_code/application/settings"
+	"shotgun_code/application/symbol"
+	"shotgun_code/application/taskflow"
+	"shotgun_code/application/ux"
+	"shotgun_code/application/verification"
 	"shotgun_code/domain"
-	"shotgun_code/domain/analysis"
+	domainanalysis "shotgun_code/domain/analysis"
 	"shotgun_code/handlers"
 	"shotgun_code/infrastructure/ai"
 	"shotgun_code/infrastructure/analyzers"
@@ -61,21 +77,21 @@ type AppContainer struct {
 	ContextSplitter       domain.ContextSplitter
 	Watcher               domain.FileSystemWatcher
 	CommandRunner         domain.CommandRunner
-	SettingsService       *application.SettingsService
-	AIService             *application.AIService
+	SettingsService       *settings.Service
+	AIService             *appai.Service
 	ContextAnalysis       domain.ContextAnalyzer
-	SymbolGraph           *application.SymbolGraphService
+	SymbolGraph           *symbol.Service
 	TestService           domain.ITestService
 	StaticAnalyzerService domain.IStaticAnalyzerService
-	SBOMService           *application.SBOMService
+	SBOMService           *sbom.Service
 	RepairService         domain.RepairService
 	GuardrailService      domain.GuardrailService
 	TaskflowService       domain.TaskflowService
 	UXMetricsService      domain.UXMetricsService
-	ApplyService          *application.ApplyService
-	DiffService           *application.DiffService
+	ApplyService          *diff.ApplyService
+	DiffService           *diff.Service
 	BuildService          domain.IBuildService
-	ExportService         *application.ExportService
+	ExportService         *export.Service
 
 	// Unified internal services (new architecture)
 	ContextService *contextservice.Service
@@ -86,8 +102,8 @@ type AppContainer struct {
 	ContextAnalyzer   domain.ContextAnalyzer
 	ContextRepository domain.ContextRepository
 
-	ReportService    *application.ReportService
-	RouterLLMService *application.RouterLLMService
+	ReportService    *export.ReportService
+	RouterLLMService *router.LLMService
 	Bridge           *wailsbridge.Bridge
 	GitService       domain.GitService
 
@@ -95,16 +111,16 @@ type AppContainer struct {
 	TaskProtocolService         domain.TaskProtocolService
 	ErrorAnalyzer               domain.ErrorAnalyzer
 	CorrectionEngine            domain.CorrectionEngine
-	TaskProtocolConfigService   *application.TaskProtocolConfigService
-	TaskflowProtocolIntegration *application.TaskflowProtocolIntegration
-	VerificationPipelineService *application.VerificationPipelineService
+	TaskProtocolConfigService   *protocol.ConfigService
+	TaskflowProtocolIntegration *taskflow.ProtocolIntegration
+	VerificationPipelineService *verification.Service
 
 	// Qwen Task Services
-	SmartContextService *application.SmartContextService
-	QwenTaskService     *application.QwenTaskService
+	SmartContextService *rag.SmartContextService
+	QwenTaskService     *appai.QwenTaskService
 
 	// Semantic Search Services
-	SymbolIndex       analysis.SymbolIndex
+	SymbolIndex       domainanalysis.SymbolIndex
 	EmbeddingProvider domain.EmbeddingProvider
 	VectorStore       domain.VectorStore
 	SemanticSearch    domain.SemanticSearchService
@@ -119,6 +135,10 @@ type AppContainer struct {
 	AnalysisHandler *handlers.AnalysisHandler
 	SettingsHandler *handlers.SettingsHandler
 	TaskflowHandler *handlers.TaskflowHandler
+
+	// Analysis tools (shared across handlers)
+	AnalysisContainer *analysis.Container
+	ToolExecutor      *application.ToolExecutorImpl
 
 	// Lazy initialization support
 	lazyInitOnce              sync.Once
@@ -162,7 +182,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Application Services
 	modelFetchers := createModelFetchers(ctx, c.Log, c.SettingsRepo)
-	c.SettingsService, err = application.NewSettingsService(c.Log, c.Bus, c.SettingsRepo, modelFetchers)
+	c.SettingsService, err = settings.NewService(c.Log, c.Bus, c.SettingsRepo, modelFetchers)
 	if err != nil {
 		return nil, err
 	}
@@ -173,14 +193,14 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	providerRegistry := createProviderRegistry(c.Log, c.SettingsService)
 
 	// Create rate limiter and metrics collector
-	rateLimiter := application.NewRateLimiter()
-	metrics := application.NewMetricsCollector()
+	rateLimiter := appai.NewRateLimiter()
+	metrics := appai.NewMetricsCollector()
 
 	// Create intelligent service with dependencies
-	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerRegistry, rateLimiter, metrics)
+	intelligentService := appai.NewIntelligentService(c.SettingsService, c.Log, rateLimiter, metrics)
 
 	// Create AI service with intelligent service
-	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
+	c.AIService = appai.NewService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 
 	// Set provider getter in IntelligentAIService (uses interface to break circular dependency)
 	intelligentService.SetProviderGetter(c.AIService)
@@ -232,7 +252,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	c.ContextBuilder = contextservice.NewContextBuilderAdapter(c.ContextService)
 
 	// Create analyzer responsible for task-driven context suggestions
-	contextAnalyzer := application.NewContextAnalyzer(c.Log, c.AIService)
+	contextAnalyzer := analysis.NewContextAnalyzer(c.Log, c.AIService)
 	c.ContextAnalyzer = contextAnalyzer
 
 	// Create unified ProjectService
@@ -255,11 +275,11 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create import graph builders (currently no implementation, using nil map)
 	importGraphBuilders := make(map[string]domain.ImportGraphBuilder)
 
-	c.SymbolGraph = application.NewSymbolGraphService(c.Log, symbolGraphBuilders, importGraphBuilders)
+	c.SymbolGraph = symbol.NewService(c.Log, symbolGraphBuilders, importGraphBuilders)
 
 	// Create CallStack Analyzer and Smart Context Service for Qwen integration
 	callStackAnalyzer := symbolgraph.NewCallStackAnalyzerAdapter(c.Log)
-	c.SmartContextService = application.NewSmartContextService(
+	c.SmartContextService = rag.NewSmartContextService(
 		c.Log,
 		c.FileReader,
 		c.SymbolGraph,
@@ -279,7 +299,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		// testEngine.RegisterTestAnalyzer("java", testengine.NewJavaTestAnalyzer(c.Log))
 
 		// Create TestService with the TestEngine
-		c.TestService = application.NewTestService(c.Log, testEngine)
+		c.TestService = build.NewTestService(c.Log, testEngine)
 	})
 
 	// Create Static Analyzer Engine and infrastructure components
@@ -289,30 +309,30 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	staticAnalyzerEngine.RegisterAnalyzer(staticanalyzer.NewErrorProneAnalyzer(c.Log))
 	staticAnalyzerEngine.RegisterAnalyzer(staticanalyzer.NewRuffAnalyzer(c.Log))
 	staticAnalyzerEngine.RegisterAnalyzer(staticanalyzer.NewClangTidyAnalyzer(c.Log))
-	c.StaticAnalyzerService = application.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
+	c.StaticAnalyzerService = analysis.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
 
 	// Create SBOM infrastructure components
 	sbomGenerator := sbomlicensing.NewSyftGenerator(c.Log)
 	vulnScanner := sbomlicensing.NewGrypeScanner(c.Log)
 	licenseScanner := sbomlicensing.NewLicenseScanner(c.Log)
 	sbomFileStatProvider := &OSFileStatProvider{}
-	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, sbomFileStatProvider)
+	c.SBOMService = sbom.NewService(c.Log, sbomGenerator, vulnScanner, licenseScanner, sbomFileStatProvider)
 
-	c.RepairService = application.NewRepairService(c.Log, c.CommandRunner)
+	c.RepairService = repair.NewService(c.Log, c.CommandRunner)
 
 	// Create TaskflowRepository
 	taskflowRepo := taskflowrepo.NewFileSystemTaskflowRepository("tasks/status.json")
 
 	// Create RouterPlannerService
-	planner := application.NewRouterPlannerService(c.Log, c.BuildService, c.TestService, c.StaticAnalyzerService, c.RepairService)
+	planner := router.NewPlannerService(c.Log, c.BuildService, c.TestService, c.StaticAnalyzerService, c.RepairService)
 
 	// Create OPA service and file stat provider for GuardrailService
 	guardrailOPAService := policy.NewOPAService(c.Log)
 	guardrailFileStatProvider := &OSFileStatProvider{}
-	c.GuardrailService = application.NewGuardrailService(c.Log, guardrailOPAService, guardrailFileStatProvider)
+	c.GuardrailService = guardrails.NewService(c.Log, guardrailOPAService, guardrailFileStatProvider)
 
 	// Create TaskflowService with injected dependencies
-	c.TaskflowService = application.NewTaskflowService(c.Log, planner, c.RouterLLMService, c.GuardrailService, taskflowRepo, c.GitRepo)
+	c.TaskflowService = taskflow.NewService(c.Log, planner, c.RouterLLMService, c.GuardrailService, taskflowRepo, c.GitRepo)
 
 	// ⚠️ CRITICAL: Update GuardrailService with TaskTypeProvider to resolve circular dependency
 	// This MUST be called AFTER TaskflowService is created
@@ -325,7 +345,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 
 	// Create UXReportRepository
 	uxReportRepo := uxreports.NewFileSystemUXReportRepository("reports/ux")
-	c.UXMetricsService = application.NewUXMetricsService(c.Log, uxReportRepo)
+	c.UXMetricsService = ux.NewService(c.Log, uxReportRepo)
 
 	// Создаем конфигурацию для движка применения
 	applyConfig := &domain.ApplyEngineConfig{
@@ -356,15 +376,15 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 		"ts":         formatters.NewTypeScriptFormatter(c.Log), // Temporary: same as formatter
 	}
 
-	c.ApplyService = application.NewApplyService(c.Log, applyConfig, applyEngine, formatterMap, importFixerMap)
+	c.ApplyService = diff.NewApplyService(c.Log, applyConfig, applyEngine, formatterMap, importFixerMap)
 
 	// Создаем движок diff
 	diffEngine := diffengine.NewDiffEngine(c.Log)
-	c.DiffService = application.NewDiffService(c.Log, diffEngine)
+	c.DiffService = diff.NewService(c.Log, diffEngine)
 
 	// Создаем build pipeline
 	buildPipeline := buildpipeline.NewBuildPipeline(c.Log)
-	c.BuildService = application.NewBuildService(c.Log, buildPipeline)
+	c.BuildService = build.NewService(c.Log, buildPipeline)
 
 	// new: wire PDF and ZIP implementations
 	pdfGen := pdfgen.NewGofpdfGenerator(c.Log)
@@ -374,17 +394,17 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create path provider and file system writer for ExportService
 	exportPathProvider := &FilePathProvider{}
 	exportFileSystemWriter := &OSFileSystemWriter{}
-	c.ExportService = application.NewExportService(c.Log, c.ContextSplitter, pdfGen, arch, tempFileProvider, exportPathProvider, exportFileSystemWriter, exportFileStatProvider)
+	c.ExportService = export.NewService(c.Log, c.ContextSplitter, pdfGen, arch, tempFileProvider, exportPathProvider, exportFileSystemWriter, exportFileStatProvider)
 
 	// Initialize new services
 	reportRepo, err := reportfs.NewReportFileSystemRepository(c.Log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize report repository: %w", err)
 	}
-	c.ReportService = application.NewReportService(c.Log, reportRepo)
+	c.ReportService = export.NewReportService(c.Log, reportRepo)
 
 	// Initialize RouterLLMService
-	routerLLMConfig := application.RouterLLMConfig{
+	routerLLMConfig := router.LLMConfig{
 		Enabled: false, // Disabled by default
 		LLMConfig: domain.LLMConfig{
 			BaseURL:       "http://localhost:8080",
@@ -417,7 +437,7 @@ func NewContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPrompt s
 	// Create file reader
 	fileReader := filereader.NewFileReader()
 
-	c.RouterLLMService = application.NewRouterLLMServiceWithClient(routerLLMConfig, c.Log, llmClient, fileReader)
+	c.RouterLLMService = router.NewLLMServiceWithClient(routerLLMConfig, c.Log, llmClient, fileReader)
 
 	// Initialize Task Protocol Services
 	if err := initializeTaskProtocolServices(c); err != nil {
@@ -522,7 +542,7 @@ func (c *AppContainer) initializeSemanticSearch() error {
 
 	// Create semantic search service (only if embedding provider is available)
 	if c.EmbeddingProvider != nil {
-		c.SemanticSearch = application.NewSemanticSearchService(
+		c.SemanticSearch = rag.NewSemanticSearchService(
 			c.EmbeddingProvider,
 			c.VectorStore,
 			c.SymbolIndex,
@@ -530,7 +550,7 @@ func (c *AppContainer) initializeSemanticSearch() error {
 		)
 
 		// Create RAG service
-		c.RAGService = application.NewRAGService(
+		c.RAGService = rag.NewService(
 			c.SemanticSearch,
 			c.EmbeddingProvider,
 			c.Log,
@@ -553,6 +573,20 @@ func (c *AppContainer) initializeSemanticSearch() error {
 
 // initializeHandlers creates all handlers with proper dependencies
 func (c *AppContainer) initializeHandlers() error {
+	// Initialize Analysis Container (shared analysis services)
+	c.AnalysisContainer = analysis.NewContainer(c.Log)
+
+	// Initialize Tool Executor with all dependencies
+	c.ToolExecutor = application.NewToolExecutor(c.Log, c.FileReader)
+	c.ToolExecutor.SetAnalysisContainer(c.AnalysisContainer)
+	c.ToolExecutor.SetContextMemory(c.AnalysisContainer.GetContextMemory())
+
+	// Wire semantic search if available
+	if c.SemanticSearch != nil {
+		// Create adapter for SemanticSearcher interface
+		c.ToolExecutor.SetSemanticSearch(&semanticSearchAdapter{service: c.SemanticSearch})
+	}
+
 	// Project Handler - delegates to ProjectService
 	c.ProjectHandler = handlers.NewProjectHandler(
 		c.Log,
@@ -570,11 +604,12 @@ func (c *AppContainer) initializeHandlers() error {
 		c.ContextService,
 	)
 
-	// AI Handler
-	c.AIHandler = handlers.NewAIHandler(
+	// AI Handler with injected ToolExecutor
+	c.AIHandler = handlers.NewAIHandlerWithTools(
 		c.Log,
 		c.AIService,
 		c.ContextAnalysis,
+		c.ToolExecutor,
 	)
 
 	// Analysis Handler
@@ -606,10 +641,10 @@ func (c *AppContainer) initializeHandlers() error {
 	)
 
 	// Qwen Task Service and Handler
-	c.QwenTaskService = application.NewQwenTaskService(
+	c.QwenTaskService = appai.NewQwenTaskService(
 		c.Log,
 		c.AIService,
-		c.SmartContextService,
+		&smartContextAdapter{svc: c.SmartContextService},
 		c.SettingsService,
 	)
 
@@ -712,7 +747,7 @@ func (c *cachedModelFetcher) FetchModels(ctx context.Context, apiKey, host strin
 	return models, nil
 }
 
-func createProviderRegistry(log domain.Logger, settingsService *application.SettingsService) map[string]domain.AIProviderFactory {
+func createProviderRegistry(log domain.Logger, settingsService *settings.Service) map[string]domain.AIProviderFactory {
 	resolveHost := func(providerType string) (string, error) {
 		switch providerType {
 		case "openrouter":
@@ -807,17 +842,17 @@ func (p *OSFileStatProvider) Stat(name string) (domain.FileInfo, error) {
 // initializeTaskProtocolServices initializes the Task Protocol services
 func initializeTaskProtocolServices(c *AppContainer) error {
 	// Initialize Error Analyzer
-	c.ErrorAnalyzer = application.NewErrorAnalyzer(c.Log)
+	c.ErrorAnalyzer = repair.NewErrorAnalyzer(c.Log)
 
 	// Initialize Correction Engine with file system provider
 	fileSystemProvider := &OSFileSystemProvider{}
-	c.CorrectionEngine = application.NewCorrectionEngine(c.Log, fileSystemProvider)
+	c.CorrectionEngine = repair.NewCorrectionEngine(c.Log, fileSystemProvider)
 
 	// Initialize Task Protocol Config Service
-	c.TaskProtocolConfigService = application.NewTaskProtocolConfigService(c.Log, fileSystemProvider)
+	c.TaskProtocolConfigService = protocol.NewConfigService(c.Log, fileSystemProvider)
 
 	// Initialize Task Protocol Service
-	c.TaskProtocolService = application.NewTaskProtocolService(
+	c.TaskProtocolService = protocol.NewService(
 		c.Log,
 		nil, // Will be set after VerificationPipelineService is created
 		c.StaticAnalyzerService,
@@ -830,8 +865,8 @@ func initializeTaskProtocolServices(c *AppContainer) error {
 	)
 
 	// Create VerificationPipelineService with Task Protocol integration
-	formatterService := application.NewFormatterService(c.Log, &CommandRunnerImpl{})
-	c.VerificationPipelineService = application.NewVerificationPipelineService(
+	formatterService := export.NewFormatterService(c.Log, &CommandRunnerImpl{})
+	c.VerificationPipelineService = verification.NewService(
 		c.Log,
 		c.BuildService,
 		c.TestService,
@@ -842,7 +877,7 @@ func initializeTaskProtocolServices(c *AppContainer) error {
 	)
 
 	// Initialize Taskflow Protocol Integration
-	c.TaskflowProtocolIntegration = application.NewTaskflowProtocolIntegration(
+	c.TaskflowProtocolIntegration = taskflow.NewProtocolIntegration(
 		c.Log,
 		c.TaskflowService,
 		c.TaskProtocolService,
@@ -851,6 +886,53 @@ func initializeTaskProtocolServices(c *AppContainer) error {
 	)
 
 	return nil
+}
+
+// smartContextAdapter adapts rag.SmartContextService to appai.SmartContextProvider
+type smartContextAdapter struct {
+	svc *rag.SmartContextService
+}
+
+func (a *smartContextAdapter) CollectContext(ctx context.Context, req appai.SmartContextRequest) (*appai.SmartContextResult, error) {
+	ragReq := rag.SmartContextRequest{
+		ProjectRoot:   req.ProjectRoot,
+		Task:          req.Task,
+		SelectedFiles: req.SelectedFiles,
+		SelectedCode:  req.SelectedCode,
+		SourceFile:    req.SourceFile,
+		MaxTokens:     req.MaxTokens,
+		MaxDepth:      req.MaxDepth,
+		Language:      req.Language,
+	}
+	result, err := a.svc.CollectContext(ctx, ragReq)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]appai.ContextFile, len(result.Files))
+	for i, f := range result.Files {
+		files[i] = appai.ContextFile{Path: f.Path, Content: f.Content, Tokens: f.Tokens, Relevance: f.Relevance, Reason: f.Reason}
+	}
+	var callStack *appai.CallStackResult
+	if result.CallStack != nil {
+		callStack = &appai.CallStackResult{
+			RootSymbol:   result.CallStack.RootSymbol,
+			Callers:      result.CallStack.Callers,
+			Callees:      result.CallStack.Callees,
+			Dependencies: result.CallStack.Dependencies,
+			RelatedFiles: result.CallStack.RelatedFiles,
+			TotalSymbols: result.CallStack.TotalSymbols,
+		}
+	}
+	return &appai.SmartContextResult{
+		Context:         result.Context,
+		Files:           files,
+		Symbols:         result.Symbols,
+		CallStack:       callStack,
+		TokenEstimate:   result.TokenEstimate,
+		TruncatedFiles:  result.TruncatedFiles,
+		ExcludedFiles:   result.ExcludedFiles,
+		RelevanceScores: result.RelevanceScores,
+	}, nil
 }
 
 // OSFileSystemProvider implements domain.FileSystemProvider
@@ -942,4 +1024,40 @@ func (c *AppContainer) Shutdown(ctx context.Context) error {
 
 	c.Log.Info("Container shutdown complete")
 	return nil
+}
+
+// semanticSearchAdapter adapts domain.SemanticSearchService to tools.SemanticSearcher
+type semanticSearchAdapter struct {
+	service     domain.SemanticSearchService
+	projectRoot string
+}
+
+func (a *semanticSearchAdapter) Search(query string, limit int) ([]domain.SemanticSearchResult, error) {
+	if a.service == nil {
+		return nil, fmt.Errorf("semantic search service not available")
+	}
+
+	req := domain.SemanticSearchRequest{
+		Query:       query,
+		ProjectRoot: a.projectRoot,
+		TopK:        limit,
+		MinScore:    0.5,
+		SearchType:  domain.SearchTypeSemantic,
+	}
+
+	resp, err := a.service.Search(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp == nil || len(resp.Results) == 0 {
+		return nil, nil
+	}
+
+	return resp.Results, nil
+}
+
+// SetProjectRoot updates the project root for semantic search
+func (a *semanticSearchAdapter) SetProjectRoot(projectRoot string) {
+	a.projectRoot = projectRoot
 }

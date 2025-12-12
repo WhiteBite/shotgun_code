@@ -65,16 +65,25 @@ export function useSelectionPresets() {
         return presetsRef.value.find(p => p.id === id)
     }
 
-    // TODO: Implement proper path validation by checking against actual file tree
-    // Currently not exported as it's a stub implementation
-    // function validatePresetPaths(preset: SelectionPreset): { valid: number; invalid: number } {
-    //     // This would need access to the file tree to validate
-    //     // For now, return all as valid
-    //     return {
-    //         valid: preset.paths.length,
-    //         invalid: 0
-    //     }
-    // }
+    function validatePresetPaths(preset: SelectionPreset): { valid: string[]; invalid: string[] } {
+        const existingPaths = new Set(
+            fileStore.flattenedNodes
+                .filter(n => !n.isDir)
+                .map(n => n.path)
+        )
+        const valid: string[] = []
+        const invalid: string[] = []
+
+        for (const path of preset.paths) {
+            if (existingPaths.has(path)) {
+                valid.push(path)
+            } else {
+                invalid.push(path)
+            }
+        }
+
+        return { valid, invalid }
+    }
 
     function savePreset(name: string, description?: string): SelectionPreset | null {
         if (!projectStore.currentPath || !fileStore.hasSelectedFiles) return null
@@ -131,6 +140,7 @@ export function useSelectionPresets() {
         savePreset,
         loadPreset,
         deletePreset,
-        updatePreset
+        updatePreset,
+        validatePresetPaths
     }
 }

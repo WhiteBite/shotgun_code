@@ -1,6 +1,6 @@
 /* Shotgun Frontend - Consolidated Tailwind-First Approach */
 
-/* Import minimal design tokens */
+/* Import design tokens first */
 @import './design-tokens.css';
 
 @tailwind base;

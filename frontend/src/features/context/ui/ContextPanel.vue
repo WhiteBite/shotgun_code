@@ -19,7 +19,7 @@
     <!-- Header -->
     <div class="panel-header-unified">
       <div class="panel-header-unified-title">
-        <div class="panel-header-unified-icon panel-header-unified-icon-primary">
+        <div class="section-icon section-icon-indigo">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -103,6 +103,19 @@
     </div>
 
     <div class="flex-1 scrollable-y p-4" ref="contentContainer">
+      <!-- Smart Context Builder - показывает рекомендации файлов -->
+      <SmartContextBuilder 
+        v-if="selectedFiles.length > 0"
+        :selected-files="selectedFiles"
+        @add-files="handleAddSuggestedFiles"
+      />
+      
+      <!-- Impact Preview - показывает анализ влияния -->
+      <ImpactPreview 
+        v-if="selectedFiles.length > 0"
+        :selected-files="selectedFiles"
+      />
+
       <div v-if="contextStore.isBuilding" class="flex items-center justify-center h-full">
         <div class="text-center">
           <svg class="loading-spinner mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -179,27 +192,38 @@
       </div>
 
       <div v-else-if="!contextStore.hasContext" class="empty-state-enhanced h-full">
-        <div class="empty-state-icon-glow mb-6">
-          <svg class="w-10 h-10 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="empty-state-icon-glow mb-4">
+          <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
             </path>
           </svg>
         </div>
-        <p class="text-lg font-semibold text-white mb-2">{{ t('context.notBuilt') }}</p>
-        <p class="text-sm text-gray-400 max-w-xs">{{ t('context.selectFiles') }}</p>
+        <p class="text-base font-semibold text-white mb-3">{{ t('context.notBuilt') }}</p>
+        
+        <!-- Step-by-step instructions -->
+        <div class="text-left max-w-xs space-y-2 mb-6">
+          <div class="flex items-center gap-3 text-sm">
+            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">1</span>
+            <span class="text-gray-400">{{ t('context.step1') }}</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">2</span>
+            <span class="text-gray-400">{{ t('context.step2') }}</span>
+          </div>
+        </div>
 
         <!-- Hint arrows -->
-        <div class="mt-8 flex items-center gap-8 text-gray-500">
+        <div class="flex items-center gap-6 text-gray-500">
           <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 animate-[pulse_3s_ease-in-out_infinite]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             <span class="text-xs">{{ t('context.selectHint') }}</span>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs">{{ t('context.chatHint') }}</span>
-            <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 animate-[pulse_3s_ease-in-out_infinite]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </div>
@@ -243,16 +267,34 @@
 <script setup lang="ts">
 import ExportModal from '@/components/ExportModal.vue'
 import { useI18n } from '@/composables/useI18n'
+import { useLogger } from '@/composables/useLogger'
+import { useFileStore } from '@/features/files/model/file.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import type { ComponentPublicInstance } from 'vue'
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { formatContextSize } from '../lib/context-utils'
 import { useContextStore } from '../model/context.store'
+import ImpactPreview from './ImpactPreview.vue'
+import SmartContextBuilder from './SmartContextBuilder.vue'
 
+const logger = useLogger('ContextPanel')
 const contextStore = useContextStore()
 const settingsStore = useSettingsStore()
+const fileStore = useFileStore()
 const { t } = useI18n()
 const exportModalRef = ref<InstanceType<typeof ExportModal> | null>(null)
+
+// Selected files for SmartContextBuilder and ImpactPreview
+const selectedFiles = computed(() => Array.from(fileStore.selectedPaths))
+
+// Handle adding suggested files
+function handleAddSuggestedFiles(files: string[]) {
+  files.forEach(path => {
+    if (!fileStore.selectedPaths.has(path)) {
+      fileStore.toggleSelect(path)
+    }
+  })
+}
 
 // Search state
 const showSearch = ref(false)
@@ -417,13 +459,15 @@ function searchPrev() {
   scrollToLine(searchResults.value[currentSearchIndex.value])
 }
 
-// Debug logging to track state changes
-watch(() => [contextStore.contextId, contextStore.fileCount, contextStore.totalSize, contextStore.lineCount, contextStore.error, contextStore.isBuilding],
-  ([contextId, fileCount, totalSize, lineCount, error, isBuilding]) => {
-    console.log('[ContextPanel] State changed:', { contextId, fileCount, totalSize, lineCount, error, isBuilding })
-  },
-  { immediate: true }
-)
+// Debug logging to track state changes (dev only)
+if (import.meta.env.DEV) {
+  watch(() => [contextStore.contextId, contextStore.fileCount, contextStore.totalSize, contextStore.lineCount, contextStore.error, contextStore.isBuilding],
+    ([contextId, fileCount, totalSize, lineCount, error, isBuilding]) => {
+      logger.debug('State changed:', { contextId, fileCount, totalSize, lineCount, error, isBuilding })
+    },
+    { immediate: true }
+  )
+}
 
 // Helper functions available for future use
 void formatContextSize // suppress unused import warning
@@ -431,39 +475,37 @@ void formatContextSize // suppress unused import warning
 async function loadMore() {
   if (contextStore.contextId && contextStore.currentChunk) {
     try {
-      console.log('[ContextPanel] Loading more lines from', contextStore.currentChunk.endLine)
+      logger.debug('Loading more lines from', contextStore.currentChunk.endLine)
       await contextStore.loadContextContent(
         contextStore.contextId,
         contextStore.currentChunk.endLine,
         1000
       )
-      console.log('[ContextPanel] More lines loaded successfully')
+      logger.debug('More lines loaded successfully')
     } catch (error) {
-      console.error('[ContextPanel] Failed to load more lines:', error)
+      logger.error('Failed to load more lines:', error)
     }
   }
 }
 
 async function handleExport() {
   try {
-    console.log('[ContextPanel] Opening export modal...')
     if (exportModalRef.value) {
       exportModalRef.value.open()
     }
   } catch (error) {
-    console.error('[ContextPanel] Failed to open export modal:', error)
+    logger.error('Failed to open export modal:', error)
   }
 }
 
 async function handleCopyText() {
   if (contextStore.contextId) {
     try {
-      console.log('[ContextPanel] Copying context to clipboard...')
       const content = await contextStore.getFullContextContent()
       await navigator.clipboard.writeText(content)
-      console.log('[ContextPanel] Context copied to clipboard successfully, length:', content.length)
+      logger.debug('Context copied, length:', content.length)
     } catch (error) {
-      console.error('[ContextPanel] Failed to copy context:', error)
+      logger.error('Failed to copy context:', error)
     }
   }
 }
@@ -498,7 +540,7 @@ async function handleDrop(e: DragEvent) {
   if (textData) {
     const paths = textData.split('\n').filter(p => p.trim())
     if (paths.length > 0) {
-      console.log('[ContextPanel] Dropped file paths:', paths)
+      logger.debug('Dropped file paths:', paths.length)
       // Emit event to add files to selection and build context
       window.dispatchEvent(new CustomEvent('add-files-to-context', { detail: { paths } }))
       return
@@ -508,7 +550,7 @@ async function handleDrop(e: DragEvent) {
   // Handle external file drops (from OS file manager)
   if (e.dataTransfer.files.length > 0) {
     const filePaths = Array.from(e.dataTransfer.files).map(f => f.name)
-    console.log('[ContextPanel] Dropped external files:', filePaths)
+    logger.debug('Dropped external files:', filePaths.length)
     // Note: External files need special handling - for now just log
   }
 }

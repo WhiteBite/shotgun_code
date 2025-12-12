@@ -3,7 +3,10 @@
  * Reduces unnecessary network calls and improves performance
  */
 
+import { useLogger } from '@/composables/useLogger'
 import { ref } from 'vue'
+
+const logger = useLogger('ApiCache')
 
 interface CacheEntry<T> {
   data: T
@@ -12,15 +15,19 @@ interface CacheEntry<T> {
 }
 
 // Global cache with LRU eviction (reduced limits for memory safety)
-const cache = new Map<string, CacheEntry<any>>()
+const cache = new Map<string, CacheEntry<unknown>>()
 const MAX_CACHE_SIZE = 20 * 1024 * 1024 // 20 MB max cache size (reduced from 100MB)
 const MAX_CACHE_ENTRIES = 50 // Max number of entries (reduced from 100)
 let currentCacheSize = 0
 
+// Cache statistics (separate from Map to avoid any types)
+let cacheHits = 0
+let cacheMisses = 0
+
 const DEFAULT_TTL = 2 * 60 * 1000 // 2 minutes (reduced from 5 minutes)
 
 // Estimate size of data in bytes
-function estimateSize(data: any): number {
+function estimateSize(data: unknown): number {
   const str = JSON.stringify(data)
   return str.length * 2 // UTF-16 uses 2 bytes per character
 }
@@ -70,7 +77,7 @@ function evictIfNeeded(newEntrySize: number) {
       .sort((a, b) => b.size - a.size)
       .slice(0, 5)
       .map(e => `${e.key}: ${(e.size / 1024).toFixed(1)}KB`)
-    console.log(`[ApiCache] Evicted ${entriesToLog.length} entries. Top 5:`, topEntries)
+    logger.debug(`Evicted ${entriesToLog.length} entries. Top 5:`, topEntries)
   }
 
   // Auto-cleanup at 80% threshold
@@ -92,15 +99,15 @@ function evictIfNeeded(newEntrySize: number) {
       }
       cache.delete(key)
     }
-    console.log(`[ApiCache] Auto-cleanup: removed ${removed} entries`)
+    logger.debug(`Auto-cleanup: removed ${removed} entries`)
   }
 }
 
 // Get cache stats for monitoring
 export function getCacheStats() {
-  const hits = (cache as any)._hits || 0
-  const misses = (cache as any)._misses || 0
-  const hitRate = hits + misses > 0 ? (hits / (hits + misses) * 100).toFixed(1) : '0'
+  const hitRate = cacheHits + cacheMisses > 0
+    ? (cacheHits / (cacheHits + cacheMisses) * 100).toFixed(1)
+    : '0'
 
   return {
     size: currentCacheSize,
@@ -109,8 +116,8 @@ export function getCacheStats() {
     maxSize: MAX_CACHE_SIZE,
     maxEntries: MAX_CACHE_ENTRIES,
     hitRate: `${hitRate}%`,
-    hits,
-    misses
+    hits: cacheHits,
+    misses: cacheMisses
   }
 }
 
@@ -123,7 +130,9 @@ export function getMemoryUsage(): number {
 export function clearAllCaches() {
   cache.clear()
   currentCacheSize = 0
-  console.log('[ApiCache] All caches cleared')
+  cacheHits = 0
+  cacheMisses = 0
+  logger.debug('All caches cleared')
 }
 
 export function useApiCache<T>(
@@ -141,15 +150,15 @@ export function useApiCache<T>(
       const cached = cache.get(key)
       if (cached && Date.now() - cached.timestamp < ttl) {
         // Track hit
-        (cache as any)._hits = ((cache as any)._hits || 0) + 1
+        cacheHits++
         // Move to end (LRU)
         cache.delete(key)
         cache.set(key, cached)
         data.value = cached.data
-        return cached.data
+        return cached.data as T
       } else if (cached) {
         // Track miss (expired)
-        (cache as any)._misses = ((cache as any)._misses || 0) + 1
+        cacheMisses++
       }
     }
 

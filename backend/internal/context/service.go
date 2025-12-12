@@ -1,9 +1,7 @@
 package context
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,10 +12,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -59,38 +55,6 @@ type TokenCounter interface {
 	CountTokens(text string) int
 }
 
-// Stream represents a memory-safe streaming context
-type Stream struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Files       []string  `json:"files"`
-	ProjectPath string    `json:"projectPath"`
-	TotalLines  int64     `json:"totalLines"`
-	TotalChars  int64     `json:"totalChars"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	TokenCount  int       `json:"tokenCount"`
-	contextPath string    `json:"-"`
-}
-
-// LineRange represents a range of lines from a streaming context
-type LineRange struct {
-	StartLine int64    `json:"startLine"`
-	EndLine   int64    `json:"endLine"`
-	Lines     []string `json:"lines"`
-}
-
-// OutputFormat defines the format for context output
-type OutputFormat string
-
-const (
-	FormatMarkdown OutputFormat = "markdown" // Default: ## File: path\n```lang\ncontent\n```
-	FormatXML      OutputFormat = "xml"      // <file path="..."><content>...</content></file>
-	FormatJSON     OutputFormat = "json"     // {"files": [{"path": "...", "content": "..."}]}
-	FormatPlain    OutputFormat = "plain"    // --- File: path ---\ncontent
-)
-
 // BuildOptions controls how context is built
 type BuildOptions struct {
 	MaxTokens            int          `json:"maxTokens,omitempty"`
@@ -100,14 +64,16 @@ type BuildOptions struct {
 	ForceStream          bool         `json:"forceStream,omitempty"`
 	EnableProgressEvents bool         `json:"enableProgressEvents,omitempty"`
 	OutputFormat         OutputFormat `json:"outputFormat,omitempty"`
-	// Content optimization options
-	ExcludeTests       bool `json:"excludeTests,omitempty"`       // Исключать тестовые файлы
-	CollapseEmptyLines bool `json:"collapseEmptyLines,omitempty"` // Схлопывать пустые строки
-	StripLicense       bool `json:"stripLicense,omitempty"`       // Удалять лицензии
-	CompactDataFiles   bool `json:"compactDataFiles,omitempty"`   // Сжимать JSON/YAML
-	SkeletonMode       bool `json:"skeletonMode,omitempty"`       // Только скелет кода
-	TrimWhitespace     bool `json:"trimWhitespace,omitempty"`     // Удалять trailing whitespace
+	ExcludeTests         bool         `json:"excludeTests,omitempty"`
+	CollapseEmptyLines   bool         `json:"collapseEmptyLines,omitempty"`
+	StripLicense         bool         `json:"stripLicense,omitempty"`
+	CompactDataFiles     bool         `json:"compactDataFiles,omitempty"`
+	SkeletonMode         bool         `json:"skeletonMode,omitempty"`
+	TrimWhitespace       bool         `json:"trimWhitespace,omitempty"`
 }
+
+// Context is an alias for domain.Context used internally
+type Context = domain.Context
 
 // NewService creates a new unified context service
 func NewService(
@@ -125,7 +91,6 @@ func NewService(
 		return nil, fmt.Errorf("failed to create context directory: %w", err)
 	}
 
-	// Calculate optimal worker count based on CPU cores (max 16)
 	workerCount := runtime.NumCPU()
 	if workerCount > 16 {
 		workerCount = 16
@@ -141,31 +106,27 @@ func NewService(
 		logger:             logger,
 		contextDir:         contextDir,
 		streams:            make(map[string]*Stream),
-		defaultMaxMemoryMB: 30,   // Reduced from 50MB to 30MB for safety
-		defaultMaxTokens:   5000, // Reduced from 8000 to 5000 for safety
+		defaultMaxMemoryMB: 30,
+		defaultMaxTokens:   5000,
 		lastCleanup:        time.Now(),
 		workerCount:        workerCount,
 		shutdownCh:         make(chan struct{}),
 	}
 
-	// Start periodic cleanup with proper shutdown handling
 	svc.wg.Add(1)
 	go svc.periodicCleanup()
 
 	return svc, nil
 }
 
-// Shutdown gracefully stops the service and waits for all operations to complete
-// Safe to call multiple times - uses sync.Once to prevent double-close panic
+// Shutdown gracefully stops the service
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.logger.Info("Shutting down context service...")
 
-	// Signal shutdown (safe to call multiple times)
 	s.shutdownOnce.Do(func() {
 		close(s.shutdownCh)
 	})
 
-	// Wait for goroutines with timeout
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
@@ -182,539 +143,47 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	}
 }
 
-// BuildContext builds a context from project files with memory-safe streaming by default
+// BuildContext builds a context from project files with memory-safe streaming
 func (s *Service) BuildContext(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (*domain.Context, error) {
 	if options == nil {
 		options = &BuildOptions{
 			MaxMemoryMB: s.defaultMaxMemoryMB,
 			MaxTokens:   s.defaultMaxTokens,
-			ForceStream: true, // ALWAYS use streaming for safety
+			ForceStream: true,
 		}
 	} else {
-		// Apply strict defaults if not set
 		if options.MaxMemoryMB <= 0 {
 			options.MaxMemoryMB = s.defaultMaxMemoryMB
 		}
 		if options.MaxTokens <= 0 {
 			options.MaxTokens = s.defaultMaxTokens
 		}
-		// ALWAYS force streaming regardless of options
 		options.ForceStream = true
 	}
 
-	// Validate limits before proceeding
 	if err := s.validateLimits(options); err != nil {
 		return nil, err
 	}
 
-	// Always use streaming for memory safety
 	return s.buildStreamingContext(ctx, projectPath, includedPaths, options)
 }
 
-// GenerateContextAsync generates context asynchronously with progress events (maintains backward compatibility)
+// GenerateContextAsync generates context asynchronously with progress events
 func (s *Service) GenerateContextAsync(ctx context.Context, rootDir string, includedPaths []string) {
 	go s.generateContextSafe(ctx, rootDir, includedPaths)
 }
 
-// CreateStream creates a memory-safe streaming context
-// streamWriteState holds state during stream writing
-type streamWriteState struct {
-	totalLines int64
-	totalChars int64
-	tokenCount int
-	files      []string
-}
-
-// checkMemoryLimit validates memory constraints
-func (s *Service) checkMemoryLimit(options *BuildOptions, totalSize int64, oversizedFiles []string) error {
-	if options.MaxMemoryMB > 0 {
-		maxBytes := int64(options.MaxMemoryMB) * 1024 * 1024
-		if totalSize > maxBytes {
-			return fmt.Errorf("context would exceed memory limit: %d MB > %d MB. Oversized files: %v",
-				totalSize/(1024*1024), options.MaxMemoryMB, oversizedFiles)
-		}
-	}
-	return nil
-}
-
-// createProgressCallback creates a progress callback for file reading
-func (s *Service) createProgressCallback(ctx context.Context, options *BuildOptions) func(int64, int64) {
-	return func(current, total int64) {
-		if options.EnableProgressEvents && s.eventBus != nil {
-			select {
-			case <-ctx.Done():
-			default:
-				s.eventBus.Emit("shotgunContextGenerationProgress", map[string]interface{}{"current": current, "total": total})
-			}
-		}
-	}
-}
-
-// writeStreamHeader writes the manifest header if requested
-func (s *Service) writeStreamHeader(writer *bufio.Writer, projectPath string, options *BuildOptions, state *streamWriteState) error {
-	if !options.IncludeManifest {
-		return nil
-	}
-	header := fmt.Sprintf("# Streaming Context\nProject Path: %s\nGenerated: %s\n\n", projectPath, time.Now().Format(time.RFC3339))
-	if _, err := writer.WriteString(header); err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-	state.totalLines += int64(strings.Count(header, "\n"))
-	state.totalChars += int64(len(header))
-	return nil
-}
-
-// writeFileToStream writes a single file to the stream
-func (s *Service) writeFileToStream(writer *bufio.Writer, filePath, content string, options *BuildOptions, state *streamWriteState) error {
-	// Apply content optimizations
-	content = s.applyContentOptimizations(content, filePath, options)
-
-	fileTokens := s.tokenCounter.CountTokens(content)
-	state.tokenCount += fileTokens
-
-	if options.MaxTokens > 0 && state.tokenCount > options.MaxTokens {
-		return fmt.Errorf("context would exceed token limit: %d > %d", state.tokenCount, options.MaxTokens)
-	}
-
-	format := options.OutputFormat
-	if format == "" {
-		format = FormatXML // Default to XML - best for AI context
-	}
-
-	// Log format for first file only to avoid spam
-	if len(state.files) == 0 {
-		s.logger.Info(fmt.Sprintf("[writeFileToStream] Using output format: '%s'", format))
-	}
-
-	escapedContent := s.escapeForFormat(content, format)
-	parts := []string{s.formatFileHeader(filePath, format), escapedContent, s.formatFileFooter(format)}
-
-	for _, part := range parts {
-		if _, err := writer.WriteString(part); err != nil {
-			return fmt.Errorf("failed to write: %w", err)
-		}
-		state.totalLines += int64(strings.Count(part, "\n"))
-		state.totalChars += int64(len(part))
-	}
-	state.totalLines++ // for content without trailing newline
-
-	if options.MaxMemoryMB > 0 && state.totalChars > int64(options.MaxMemoryMB*1024*1024)/2 {
-		return writer.Flush()
-	}
-	return nil
-}
-
-// applyContentOptimizations applies all content optimizations based on options
-func (s *Service) applyContentOptimizations(content, filePath string, options *BuildOptions) string {
-	if options == nil {
-		return content
-	}
-
-	// 1. Strip comments (existing functionality)
-	if options.StripComments {
-		content = s.stripComments(content, filePath)
-	}
-
-	// 2. Strip license headers
-	if options.StripLicense {
-		content = s.stripLicenseHeader(content, filePath)
-	}
-
-	// 3. Compact data files (JSON/YAML)
-	if options.CompactDataFiles {
-		content = s.compactDataFile(content, filePath)
-	}
-
-	// 4. Trim trailing whitespace
-	if options.TrimWhitespace {
-		content = s.trimTrailingWhitespace(content)
-	}
-
-	// 5. Collapse empty lines (last, after all removals)
-	if options.CollapseEmptyLines {
-		content = s.collapseEmptyLines(content)
-	}
-
-	return content
-}
-
-// CreateStream creates a memory-safe streaming context
-func (s *Service) CreateStream(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (stream *Stream, err error) {
-	if options == nil {
-		options = &BuildOptions{MaxMemoryMB: s.defaultMaxMemoryMB, MaxTokens: s.defaultMaxTokens}
-	}
-
-	if err := s.validateLimits(options); err != nil {
-		return nil, err
-	}
-
-	// Filter out test files if requested
-	if options.ExcludeTests {
-		includedPaths = s.filterTestFiles(includedPaths)
-	}
-
-	s.logger.Info(fmt.Sprintf("Creating streaming context for project: %s, files: %d", projectPath, len(includedPaths)))
-
-	totalSize, oversizedFiles, err := s.estimateTotalSize(projectPath, includedPaths)
-	if err != nil {
-		return nil, fmt.Errorf("failed to estimate file sizes: %w", err)
-	}
-
-	if err := s.checkMemoryLimit(options, totalSize, oversizedFiles); err != nil {
-		return nil, err
-	}
-
-	contents, err := s.fileReader.ReadContents(ctx, includedPaths, projectPath, s.createProgressCallback(ctx, options))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file contents: %w", err)
-	}
-
-	contextID := fmt.Sprintf("stream_%s", uuid.New().String())
-	contextPath := filepath.Join(s.contextDir, contextID+".ctx")
-
-	file, err := os.Create(contextPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create context file: %w", err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close context file: %w", closeErr)
-		}
-	}()
-
-	writer := bufio.NewWriter(file)
-	defer func() {
-		if flushErr := writer.Flush(); flushErr != nil && err == nil {
-			err = fmt.Errorf("failed to flush writer: %w", flushErr)
-		}
-	}()
-
-	state := &streamWriteState{files: make([]string, 0, len(includedPaths))}
-
-	if err := s.writeStreamHeader(writer, projectPath, options, state); err != nil {
-		return nil, err
-	}
-
-	for _, filePath := range includedPaths {
-		content, exists := contents[filePath]
-		if !exists {
-			s.logger.Warning(fmt.Sprintf("[CreateStream] File not found: %s", filePath))
-			continue
-		}
-
-		state.files = append(state.files, filePath)
-		if err := s.writeFileToStream(writer, filePath, content, options, state); err != nil {
-			_ = file.Close()
-			_ = os.Remove(contextPath)
-			return nil, err
-		}
-	}
-
-	now := time.Now()
-	stream = &Stream{
-		ID: contextID, Name: s.generateContextName(projectPath, state.files),
-		Description: fmt.Sprintf("Streaming context with %d files from %s", len(state.files), filepath.Base(projectPath)),
-		Files:       state.files, ProjectPath: projectPath, TotalLines: state.totalLines, TotalChars: state.totalChars,
-		CreatedAt: now, UpdatedAt: now, TokenCount: state.tokenCount, contextPath: contextPath,
-	}
-
-	s.streamsMu.Lock()
-	s.streams[contextID] = stream
-	s.streamsMu.Unlock()
-
-	s.logger.Info(fmt.Sprintf("Created streaming context %s with %d lines, %d tokens", contextID, state.totalLines, state.tokenCount))
-	return stream, nil
-}
-
-// GetContextLines retrieves a range of lines from a streaming context with limits
-func (s *Service) GetContextLines(ctx context.Context, contextID string, startLine, endLine int64) (*LineRange, error) {
-	s.streamsMu.RLock()
-	stream, exists := s.streams[contextID]
-	s.streamsMu.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("streaming context not found: %s", contextID)
-	}
-
-	// Limit maximum lines per request
-	const maxLinesPerRequest = 10000
-	if endLine-startLine > maxLinesPerRequest {
-		return nil, fmt.Errorf("requested line range too large: %d lines (max: %d)", endLine-startLine, maxLinesPerRequest)
-	}
-
-	file, err := os.Open(stream.contextPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open context file: %w", err)
-	}
-	defer file.Close()
-
-	// Use buffered reader for better performance
-	reader := bufio.NewReaderSize(file, 64*1024) // 64KB buffer
-	scanner := bufio.NewScanner(reader)
-	var lines []string
-	var currentLine int64
-
-	// Skip to start line
-	for currentLine < startLine && scanner.Scan() {
-		currentLine++
-	}
-
-	// Read lines in range
-	for currentLine >= startLine && currentLine <= endLine && scanner.Scan() {
-		lines = append(lines, scanner.Text())
-		currentLine++
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading context file: %w", err)
-	}
-
-	return &LineRange{
-		StartLine: startLine,
-		EndLine:   endLine,
-		Lines:     lines,
-	}, nil
-}
-
-// CleanupOldStreams удаляет старые streaming контексты
-func (s *Service) CleanupOldStreams(maxAge time.Duration) error {
-	s.streamsMu.Lock()
-	defer s.streamsMu.Unlock()
-
-	now := time.Now()
-	for id, stream := range s.streams {
-		if now.Sub(stream.CreatedAt) > maxAge {
-			// Удаляем файл контекста
-			if err := os.Remove(stream.contextPath); err != nil && !os.IsNotExist(err) {
-				s.logger.Warning(fmt.Sprintf("Failed to remove old context file %s: %v", stream.contextPath, err))
-			}
-			delete(s.streams, id)
-			s.logger.Info(fmt.Sprintf("Cleaned up old streaming context: %s", id))
-		}
-	}
-
-	// Ограничиваем количество активных streams
-	const maxActiveStreams = 10
-	if len(s.streams) > maxActiveStreams {
-		// Удаляем самые старые
-		type streamAge struct {
-			id  string
-			age time.Time
-		}
-		var ages []streamAge
-		for id, stream := range s.streams {
-			ages = append(ages, streamAge{id: id, age: stream.CreatedAt})
-		}
-		sort.Slice(ages, func(i, j int) bool {
-			return ages[i].age.Before(ages[j].age)
-		})
-
-		// Удаляем лишние
-		for i := 0; i < len(ages)-maxActiveStreams; i++ {
-			id := ages[i].id
-			if stream, exists := s.streams[id]; exists {
-				os.Remove(stream.contextPath)
-				delete(s.streams, id)
-			}
-		}
-	}
-
-	return nil
-}
-
-// periodicCleanup запускает периодическую очистку старых контекстов
-func (s *Service) periodicCleanup() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(30 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-s.shutdownCh:
-			s.logger.Info("Periodic cleanup stopped due to shutdown")
-			return
-		case <-ticker.C:
-			if err := s.CleanupOldStreams(24 * time.Hour); err != nil {
-				s.logger.Warning(fmt.Sprintf("Failed to cleanup old streams: %v", err))
-			}
-			s.lastCleanup = time.Now()
-
-			// Force GC after cleanup to release memory
-			runtime.GC()
-		}
-	}
-}
-
-// GetMemoryStats возвращает статистику использования памяти
-func (s *Service) GetMemoryStats() map[string]interface{} {
-	s.streamsMu.RLock()
-	defer s.streamsMu.RUnlock()
-
-	var totalSize int64
-	for _, stream := range s.streams {
-		if info, err := os.Stat(stream.contextPath); err == nil {
-			totalSize += info.Size()
-		}
-	}
-
-	// Get runtime memory stats
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-
-	return map[string]interface{}{
-		"active_streams":     len(s.streams),
-		"total_disk_size_mb": totalSize / (1024 * 1024),
-		"last_cleanup":       s.lastCleanup,
-		"active_operations":  atomic.LoadInt64(&s.activeOperations),
-		"total_operations":   atomic.LoadInt64(&s.totalOperations),
-		"total_bytes_read":   atomic.LoadInt64(&s.totalBytesRead),
-		"worker_count":       s.workerCount,
-		"heap_alloc_mb":      memStats.HeapAlloc / (1024 * 1024),
-		"heap_sys_mb":        memStats.HeapSys / (1024 * 1024),
-		"num_gc":             memStats.NumGC,
-		"goroutines":         runtime.NumGoroutine(),
-	}
-}
-
-// readAndUnmarshalJSON is a helper for reading and unmarshaling JSON files
-func (s *Service) readAndUnmarshalJSON(filePath, entityName string, target interface{}) error {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("%s not found", entityName)
-		}
-		return fmt.Errorf("failed to read %s: %w", entityName, err)
-	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return fmt.Errorf("failed to unmarshal %s: %w", entityName, err)
-	}
-	return nil
-}
-
-// GetContext retrieves a context by ID (backward compatibility)
-func (s *Service) GetContext(ctx context.Context, contextID string) (*domain.Context, error) {
-	var context domain.Context
-	if err := s.readAndUnmarshalJSON(filepath.Join(s.contextDir, contextID+".json"), "context: "+contextID, &context); err != nil {
-		return nil, err
-	}
-	return &context, nil
-}
-
-// GetStream retrieves a streaming context by ID
-func (s *Service) GetStream(ctx context.Context, contextID string) (*Stream, error) {
-	s.streamsMu.RLock()
-	stream, exists := s.streams[contextID]
-	s.streamsMu.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("streaming context not found: %s", contextID)
-	}
-
-	return stream, nil
-}
-
-// ListProjectContexts lists all contexts for a project
-func (s *Service) ListProjectContexts(ctx context.Context, projectPath string) ([]*domain.Context, error) {
-	entries, err := os.ReadDir(s.contextDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read context directory: %w", err)
-	}
-
-	var contexts []*domain.Context
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-
-		contextID := strings.TrimSuffix(entry.Name(), ".json")
-		context, err := s.GetContext(ctx, contextID)
-		if err != nil {
-			s.logger.Warning(fmt.Sprintf("Failed to load context %s: %v", contextID, err))
-			continue
-		}
-
-		if context.ProjectPath == projectPath {
-			contexts = append(contexts, context)
-		}
-	}
-
-	return contexts, nil
-}
-
-// DeleteContext deletes a context by ID
-func (s *Service) DeleteContext(ctx context.Context, contextID string) error {
-	// Try to delete both JSON and streaming contexts
-	jsonPath := filepath.Join(s.contextDir, contextID+".json")
-	streamPath := filepath.Join(s.contextDir, contextID+".ctx")
-
-	if err := os.Remove(jsonPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to delete JSON context: %w", err)
-	}
-
-	if err := os.Remove(streamPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to delete streaming context: %w", err)
-	}
-
-	// Remove from streams map
-	s.streamsMu.Lock()
-	delete(s.streams, contextID)
-	s.streamsMu.Unlock()
-
-	s.logger.Info(fmt.Sprintf("Deleted context %s", contextID))
-	return nil
-}
-
-// Private helper methods
-
-func (s *Service) validateLimits(options *BuildOptions) error {
-	// Strict memory limit validation
-	if options.MaxMemoryMB > 0 && options.MaxMemoryMB > 500 {
-		return fmt.Errorf("memory limit cannot exceed 500MB for safety")
-	}
-
-	// Token limit validation - very permissive, frontend controls the actual limit
-	// This is just a sanity check to prevent accidental huge requests
-	const maxTokenLimit = 10000000 // 10M tokens - matches frontend max
-	if options.MaxTokens > 0 && options.MaxTokens > maxTokenLimit {
-		return fmt.Errorf("token limit cannot exceed %d (requested: %d), please adjust settings on frontend", maxTokenLimit, options.MaxTokens)
-	}
-
-	return nil
-}
-
-func (s *Service) estimateTotalSize(projectPath string, includedPaths []string) (int64, []string, error) {
-	var totalSize int64
-	var oversizedFiles []string
-
-	for _, filePath := range includedPaths {
-		fullPath := filepath.Join(projectPath, filePath)
-		if info, err := os.Stat(fullPath); err == nil {
-			totalSize += info.Size()
-			// Flag files larger than 1MB
-			if info.Size() > 1024*1024 {
-				oversizedFiles = append(oversizedFiles, filePath)
-			}
-		}
-	}
-
-	return totalSize, oversizedFiles, nil
-}
-
 func (s *Service) buildStreamingContext(ctx context.Context, projectPath string, includedPaths []string, options *BuildOptions) (*domain.Context, error) {
-	// Create streaming context
 	stream, err := s.CreateStream(ctx, projectPath, includedPaths, options)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to domain.Context for backward compatibility
-	domainContext := &domain.Context{
+	return &domain.Context{
 		ID:          stream.ID,
 		Name:        stream.Name,
 		Description: stream.Description,
-		Content:     fmt.Sprintf("STREAMING_CONTEXT:%s", stream.ID), // Placeholder - actual content accessed via streaming
+		Content:     fmt.Sprintf("STREAMING_CONTEXT:%s", stream.ID),
 		Files:       stream.Files,
 		CreatedAt:   stream.CreatedAt,
 		UpdatedAt:   stream.UpdatedAt,
@@ -722,21 +191,9 @@ func (s *Service) buildStreamingContext(ctx context.Context, projectPath string,
 		TokenCount:  stream.TokenCount,
 		TotalLines:  stream.TotalLines,
 		TotalChars:  stream.TotalChars,
-	}
-
-	return domainContext, nil
+	}, nil
 }
 
-// Legacy method removed - always use streaming for memory safety
-
-// emitEvent safely emits an event if eventBus is available
-func (s *Service) emitEvent(event string, data interface{}) {
-	if s.eventBus != nil {
-		s.eventBus.Emit(event, data)
-	}
-}
-
-// handleGenerationError handles errors during context generation
 func (s *Service) handleGenerationError(err error) {
 	if errors.Is(err, context.DeadlineExceeded) {
 		s.logger.Error("Context generation timed out")
@@ -749,7 +206,6 @@ func (s *Service) handleGenerationError(err error) {
 	}
 }
 
-// buildContextString builds the final context string from contents
 func (s *Service) buildContextString(contents map[string]string) string {
 	var contextBuilder strings.Builder
 	contextBuilder.WriteString("Manifest:\n")
@@ -819,749 +275,4 @@ func (s *Service) generateContextSafe(ctx context.Context, rootDir string, inclu
 	finalContext := s.buildContextString(contents)
 	s.logger.Info(fmt.Sprintf("Async context generation completed. Length: %d characters", len(finalContext)))
 	s.emitEvent("shotgunContextGenerated", finalContext)
-}
-
-type treeNode struct {
-	name     string
-	children map[string]*treeNode
-	isFile   bool
-}
-
-func (s *Service) buildSimpleTree(paths []string) string {
-
-	root := &treeNode{name: ".", children: make(map[string]*treeNode)}
-
-	// Build tree structure
-	for _, path := range paths {
-		parts := strings.Split(filepath.ToSlash(path), "/")
-		current := root
-
-		for i, part := range parts {
-			if part == "" || part == "." {
-				continue
-			}
-
-			if _, exists := current.children[part]; !exists {
-				current.children[part] = &treeNode{
-					name:     part,
-					children: make(map[string]*treeNode),
-					isFile:   i == len(parts)-1,
-				}
-			}
-			current = current.children[part]
-		}
-	}
-
-	// Generate tree string
-	var builder strings.Builder
-	s.walkTree(root, "", true, &builder)
-	return builder.String()
-}
-
-func (s *Service) walkTree(node *treeNode, prefix string, isLast bool, builder *strings.Builder) {
-	if node.name != "." {
-		if isLast {
-			builder.WriteString(prefix + "└─ " + node.name + "\n")
-			prefix += "   "
-		} else {
-			builder.WriteString(prefix + "├─ " + node.name + "\n")
-			prefix += "│  "
-		}
-	}
-
-	// Sort children for deterministic output
-	childNames := make([]string, 0, len(node.children))
-	for name := range node.children {
-		childNames = append(childNames, name)
-	}
-	sort.Strings(childNames)
-
-	for i, name := range childNames {
-		child := node.children[name]
-		isLastChild := i == len(childNames)-1
-		s.walkTree(child, prefix, isLastChild, builder)
-	}
-}
-
-func (s *Service) saveContext(context *domain.Context) error {
-	data, err := json.MarshalIndent(context, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal context: %w", err)
-	}
-
-	contextPath := filepath.Join(s.contextDir, context.ID+".json")
-	if err := os.WriteFile(contextPath, data, 0o600); err != nil {
-		return fmt.Errorf("failed to write context file: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Service) generateContextName(projectPath string, files []string) string {
-	projectName := filepath.Base(projectPath)
-
-	if len(files) == 1 {
-		fileName := filepath.Base(files[0])
-		return fmt.Sprintf("%s - %s", projectName, fileName)
-	}
-
-	return fmt.Sprintf("%s - %d files", projectName, len(files))
-}
-
-// formatFileHeader returns the header for a file based on output format
-func (s *Service) formatFileHeader(filePath string, format OutputFormat) string {
-	switch format {
-	case FormatXML:
-		return fmt.Sprintf("<file path=\"%s\">\n<content>\n", filePath)
-	case FormatJSON:
-		return "" // JSON is handled separately
-	case FormatPlain:
-		return fmt.Sprintf("--- File: %s ---\n", filePath)
-	default: // FormatMarkdown
-		ext := filepath.Ext(filePath)
-		lang := ""
-		if len(ext) > 1 {
-			lang = ext[1:]
-		}
-		return fmt.Sprintf("## File: %s\n\n```%s\n", filePath, lang)
-	}
-}
-
-// formatFileFooter returns the footer for a file based on output format
-func (s *Service) formatFileFooter(format OutputFormat) string {
-	switch format {
-	case FormatXML:
-		return "\n</content>\n</file>\n\n"
-	case FormatJSON:
-		return "" // JSON is handled separately
-	case FormatPlain:
-		return "\n\n"
-	default: // FormatMarkdown
-		return "\n```\n\n"
-	}
-}
-
-// escapeForFormat escapes content based on output format
-func (s *Service) escapeForFormat(content string, format OutputFormat) string {
-	switch format {
-	case FormatXML:
-		// Escape XML special characters
-		content = strings.ReplaceAll(content, "&", "&amp;")
-		content = strings.ReplaceAll(content, "<", "&lt;")
-		content = strings.ReplaceAll(content, ">", "&gt;")
-		return content
-	case FormatJSON:
-		// JSON escaping handled by json.Marshal
-		return content
-	default:
-		return content
-	}
-}
-
-func (s *Service) stripComments(content, filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	switch ext {
-	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs":
-		return s.stripCStyleComments(content)
-	case ".py", ".sh":
-		return s.stripHashComments(content)
-	case ".html", ".xml":
-		return s.stripXMLComments(content)
-	default:
-		return content
-	}
-}
-
-func (s *Service) stripCStyleComments(content string) string {
-	lines := strings.Split(content, "\n")
-	result := make([]string, 0, len(lines))
-
-	inBlockComment := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Handle block comments
-		if inBlockComment {
-			if strings.Contains(line, "*/") {
-				inBlockComment = false
-				// Keep part after */
-				parts := strings.SplitN(line, "*/", 2)
-				if len(parts) > 1 {
-					line = parts[1]
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
-		}
-
-		// Handle start of block comments
-		if strings.Contains(line, "/*") {
-			inBlockComment = true
-			parts := strings.SplitN(line, "/*", 2)
-			line = parts[0]
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
-		}
-
-		// Handle line comments
-		if strings.HasPrefix(trimmed, "//") {
-			continue
-		}
-
-		result = append(result, line)
-	}
-
-	return strings.Join(result, "\n")
-}
-
-func (s *Service) stripHashComments(content string) string {
-	lines := strings.Split(content, "\n")
-	result := make([]string, 0, len(lines))
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		result = append(result, line)
-	}
-
-	return strings.Join(result, "\n")
-}
-
-func (s *Service) stripXMLComments(content string) string {
-	// Simple implementation - can be enhanced
-	result := content
-	for {
-		start := strings.Index(result, "<!--")
-		if start == -1 {
-			break
-		}
-		end := strings.Index(result[start:], "-->")
-		if end == -1 {
-			break
-		}
-		result = result[:start] + result[start+end+3:]
-	}
-	return result
-}
-
-// ============ CONTENT OPTIMIZATION METHODS ============
-
-// stripLicenseHeader removes license/copyright headers from file content
-func (s *Service) stripLicenseHeader(content, filePath string) string {
-	if len(content) == 0 {
-		return content
-	}
-
-	licenseKeywords := []string{
-		"copyright", "license", "licensed", "spdx-license",
-		"mit license", "apache license", "bsd license",
-		"all rights reserved", "permission is hereby granted",
-	}
-
-	trimmed := strings.TrimLeft(content, " \t\n\r")
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	// Check for block comment at start
-	var blockStart, blockEnd string
-	switch ext {
-	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs", ".swift", ".kt", ".rs":
-		blockStart, blockEnd = "/*", "*/"
-	case ".html", ".xml", ".vue", ".svelte":
-		blockStart, blockEnd = "<!--", "-->"
-	}
-
-	if blockStart != "" && strings.HasPrefix(trimmed, blockStart) {
-		endIdx := strings.Index(trimmed, blockEnd)
-		if endIdx != -1 {
-			commentBlock := strings.ToLower(trimmed[:endIdx+len(blockEnd)])
-			for _, keyword := range licenseKeywords {
-				if strings.Contains(commentBlock, keyword) {
-					afterComment := trimmed[endIdx+len(blockEnd):]
-					return strings.TrimLeft(afterComment, " \t\n\r")
-				}
-			}
-		}
-	}
-
-	// Check for line comments at start
-	var lineComment string
-	switch ext {
-	case ".go", ".js", ".ts", ".java", ".c", ".cpp", ".cs", ".swift", ".kt", ".rs":
-		lineComment = "//"
-	case ".py", ".rb", ".sh", ".yaml", ".yml":
-		lineComment = "#"
-	case ".sql":
-		lineComment = "--"
-	}
-
-	if lineComment != "" && strings.HasPrefix(trimmed, lineComment) {
-		lines := strings.Split(trimmed, "\n")
-		var commentLines []string
-		lastCommentLine := 0
-
-		for i, line := range lines {
-			trimmedLine := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmedLine, lineComment) || trimmedLine == "" {
-				commentLines = append(commentLines, line)
-				if strings.HasPrefix(trimmedLine, lineComment) {
-					lastCommentLine = i
-				}
-			} else {
-				break
-			}
-		}
-
-		if len(commentLines) > 0 {
-			commentBlock := strings.ToLower(strings.Join(commentLines[:lastCommentLine+1], "\n"))
-			for _, keyword := range licenseKeywords {
-				if strings.Contains(commentBlock, keyword) {
-					remaining := lines[lastCommentLine+1:]
-					return strings.TrimLeft(strings.Join(remaining, "\n"), "\n")
-				}
-			}
-		}
-	}
-
-	return content
-}
-
-// compactDataFile compacts JSON/YAML files
-func (s *Service) compactDataFile(content, filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	switch ext {
-	case ".json":
-		return s.compactJSON(content)
-	case ".yaml", ".yml":
-		return s.compactYAML(content)
-	default:
-		return content
-	}
-}
-
-// compactJSON removes formatting from JSON
-func (s *Service) compactJSON(content string) string {
-	if !strings.Contains(content, "\n") {
-		return content // Already compact
-	}
-
-	var data interface{}
-	if err := json.Unmarshal([]byte(content), &data); err != nil {
-		return content // Invalid JSON, return as-is
-	}
-
-	result, err := json.Marshal(data)
-	if err != nil {
-		return content
-	}
-	return string(result)
-}
-
-// compactYAML removes comments and extra whitespace from YAML
-func (s *Service) compactYAML(content string) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	prevEmpty := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Skip empty lines (keep max one)
-		if trimmed == "" {
-			if !prevEmpty {
-				result = append(result, "")
-				prevEmpty = true
-			}
-			continue
-		}
-		prevEmpty = false
-
-		// Skip comment lines
-		if strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-
-		// Remove inline comments (simple heuristic)
-		if idx := strings.Index(line, " #"); idx != -1 {
-			line = strings.TrimRight(line[:idx], " \t")
-		}
-
-		result = append(result, line)
-	}
-
-	return strings.Join(result, "\n")
-}
-
-// trimTrailingWhitespace removes trailing whitespace from each line
-func (s *Service) trimTrailingWhitespace(content string) string {
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		lines[i] = strings.TrimRight(line, " \t")
-	}
-	return strings.Join(lines, "\n")
-}
-
-// collapseEmptyLines collapses multiple empty lines into maximum two
-func (s *Service) collapseEmptyLines(content string) string {
-	if !strings.Contains(content, "\n\n\n") {
-		return content // Fast path: no triple newlines
-	}
-
-	var result strings.Builder
-	result.Grow(len(content))
-
-	emptyCount := 0
-	lineStart := 0
-
-	for i := 0; i < len(content); i++ {
-		if content[i] == '\n' {
-			line := content[lineStart:i]
-			isEmpty := strings.TrimSpace(line) == ""
-
-			if isEmpty {
-				emptyCount++
-				if emptyCount <= 2 {
-					result.WriteString(line)
-					result.WriteByte('\n')
-				}
-			} else {
-				emptyCount = 0
-				result.WriteString(line)
-				result.WriteByte('\n')
-			}
-			lineStart = i + 1
-		}
-	}
-
-	// Handle last line
-	if lineStart < len(content) {
-		result.WriteString(content[lineStart:])
-	}
-
-	return result.String()
-}
-
-// filterTestFiles filters out test files from the list
-func (s *Service) filterTestFiles(paths []string) []string {
-	if len(paths) == 0 {
-		return paths
-	}
-
-	result := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if !s.isTestFile(path) {
-			result = append(result, path)
-		}
-	}
-
-	if len(result) < len(paths) {
-		s.logger.Info(fmt.Sprintf("Filtered out %d test files", len(paths)-len(result)))
-	}
-
-	return result
-}
-
-// isTestFile checks if a file is a test file
-func (s *Service) isTestFile(filePath string) bool {
-	// Normalize path
-	filePath = filepath.ToSlash(filePath)
-	fileName := filepath.Base(filePath)
-	lower := strings.ToLower(fileName)
-
-	// Check test directories (both with and without leading slash)
-	testDirs := []string{"test/", "tests/", "__tests__/", "spec/", "e2e/", "__mocks__/"}
-	for _, dir := range testDirs {
-		// Check if path contains /dir/ or starts with dir
-		if strings.Contains(filePath, "/"+dir) || strings.HasPrefix(filePath, dir) {
-			return true
-		}
-	}
-
-	// Check test file patterns
-	testPatterns := []string{
-		"_test.go",     // Go
-		".test.js",     // JS
-		".test.ts",     // TS
-		".test.tsx",    // TSX
-		".spec.js",     // JS spec
-		".spec.ts",     // TS spec
-		".spec.tsx",    // TSX spec
-		"_test.py",     // Python
-		"test_",        // Python prefix
-		"Test.java",    // Java
-		"Tests.cs",     // C#
-		"_spec.rb",     // Ruby
-		".stories.tsx", // Storybook
-		".stories.ts",  // Storybook
-		".stories.js",  // Storybook
-	}
-
-	for _, pattern := range testPatterns {
-		if strings.Contains(lower, strings.ToLower(pattern)) {
-			return true
-		}
-	}
-
-	// Check prefix patterns
-	if strings.HasPrefix(lower, "test_") {
-		return true
-	}
-
-	return false
-}
-
-// ============ CONTEXT BUILDER INTERFACE IMPLEMENTATION ============
-// Implements domain.ContextBuilder interface
-
-// BuildContextSummary implements domain.ContextBuilder.BuildContext - builds context and returns ContextSummary
-// This method satisfies the domain.ContextBuilder interface
-func (s *Service) BuildContextSummary(ctx context.Context, projectPath string, includedPaths []string, options *domain.ContextBuildOptions) (*domain.ContextSummary, error) {
-	atomic.AddInt64(&s.activeOperations, 1)
-	defer atomic.AddInt64(&s.activeOperations, -1)
-	atomic.AddInt64(&s.totalOperations, 1)
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Add timeout for safety
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-
-	buildOpts := s.convertBuildOptions(options)
-	domainCtx, err := s.BuildContext(ctx, projectPath, includedPaths, buildOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to ContextSummary
-	summary := &domain.ContextSummary{
-		ID:          domainCtx.ID,
-		ProjectPath: domainCtx.ProjectPath,
-		FileCount:   len(domainCtx.Files),
-		TotalSize:   domainCtx.TotalChars,
-		LineCount:   int(domainCtx.TotalLines),
-		TokenCount:  domainCtx.TokenCount,
-		CreatedAt:   domainCtx.CreatedAt,
-		UpdatedAt:   domainCtx.UpdatedAt,
-		Status:      "ready",
-		Metadata: domain.ContextMetadata{
-			SelectedFiles: domainCtx.Files,
-			ProjectPath:   domainCtx.ProjectPath,
-		},
-	}
-
-	// Save summary to disk for persistence
-	if err := s.SaveContextSummary(summary); err != nil {
-		s.logger.Warning(fmt.Sprintf("Failed to save context summary: %v", err))
-		// Don't fail the operation, just log warning
-	}
-
-	return summary, nil
-}
-
-func (s *Service) convertBuildOptions(opts *domain.ContextBuildOptions) *BuildOptions {
-	if opts == nil {
-		return nil
-	}
-
-	outputFormat := OutputFormat(opts.OutputFormat)
-	// Default to XML if empty
-	if outputFormat == "" {
-		outputFormat = FormatXML
-	}
-
-	s.logger.Info(fmt.Sprintf("[convertBuildOptions] Input format: '%s', Using format: '%s'", opts.OutputFormat, outputFormat))
-
-	return &BuildOptions{
-		MaxTokens:            opts.MaxTokens,
-		MaxMemoryMB:          opts.MaxMemoryMB,
-		StripComments:        opts.StripComments,
-		IncludeManifest:      opts.IncludeManifest,
-		ForceStream:          true, // Always stream
-		EnableProgressEvents: true,
-		OutputFormat:         outputFormat,
-		// Content optimization options
-		ExcludeTests:       opts.ExcludeTests,
-		CollapseEmptyLines: opts.CollapseEmptyLines,
-		StripLicense:       opts.StripLicense,
-		CompactDataFiles:   opts.CompactDataFiles,
-		SkeletonMode:       opts.SkeletonMode,
-		TrimWhitespace:     opts.TrimWhitespace,
-	}
-}
-
-// ============ CONTEXT REPOSITORY INTERFACE IMPLEMENTATION ============
-
-// SaveContextSummary persists context metadata
-func (s *Service) SaveContextSummary(summary *domain.ContextSummary) error {
-	if summary == nil {
-		return fmt.Errorf("context summary is nil")
-	}
-
-	data, err := json.MarshalIndent(summary, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal context summary: %w", err)
-	}
-
-	summaryPath := filepath.Join(s.contextDir, summary.ID+".summary.json")
-	if err := os.WriteFile(summaryPath, data, 0o600); err != nil {
-		return fmt.Errorf("failed to write context summary: %w", err)
-	}
-
-	return nil
-}
-
-// GetContextSummary retrieves context metadata by ID
-func (s *Service) GetContextSummary(ctx context.Context, contextID string) (*domain.ContextSummary, error) {
-	var summary domain.ContextSummary
-	if err := s.readAndUnmarshalJSON(filepath.Join(s.contextDir, contextID+".summary.json"), "context summary: "+contextID, &summary); err != nil {
-		return nil, err
-	}
-	return &summary, nil
-}
-
-// GetProjectContextSummaries lists all context summaries for a project
-func (s *Service) GetProjectContextSummaries(ctx context.Context, projectPath string) ([]*domain.ContextSummary, error) {
-	entries, err := os.ReadDir(s.contextDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*domain.ContextSummary{}, nil
-		}
-		return nil, fmt.Errorf("failed to read context directory: %w", err)
-	}
-
-	summaries := make([]*domain.ContextSummary, 0)
-	for _, entry := range entries {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".summary.json") {
-			continue
-		}
-
-		contextID := strings.TrimSuffix(entry.Name(), ".summary.json")
-		summary, err := s.GetContextSummary(ctx, contextID)
-		if err != nil {
-			s.logger.Warning(fmt.Sprintf("Failed to load context summary %s: %v", contextID, err))
-			continue
-		}
-
-		if summary.ProjectPath == projectPath {
-			summaries = append(summaries, summary)
-		}
-	}
-
-	return summaries, nil
-}
-
-// ReadContextChunk returns a chunk of context content (memory-safe pagination)
-func (s *Service) ReadContextChunk(ctx context.Context, contextID string, startLine int, lineCount int) (*domain.ContextChunk, error) {
-	if lineCount <= 0 {
-		lineCount = 1000
-	}
-	if startLine < 1 {
-		startLine = 1
-	}
-
-	// Limit max lines per request
-	const maxLinesPerRequest = 10000
-	if lineCount > maxLinesPerRequest {
-		lineCount = maxLinesPerRequest
-	}
-
-	// Try streaming context first
-	s.streamsMu.RLock()
-	stream, exists := s.streams[contextID]
-	s.streamsMu.RUnlock()
-
-	var contextPath string
-	if exists {
-		contextPath = stream.contextPath
-	} else {
-		// Try .ctx file
-		contextPath = filepath.Join(s.contextDir, contextID+".ctx")
-		if _, err := os.Stat(contextPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("context not found: %s", contextID)
-		}
-	}
-
-	file, err := os.Open(contextPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open context file: %w", err)
-	}
-	defer file.Close()
-
-	// Use pooled buffer for better performance
-	reader := bufio.NewReaderSize(file, 64*1024)
-	scanner := bufio.NewScanner(reader)
-
-	var lines []string
-	currentLine := 0
-	hasMore := false
-
-	for scanner.Scan() {
-		currentLine++
-		if currentLine < startLine {
-			continue
-		}
-		if len(lines) >= lineCount {
-			hasMore = true
-			break
-		}
-		lines = append(lines, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading context file: %w", err)
-	}
-
-	endLine := startLine + len(lines) - 1
-	if len(lines) == 0 {
-		endLine = startLine - 1
-	}
-
-	return &domain.ContextChunk{
-		Lines:     lines,
-		StartLine: startLine,
-		EndLine:   endLine,
-		HasMore:   hasMore,
-		ChunkID:   fmt.Sprintf("%s:%d", contextID, startLine),
-		ContextID: contextID,
-	}, nil
-}
-
-// ReadContextContent returns full context content as string
-func (s *Service) ReadContextContent(ctx context.Context, contextID string) (string, error) {
-	// Try streaming context first
-	s.streamsMu.RLock()
-	stream, exists := s.streams[contextID]
-	s.streamsMu.RUnlock()
-
-	var contextPath string
-	if exists {
-		contextPath = stream.contextPath
-	} else {
-		contextPath = filepath.Join(s.contextDir, contextID+".ctx")
-	}
-
-	data, err := os.ReadFile(contextPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("context content not found: %s", contextID)
-		}
-		return "", fmt.Errorf("failed to read context content: %w", err)
-	}
-
-	atomic.AddInt64(&s.totalBytesRead, int64(len(data)))
-	return string(data), nil
 }

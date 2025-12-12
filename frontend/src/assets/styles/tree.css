@@ -1,0 +1,417 @@
+/* ============================================
+   TREE VIEW COMPONENTS
+   Uses CSS variables from variables.css
+   ============================================ */
+
+/* Tree Item */
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.375rem var(--space-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.tree-item:hover {
+    background: var(--bg-2);
+    color: var(--text-primary);
+    transform: translateX(2px);
+}
+
+.tree-item-selected {
+    background: var(--accent-indigo-bg);
+    color: white;
+    border-left: 2px solid var(--accent-indigo);
+    box-shadow: inset 0 0 0 1px var(--accent-indigo-border);
+}
+
+.tree-checkbox {
+    flex-shrink: 0;
+    width: var(--tree-checkbox-size);
+    height: var(--tree-checkbox-size);
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.tree-checkbox:hover {
+    border-color: var(--text-muted);
+    background: var(--bg-2);
+}
+
+.tree-checkbox-checked {
+    background: var(--accent-indigo);
+    border-color: var(--accent-indigo);
+}
+
+.tree-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+}
+
+.tree-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-subtle);
+}
+
+/* Tree Row */
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.375rem 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+    min-height: var(--tree-row-height);
+    margin: var(--tree-row-gap) 0;
+}
+
+.tree-row:hover {
+    background: var(--tree-hover-bg);
+    color: var(--text-primary);
+}
+
+.tree-row-selected {
+    background: var(--tree-selected-bg) !important;
+    color: white !important;
+    /* Use inset box-shadow to avoid overlap with adjacent rows */
+    box-shadow: inset 0 0 0 1px var(--tree-selected-border);
+    border-radius: var(--radius-sm);
+    /* Ensure proper stacking */
+    position: relative;
+    z-index: 1;
+}
+
+.tree-row-selected:hover {
+    background: var(--tree-selected-bg-hover) !important;
+}
+
+/* Tree Guide Lines */
+.tree-guides {
+    position: absolute;
+    top: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.tree-guide-line {
+    fill: none;
+    stroke-width: var(--tree-line-width);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.25;
+    transition: opacity var(--transition-fast);
+}
+
+.tree-row:hover .tree-guide-line {
+    opacity: 0.4;
+}
+
+.tree-guide-1 { stroke: var(--tree-line-1); }
+.tree-guide-2 { stroke: var(--tree-line-2); }
+.tree-guide-3 { stroke: var(--tree-line-3); }
+.tree-guide-4 { stroke: var(--tree-line-4); }
+.tree-guide-5 { stroke: var(--tree-line-5); }
+
+/* ============================================
+   TREE ROW COMPONENTS (VirtualTreeRow)
+   ============================================ */
+
+/* Expand/Collapse Button */
+.tree-expand {
+    flex-shrink: 0;
+    width: var(--tree-expand-size);
+    height: var(--tree-expand-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    color: var(--text-subtle);
+    /* Removed negative margin that broke alignment */
+}
+
+.tree-row:hover .tree-expand {
+    color: var(--text-muted);
+}
+
+.tree-expand:hover {
+    color: var(--text-primary);
+    background: var(--bg-2);
+}
+
+.tree-expand-icon {
+    width: 1.125rem;
+    height: 1.125rem;
+    transition: transform var(--transition-fast);
+}
+
+.tree-expand-open .tree-expand-icon {
+    transform: rotate(90deg);
+}
+
+/* Checkbox - always visible with low opacity, full on hover/checked */
+.tree-cb {
+    flex-shrink: 0;
+    width: var(--tree-checkbox-size);
+    height: var(--tree-checkbox-size);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--border-default);
+    transition: all var(--transition-fast);
+    opacity: 0.4;
+    transform: scale(0.9);
+}
+
+.tree-row:hover .tree-cb {
+    opacity: 1;
+    transform: scale(1);
+    border-color: var(--border-strong);
+}
+
+.tree-cb:hover {
+    border-color: var(--text-muted);
+    background: var(--bg-2);
+}
+
+.tree-cb-checked {
+    background: var(--accent-indigo);
+    border-color: var(--accent-indigo);
+    opacity: 1;
+    transform: scale(1);
+}
+
+.tree-cb-partial {
+    background: linear-gradient(135deg, var(--accent-indigo) 50%, transparent 50%);
+    border-color: var(--accent-indigo);
+    opacity: 1;
+    transform: scale(1);
+}
+
+.tree-cb-icon {
+    width: 0.75rem;
+    height: 0.75rem;
+    color: white;
+}
+
+/* File/Folder Icon */
+.tree-icon {
+    flex-shrink: 0;
+    width: var(--tree-icon-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tree-folder-icon {
+    width: 1rem;
+    height: 1rem;
+    color: var(--tree-folder-color);
+    transition: color var(--transition-fast);
+}
+
+.tree-folder-open {
+    color: var(--tree-folder-open-color);
+}
+
+.tree-row:hover .tree-folder-icon {
+    color: var(--tree-folder-open-color);
+}
+
+.tree-file-icon {
+    font-size: var(--font-size-sm);
+}
+
+/* File Count (folders) - visible with subtle background */
+.tree-count {
+    font-size: var(--font-size-xs);
+    margin-left: auto;
+    margin-right: var(--space-2);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    background: rgba(30, 40, 66, 0.6);
+    font-weight: var(--font-weight-normal);
+    min-width: 1.25rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    transition: all var(--transition-fast);
+}
+
+.tree-row:hover .tree-count {
+    color: var(--text-secondary);
+    background: var(--bg-2);
+}
+
+.tree-row-selected .tree-count {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.tree-count-bounce {
+    animation: count-bounce 300ms var(--ease-out);
+}
+
+@keyframes count-bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* File Size - very subtle */
+.tree-size {
+    font-size: 0.625rem;
+    margin-left: auto;
+    margin-right: var(--space-2);
+    color: var(--text-disabled);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+    transition: opacity var(--transition-fast);
+}
+
+.tree-row:hover .tree-size {
+    opacity: 1;
+    color: var(--text-subtle);
+}
+
+/* QuickLook Preview Button */
+.tree-preview {
+    opacity: 0;
+    margin-left: auto;
+    margin-right: var(--space-1);
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    transition: all var(--transition-fast);
+}
+
+.tree-preview:hover {
+    color: white;
+    background: var(--bg-2);
+}
+
+.tree-row:hover .tree-preview,
+.group:hover .tree-preview {
+    opacity: 1;
+}
+
+/* Parent folder of selected files - subtle highlight */
+.tree-row-has-selected {
+    background: var(--tree-has-selected-bg);
+    /* Use pseudo-element for left border to avoid layout shift */
+    position: relative;
+}
+
+.tree-row-has-selected::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    background: var(--tree-has-selected-border);
+    border-radius: 1px;
+    opacity: 0.6;
+}
+
+.tree-row-has-selected:hover {
+    background: var(--tree-hover-bg);
+}
+
+/* Checkbox ripple animation */
+.tree-cb-ripple {
+    animation: cb-ripple 400ms var(--ease-out);
+}
+
+@keyframes cb-ripple {
+    0% { box-shadow: 0 0 0 0 var(--accent-indigo-bg); }
+    100% { box-shadow: 0 0 0 8px transparent; }
+}
+
+/* Tree children animation */
+.tree-children-enter-active {
+    animation: tree-expand 200ms var(--ease-out);
+}
+
+.tree-children-leave-active {
+    animation: tree-collapse 150ms var(--ease-out);
+}
+
+@keyframes tree-expand {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes tree-collapse {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+}
+
+/* Stagger animation for tree items */
+.tree-stagger {
+    animation: tree-stagger 300ms var(--ease-out);
+}
+
+@keyframes tree-stagger {
+    from {
+        opacity: 0;
+        transform: translateX(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Tooltip for ignored files */
+.tree-tooltip {
+    position: absolute;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    background: var(--bg-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    z-index: var(--z-tooltip);
+}
+
+/* Tree hint when collapsed */
+.tree-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    margin-top: var(--space-2);
+}
+
+.tree-hint-text {
+    font-size: var(--font-size-xs);
+    color: var(--text-subtle);
+    text-align: center;
+}

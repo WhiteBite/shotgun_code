@@ -1,7 +1,11 @@
+import type { domain } from '#wailsjs/go/models'
+import { useLogger } from '@/composables/useLogger'
 import { useContextStore } from '@/features/context/model/context.store'
 import { apiService } from '@/services/api.service'
 import { useSettingsStore } from '@/stores/settings.store'
 import { computed, ref } from 'vue'
+
+const logger = useLogger('Export')
 
 export type ExportMode = 'clipboard' | 'ai' | 'human'
 
@@ -16,7 +20,7 @@ export function useExport() {
   const isOpen = ref(false)
   const isExporting = ref(false)
   const selectedMode = ref<ExportMode>('clipboard')
-  const exportResult = ref<any>(null)
+  const exportResult = ref<domain.ExportResult | null>(null)
   const error = ref<string | null>(null)
 
   // Computed settings from settingsStore (single source of truth)
@@ -107,9 +111,9 @@ export function useExport() {
       // Handle result based on mode
       if (result.mode === 'clipboard' && result.text) {
         await navigator.clipboard.writeText(result.text)
-        console.log('Content copied to clipboard')
+        logger.debug('Content copied to clipboard')
       } else if (result.filePath) {
-        console.log('File exported to:', result.filePath)
+        logger.debug('File exported to:', result.filePath)
       } else if (result.dataBase64) {
         // Download file
         downloadBase64File(result.dataBase64, result.fileName || 'export.zip')

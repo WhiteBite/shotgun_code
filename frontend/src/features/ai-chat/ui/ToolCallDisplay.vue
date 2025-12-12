@@ -1,35 +1,40 @@
 <template>
-    <div class="tool-call-container">
+    <div class="tool-call-container" :class="{ 'tool-call-collapsed': !expanded }">
         <div class="tool-call-header" @click="expanded = !expanded">
+            <!-- Category Icon -->
+            <div class="tool-call-category" :title="categoryLabel">
+                <span class="category-icon">{{ categoryIcon }}</span>
+            </div>
+
+            <!-- Status Icon -->
             <div class="tool-call-icon" :class="statusClass">
-                <svg v-if="status === 'executing'" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg v-if="status === 'executing'" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor"
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
                     </path>
                 </svg>
-                <svg v-else-if="status === 'completed'" class="w-4 h-4" fill="none" stroke="currentColor"
+                <svg v-else-if="status === 'completed'" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
                     viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </div>
 
             <div class="tool-call-info">
                 <span class="tool-call-name">{{ toolName }}</span>
-                <span class="tool-call-status">{{ t(`toolCalls.${status}`) }}</span>
+                <span class="tool-call-brief" v-if="briefArgs">{{ briefArgs }}</span>
             </div>
 
-            <div class="tool-call-duration" v-if="duration">
-                {{ formatDuration(duration) }}
+            <div class="tool-call-meta">
+                <span class="tool-call-duration" v-if="duration">{{ formatDuration(duration) }}</span>
+                <svg class="w-3.5 h-3.5 text-gray-500 transition-transform" :class="{ 'rotate-180': expanded }" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
             </div>
-
-            <svg class="w-4 h-4 text-gray-500 transition-transform" :class="{ 'rotate-180': expanded }" fill="none"
-                stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
         </div>
 
         <div v-if="expanded" class="tool-call-details">
@@ -40,7 +45,10 @@
 
             <div v-if="result" class="tool-call-section">
                 <div class="tool-call-section-title">{{ t('toolCalls.result') }}</div>
-                <pre class="tool-call-code tool-call-result">{{ truncateResult(result) }}</pre>
+                <pre class="tool-call-code tool-call-result" :class="{ 'tool-call-code-expanded': resultExpanded }">{{ displayResult }}</pre>
+                <button v-if="isResultLong" @click.stop="resultExpanded = !resultExpanded" class="tool-call-expand-btn">
+                    {{ resultExpanded ? t('toolCalls.showLess') : t('toolCalls.showMore') }}
+                </button>
             </div>
 
             <div v-if="error" class="tool-call-section">
@@ -52,10 +60,49 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from '@/composables/useI18n'
-import { computed, ref } from 'vue'
+import { useI18n } from '@/composables/useI18n';
+import { computed, ref } from 'vue';
 
 const { t } = useI18n()
+
+// Tool categories for grouping and icons
+const TOOL_CATEGORIES: Record<string, { icon: string; label: string; tools: string[] }> = {
+    file: {
+        icon: '📁',
+        label: 'File',
+        tools: ['search_files', 'search_content', 'read_file', 'list_directory', 'get_file_info', 'list_functions']
+    },
+    git: {
+        icon: '🔀',
+        label: 'Git',
+        tools: ['git_status', 'git_diff', 'git_log', 'git_changed_files', 'git_co_changed', 'git_suggest_context']
+    },
+    symbol: {
+        icon: '🔣',
+        label: 'Symbol',
+        tools: ['list_symbols', 'search_symbols', 'find_definition', 'find_references', 'get_symbol_info', 'get_class_hierarchy', 'get_imports', 'get_widget_tree']
+    },
+    analysis: {
+        icon: '📊',
+        label: 'Analysis',
+        tools: ['get_callers', 'get_callees', 'get_impact', 'get_call_chain', 'get_dependent_files', 'get_change_risk']
+    },
+    project: {
+        icon: '🏗️',
+        label: 'Project',
+        tools: ['detect_architecture', 'detect_frameworks', 'detect_conventions', 'get_project_structure', 'get_related_layers', 'suggest_related_files']
+    },
+    memory: {
+        icon: '💾',
+        label: 'Memory',
+        tools: ['save_context', 'find_context', 'get_recent_contexts', 'set_preference', 'get_preferences']
+    },
+    semantic: {
+        icon: '🔍',
+        label: 'Semantic',
+        tools: ['semantic_search']
+    }
+}
 
 interface Props {
     toolName: string
@@ -68,12 +115,48 @@ interface Props {
 
 const props = defineProps<Props>()
 const expanded = ref(false)
+const resultExpanded = ref(false)
+
+const MAX_RESULT_LENGTH = 300
 
 const statusClass = computed(() => ({
     'tool-call-icon-executing': props.status === 'executing',
     'tool-call-icon-completed': props.status === 'completed',
     'tool-call-icon-failed': props.status === 'failed',
 }))
+
+// Get category for tool
+const category = computed(() => {
+    for (const [key, cat] of Object.entries(TOOL_CATEGORIES)) {
+        if (cat.tools.includes(props.toolName)) return key
+    }
+    return 'other'
+})
+
+const categoryIcon = computed(() => TOOL_CATEGORIES[category.value]?.icon || '⚙️')
+const categoryLabel = computed(() => TOOL_CATEGORIES[category.value]?.label || 'Other')
+
+// Brief args for collapsed view
+const briefArgs = computed(() => {
+    const keys = Object.keys(props.args)
+    if (keys.length === 0) return ''
+    
+    // Show first meaningful arg value
+    const firstKey = keys[0]
+    const val = props.args[firstKey]
+    if (typeof val === 'string' && val.length > 0) {
+        return val.length > 30 ? val.slice(0, 30) + '...' : val
+    }
+    return ''
+})
+
+const isResultLong = computed(() => (props.result?.length || 0) > MAX_RESULT_LENGTH)
+
+const displayResult = computed(() => {
+    if (!props.result) return ''
+    if (resultExpanded.value || !isResultLong.value) return props.result
+    return props.result.slice(0, MAX_RESULT_LENGTH) + '\n...'
+})
 
 function formatArgs(args: Record<string, unknown>): string {
     return JSON.stringify(args, null, 2)
@@ -83,25 +166,31 @@ function formatDuration(ms: number): string {
     if (ms < 1000) return `${ms}ms`
     return `${(ms / 1000).toFixed(1)}s`
 }
-
-function truncateResult(result: string): string {
-    const maxLength = 500
-    if (result.length <= maxLength) return result
-    return result.slice(0, maxLength) + '\n... (truncated)'
-}
 </script>
 
 <style scoped>
 .tool-call-container {
-    @apply bg-gray-800/50 border border-gray-700/50 rounded-lg overflow-hidden my-2;
+    @apply bg-gray-800/50 border border-gray-700/50 rounded-lg overflow-hidden my-1;
+}
+
+.tool-call-collapsed {
+    @apply bg-gray-800/30;
 }
 
 .tool-call-header {
-    @apply flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-700/30 transition-colors;
+    @apply flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-gray-700/30 transition-colors;
+}
+
+.tool-call-category {
+    @apply flex-shrink-0;
+}
+
+.category-icon {
+    @apply text-sm;
 }
 
 .tool-call-icon {
-    @apply w-6 h-6 rounded flex items-center justify-center flex-shrink-0;
+    @apply w-5 h-5 rounded flex items-center justify-center flex-shrink-0;
 }
 
 .tool-call-icon-executing {
@@ -117,15 +206,19 @@ function truncateResult(result: string): string {
 }
 
 .tool-call-info {
-    @apply flex-1 flex items-center gap-2;
+    @apply flex-1 flex items-center gap-2 min-w-0;
 }
 
 .tool-call-name {
     @apply text-sm font-medium text-gray-200;
 }
 
-.tool-call-status {
-    @apply text-xs text-gray-500;
+.tool-call-brief {
+    @apply text-xs text-gray-500 truncate max-w-32;
+}
+
+.tool-call-meta {
+    @apply flex items-center gap-2 flex-shrink-0;
 }
 
 .tool-call-duration {
@@ -133,7 +226,7 @@ function truncateResult(result: string): string {
 }
 
 .tool-call-details {
-    @apply border-t border-gray-700/50 p-3 space-y-3;
+    @apply border-t border-gray-700/50 p-2.5 space-y-2;
 }
 
 .tool-call-section {
@@ -145,7 +238,13 @@ function truncateResult(result: string): string {
 }
 
 .tool-call-code {
-    @apply text-xs font-mono bg-gray-900/50 rounded p-2 overflow-x-auto text-gray-300 max-h-48 overflow-y-auto;
+    @apply text-xs font-mono bg-gray-900/50 rounded p-2 overflow-x-auto text-gray-300 max-h-40 overflow-y-auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.tool-call-code-expanded {
+    @apply max-h-96;
 }
 
 .tool-call-result {
@@ -154,5 +253,9 @@ function truncateResult(result: string): string {
 
 .tool-call-error {
     @apply text-red-300/80;
+}
+
+.tool-call-expand-btn {
+    @apply text-xs text-indigo-400 hover:text-indigo-300 mt-1 cursor-pointer;
 }
 </style>

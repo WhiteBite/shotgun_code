@@ -8,6 +8,7 @@
       >
         <Transition name="modal">
           <div
+            v-if="isOpen"
             class="bg-gray-800/95 backdrop-blur-md rounded-2xl border border-gray-700/50 shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col"
             @click.stop
           >

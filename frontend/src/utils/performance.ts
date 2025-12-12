@@ -1,6 +1,9 @@
 // Performance Optimization Utilities
 
-import {computed, ref} from 'vue'
+import { useLogger } from '@/composables/useLogger'
+import { computed, ref } from 'vue'
+
+const logger = useLogger('Performance')
 
 /**
  * Virtual Scrolling Utilities
@@ -14,8 +17,8 @@ export interface VirtualScrollOptions {
 }
 
 export function useVirtualScroll<T>(
-    items: T[],
-    options: VirtualScrollOptions
+  items: T[],
+  options: VirtualScrollOptions
 ) {
   const scrollTop = ref(0)
   const containerHeight = options.containerHeight
@@ -62,9 +65,9 @@ export function useVirtualScroll<T>(
  * Debounce and Throttle Utilities
  */
 
-export function debounce<T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null
 
@@ -76,9 +79,9 @@ export function debounce<T extends (...args: any[]) => any>(
   }
 }
 
-export function throttle<T extends (...args: any[]) => any>(
-    func: T,
-    limit: number
+export function throttle<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  limit: number
 ): (...args: Parameters<T>) => void {
   let inThrottle = false
 
@@ -102,21 +105,21 @@ export function useLazyLoading(threshold: number = 100) {
   function observe(element: HTMLElement, id: string, callback: () => void) {
     if (!observer.value) {
       observer.value = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                const itemId = entry.target.getAttribute('data-id')
-                if (itemId && !loadedItems.value.has(itemId)) {
-                  loadedItems.value.add(itemId)
-                  callback()
-                  observer.value?.unobserve(entry.target)
-                }
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const itemId = entry.target.getAttribute('data-id')
+              if (itemId && !loadedItems.value.has(itemId)) {
+                loadedItems.value.add(itemId)
+                callback()
+                observer.value?.unobserve(entry.target)
               }
-            })
-          },
-          {
-            rootMargin: `${threshold}px`
-          }
+            }
+          })
+        },
+        {
+          rootMargin: `${threshold}px`
+        }
       )
     }
 
@@ -141,8 +144,13 @@ export function useLazyLoading(threshold: number = 100) {
  * Memory Management Utilities
  */
 
+interface CacheItem<T> {
+  value: T
+  timestamp: number
+}
+
 export class MemoryManager {
-  private cache = new Map<string, any>()
+  private cache = new Map<string, CacheItem<unknown>>()
   private maxSize: number
   private ttl: number
 
@@ -151,7 +159,7 @@ export class MemoryManager {
     this.ttl = ttl
   }
 
-  set(key: string, value: any): void {
+  set<T>(key: string, value: T): void {
     // Remove oldest entries if cache is full
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value
@@ -166,7 +174,7 @@ export class MemoryManager {
     })
   }
 
-  get(key: string): any | null {
+  get<T>(key: string): T | null {
     const item = this.cache.get(key)
     if (!item) return null
 
@@ -176,7 +184,7 @@ export class MemoryManager {
       return null
     }
 
-    return item.value
+    return item.value as T
   }
 
   delete(key: string): boolean {
@@ -238,7 +246,7 @@ export class PerformanceMonitor {
   logMeasurement(name: string): void {
     const duration = this.getMeasurement(name)
     if (duration !== undefined) {
-      console.log(`Performance [${name}]: ${duration.toFixed(2)}ms`)
+      logger.debug(`Performance [${name}]: ${duration.toFixed(2)}ms`)
     }
   }
 
@@ -252,18 +260,18 @@ export class PerformanceMonitor {
  * Component Performance Wrapper
  */
 
-export function withPerformanceMonitoring<T extends (...args: any[]) => any>(
-    func: T,
-    name: string,
-    monitor: PerformanceMonitor
+export function withPerformanceMonitoring<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  name: string,
+  monitor: PerformanceMonitor
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: unknown[]) => {
     monitor.startMeasurement(name)
     const result = func(...args)
 
-    if (result && typeof result.then === 'function') {
+    if (result && typeof (result as Promise<unknown>).then === 'function') {
       // Handle promises
-      return result.finally(() => {
+      return (result as Promise<unknown>).finally(() => {
         monitor.endMeasurement(name)
         monitor.logMeasurement(name)
       })
@@ -279,7 +287,11 @@ export function withPerformanceMonitoring<T extends (...args: any[]) => any>(
  * Bundle Size Optimization
  */
 
-export function asyncComponent(loader: () => Promise<any>) {
+interface FallbackComponent {
+  template: string
+}
+
+export function asyncComponent(loader: () => Promise<unknown>): () => Promise<unknown | FallbackComponent> {
   return () => {
     return loader().catch(error => {
       console.error('Failed to load component:', error)
@@ -295,49 +307,51 @@ export function asyncComponent(loader: () => Promise<any>) {
  * Request Batching for API Calls
  */
 
-export class RequestBatcher {
-  private batches = new Map<string, {
-    requests: Array<{
-      resolve: (value: any) => void
-      reject: (error: any) => void
-      data: any
-    }>
-    timeout: NodeJS.Timeout
-  }>()
+interface BatchRequest<T, D> {
+  resolve: (value: T) => void
+  reject: (error: unknown) => void
+  data: D
+}
 
+interface BatchEntry<T, D> {
+  requests: Array<BatchRequest<T, D>>
+  timeout: NodeJS.Timeout
+  handler: (requests: D[]) => Promise<T[]>
+}
+
+export class RequestBatcher {
+  private batches = new Map<string, BatchEntry<unknown, unknown>>()
   private batchDelay: number
 
   constructor(batchDelay: number = 50) {
     this.batchDelay = batchDelay
   }
 
-  batch<T>(
-      key: string,
-      data: any,
-      batchHandler: (requests: any[]) => Promise<T[]>
+  batch<T, D = unknown>(
+    key: string,
+    data: D,
+    batchHandler: (requests: D[]) => Promise<T[]>
   ): Promise<T> {
     return new Promise((resolve, reject) => {
-      let batch = this.batches.get(key)
+      let batch = this.batches.get(key) as BatchEntry<T, D> | undefined
 
       if (!batch) {
         batch = {
           requests: [],
           timeout: setTimeout(() => {
-            this.executeBatch(key, batchHandler)
-          }, this.batchDelay)
+            this.executeBatch<T, D>(key)
+          }, this.batchDelay),
+          handler: batchHandler
         }
-        this.batches.set(key, batch)
+        this.batches.set(key, batch as BatchEntry<unknown, unknown>)
       }
 
-      batch.requests.push({resolve, reject, data})
+      batch.requests.push({ resolve, reject, data })
     })
   }
 
-  private async executeBatch<T>(
-      key: string,
-      batchHandler: (requests: any[]) => Promise<T[]>
-  ): Promise<void> {
-    const batch = this.batches.get(key)
+  private async executeBatch<T, D>(key: string): Promise<void> {
+    const batch = this.batches.get(key) as BatchEntry<T, D> | undefined
     if (!batch) return
 
     this.batches.delete(key)
@@ -345,7 +359,7 @@ export class RequestBatcher {
 
     try {
       const requestData = batch.requests.map(req => req.data)
-      const results = await batchHandler(requestData)
+      const results = await batch.handler(requestData)
 
       batch.requests.forEach((request, index) => {
         request.resolve(results[index])

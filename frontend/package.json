@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
     "test": "vitest",
@@ -33,6 +33,7 @@
     "@vueuse/motion": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "driver.js": "^1.4.0",
     "fuse.js": "^7.1.0",
     "highlight.js": "^11.11.1",
     "lucide-vue-next": "^0.559.0",

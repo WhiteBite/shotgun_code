@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import ExportModal from '@/components/ExportModal.vue'
 import { useI18n } from '@/composables/useI18n'
+import { useLogger } from '@/composables/useLogger'
 import { useResizablePanel } from '@/composables/useResizablePanel'
 import { useContextStore } from '@/features/context'
 import { useFileStore } from '@/features/files'
@@ -90,6 +91,7 @@ import CenterWorkspace from './CenterWorkspace.vue'
 import LeftSidebar from './LeftSidebar.vue'
 import RightSidebar from './RightSidebar.vue'
 
+const logger = useLogger('MainWorkspace')
 const { t } = useI18n()
 const contextStore = useContextStore()
 const fileStore = useFileStore()
@@ -113,8 +115,8 @@ function toggleRightSidebar() {
   showRightSidebar.value = !showRightSidebar.value
   try {
     localStorage.setItem('right-sidebar-visible', String(showRightSidebar.value))
-  } catch (e) {
-    console.warn('Failed to save sidebar state:', e)
+  } catch {
+    // Ignore localStorage errors
   }
 }
 
@@ -137,15 +139,16 @@ const rightResize = useResizablePanel({
   minWidth: 320,
   maxWidth: 800,
   defaultWidth: 420,
-  storageKey: 'workspace-right-width'
+  storageKey: 'workspace-right-width',
+  invertDirection: true // Тянем влево = увеличиваем ширину
 })
 // Panel refs are used in template via ref="leftPanelRef" and ref="rightPanelRef"
 const leftPanelRef = leftResize.panelRef
 const rightPanelRef = rightResize.panelRef
 const rightWidth = rightResize.width
 
-function handlePreviewFile(filePath: string) {
-  console.log('Preview file:', filePath)
+function handlePreviewFile(_filePath: string) {
+  // Preview file functionality - handled by QuickLook
 }
 
 // Global keyboard shortcut handlers
@@ -158,7 +161,7 @@ const handleGlobalCopyContext = async () => {
       await navigator.clipboard.writeText(content)
       uiStore.addToast('Контекст скопирован в буфер обмена', 'success')
     } catch (error) {
-      console.error('Failed to copy context:', error)
+      logger.error('Failed to copy context:', error)
       uiStore.addToast('Ошибка при копировании контекста', 'error')
     }
   }
@@ -198,11 +201,7 @@ watch(
       ? currentFiles 
       : Array.from(fileStore.selectedPaths)
     
-    console.log('[MainWorkspace] Settings changed, rebuilding context:', { 
-      format: newFormat, 
-      stripComments: newStripComments,
-      fileCount: filePaths.length 
-    })
+    // Settings changed, rebuilding context silently
     
     try {
       const options = {
@@ -222,7 +221,7 @@ watch(
       await contextStore.buildContext(filePaths, options)
       uiStore.addToast(t('context.rebuilt'), 'success')
     } catch (error) {
-      console.error('[MainWorkspace] Failed to rebuild context:', error)
+      logger.error('Failed to rebuild context:', error)
     }
   }
 )
@@ -254,7 +253,7 @@ async function handleBuildContext() {
     await contextStore.buildContext(filePaths, options)
     uiStore.addToast(t('toast.contextBuilt'), 'success')
   } catch (error) {
-    console.error('Failed to build context:', error)
+    logger.error('Failed to build context:', error)
     
     // Handle token limit exceeded error with detailed message
     if (error instanceof Error && error.message === 'TOKEN_LIMIT_EXCEEDED') {
@@ -325,20 +324,20 @@ defineExpose({ leftPanelRef, rightPanelRef })
 
 .workspace-panel {
   @apply flex-shrink-0 backdrop-blur-sm;
-  background: rgba(11, 16, 32, 0.6);
+  background: var(--bg-panel-sidebar);
 }
 
 .workspace-panel-left {
-  border-right: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-default);
 }
 
 .workspace-panel-right {
-  border-left: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--border-default);
 }
 
 .workspace-center {
   @apply flex-1 min-w-0;
-  background: rgba(5, 8, 22, 0.4);
+  background: var(--bg-panel-center);
 }
 
 /* Resize Handle */

@@ -43,28 +43,25 @@
       </button>
     </div>
 
-    <!-- Content -->
+    <!-- Content - using v-show to preserve component state when switching tabs -->
     <div class="sidebar-content">
-      <FileExplorer v-if="currentTab === 'files'" @preview-file="handlePreviewFile" @build-context="handleBuildContext" />
-      <GitSourceSelector v-else-if="currentTab === 'git'" />
-      <ContextList v-else />
+      <FileExplorer v-show="currentTab === 'files'" @preview-file="handlePreviewFile" @build-context="handleBuildContext" />
+      <GitSourceSelector v-show="currentTab === 'git'" />
+      <ContextList v-show="currentTab === 'contexts'" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import GitSourceSelector from '@/components/GitSourceSelector.vue'
 import { useI18n } from '@/composables/useI18n'
 import { ContextList } from '@/features/context'
 import { FileExplorer, useFileStore } from '@/features/files'
-import { ref, watch } from 'vue'
+import { GitSourceSelector } from '@/features/git'
+import { computed, ref, watch } from 'vue'
 
 const fileStore = useFileStore()
 const { t } = useI18n()
 const currentTab = ref<'files' | 'git' | 'contexts'>('files')
-
-// Tab indicator computed
-import { computed } from 'vue'
 
 const tabIndex = computed(() => {
   const tabs = ['files', 'git', 'contexts']
@@ -138,21 +135,28 @@ try {
 }
 
 .tabs-indicator-indigo {
-  background: rgba(99, 102, 241, 0.25);
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.20);
+  border: 1px solid rgba(99, 102, 241, 0.35);
 }
 
 .tabs-indicator-orange {
-  background: rgba(249, 115, 22, 0.25);
-  border: 1px solid rgba(249, 115, 22, 0.4);
-  box-shadow: 0 0 12px rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.20);
+  border: 1px solid rgba(249, 115, 22, 0.35);
 }
 
 .tabs-indicator-purple {
-  background: rgba(168, 85, 247, 0.25);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.20);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.tabs-indicator-cyan {
+  background: rgba(6, 182, 212, 0.20);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+}
+
+.tabs-indicator-emerald {
+  background: rgba(16, 185, 129, 0.20);
+  border: 1px solid rgba(16, 185, 129, 0.35);
 }
 
 .sidebar-tab {
@@ -177,11 +181,12 @@ try {
 
 .tab-badge {
   @apply px-1.5 py-0.5 text-xs font-bold rounded-full;
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--accent-indigo-bg);
   color: white;
+  border: 1px solid var(--accent-indigo-border);
 }
 
 .sidebar-content {
-  @apply flex-1 overflow-hidden;
+  @apply flex-1 min-h-0 overflow-hidden;
 }
 </style>

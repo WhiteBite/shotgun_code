@@ -12,6 +12,7 @@ export interface ResizablePanelOptions {
   maxWidth?: number
   defaultWidth?: number
   storageKey: string // Сделано обязательным
+  invertDirection?: boolean // Для правой панели - тянем влево = увеличиваем
 }
 
 export function useResizablePanel(options: ResizablePanelOptions) {
@@ -19,7 +20,8 @@ export function useResizablePanel(options: ResizablePanelOptions) {
     minWidth = 200,
     maxWidth = 800,
     defaultWidth = 300,
-    storageKey
+    storageKey,
+    invertDirection = false
   } = options
 
   const panelRef = ref<HTMLElement>()
@@ -59,7 +61,9 @@ export function useResizablePanel(options: ResizablePanelOptions) {
     if (!isResizing.value) return
 
     const delta = e.clientX - startX
-    const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta))
+    // Для правой панели инвертируем: тянем влево = увеличиваем ширину
+    const adjustedDelta = invertDirection ? -delta : delta
+    const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + adjustedDelta))
     width.value = newWidth
   }
 

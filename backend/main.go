@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	_ "embed"
 	"log"
 	"shotgun_code/cmd/app"
 

@@ -1,5 +1,14 @@
-// AI Chat module - prepared for future implementation
+// AI Chat module
 export { useChatStore } from './model/chat.store'
+export type { ChatHistory, Message } from './model/chat.store'
 export { default as ChatPanel } from './ui/ChatPanel.vue'
 export { default as MessageItem } from './ui/MessageItem.vue'
-export type { Message, ChatHistory } from './model/chat.store'
+
+// Composables
+export { useChatMessages } from './composables/useChatMessages'
+export type {
+    Message as ChatMessage,
+    SmartContextPreview,
+    ToolCallLog as ToolCallInfo
+} from './composables/useChatMessages'
+

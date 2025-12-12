@@ -1,5 +1,8 @@
 ﻿<template>
   <div id="app" class="app-container">
+    <!-- Skip link for keyboard navigation -->
+    <a href="#main-content" class="skip-link">{{ t('accessibility.skipToContent') }}</a>
+
     <!-- Global Error Handler -->
     <div v-if="globalError" class="modal-container">
       <div class="modal-overlay" @click="clearGlobalError"></div>
@@ -27,8 +30,10 @@
     </div>
 
     <!-- Main Content: Show ProjectSelector if no project, otherwise show workspace -->
-    <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
-    <MainWorkspace v-else />
+    <main id="main-content">
+      <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
+      <MainWorkspace v-else />
+    </main>
 
     <!-- Toast Notifications (Bottom Center) -->
     <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
@@ -85,6 +90,11 @@
       @close="showMemoryDashboard = false"
     />
     
+    <!-- Settings Modal -->
+    <SettingsModal v-model="uiStore.showSettingsModal" />
+
+    <!-- Confirm Dialog (global) -->
+    <ConfirmDialog />
 
   </div>
 </template>
@@ -92,6 +102,7 @@
 <script setup lang="ts">
 import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
+import { useI18n } from '@/composables/useI18n'
 import { useMemoryMonitor } from '@/composables/useMemoryMonitor'
 import { useProjectStore } from '@/stores/project.store'
 import { useUIStore } from '@/stores/ui.store'
@@ -103,7 +114,10 @@ const CommandPalette = defineAsyncComponent(() => import('@/components/CommandPa
 const KeyboardShortcutsModal = defineAsyncComponent(() => import('@/components/KeyboardShortcutsModal.vue'))
 // ThemeToggle removed - app uses dark theme only
 const MemoryDashboard = defineAsyncComponent(() => import('@/components/MemoryDashboard.vue'))
+const SettingsModal = defineAsyncComponent(() => import('@/components/SettingsModal.vue'))
+const ConfirmDialog = defineAsyncComponent(() => import('@/components/ConfirmDialog.vue'))
 
+const { t } = useI18n()
 const projectStore = useProjectStore()
 const uiStore = useUIStore()
 const globalError = ref<string | null>(null)
@@ -121,6 +135,7 @@ const ctrlEnter = keys['Ctrl+Enter']
 const ctrlE = keys['Ctrl+E']
 const ctrlShiftC = keys['Ctrl+Shift+C']
 const ctrlShiftM = keys['Ctrl+Shift+M']
+const ctrlComma = keys['Ctrl+,']
 
 watch(ctrlK, (v) => {
   if (v) isCommandPaletteOpen.value = !isCommandPaletteOpen.value
@@ -167,6 +182,13 @@ watch(ctrlShiftM, (v) => {
   }
 })
 
+// Settings shortcut
+watch(ctrlComma, (v) => {
+  if (v) {
+    uiStore.openSettingsModal()
+  }
+})
+
 // Start memory monitoring
 const memoryMonitor = useMemoryMonitor()
 
@@ -174,8 +196,7 @@ function clearGlobalError() {
   globalError.value = null
 }
 
-function onProjectOpened(path: string) {
-  console.log('Project opened:', path)
+function onProjectOpened(_path: string) {
   uiStore.addToast('Project loaded successfully', 'success')
 }
 
@@ -203,25 +224,19 @@ onMounted(async () => {
   // In dev mode, Vite's HMR + dynamic imports can cause memory accumulation
   if (!import.meta.env.DEV) {
     cleanupIntervalRef.value = window.setInterval(async () => {
-      console.log('[App] Running periodic cleanup...')
-      
       // Clear old caches
       try {
         const { clearAllCaches, getCacheStats } = await import('@/composables/useApiCache')
         const stats = getCacheStats()
         if (stats.size > stats.maxSize * 0.5) {
           clearAllCaches()
-          console.log('[App] Cleared API caches')
         }
-      } catch (e) {
-        console.warn('Could not clear API caches:', e)
+      } catch {
+        // Ignore cache clear errors
       }
       
-      // Check memory stats
-      const memStats = await memoryMonitor.getMemoryStats()
-      if (memStats) {
-        console.log(`[App] Memory: ${memStats.used}MB / ${memStats.total}MB (${memStats.percentage}%)`)
-      }
+      // Memory stats checked silently
+      await memoryMonitor.getMemoryStats()
     }, 10 * 60 * 1000) // Every 10 minutes
   }
 })

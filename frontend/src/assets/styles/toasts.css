@@ -1,0 +1,78 @@
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+
+.toast {
+    @apply flex items-center gap-3 px-4 py-3;
+    @apply rounded-xl backdrop-blur-md;
+    @apply min-w-[280px] max-w-md;
+    box-shadow: var(--shadow-xl);
+}
+
+.toast-success {
+    background: rgba(6, 78, 59, 0.95);
+    border: 1px solid var(--color-success-border);
+    color: var(--color-success);
+}
+
+.toast-error {
+    background: rgba(127, 29, 29, 0.95);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger);
+}
+
+.toast-warning {
+    background: rgba(120, 53, 15, 0.95);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+}
+
+.toast-info {
+    background: var(--bg-2);
+    border: 1px solid var(--color-info-border);
+    color: var(--text-primary);
+}
+
+.toast-icon { @apply w-5 h-5 flex-shrink-0; }
+.toast-icon-success { @apply text-emerald-400; }
+.toast-icon-error { @apply text-red-400; }
+.toast-icon-warning { @apply text-amber-400; }
+.toast-icon-info { @apply text-blue-400; }
+
+.toast-message { @apply text-sm font-medium flex-1; }
+
+.toast-close {
+    @apply p-1 rounded-lg hover:bg-white/10 transition-colors;
+}
+
+/* Toast Enhanced */
+.toast-enhanced {
+    @apply flex items-center gap-3 px-4 py-3;
+    @apply rounded-xl;
+    @apply min-w-[300px] max-w-md;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-xl);
+    animation: toastSlideIn 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.toast-progress {
+    @apply absolute bottom-0 left-0 h-1 rounded-b-xl;
+    background: rgba(255, 255, 255, 0.3);
+    animation: toastProgress 5s linear forwards;
+}
+
+@keyframes toastProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+}

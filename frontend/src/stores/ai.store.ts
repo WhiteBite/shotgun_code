@@ -1,6 +1,9 @@
+import { useLogger } from '@/composables/useLogger'
 import { apiService } from '@/services/api.service'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+
+const logger = useLogger('AIStore')
 
 // Model context limits mapping
 export const MODEL_LIMITS: Record<string, number> = {
@@ -105,7 +108,7 @@ export const useAIStore = defineStore('ai', () => {
                 provider: selectedProvider
             }
 
-            console.log('[AIStore] Provider info loaded:', providerInfo.value)
+            logger.debug('Provider info loaded:', providerInfo.value)
         } catch (e) {
             const errorMsg = e instanceof Error ? e.message : 'Unknown error'
             console.error('[AIStore] Failed to load provider info:', errorMsg)
@@ -126,7 +129,7 @@ export const useAIStore = defineStore('ai', () => {
     function updateModel(provider: string, model: string) {
         providerInfo.value.provider = provider
         providerInfo.value.model = model
-        console.log('[AIStore] Model updated:', provider, model)
+        logger.debug('Model updated:', provider, model)
     }
 
     // Calculate cost for given tokens

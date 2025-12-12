@@ -3,7 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"shotgun_code/application"
+	"shotgun_code/application/settings"
 	"shotgun_code/domain"
 	"sync"
 )
@@ -11,7 +11,7 @@ import (
 // SettingsHandler handles all settings-related operations
 type SettingsHandler struct {
 	log             domain.Logger
-	settingsService *application.SettingsService
+	settingsService *settings.Service
 
 	// Mutex for atomic settings updates
 	mu sync.Mutex
@@ -20,7 +20,7 @@ type SettingsHandler struct {
 // NewSettingsHandler creates a new settings handler
 func NewSettingsHandler(
 	log domain.Logger,
-	settingsService *application.SettingsService,
+	settingsService *settings.Service,
 ) *SettingsHandler {
 	return &SettingsHandler{
 		log:             log,

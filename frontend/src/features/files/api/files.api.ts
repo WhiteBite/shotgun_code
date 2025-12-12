@@ -1,6 +1,14 @@
 import type { domain } from '#wailsjs/go/models';
 import { apiService } from '@/services/api.service';
 
+export interface FileStats {
+    size: number
+    lines: number
+    tokens: number
+    language?: string
+    modTime?: string
+}
+
 class FilesApi {
     private fileTreeCache: Map<string, { data: domain.FileNode[]; timestamp: number }> = new Map()
     private readonly CACHE_TTL = 60000 // 1 minute
@@ -43,10 +51,10 @@ class FilesApi {
         }
     }
 
-    async getFileStats(path: string): Promise<any> {
+    async getFileStats(path: string): Promise<FileStats> {
         try {
             const stats = await apiService.getFileStats(path)
-            return JSON.parse(stats)
+            return JSON.parse(stats) as FileStats
         } catch (error) {
             console.error('[FilesApi] Failed to get file stats:', error)
             throw new Error('Failed to get file statistics.')

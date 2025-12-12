@@ -1,9 +1,12 @@
 import type { domain } from '#wailsjs/go/models'
+import { useLogger } from '@/composables/useLogger'
 import { useProjectStore } from '@/stores/project.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { contextApi } from '../api/context.api'
+
+const logger = useLogger('ContextStore')
 
 // Генерация умного названия контекста на основе файлов
 function generateSmartName(files: string[]): string {
@@ -189,7 +192,7 @@ export const useContextStore = defineStore('context', () => {
                 trimWhitespace: options?.trimWhitespace ?? false
             } as domain.ContextBuildOptions
 
-            console.log('[ContextStore] Building context with options:', {
+            logger.debug('Building context with options:', {
                 outputFormat: buildOptions.outputFormat,
                 stripComments: buildOptions.stripComments,
                 maxTokens: buildOptions.maxTokens
@@ -261,17 +264,17 @@ export const useContextStore = defineStore('context', () => {
         } catch (err) {
             // Handle token limit exceeded error specially
             if (err instanceof Error && err.message === 'TOKEN_LIMIT_EXCEEDED') {
-                const tokenInfo = (err as any).tokenInfo
+                const { hasTokenInfo } = await import('@/types/errors')
                 const settingsStore = useSettingsStore()
                 const currentLimit = settingsStore.settings.context.maxTokens
 
-                if (tokenInfo) {
-                    error.value = `TOKEN_LIMIT_EXCEEDED:${tokenInfo.actual}:${tokenInfo.limit}`
+                if (hasTokenInfo(err)) {
+                    error.value = `TOKEN_LIMIT_EXCEEDED:${err.tokenInfo.actual}:${err.tokenInfo.limit}`
                     console.error('[ContextStore] Token limit exceeded:', {
-                        actual: tokenInfo.actual,
-                        limit: tokenInfo.limit,
-                        actualK: Math.round(tokenInfo.actual / 1000),
-                        limitK: Math.round(tokenInfo.limit / 1000),
+                        actual: err.tokenInfo.actual,
+                        limit: err.tokenInfo.limit,
+                        actualK: Math.round(err.tokenInfo.actual / 1000),
+                        limitK: Math.round(err.tokenInfo.limit / 1000),
                         currentSetting: currentLimit
                     })
                 } else {
@@ -325,10 +328,10 @@ export const useContextStore = defineStore('context', () => {
                     summary.value = existingSummary
                 } else {
                     // If not in list, try to fetch from backend
-                    console.log('[ContextStore] Summary not in local list, fetching from backend...')
+                    logger.debug('Summary not in local list, fetching from backend...')
                     try {
                         const contexts = await contextApi.getProjectContexts(useProjectStore().currentPath || '')
-                        const fetchedSummary = contexts.find((c: any) => c.id === ctxId)
+                        const fetchedSummary = contexts.find((c: { id: string }) => c.id === ctxId)
                         if (fetchedSummary) {
                             summary.value = {
                                 id: fetchedSummary.id,
@@ -340,7 +343,7 @@ export const useContextStore = defineStore('context', () => {
                                 createdAt: fetchedSummary.createdAt,
                                 isFavorite: false
                             }
-                            console.log('[ContextStore] Summary fetched from backend:', summary.value)
+                            logger.debug('Summary fetched from backend:', summary.value)
                         } else {
                             console.warn('[ContextStore] Context summary not found on backend')
                         }
@@ -353,11 +356,11 @@ export const useContextStore = defineStore('context', () => {
             // Use cached content if available for same context
             let content: string
             if (cachedContextId.value === ctxId && fullContentCache.value !== null) {
-                console.log('[ContextStore] Using cached content for pagination')
+                logger.debug('Using cached content for pagination')
                 content = fullContentCache.value
             } else {
                 // Load full content from API (backend handles streaming internally)
-                console.log('[ContextStore] Loading full content from API...')
+                logger.debug('Loading full content from API...')
                 content = await contextApi.getContextContent(ctxId)
 
                 // Check size limit before accepting
@@ -371,7 +374,7 @@ export const useContextStore = defineStore('context', () => {
                 // Cache the content for pagination
                 fullContentCache.value = content
                 cachedContextId.value = ctxId
-                console.log('[ContextStore] Content cached, size:', Math.round(content.length / 1024), 'KB')
+                logger.debug('Content cached, size:', Math.round(content.length / 1024), 'KB')
             }
 
             // Extract requested chunk from full content
@@ -385,7 +388,7 @@ export const useContextStore = defineStore('context', () => {
                 hasMore: endLine < lines.length
             }
 
-            console.log('[ContextStore] Loaded chunk:', startLine, '-', endLine, 'of', lines.length, 'lines')
+            logger.debug('Loaded chunk:', startLine, '-', endLine, 'of', lines.length, 'lines')
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Failed to load context'
             console.error('[ContextStore] Error loading context:', err)
@@ -405,11 +408,11 @@ export const useContextStore = defineStore('context', () => {
         try {
             // Use cache if available
             if (cachedContextId.value === contextId.value && fullContentCache.value !== null) {
-                console.log('[ContextStore] Returning cached full content')
+                logger.debug('Returning cached full content')
                 return fullContentCache.value
             }
 
-            console.log('[ContextStore] Fetching full content for copy/export...')
+            logger.debug('Fetching full content for copy/export...')
             const content = await contextApi.getContextContent(contextId.value)
 
             // Update cache
@@ -427,18 +430,18 @@ export const useContextStore = defineStore('context', () => {
 
     async function deleteContext(ctxId: string) {
         try {
-            console.log('[ContextStore] Deleting context:', ctxId)
+            logger.debug('Deleting context:', ctxId)
             await contextApi.deleteContext(ctxId)
 
             // Clear current context if we're deleting the active one
             if (contextId.value === ctxId) {
-                console.log('[ContextStore] Deleted active context, clearing state')
+                logger.debug('Deleted active context, clearing state')
                 clearContext()
             }
 
             // Remove from list
             contextList.value = contextList.value.filter(c => c.id !== ctxId)
-            console.log('[ContextStore] Context deleted successfully')
+            logger.debug('Context deleted successfully')
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Failed to delete context'
             console.error('[ContextStore] Error deleting context:', err)
@@ -455,7 +458,7 @@ export const useContextStore = defineStore('context', () => {
         }
 
         try {
-            console.log('[ContextStore] Exporting context:', ctxId)
+            logger.debug('Exporting context:', ctxId)
 
             // Create export settings object
             const exportSettings = {
@@ -465,7 +468,7 @@ export const useContextStore = defineStore('context', () => {
             }
 
             const result = await contextApi.exportContext(exportSettings)
-            console.log('[ContextStore] Context exported successfully:', result)
+            logger.debug('Context exported successfully:', result)
             return result
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Failed to export context'
@@ -488,12 +491,12 @@ export const useContextStore = defineStore('context', () => {
             }
             const projectPath = projectStore.currentPath
 
-            console.log('[ContextStore] Listing contexts for project:', projectPath)
+            logger.debug('Listing contexts for project:', projectPath)
             const contexts = await contextApi.getProjectContexts(projectPath)
 
             // Ensure contexts is an array (defensive check)
             const contextArray = Array.isArray(contexts) ? contexts : []
-            contextList.value = contextArray.map((ctx: any) => ({
+            contextList.value = contextArray.map((ctx: { id: string; name?: string; files?: string[]; totalSize?: number; totalTokens?: number; createdAt?: string; fileCount?: number; lineCount?: number; tokenCount?: number }) => ({
                 id: ctx.id,
                 name: ctx.name || generateSmartName(ctx.files || []),
                 fileCount: ctx.fileCount || 0,
@@ -508,7 +511,7 @@ export const useContextStore = defineStore('context', () => {
             // Загружаем сохранённые метаданные (имена, избранное)
             loadContextMetadata()
 
-            console.log('[ContextStore] Found', contextList.value.length, 'contexts')
+            logger.debug('Found', contextList.value.length, 'contexts')
 
             // Запускаем автоочистку
             await autoCleanup()
@@ -532,11 +535,11 @@ export const useContextStore = defineStore('context', () => {
         fullContentCache.value = null
         cachedContextId.value = null
 
-        // Force garbage collection hint
-        if (typeof window !== 'undefined' && (window as any).gc) {
+        // Force garbage collection hint (window.gc typed in performance.d.ts)
+        if (typeof window !== 'undefined' && window.gc) {
             try {
-                (window as any).gc()
-            } catch (e) {
+                window.gc()
+            } catch {
                 // Ignore if gc is not available
             }
         }
@@ -675,7 +678,7 @@ export const useContextStore = defineStore('context', () => {
             for (const ctx of contextsToDelete) {
                 try {
                     await deleteContext(ctx.id)
-                    console.log('[ContextStore] Auto-deleted old context:', ctx.id)
+                    logger.debug('Auto-deleted old context:', ctx.id)
                 } catch (err) {
                     console.error('[ContextStore] Failed to auto-delete context:', err)
                 }
@@ -691,7 +694,7 @@ export const useContextStore = defineStore('context', () => {
                 if (ctxDate < cutoffDate) {
                     try {
                         await deleteContext(ctx.id)
-                        console.log('[ContextStore] Auto-deleted expired context:', ctx.id)
+                        logger.debug('Auto-deleted expired context:', ctx.id)
                     } catch (err) {
                         console.error('[ContextStore] Failed to auto-delete expired context:', err)
                     }

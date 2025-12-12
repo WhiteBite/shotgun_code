@@ -1,0 +1,649 @@
+# Shotgun Code - План рефакторинга и улучшений
+# =============================================
+# Обновлён: 2024-12-12
+# Приоритеты: 🔴 Критический | 🟠 Высокий | 🟡 Средний | 🟢 Низкий
+
+# ═══════════════════════════════════════════════════════════════
+# 🔴 КРИТИЧЕСКИЙ - UI/UX БАГИ (FRONTEND)
+# ═══════════════════════════════════════════════════════════════
+
+## UI-1. [FRONTEND] Vue injection error в VirtualFileTree
+   ПРИОРИТЕТ: 🔴 КРИТИЧЕСКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В консоли браузера массовые warnings при каждом рендере дерева файлов:
+   - "[Vue warn]: provide() can only be used inside setup()"
+   - "[Vue warn]: injection "Symbol(HoveredFile)" not found"
+   
+   Ошибка возникает в компоненте VirtualTreeRow при использовании
+   vue-virtual-scroller (RecycleScroller). provide() вызывается
+   вне setup() контекста.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/ui/VirtualFileTree.vue
+   - frontend/src/features/files/ui/VirtualTreeRow.vue
+   - frontend/src/features/files/composables/useHoveredFile.ts (если есть)
+   
+   ПРИЧИНА:
+   Symbol(HoveredFile) provide/inject используется неправильно.
+   При виртуализации строк RecycleScroller переиспользует DOM-элементы,
+   и provide() вызывается повторно вне setup().
+   
+   РЕШЕНИЕ:
+   1. Перенести provide() в родительский компонент VirtualFileTree.vue
+   2. В VirtualTreeRow использовать только inject()
+   3. Или использовать composable с reactive state вместо provide/inject
+   
+   ПРИМЕР ИСПРАВЛЕНИЯ:
+   ```typescript
+   // VirtualFileTree.vue - в setup()
+   const hoveredFile = ref<string | null>(null)
+   provide('HoveredFile', hoveredFile)
+   
+   // VirtualTreeRow.vue - в setup()
+   const hoveredFile = inject<Ref<string | null>>('HoveredFile')
+   // НЕ вызывать provide() здесь!
+   ```
+
+---
+
+## UI-2. [FRONTEND] Дерево файлов сбрасывается при переключении вкладок
+   ПРИОРИТЕТ: 🟠 ВЫСОКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   При переключении между вкладками "Файлы" → "Git" → "Файлы"
+   дерево файлов сворачивается в исходное состояние.
+   Пользователь теряет контекст навигации.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/model/file.store.ts
+   - frontend/src/features/files/ui/FileExplorer.vue
+   - frontend/src/components/workspace/LeftSidebar.vue
+   
+   ПРИЧИНА:
+   Состояние expandedNodes не сохраняется при unmount компонента,
+   или компонент пересоздаётся вместо скрытия.
+   
+   РЕШЕНИЕ:
+   1. Использовать v-show вместо v-if для переключения вкладок
+   2. Или сохранять expandedNodes в store (Pinia) с persist
+   3. Добавить в file.store.ts:
+   ```typescript
+   // file.store.ts
+   export const useFileStore = defineStore('file', () => {
+     const expandedNodes = ref<Set<string>>(new Set())
+     
+     // Восстанавливать при mount
+     const savedExpanded = localStorage.getItem('expandedNodes')
+     if (savedExpanded) {
+       expandedNodes.value = new Set(JSON.parse(savedExpanded))
+     }
+     
+     // Сохранять при изменении
+     watch(expandedNodes, (val) => {
+       localStorage.setItem('expandedNodes', JSON.stringify([...val]))
+     }, { deep: true })
+   })
+   ```
+
+---
+
+## UI-3. [FRONTEND] Отсутствует favicon.ico
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В консоли ошибка: "Failed to load resource: 404 (Not Found) @ /favicon.ico"
+   
+   ФАЙЛЫ:
+   - frontend/public/favicon.ico (отсутствует)
+   - frontend/index.html
+   
+   РЕШЕНИЕ:
+   1. Добавить favicon.ico в frontend/public/
+   2. Или добавить в index.html:
+   ```html
+   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+   ```
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# 🟠 ВЫСОКИЙ - UI ПРОБЛЕМЫ (ВИЗУАЛЬНЫЕ)
+# ═══════════════════════════════════════════════════════════════
+
+## UI-4. [FRONTEND] Welcome Screen - длинные пути обрезаются
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   На экране приветствия в списке "Недавние проекты" длинные пути
+   обрезаются без возможности увидеть полный путь.
+   Пример: "C:\Users\Lord\AppData\Local\Programs\Kiro\resources\app\extensions\ki..."
+   
+   ФАЙЛЫ:
+   - frontend/src/components/WelcomeScreen.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Компонент списка недавних проектов, элемент с путём проекта.
+   
+   РЕШЕНИЕ:
+   1. Добавить title атрибут с полным путём для tooltip
+   2. Или показывать только имя папки + tooltip с полным путём
+   ```vue
+   <div class="project-path" :title="project.path">
+     {{ project.name }}
+     <span class="text-gray-500 text-xs">{{ shortenPath(project.path) }}</span>
+   </div>
+   ```
+
+---
+
+## UI-5. [FRONTEND] Счётчики файлов без tooltip
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В дереве файлов рядом с папками показываются числа (684, 307, 79),
+   но непонятно что они означают без tooltip.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/ui/VirtualTreeRow.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Элемент справа от имени папки, показывающий число.
+   
+   РЕШЕНИЕ:
+   Добавить tooltip: "Файлов в папке: 684"
+   ```vue
+   <span class="file-count" :title="t('files.countTooltip', { count: node.fileCount })">
+     {{ node.fileCount }}
+   </span>
+   ```
+   
+   ЛОКАЛИЗАЦИЯ (добавить в i18n/files.ts):
+   ```typescript
+   files: {
+     countTooltip: {
+       ru: 'Файлов в папке: {count}',
+       en: 'Files in folder: {count}'
+     }
+   }
+   ```
+
+---
+
+## UI-6. [FRONTEND] Кнопка "Построить контекст" disabled без объяснения
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Кнопка "Построить контекст" в левой панели disabled,
+   но пользователь не понимает почему и что нужно сделать.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/ui/FileExplorer.vue
+   - frontend/src/features/files/ui/ActionButtons.vue (если есть)
+   
+   ГДЕ СМОТРЕТЬ:
+   Нижняя часть левой панели, кнопка "Построить контекст".
+   
+   РЕШЕНИЕ:
+   1. Добавить tooltip с объяснением: "Выберите файлы для построения контекста"
+   2. Или показать текст под кнопкой когда disabled
+   ```vue
+   <button 
+     :disabled="selectedCount === 0"
+     :title="selectedCount === 0 ? t('context.selectFilesFirst') : ''"
+   >
+     {{ t('context.build') }}
+   </button>
+   <p v-if="selectedCount === 0" class="text-xs text-gray-500 mt-1">
+     {{ t('context.selectFilesHint') }}
+   </p>
+   ```
+
+---
+
+## UI-7. [FRONTEND] Центральная панель - пустое состояние
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Центральная панель "Превью контекста" показывает пустое состояние
+   с инструкциями, но они занимают мало места, а вокруг много пустоты.
+   Контент не центрирован вертикально.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/context/ui/ContextPreview.vue
+   - frontend/src/features/context/ui/EmptyState.vue (если есть)
+   
+   ГДЕ СМОТРЕТЬ:
+   Центральная панель когда контекст не построен.
+   
+   РЕШЕНИЕ:
+   1. Центрировать контент вертикально: flex items-center justify-center h-full
+   2. Сделать инструкции более интерактивными (кликабельные ссылки)
+   3. Добавить иллюстрацию или анимацию
+   ```vue
+   <div class="flex flex-col items-center justify-center h-full">
+     <EmptyStateIcon class="w-16 h-16 text-gray-600 mb-4" />
+     <h3>{{ t('context.notBuilt') }}</h3>
+     <ol class="mt-4 space-y-2">
+       <li>
+         <button @click="focusFileTree" class="text-indigo-400 hover:underline">
+           {{ t('context.step1') }}
+         </button>
+       </li>
+       <li>{{ t('context.step2') }}</li>
+     </ol>
+   </div>
+   ```
+
+---
+
+## UI-8. [FRONTEND] AI Settings - маскировка API ключа не работает
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В панели "AI Провайдер" поле API ключ показывает "••" но при этом
+   реальное значение "фф" видно (маскировка частичная или сломана).
+   
+   ФАЙЛЫ:
+   - frontend/src/features/ai-chat/ui/AISettingsPanel.vue
+   - frontend/src/components/workspace/RightSidebar.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Правая панель → иконка шестерёнки (Настройки AI) → поле "API Ключ".
+   
+   РЕШЕНИЕ:
+   1. Использовать input type="password" 
+   2. Добавить кнопку toggle для показа/скрытия
+   ```vue
+   <div class="relative">
+     <input 
+       :type="showApiKey ? 'text' : 'password'"
+       v-model="apiKey"
+       class="input pr-10"
+     />
+     <button @click="showApiKey = !showApiKey" class="absolute right-2 top-1/2 -translate-y-1/2">
+       <EyeIcon v-if="!showApiKey" />
+       <EyeOffIcon v-else />
+     </button>
+   </div>
+   ```
+
+---
+
+## UI-9. [FRONTEND] AI Chat - чекбокс disabled без объяснения
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В панели AI Chat чекбокс "Использовать контекст" всегда disabled
+   и checked, но непонятно почему нельзя его изменить.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/ai-chat/ui/ChatPanel.vue
+   - frontend/src/features/ai-chat/ui/ChatInput.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Правая панель → AI Чат → чекбокс над полем ввода.
+   
+   РЕШЕНИЕ:
+   1. Добавить tooltip: "Контекст будет использован автоматически если построен"
+   2. Или убрать чекбокс если он всегда включён
+   3. Или сделать его активным когда есть построенный контекст
+
+---
+
+## UI-10. [FRONTEND] Нижняя панель - кнопки disabled без объяснения
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Кнопки "Копировать" и "Экспорт" в нижней панели disabled,
+   но нет объяснения почему.
+   
+   ФАЙЛЫ:
+   - frontend/src/components/workspace/BottomBar.vue
+   - frontend/src/components/workspace/StatusBar.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Нижняя панель приложения, справа.
+   
+   РЕШЕНИЕ:
+   Добавить tooltip: "Сначала постройте контекст"
+   ```vue
+   <button 
+     :disabled="!hasContext"
+     :title="!hasContext ? t('export.buildContextFirst') : t('export.copy')"
+   >
+     {{ t('export.copy') }}
+   </button>
+   ```
+
+---
+
+## UI-11. [FRONTEND] Кнопка "vdev" в нижнем левом углу
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В нижнем левом углу есть кнопка "vdev" без tooltip.
+   Непонятно что она делает.
+   
+   ФАЙЛЫ:
+   - frontend/src/components/workspace/BottomBar.vue
+   - frontend/src/App.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Нижний левый угол приложения.
+   
+   РЕШЕНИЕ:
+   1. Добавить tooltip с описанием
+   2. Или скрыть в production build (если это dev-only функция)
+   ```vue
+   <button v-if="isDev" title="Developer tools">vdev</button>
+   ```
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# 🟡 СРЕДНИЙ - UX ПРОБЛЕМЫ (ПОВЕДЕНИЕ)
+# ═══════════════════════════════════════════════════════════════
+
+## UX-1. [FRONTEND] Нет onboarding для новых пользователей
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Новый пользователь не понимает flow приложения:
+   1. Что делать первым?
+   2. Как построить контекст?
+   3. Зачем нужны разные панели?
+   
+   ФАЙЛЫ:
+   - frontend/src/components/onboarding/ (создать)
+   - frontend/src/stores/ui.store.ts
+   
+   РЕШЕНИЕ:
+   1. Создать компонент OnboardingTour.vue
+   2. Показывать при первом запуске (флаг в localStorage)
+   3. Подсвечивать элементы по шагам:
+      - Шаг 1: "Выберите файлы в дереве слева"
+      - Шаг 2: "Нажмите 'Построить контекст'"
+      - Шаг 3: "Используйте AI чат справа"
+   
+   БИБЛИОТЕКА:
+   Использовать vue-tour или driver.js
+
+---
+
+## UX-2. [FRONTEND] Нет keyboard shortcuts
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Единственный видимый shortcut - Ctrl+F в поиске.
+   Нет shortcuts для частых действий.
+   
+   ФАЙЛЫ:
+   - frontend/src/composables/useKeyboardShortcuts.ts (создать)
+   - frontend/src/App.vue
+   
+   РЕШЕНИЕ:
+   1. Создать composable useKeyboardShortcuts
+   2. Добавить shortcuts:
+      - Ctrl+B: Построить контекст
+      - Ctrl+Shift+C: Копировать контекст
+      - Ctrl+E: Экспорт
+      - Ctrl+1/2/3: Переключение вкладок
+      - Escape: Закрыть модалы
+   3. Показать список shortcuts в Help или tooltip
+   
+   ```typescript
+   // useKeyboardShortcuts.ts
+   export function useKeyboardShortcuts() {
+     const shortcuts = {
+       'ctrl+b': () => buildContext(),
+       'ctrl+shift+c': () => copyContext(),
+       'ctrl+e': () => exportContext(),
+     }
+     
+     onMounted(() => {
+       document.addEventListener('keydown', handleKeydown)
+     })
+     
+     onUnmounted(() => {
+       document.removeEventListener('keydown', handleKeydown)
+     })
+   }
+   ```
+
+---
+
+## UX-3. [FRONTEND] Нет undo/redo для выбора файлов
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Если пользователь случайно снял выбор с файлов,
+   нет способа отменить действие.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/model/file.store.ts
+   - frontend/src/composables/useUndoRedo.ts (создать)
+   
+   РЕШЕНИЕ:
+   1. Создать composable useUndoRedo
+   2. Сохранять историю выбора (последние 10 состояний)
+   3. Добавить кнопки Undo/Redo или shortcuts Ctrl+Z/Ctrl+Y
+
+---
+
+## UX-4. [FRONTEND] Нет confirmation при очистке выбора
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Кнопка "Очистить" сбрасывает весь выбор без подтверждения.
+   Можно случайно потерять большой выбор.
+   
+   ФАЙЛЫ:
+   - frontend/src/features/files/ui/ActionButtons.vue
+   
+   ГДЕ СМОТРЕТЬ:
+   Левая панель → кнопка "Очистить" внизу.
+   
+   РЕШЕНИЕ:
+   1. Показывать confirmation dialog если выбрано > 10 файлов
+   2. Или добавить undo (см. UX-3)
+   ```vue
+   async function handleClear() {
+     if (selectedCount.value > 10) {
+       const confirmed = await confirm(t('files.clearConfirm', { count: selectedCount.value }))
+       if (!confirmed) return
+     }
+     clearSelection()
+   }
+   ```
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# 🟢 НИЗКИЙ - ДИЗАЙН И ACCESSIBILITY
+# ═══════════════════════════════════════════════════════════════
+
+## DES-1. [FRONTEND] Иконки в header без подписей
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   В правом верхнем углу 6 иконок без подписей и tooltip.
+   Непонятно что они делают.
+   
+   ФАЙЛЫ:
+   - frontend/src/components/workspace/RightSidebar.vue
+   - frontend/src/components/workspace/ToolbarIcons.vue (если есть)
+   
+   ГДЕ СМОТРЕТЬ:
+   Правый верхний угол, ряд иконок.
+   
+   РЕШЕНИЕ:
+   Добавить title/tooltip на каждую иконку:
+   ```vue
+   <button :title="t('toolbar.statistics')"><ChartIcon /></button>
+   <button :title="t('toolbar.export')"><ExportIcon /></button>
+   <button :title="t('toolbar.prompts')"><PromptIcon /></button>
+   <button :title="t('toolbar.chat')"><ChatIcon /></button>
+   <button :title="t('toolbar.memory')"><MemoryIcon /></button>
+   <button :title="t('toolbar.settings')"><SettingsIcon /></button>
+   ```
+
+---
+
+## DES-2. [FRONTEND] Контраст текста на тёмном фоне
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Серый текст (text-gray-500) на тёмном фоне плохо читается.
+   Не соответствует WCAG AA (контраст < 4.5:1).
+   
+   ФАЙЛЫ:
+   - frontend/src/assets/styles/variables.css
+   - Все компоненты с text-gray-500, text-gray-600
+   
+   РЕШЕНИЕ:
+   1. Заменить text-gray-500 на text-gray-400 для лучшего контраста
+   2. Или создать CSS переменную --text-secondary с правильным контрастом
+   3. Проверить контраст: https://webaim.org/resources/contrastchecker/
+
+---
+
+## ACC-1. [FRONTEND] Нет ARIA labels
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   Многие интерактивные элементы без aria-label.
+   Screen readers не могут их озвучить.
+   
+   ФАЙЛЫ:
+   - Все компоненты с кнопками-иконками
+   
+   РЕШЕНИЕ:
+   Добавить aria-label на все кнопки без текста:
+   ```vue
+   <button aria-label="Построить контекст">
+     <BuildIcon />
+   </button>
+   ```
+
+---
+
+## ACC-2. [FRONTEND] Нет focus indicators
+   ПРИОРИТЕТ: 🟢 НИЗКИЙ
+   СТАТУС: ❌ TODO
+   
+   ПРОБЛЕМА:
+   При навигации клавиатурой не видно какой элемент в фокусе.
+   
+   ФАЙЛЫ:
+   - frontend/src/assets/styles/buttons.css
+   - frontend/src/assets/main.css
+   
+   РЕШЕНИЕ:
+   Добавить стили для :focus-visible:
+   ```css
+   button:focus-visible,
+   input:focus-visible {
+     outline: 2px solid var(--color-primary);
+     outline-offset: 2px;
+   }
+   ```
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# 🟠 ВЫСОКИЙ - АРХИТЕКТУРНЫЕ ПРОБЛЕМЫ (BACKEND) - ВЫПОЛНЕНО
+# ═══════════════════════════════════════════════════════════════
+
+## A1. [BACKEND] application/ слишком большой (50+ файлов в корне)
+   ПРИОРИТЕТ: 🟠 ВЫСОКИЙ
+   СТАТУС: ✅ DONE
+   
+   РЕЗУЛЬТАТ:
+   - Было: 50+ файлов в корне, 6 пакетов
+   - Стало: 20 файлов в корне, 21 пакет
+
+---
+
+## A2. [BACKEND] Удалить alias-файлы и обновить импорты
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ✅ DONE
+
+---
+
+## IMP2. [FRONTEND] feature-files chunk оптимизация
+   ПРИОРИТЕТ: 🟡 СРЕДНИЙ
+   СТАТУС: ✅ DONE
+
+---
+
+## G1. [FRONTEND] api.service.ts → модульная структура (1221 строк)
+   ПРИОРИТЕТ: 🔴 КРИТИЧЕСКИЙ
+   СТАТУС: ✅ DONE
+
+---
+
+## G2. [BACKEND] context/service.go → модульная структура (1327 строк)
+   ПРИОРИТЕТ: 🔴 КРИТИЧЕСКИЙ
+   СТАТУС: ✅ DONE
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# СТАТИСТИКА
+# ═══════════════════════════════════════════════════════════════
+
+UI/UX КРИТИЧЕСКИЕ:  3 (UI-1, UI-2, UI-3)
+UI/UX ВЫСОКИЕ:      0
+UI/UX СРЕДНИЕ:      8 (UI-4 - UI-11)
+UX ПОВЕДЕНИЕ:       4 (UX-1 - UX-4)
+ДИЗАЙН/A11Y:        4 (DES-1, DES-2, ACC-1, ACC-2)
+АРХИТЕКТУРНЫЕ:      5 (все ✅ DONE)
+
+ВСЕГО АКТИВНЫХ:     19 задач
+ВЫПОЛНЕНО:          5 задач
+
+# ═══════════════════════════════════════════════════════════════
+# ПОРЯДОК ИСПРАВЛЕНИЯ (РЕКОМЕНДУЕМЫЙ)
+# ═══════════════════════════════════════════════════════════════
+
+# ФАЗА 1 - Критические баги (1-2 дня)
+1. UI-1: Vue injection error - ломает консоль, много warnings
+2. UI-2: Дерево сбрасывается - плохой UX
+3. UI-3: Favicon - простой фикс
+
+# ФАЗА 2 - Улучшение UX (2-3 дня)
+4. UI-6: Кнопка disabled без объяснения
+5. UI-10: Кнопки в footer disabled
+6. UI-7: Центрирование пустого состояния
+7. UX-2: Keyboard shortcuts
+
+# ФАЗА 3 - Полировка (2-3 дня)
+8. UI-4, UI-5: Tooltips для путей и счётчиков
+9. UI-8, UI-9: AI Settings fixes
+10. DES-1: Tooltips для иконок
+11. UX-1: Onboarding tour
+
+# ФАЗА 4 - Accessibility (1-2 дня)
+12. DES-2: Контраст текста
+13. ACC-1: ARIA labels
+14. ACC-2: Focus indicators
+

@@ -12,6 +12,7 @@ import (
 	"shotgun_code/domain/analysis"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -22,10 +23,17 @@ const (
 
 // CallGraphBuilderImpl builds call graphs
 type CallGraphBuilderImpl struct {
+	mu          sync.RWMutex
 	registry    analysis.AnalyzerRegistry
 	graph       *analysis.CallGraph
 	depGraph    *analysis.DependencyGraph
 	fileImports map[string][]importInfo // file -> imports
+
+	// Caching fields for one-time initialization
+	buildOnce    sync.Once
+	lastBuildErr error
+	projectRoot  string
+	built        bool
 }
 
 type importInfo struct {
@@ -47,6 +55,69 @@ func NewCallGraphBuilder(registry analysis.AnalyzerRegistry) *CallGraphBuilderIm
 		},
 		fileImports: make(map[string][]importInfo),
 	}
+}
+
+// EnsureBuilt ensures the call graph is built exactly once.
+// Subsequent calls return immediately with cached result.
+// Use Invalidate() to force rebuild.
+func (b *CallGraphBuilderImpl) EnsureBuilt(projectRoot string) (*analysis.CallGraph, error) {
+	// Check if project changed - need to rebuild
+	b.mu.RLock()
+	needsRebuild := b.projectRoot != "" && b.projectRoot != projectRoot
+	b.mu.RUnlock()
+
+	if needsRebuild {
+		b.Invalidate()
+	}
+
+	b.buildOnce.Do(func() {
+		b.mu.Lock()
+		b.projectRoot = projectRoot
+		b.mu.Unlock()
+		_, b.lastBuildErr = b.Build(projectRoot)
+		if b.lastBuildErr == nil {
+			b.mu.Lock()
+			b.built = true
+			b.mu.Unlock()
+		}
+	})
+
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.graph, b.lastBuildErr
+}
+
+// Invalidate resets the call graph, forcing rebuild on next EnsureBuilt call.
+func (b *CallGraphBuilderImpl) Invalidate() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.graph = &analysis.CallGraph{
+		Nodes: make(map[string]*analysis.CallNode),
+		Edges: make([]analysis.CallEdge, 0),
+	}
+	b.depGraph = &analysis.DependencyGraph{
+		Nodes: make(map[string]*analysis.DependencyNode),
+		Edges: make([]analysis.DependencyEdge, 0),
+	}
+	b.fileImports = make(map[string][]importInfo)
+	b.buildOnce = sync.Once{} // Reset sync.Once
+	b.lastBuildErr = nil
+	b.projectRoot = ""
+	b.built = false
+}
+
+// IsBuilt returns whether the call graph has been built.
+func (b *CallGraphBuilderImpl) IsBuilt() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.built
+}
+
+// GetProjectRoot returns the project root for which the graph was built.
+func (b *CallGraphBuilderImpl) GetProjectRoot() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.projectRoot
 }
 
 // Build builds call graph for Go project

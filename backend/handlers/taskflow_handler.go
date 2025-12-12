@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"shotgun_code/application"
+	"shotgun_code/application/protocol"
+	"shotgun_code/application/taskflow"
 	"shotgun_code/domain"
 	"sync"
 	"sync/atomic"
@@ -17,8 +18,8 @@ type TaskflowHandler struct {
 	guardrailService            domain.GuardrailService
 	repairService               domain.RepairService
 	taskProtocolService         domain.TaskProtocolService
-	taskProtocolConfigService   *application.TaskProtocolConfigService
-	taskflowProtocolIntegration *application.TaskflowProtocolIntegration
+	taskProtocolConfigService   *protocol.ConfigService
+	taskflowProtocolIntegration *taskflow.ProtocolIntegration
 	buildService                domain.IBuildService
 
 	// Active task tracking for cancellation
@@ -38,8 +39,8 @@ func NewTaskflowHandler(
 	guardrailService domain.GuardrailService,
 	repairService domain.RepairService,
 	taskProtocolService domain.TaskProtocolService,
-	taskProtocolConfigService *application.TaskProtocolConfigService,
-	taskflowProtocolIntegration *application.TaskflowProtocolIntegration,
+	taskProtocolConfigService *protocol.ConfigService,
+	taskflowProtocolIntegration *taskflow.ProtocolIntegration,
 	buildService domain.IBuildService,
 ) *TaskflowHandler {
 	return &TaskflowHandler{

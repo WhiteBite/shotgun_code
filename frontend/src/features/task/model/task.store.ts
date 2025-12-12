@@ -65,7 +65,7 @@ export const useTaskStore = defineStore('task', () => {
             // Call backend API to get suggested files
             const suggestedFilePaths = await apiService.suggestContextFiles(
                 taskDescription.value,
-                domainFiles
+                domainFiles as unknown as import('#wailsjs/go/models').domain.FileNode[]
             )
 
             // Calculate complexity based on suggested files
@@ -99,7 +99,28 @@ export const useTaskStore = defineStore('task', () => {
         }
     }
 
-    function convertToDomainFiles(nodes: any[]): any[] {
+    interface TaskFileNode {
+        name: string
+        path: string
+        relPath: string
+        isDir: boolean
+        children?: TaskFileNode[]
+        isGitignored: boolean
+        isCustomIgnored: boolean
+        isIgnored: boolean
+        size: number
+    }
+
+    interface InputNode {
+        name: string
+        path: string
+        isDir: boolean
+        children?: InputNode[]
+        isIgnored?: boolean
+        size?: number
+    }
+
+    function convertToDomainFiles(nodes: InputNode[]): TaskFileNode[] {
         return nodes.map(node => ({
             name: node.name,
             path: node.path,

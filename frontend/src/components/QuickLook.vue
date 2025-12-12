@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75"
+      <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75"
         @click.self="$emit('close')" @keydown.esc="$emit('close')">
         <div
           class="bg-gray-900 rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-gray-700"
@@ -116,9 +116,13 @@
 </template>
 
 <script setup lang="ts">
+import { useLogger } from '@/composables/useLogger'
 import { useProjectStore } from '@/stores/project.store'
+import { useUIStore } from '@/stores/ui.store'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ReadFileContent } from '../../wailsjs/go/main/App'
+
+const logger = useLogger('QuickLook')
 
 interface Props {
   filePath?: string
@@ -138,6 +142,7 @@ const emit = defineEmits<{
 }>()
 
 const projectStore = useProjectStore()
+const uiStore = useUIStore()
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -238,7 +243,7 @@ async function loadFile(filePath?: string) {
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Не удалось загрузить файл'
-    console.error('Failed to load file:', err)
+    logger.error('Failed to load file:', err)
   } finally {
     isLoading.value = false
   }
@@ -252,10 +257,10 @@ async function copyToClipboard() {
 
   try {
     await navigator.clipboard.writeText(content.value)
-    // TODO: Show toast notification
-    console.log('Content copied to clipboard')
+    uiStore.addToast('Content copied to clipboard', 'success')
   } catch (err) {
-    console.error('Failed to copy to clipboard:', err)
+    logger.error('Failed to copy to clipboard:', err)
+    uiStore.addToast('Failed to copy to clipboard', 'error')
   }
 }
 

@@ -98,11 +98,14 @@
 </template>
 
 <script setup lang="ts">
+import { useLogger } from '@/composables/useLogger'
 import { useUIStore } from '@/stores/ui.store'
 import { useMemoryDiagnostics } from '@/utils/memory-diagnostics'
 import type { MemoryStats } from '@/utils/memory-monitor'
 import { useMemoryMonitor } from '@/utils/memory-monitor'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+
+const logger = useLogger('MemoryDashboard')
 
 defineEmits<{
   close: []
@@ -150,11 +153,11 @@ async function saveReport() {
   try {
     const filename = await diagnostics.saveReportToFile()
     uiStore.addToast(`Diagnostic report saved: ${filename}`, 'success')
-    console.log('[MemoryDashboard] Report saved for AI analysis')
-    console.log(diagnostics.getStatusSummary())
+    logger.debug('Report saved for AI analysis')
+    logger.debug(diagnostics.getStatusSummary())
   } catch (e) {
     uiStore.addToast('Failed to save diagnostic report', 'error')
-    console.error('[MemoryDashboard] Failed to save report:', e)
+    logger.error('Failed to save report:', e)
   }
 }
 

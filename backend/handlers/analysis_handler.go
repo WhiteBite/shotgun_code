@@ -2,7 +2,8 @@ package handlers
 
 import (
 	"context"
-	"shotgun_code/application"
+	"shotgun_code/application/sbom"
+	"shotgun_code/application/symbol"
 	"shotgun_code/domain"
 )
 
@@ -12,8 +13,8 @@ type AnalysisHandler struct {
 	testService           domain.ITestService
 	staticAnalyzerService domain.IStaticAnalyzerService
 	buildService          domain.IBuildService
-	sbomService           *application.SBOMService
-	symbolGraph           *application.SymbolGraphService
+	sbomService           *sbom.Service
+	symbolGraph           *symbol.Service
 
 	// Semaphore for limiting concurrent analysis operations
 	sem chan struct{}
@@ -27,8 +28,8 @@ func NewAnalysisHandler(
 	testService domain.ITestService,
 	staticAnalyzerService domain.IStaticAnalyzerService,
 	buildService domain.IBuildService,
-	sbomService *application.SBOMService,
-	symbolGraph *application.SymbolGraphService,
+	sbomService *sbom.Service,
+	symbolGraph *symbol.Service,
 ) *AnalysisHandler {
 	return &AnalysisHandler{
 		log:                   log,

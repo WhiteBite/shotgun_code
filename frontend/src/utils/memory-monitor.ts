@@ -8,7 +8,10 @@
  * 4. Forcing garbage collection when possible
  */
 
+import { useLogger } from '@/composables/useLogger';
 import { useUIStore } from '@/stores/ui.store';
+
+const logger = useLogger('MemoryMonitor');
 
 export interface MemoryStats {
   used: number;        // Used memory in MB
@@ -21,6 +24,12 @@ export interface StoreMetrics {
   fileStore: { nodesCount: number; memoryEstimate: number }
   contextStore: { cacheSize: number; chunkSize: number }
   apiCache: { entries: number; totalSize: number }
+}
+
+interface StoreImportsCache {
+  useFileStore?: () => { nodes?: unknown[]; getMemoryUsage?: () => number }
+  useContextStore?: () => { getMemoryUsage?: () => number; currentChunk?: { lines?: unknown[] } | null }
+  getCacheStats?: () => { entries?: number; size?: number }
 }
 
 export interface MemoryWarningOptions {
@@ -48,11 +57,7 @@ export class MemoryMonitor {
   private uiStore = useUIStore();
 
   // Cache store imports to avoid repeated dynamic imports
-  private storeImportsCache: {
-    useFileStore?: any;
-    useContextStore?: any;
-    getCacheStats?: any;
-  } = {};
+  private storeImportsCache: StoreImportsCache = {};
 
   // Track if we're in dev mode to reduce monitoring overhead
   private isDevMode = import.meta.env.DEV;
@@ -94,11 +99,11 @@ export class MemoryMonitor {
    * Get current memory stats with store metrics
    */
   public async getMemoryStats(): Promise<MemoryStats | null> {
-    if (!('performance' in window) || !('memory' in (performance as any))) {
+    if (!('performance' in window) || !performance.memory) {
       return null;
     }
 
-    const memory = (performance as any).memory;
+    const memory = performance.memory;
     const used = Math.round(memory.usedJSHeapSize / (1024 * 1024));
     const total = Math.round(memory.jsHeapSizeLimit / (1024 * 1024));
     const percentage = Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100);
@@ -181,7 +186,7 @@ export class MemoryMonitor {
       this.options.pollingInterval
     );
 
-    console.log(`Memory monitoring started (interval: ${this.options.pollingInterval}ms)`);
+    logger.debug(`Memory monitoring started (interval: ${this.options.pollingInterval}ms)`);
   }
 
   /**
@@ -191,7 +196,7 @@ export class MemoryMonitor {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
       this.monitorInterval = null;
-      console.log('Memory monitoring stopped');
+      logger.debug('Memory monitoring stopped');
     }
   }
 
@@ -199,13 +204,13 @@ export class MemoryMonitor {
    * Force cleanup of memory with AGGRESSIVE strategies
    */
   public forceCleanup(): void {
-    console.log('EMERGENCY: Forcing aggressive memory cleanup...');
+    logger.warn('EMERGENCY: Forcing aggressive memory cleanup...');
 
     // Attempt to free up memory by clearing large objects in memory
     try {
       // Clear large arrays and objects
-      (window as any).largeObjects = [];
-      (window as any).cachedData = null;
+      window.largeObjects = [];
+      window.cachedData = null;
 
       // Clear API caches
       import('@/composables/useApiCache').then(({ clearAllCaches }) => {
@@ -231,9 +236,9 @@ export class MemoryMonitor {
       // Clear Vue reactive caches if possible
       try {
         // Force cleanup of any global stores
-        const stores = ['contextBuilder', 'fileTree', 'treeState', 'ui'];
+        const stores = ['contextBuilder', 'fileTree', 'treeState', 'ui'] as const;
         stores.forEach(storeName => {
-          const storeData = (window as any)[storeName];
+          const storeData = (window as unknown as Record<string, { cleanup?: () => void }>)[storeName];
           if (storeData && typeof storeData.cleanup === 'function') {
             storeData.cleanup();
           }
@@ -248,7 +253,7 @@ export class MemoryMonitor {
           window.gc();
           setTimeout(() => window.gc?.(), 100);
           setTimeout(() => window.gc?.(), 300);
-          console.log('Multiple garbage collection cycles triggered');
+          logger.debug('Multiple garbage collection cycles triggered');
         } catch (e) {
           console.warn('Failed to trigger garbage collection', e);
         }
@@ -258,7 +263,7 @@ export class MemoryMonitor {
       setTimeout(() => {
         void this.getMemoryStats().then(stats => {
           if (stats) {
-            console.log(`Memory after aggressive cleanup: ${stats.used}MB / ${stats.total}MB (${stats.percentage}%)`);
+            logger.debug(`Memory after aggressive cleanup: ${stats.used}MB / ${stats.total}MB (${stats.percentage}%)`);
           }
         });
       }, 500);
@@ -271,12 +276,12 @@ export class MemoryMonitor {
    * Dump heap snapshot for analysis in Chrome DevTools
    */
   public async dumpHeapSnapshot(reason: string): Promise<void> {
-    if ('performance' in window && (performance as any).writeHeapSnapshot) {
+    if ('performance' in window && performance.writeHeapSnapshot) {
       try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `heap-snapshot-${timestamp}-${reason}.heapsnapshot`;
-        await (performance as any).writeHeapSnapshot(filename);
-        console.log(`Heap snapshot saved: ${filename}`);
+        await performance.writeHeapSnapshot(filename);
+        logger.debug(`Heap snapshot saved: ${filename}`);
         this.uiStore.addToast(`Heap snapshot saved: ${filename}`, 'info');
       } catch (e) {
         console.error('Failed to dump heap snapshot:', e);
@@ -334,9 +339,13 @@ export class MemoryMonitor {
 
     const { used, total, percentage } = stats;
 
-    // Validate percentage is a valid number greater than 0
-    if (!percentage || percentage <= 0 || !isFinite(percentage)) {
-      console.warn('[MemoryMonitor] Invalid memory percentage calculated:', percentage);
+    // Validate percentage is a valid number
+    // Note: percentage can be 0 at startup or when memory API returns 0, this is normal
+    if (!isFinite(percentage) || percentage < 0) {
+      // Only warn for truly invalid values (NaN, Infinity, negative)
+      if (import.meta.env.DEV && (isNaN(percentage) || percentage < 0)) {
+        console.warn('[MemoryMonitor] Invalid memory percentage calculated:', percentage);
+      }
       return;
     }
 
@@ -446,12 +455,7 @@ export class MemoryMonitor {
   }
 }
 
-// Add window.gc interface
-declare global {
-  interface Window {
-    gc?: () => void;
-  }
-}
+// Types are declared in types/performance.d.ts
 
 // Convenience function to get the monitor instance
 export function useMemoryMonitor(options?: MemoryWarningOptions): MemoryMonitor {

@@ -2,14 +2,17 @@
  * Error handling utility specifically designed for memory issues and large context handling
  */
 
+import { useLogger } from '@/composables/useLogger';
 import { useUIStore } from '@/stores/ui.store';
+
+const logger = useLogger('MemoryErrorHandler');
 
 export interface ErrorOptions {
   silent?: boolean;
   showNotification?: boolean;
   recoverable?: boolean;
   retryCallback?: () => void;
-  context?: any;
+  context?: Record<string, unknown>;
 }
 
 export type ErrorCategory =
@@ -147,23 +150,24 @@ export class MemoryErrorHandler {
   private static attemptMemoryRecovery(): void {
     // Clear any large objects that might be cached
     // This is a placeholder for real memory recovery code
-    console.log('Attempting memory recovery...');
+    logger.debug('Attempting memory recovery...');
 
     // Try to trigger garbage collection in different ways
     if (window.gc) {
       try {
         window.gc();
-        console.log('Garbage collection triggered successfully');
+        logger.debug('Garbage collection triggered successfully');
       } catch (e) {
         console.warn('Failed to trigger garbage collection via window.gc', e);
       }
     }
 
     // Try to force garbage collection in Node.js environment (if applicable)
-    if (typeof global !== 'undefined' && (global as any).gc) {
+    // gc is typed in performance.d.ts as global var
+    if (typeof gc !== 'undefined' && gc) {
       try {
-        (global as any).gc();
-        console.log('Garbage collection triggered successfully via global.gc');
+        gc();
+        logger.debug('Garbage collection triggered successfully via global.gc');
       } catch (e) {
         console.warn('Failed to trigger garbage collection via global.gc', e);
       }
@@ -171,7 +175,7 @@ export class MemoryErrorHandler {
 
     // Add a small delay to allow garbage collection to work
     setTimeout(() => {
-      console.log('Memory recovery attempt completed');
+      logger.debug('Memory recovery attempt completed');
     }, 150);
   }
 

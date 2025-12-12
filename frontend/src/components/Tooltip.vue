@@ -55,7 +55,7 @@ const wrapperRef = ref<HTMLElement>()
 let showTimer: ReturnType<typeof setTimeout> | null = null
 
 const tooltipStyle = computed(() => {
-  const style: any = {
+  const style: Record<string, string> = {
     maxWidth: props.maxWidth
   }
 

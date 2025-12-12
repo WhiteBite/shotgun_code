@@ -1,8 +1,7 @@
 # Shotgun Code - Development Script
-# Node.js память ограничена по умолчанию из-за утечки в Vite dev server
 param(
     [switch]$Verbose,
-    [int]$NodeMemory = 1024  # MB, по умолчанию 1GB
+    [int]$NodeMemory = 512  # MB, достаточно после фикса утечки памяти
 )
 
 Write-Host "🚀 Запуск Shotgun Code..." -ForegroundColor Green
@@ -29,10 +28,7 @@ if ($missing.Count -gt 0) {
 
 Push-Location backend
 $env:GOGC = "50"
-
-# Ограничиваем память Node.js (Vite dev server имеет утечку)
 $env:NODE_OPTIONS = "--max-old-space-size=$NodeMemory"
-Write-Host "📦 Node.js heap limit: ${NodeMemory}MB" -ForegroundColor Cyan
 
 try {
     $wailsArgs = @("dev", "-loglevel", "error")
@@ -40,7 +36,7 @@ try {
     if ($Verbose) {
         & $wails dev
     } else {
-        Write-Host "ℹ️  Флаги: -Verbose, -NodeMemory <MB> (default 1024)" -ForegroundColor Gray
+        Write-Host "ℹ️  Флаги: -Verbose, -NodeMemory <MB> (default 512)" -ForegroundColor Gray
         & $wails @wailsArgs 2>&1 | Where-Object { 
             $_ -and $_ -notmatch "KnownStructs:|Not found: time\.Time|^\s*$" 
         }

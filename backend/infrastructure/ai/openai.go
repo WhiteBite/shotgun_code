@@ -53,34 +53,7 @@ func (p *OpenAIProviderImpl) Generate(ctx context.Context, req domain.AIRequest)
 	startTime := time.Now()
 	p.log.Info(fmt.Sprintf("Sending request to OpenAI compatible API with model: %s", req.Model))
 
-	messages := []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: req.SystemPrompt,
-		},
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: req.UserPrompt,
-		},
-	}
-
-	// Применяем параметры запроса
-	completionReq := openai.ChatCompletionRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		Temperature: float32(req.Temperature),
-		MaxTokens:   req.MaxTokens,
-		TopP:        float32(req.TopP),
-	}
-
-	// Добавляем frequency_penalty и presence_penalty если они установлены
-	if req.FrequencyPenalty != 0 {
-		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
-	}
-	if req.PresencePenalty != 0 {
-		completionReq.PresencePenalty = float32(req.PresencePenalty)
-	}
-
+	completionReq := common.BuildCompletionRequest(req, false)
 	resp, err := p.client.CreateChatCompletion(ctx, completionReq)
 
 	if err != nil {
@@ -126,61 +99,14 @@ func (p *OpenAIProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
 }
 
 func (p *OpenAIProviderImpl) GetPricing(model string) domain.PricingInfo {
-	// Базовая информация о стоимости OpenAI
-	pricing := domain.PricingInfo{
-		Model:    model,
-		Currency: "USD",
-	}
-
-	switch model {
-	case "gpt-4":
-		pricing.InputTokensPer1K = 0.03
-		pricing.OutputTokensPer1K = 0.06
-	case "gpt-4-turbo":
-		pricing.InputTokensPer1K = 0.01
-		pricing.OutputTokensPer1K = 0.03
-	case "gpt-3.5-turbo":
-		pricing.InputTokensPer1K = 0.0015
-		pricing.OutputTokensPer1K = 0.002
-	default:
-		pricing.InputTokensPer1K = 0.01
-		pricing.OutputTokensPer1K = 0.02
-	}
-
-	return pricing
+	return common.GetPricingFromTable(model, "USD", common.OpenAIPricingTable, common.OpenAIDefaultPricing)
 }
 
 // GenerateStream sends a streaming request to OpenAI API
 func (p *OpenAIProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
 	p.log.Info(fmt.Sprintf("Starting streaming request to OpenAI API with model: %s", req.Model))
 
-	messages := []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: req.SystemPrompt,
-		},
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: req.UserPrompt,
-		},
-	}
-
-	completionReq := openai.ChatCompletionRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		Temperature: float32(req.Temperature),
-		MaxTokens:   req.MaxTokens,
-		TopP:        float32(req.TopP),
-		Stream:      true,
-	}
-
-	if req.FrequencyPenalty != 0 {
-		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
-	}
-	if req.PresencePenalty != 0 {
-		completionReq.PresencePenalty = float32(req.PresencePenalty)
-	}
-
+	completionReq := common.BuildCompletionRequest(req, true)
 	stream, err := p.client.CreateChatCompletionStream(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("OpenAI API stream request failed: %v", err))

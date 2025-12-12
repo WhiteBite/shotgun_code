@@ -4,7 +4,10 @@
  * Collects detailed memory diagnostics and saves to files for AI analysis
  */
 
+import { useLogger } from '@/composables/useLogger'
 import type { MemoryStats } from './memory-monitor'
+
+const logger = useLogger('MemoryDiagnostics')
 
 export interface DiagnosticSnapshot {
     timestamp: string
@@ -56,12 +59,54 @@ export interface DiagnosticReport {
     recommendations: string[]
 }
 
+export interface DiagnosticDetails {
+    previous?: number
+    current?: number
+    growth?: number
+    used?: number
+    total?: number
+    percentage?: number
+    nodesCount?: number
+    cacheSize?: number
+    entries?: number
+    size?: number
+    sizeMB?: string
+    hitRate?: string
+    hits?: number
+    misses?: number
+}
+
 export interface DiagnosticIssue {
     severity: 'critical' | 'warning' | 'info'
     category: 'memory' | 'performance' | 'store' | 'cache'
     message: string
-    details: any
+    details: DiagnosticDetails | MemoryStats | DiagnosticSnapshot['stores']['fileStore'] | DiagnosticSnapshot['stores']['contextStore'] | DiagnosticSnapshot['stores']['apiCache']
     timestamp: string
+}
+
+interface DiagnosticsStoreImportsCache {
+    useFileStore?: () => {
+        nodes?: unknown[]
+        selectedCount?: number
+        getMemoryUsage?: () => number
+        searchQuery?: string
+        filterExtensions?: string[]
+    }
+    useContextStore?: () => {
+        hasContext?: boolean
+        fileCount?: number
+        totalSize?: number
+        lineCount?: number
+        getMemoryUsage?: () => number
+    }
+    getCacheStats?: () => {
+        entries?: number
+        size?: number
+        sizeMB?: string
+        hitRate?: string
+        hits?: number
+        misses?: number
+    }
 }
 
 class MemoryDiagnostics {
@@ -97,7 +142,7 @@ class MemoryDiagnostics {
         // In dev mode, use much longer interval to reduce overhead
         const actualInterval = this.isDevMode ? Math.max(intervalMs, 60000) : intervalMs
 
-        console.log(`[MemoryDiagnostics] Started collection (interval: ${actualInterval}ms, dev: ${this.isDevMode})`)
+        logger.debug(`Started collection (interval: ${actualInterval}ms, dev: ${this.isDevMode})`)
 
         // Collect initial snapshot
         void this.collectSnapshot()
@@ -119,7 +164,7 @@ class MemoryDiagnostics {
             this.collectionInterval = null
         }
         this.isCollecting = false
-        console.log('[MemoryDiagnostics] Stopped collection')
+        logger.debug('Stopped collection')
     }
 
     /**
@@ -148,11 +193,11 @@ class MemoryDiagnostics {
      * Get memory stats
      */
     private getMemoryStats(): MemoryStats | null {
-        if (!('performance' in window) || !('memory' in (performance as any))) {
+        if (!('performance' in window) || !performance.memory) {
             return null
         }
 
-        const memory = (performance as any).memory
+        const memory = performance.memory
         const used = Math.round(memory.usedJSHeapSize / (1024 * 1024))
         const total = Math.round(memory.jsHeapSizeLimit / (1024 * 1024))
         const percentage = Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100)
@@ -161,11 +206,7 @@ class MemoryDiagnostics {
     }
 
     // Cache store imports to avoid repeated dynamic imports causing memory leaks
-    private storeImportsCache: {
-        useFileStore?: any;
-        useContextStore?: any;
-        getCacheStats?: any;
-    } = {};
+    private storeImportsCache: DiagnosticsStoreImportsCache = {};
 
     /**
      * Get store statistics
@@ -271,7 +312,7 @@ class MemoryDiagnostics {
             language: navigator.language,
             platform: navigator.platform,
             hardwareConcurrency: navigator.hardwareConcurrency,
-            deviceMemory: (navigator as any).deviceMemory
+            deviceMemory: navigator.deviceMemory
         }
     }
 
@@ -364,7 +405,7 @@ class MemoryDiagnostics {
             this.issues.shift()
         }
 
-        console.log(`[MemoryDiagnostics] ${issue.severity.toUpperCase()}: ${issue.message}`, issue.details)
+        logger.debug(`${issue.severity.toUpperCase()}: ${issue.message}`, issue.details)
     }
 
     /**
@@ -459,7 +500,7 @@ class MemoryDiagnostics {
             a.click()
             URL.revokeObjectURL(url)
 
-            console.log('[MemoryDiagnostics] Report saved:', filename)
+            logger.debug('Report saved:', filename)
             return filename
         } catch (e) {
             console.error('[MemoryDiagnostics] Failed to save report:', e)

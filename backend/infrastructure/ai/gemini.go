@@ -148,28 +148,7 @@ func (p *GeminiProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
 }
 
 func (p *GeminiProviderImpl) GetPricing(model string) domain.PricingInfo {
-	// Базовая информация о стоимости Gemini
-	pricing := domain.PricingInfo{
-		Model:    model,
-		Currency: "USD",
-	}
-
-	switch model {
-	case "gemini-pro":
-		pricing.InputTokensPer1K = 0.0005
-		pricing.OutputTokensPer1K = 0.0015
-	case "gemini-pro-vision":
-		pricing.InputTokensPer1K = 0.0005
-		pricing.OutputTokensPer1K = 0.0015
-	case "gemini-1.5-pro":
-		pricing.InputTokensPer1K = 0.00375
-		pricing.OutputTokensPer1K = 0.015
-	default:
-		pricing.InputTokensPer1K = 0.001
-		pricing.OutputTokensPer1K = 0.002
-	}
-
-	return pricing
+	return common.GetPricingFromTable(model, "USD", common.GeminiPricingTable, common.GeminiDefaultPricing)
 }
 
 // GenerateStream implements streaming for Gemini

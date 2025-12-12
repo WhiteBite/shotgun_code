@@ -20,6 +20,9 @@
 
     </div>
 
+    <!-- Separator -->
+    <div class="action-bar-separator"></div>
+
     <!-- Right: Actions -->
     <div class="action-bar-right">
       <!-- Reset Layout -->
@@ -36,8 +39,11 @@
       </button>
 
       <!-- Copy -->
-      <button @click="handleCopyContext" :disabled="!contextStore.hasContext" class="action-btn action-btn-copy"
-        :title="t('hotkey.copy')">
+      <button 
+        @click="handleCopyContext" 
+        :disabled="!contextStore.hasContext" 
+        class="action-btn action-btn-copy"
+        :title="!contextStore.hasContext ? t('export.buildContextFirst') : t('export.copyTooltip')">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2m-6 12h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" />
@@ -46,8 +52,11 @@
       </button>
 
       <!-- Export -->
-      <button @click="$emit('open-export')" :disabled="!contextStore.hasContext" class="action-btn action-btn-export"
-        :title="t('hotkey.export')">
+      <button 
+        @click="$emit('open-export')" 
+        :disabled="!contextStore.hasContext" 
+        class="action-btn action-btn-export"
+        :title="!contextStore.hasContext ? t('export.buildContextFirst') : t('export.exportTooltip')">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -125,6 +134,11 @@ async function handleResetLayout() {
 
 .action-bar-right {
   @apply flex items-center gap-2 flex-shrink-0;
+}
+
+/* Separator */
+.action-bar-separator {
+  @apply flex-1;
 }
 
 /* Project Button */

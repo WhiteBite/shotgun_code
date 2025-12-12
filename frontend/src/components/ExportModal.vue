@@ -220,7 +220,7 @@ const selectedMode = exportComposable.selectedMode
 // Sync settings with the composable
 const settings = exportComposable.settings
 
-const exportModes: { value: ExportMode; label: string; description: string; icon: any }[] = [
+const exportModes: { value: ExportMode; label: string; description: string; icon: ReturnType<typeof h> }[] = [
   {
     value: 'clipboard',
     label: 'Буфер обмена',

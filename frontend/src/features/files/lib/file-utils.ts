@@ -109,7 +109,7 @@ export function validateIgnorePattern(pattern: string): { valid: boolean; error?
     // Check for valid glob patterns
     try {
         // Basic validation - can be enhanced
-        const hasValidGlob = /^[a-zA-Z0-9_\-.*\/\\]+$/.test(pattern)
+        const hasValidGlob = /^[a-zA-Z0-9_\-.*/\\]+$/.test(pattern)
         if (!hasValidGlob && !pattern.startsWith('#')) {
             return { valid: false, error: 'Invalid glob pattern' }
         }

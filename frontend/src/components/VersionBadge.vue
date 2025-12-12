@@ -1,7 +1,12 @@
 <template>
     <div class="version-widget" :class="{ 'is-expanded': isExpanded }">
         <!-- Collapsed state - just version badge -->
-        <button v-if="!isExpanded" @click="expand" class="version-trigger" :class="{ 'has-update': hasUpdate }">
+        <button 
+            v-if="!isExpanded" 
+            @click="expand" 
+            class="version-trigger" 
+            :class="{ 'has-update': hasUpdate }"
+            :title="isDev ? t('version.devModeTooltip') : t('version.clickToViewChangelog')">
             <div class="trigger-content">
                 <svg class="trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -121,8 +126,14 @@ const latestVersion = ref('')
 const hasUpdate = ref(false)
 const releases = ref<Release[]>([])
 
+const isDev = computed(() => {
+    const v = currentVersion.value.toLowerCase()
+    return v === 'dev' || v === 'vdev' || v.includes('dev')
+})
+
 const displayVersion = computed(() => {
     const v = currentVersion.value
+    if (isDev.value) return 'vdev'
     return v.startsWith('v') ? v : `v${v}`
 })
 

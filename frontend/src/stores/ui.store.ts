@@ -1,5 +1,8 @@
+import { useLogger } from '@/composables/useLogger'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+
+const logger = useLogger('UIStore')
 
 export interface Toast {
   id: string
@@ -12,6 +15,8 @@ export const useUIStore = defineStore('ui', () => {
   // State
   const toasts = ref<Toast[]>([])
   const nextToastId = ref(0)
+  const showSettingsModal = ref(false)
+  const showKeyboardShortcutsModal = ref(false)
 
   // Actions
   function addToast(message: string, type: Toast['type'] = 'info', duration = 3000) {
@@ -35,7 +40,7 @@ export const useUIStore = defineStore('ui', () => {
         console.info(logMessage)
         break
       case 'success':
-        console.log(logMessage)
+        logger.debug(logMessage)
         break
     }
 
@@ -62,12 +67,24 @@ export const useUIStore = defineStore('ui', () => {
     toasts.value = []
   }
 
+  function openSettingsModal() {
+    showSettingsModal.value = true
+  }
+
+  function openKeyboardShortcutsModal() {
+    showKeyboardShortcutsModal.value = true
+  }
+
   return {
     // State
     toasts,
+    showSettingsModal,
+    showKeyboardShortcutsModal,
     // Actions
     addToast,
     removeToast,
-    clearToasts
+    clearToasts,
+    openSettingsModal,
+    openKeyboardShortcutsModal
   }
 })

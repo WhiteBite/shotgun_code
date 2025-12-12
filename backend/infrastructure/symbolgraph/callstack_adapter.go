@@ -2,7 +2,8 @@ package symbolgraph
 
 import (
 	"context"
-	"shotgun_code/application"
+
+	"shotgun_code/application/rag"
 	"shotgun_code/domain"
 )
 
@@ -18,19 +19,19 @@ func NewCallStackAnalyzerAdapter(log domain.Logger) *CallStackAnalyzerAdapter {
 	}
 }
 
-// AnalyzeCallStack implements application.CallStackAnalyzerInterface
+// AnalyzeCallStack implements rag.CallStackAnalyzerInterface
 func (a *CallStackAnalyzerAdapter) AnalyzeCallStack(
 	ctx context.Context,
 	projectRoot, filePath, symbolName string,
 	maxDepth int,
-) (*application.CallStackResult, error) {
+) (*rag.CallStackResult, error) {
 	result, err := a.analyzer.AnalyzeCallStack(ctx, projectRoot, filePath, symbolName, maxDepth)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert to application type
-	return &application.CallStackResult{
+	return &rag.CallStackResult{
 		RootSymbol:   result.RootSymbol,
 		Callers:      result.Callers,
 		Callees:      result.Callees,

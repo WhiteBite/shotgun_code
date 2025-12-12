@@ -3,6 +3,7 @@
     <div :class="[
       'tree-row group',
       isSelected ? 'tree-row-selected' : '',
+      hasSelectedChildren && !isSelected ? 'tree-row-has-selected' : '',
       { 'opacity-50': node.isIgnored },
       animating ? 'tree-stagger' : ''
     ]" :style="{ paddingLeft: `${depth * 16 + 8}px` }" @click="handleClick" @contextmenu.prevent="handleContextMenu"
@@ -29,42 +30,35 @@
       </svg>
 
       <!-- Expand/Collapse Icon -->
-      <div v-if="node.isDir" :class="['tree-expand', compactInfo.lastNode.isExpanded ? 'tree-expand-open' : '']"
-        @click.stop="handleClick">
-        <svg class="tree-expand-icon" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd"
-            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-            clip-rule="evenodd" />
-        </svg>
-      </div>
-      <div v-else class="w-5"></div>
+      <button v-if="node.isDir" 
+        :class="['tree-expand', compactInfo.lastNode.isExpanded ? 'tree-expand-open' : '']"
+        @click.stop="handleClick"
+        :aria-label="compactInfo.lastNode.isExpanded ? t('files.collapseAll') : t('files.expandAll')"
+        :aria-expanded="compactInfo.lastNode.isExpanded">
+        <ChevronIcon />
+      </button>
+      <div v-else class="w-5" aria-hidden="true"></div>
 
       <!-- Checkbox -->
-      <div :class="[
+      <button :class="[
         'tree-cb',
         (isSelected && !node.isDir) || (node.isDir && selectionState !== 'none') ? 'tree-cb-checked' : '',
         node.isDir && selectionState === 'partial' ? 'tree-cb-partial' : '',
         ripple ? 'tree-cb-ripple' : ''
-      ]" @click.stop="handleToggleSelect">
-        <svg v-if="isSelected && !node.isDir" class="tree-cb-icon" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd"
-            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-            clip-rule="evenodd" />
-        </svg>
-        <svg v-else-if="node.isDir && selectionState === 'full'" class="tree-cb-icon" fill="currentColor"
-          viewBox="0 0 20 20">
-          <path fill-rule="evenodd"
-            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-            clip-rule="evenodd" />
-        </svg>
-        <div v-else-if="node.isDir && selectionState === 'partial'" class="w-2 h-0.5 bg-white rounded-full"></div>
-      </div>
+      ]" @click.stop="handleToggleSelect"
+        :aria-label="isSelected ? t('contextMenu.deselectAll') : t('contextMenu.selectAll')"
+        :aria-checked="isSelected"
+        :title="partialSelectionTooltip || undefined"
+        role="checkbox">
+        <CheckIcon v-if="isSelected && !node.isDir" />
+        <CheckIcon v-else-if="node.isDir && selectionState === 'full'" />
+        <div v-else-if="node.isDir && selectionState === 'partial'" class="w-2 h-0.5 bg-white rounded-full" aria-hidden="true"></div>
+      </button>
 
       <!-- File/Folder Icon -->
       <div class="tree-icon">
-        <svg v-if="node.isDir" class="tree-folder-icon" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-        </svg>
+        <FolderOpenIcon v-if="node.isDir && compactInfo.lastNode.isExpanded" />
+        <FolderIcon v-else-if="node.isDir" />
         <span v-else class="tree-file-icon">{{ getFileIcon(node.name) }}</span>
       </div>
 
@@ -95,10 +89,7 @@
 
       <!-- QuickLook button (files only) -->
       <button v-if="!node.isDir" class="tree-preview" @click.stop="handleQuickLook" :title="t('files.quickLook')">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
+        <EyeIcon />
       </button>
     </div>
 
@@ -120,9 +111,11 @@
 import { useI18n } from '@/composables/useI18n'
 import { getFileIcon } from '@/utils/fileIcons'
 import { computed, ref, watch } from 'vue'
+import { useHoveredFile } from '../composables/useHoveredFile'
 import { useFileStore, type FileNode } from '../model/file.store'
 
 const { t } = useI18n()
+const hoveredFile = useHoveredFile()
 
 interface Props {
   node: FileNode
@@ -195,38 +188,53 @@ const displayChildren = computed(() => {
   return props.node.children || []
 })
 
-const selectionState = computed(() => {
+// Unified selection info for folder - computed once, used by multiple dependents
+const folderSelectionInfo = computed(() => {
   if (!props.node.isDir) {
-    return isSelected.value ? 'full' : 'none'
+    return { selected: 0, total: 0, state: isSelected.value ? 'full' as const : 'none' as const }
   }
 
   // Early exit if no files selected globally
   if (fileStore.selectedCount === 0) {
-    return 'none'
+    const total = fileStore.getAllFilesInNode(props.node).length
+    return { selected: 0, total, state: 'none' as const }
   }
 
   const allFiles = fileStore.getAllFilesInNode(props.node)
-  if (allFiles.length === 0) {
-    return isSelected.value ? 'full' : 'none'
+  const total = allFiles.length
+  
+  if (total === 0) {
+    return { selected: 0, total: 0, state: isSelected.value ? 'full' as const : 'none' as const }
   }
 
-  // Optimized: count selected instead of filtering entire array
-  let selectedCount = 0
+  // Count selected
+  let selected = 0
   const selectedSet = fileStore.selectedPaths
   for (const filePath of allFiles) {
-    if (selectedSet.has(filePath)) {
-      selectedCount++
-    }
+    if (selectedSet.has(filePath)) selected++
   }
 
-  if (selectedCount === 0) return 'none'
-  if (selectedCount === allFiles.length) return 'full'
-  return 'partial'
+  const state = selected === 0 ? 'none' as const 
+    : selected === total ? 'full' as const 
+    : 'partial' as const
+
+  return { selected, total, state }
 })
 
-const fileCount = computed(() => {
-  if (!props.node.isDir) return 0
-  return fileStore.getAllFilesInNode(props.node).length
+const selectionState = computed(() => folderSelectionInfo.value.state)
+
+// Check if this folder contains any selected files (for path highlighting)
+const hasSelectedChildren = computed(() => {
+  if (!props.node.isDir || fileStore.selectedCount === 0) return false
+  return selectionState.value !== 'none'
+})
+
+const fileCount = computed(() => folderSelectionInfo.value.total)
+
+const partialSelectionTooltip = computed(() => {
+  if (selectionState.value !== 'partial') return ''
+  const { selected, total } = folderSelectionInfo.value
+  return t('tree.partialSelection', { selected, total })
 })
 
 // Build ancestor array for children
@@ -269,17 +277,13 @@ function handleQuickLook() {
 }
 
 function handleMouseEnter() {
-  // Store hovered node path in a global variable for Space key handling
-  window.__hoveredFilePath = props.node.path
-  window.__hoveredFileIsDir = props.node.isDir
+  // Store hovered node path using provide/inject pattern
+  hoveredFile.setHovered(props.node.path, props.node.isDir)
 }
 
 function handleMouseLeave() {
   // Clear only if this node was the hovered one
-  if (window.__hoveredFilePath === props.node.path) {
-    window.__hoveredFilePath = null
-    window.__hoveredFileIsDir = null
-  }
+  hoveredFile.clearHovered(props.node.path)
 }
 
 function handleKeydown(event: KeyboardEvent) {

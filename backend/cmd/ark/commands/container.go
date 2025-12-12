@@ -5,7 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"shotgun_code/application"
+	appai "shotgun_code/application/ai"
+	"shotgun_code/application/analysis"
+	"shotgun_code/application/build"
+	"shotgun_code/application/diff"
+	"shotgun_code/application/export"
+	"shotgun_code/application/guardrails"
+	"shotgun_code/application/repair"
+	"shotgun_code/application/sbom"
+	"shotgun_code/application/settings"
+	"shotgun_code/application/symbol"
+	"shotgun_code/application/ux"
+	"shotgun_code/application/verification"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/ai"
 	"shotgun_code/infrastructure/exec"
@@ -47,24 +58,24 @@ type CLIContainer struct {
 	TreeBuilder           domain.TreeBuilder
 	ContextSplitter       domain.ContextSplitter
 	CommandRunner         domain.CommandRunner
-	SettingsService       *application.SettingsService
+	SettingsService       *settings.Service
 	ContextService        *contextservice.Service
 	ProjectService        *projectservice.Service
-	AIService             *application.AIService
+	AIService             *appai.Service
 	ContextAnalysis       domain.ContextAnalyzer
-	SymbolGraph           *application.SymbolGraphService
+	SymbolGraph           *symbol.Service
 	TestService           domain.ITestService
 	StaticAnalyzerService domain.IStaticAnalyzerService
-	SBOMService           *application.SBOMService
+	SBOMService           *sbom.Service
 	RepairService         domain.RepairService
 	GuardrailService      domain.GuardrailService
 	TaskflowService       domain.TaskflowService
 	UXMetricsService      domain.UXMetricsService
-	ApplyService          *application.ApplyService
-	DiffService           *application.DiffService
+	ApplyService          *diff.ApplyService
+	DiffService           *diff.Service
 	BuildService          domain.IBuildService
-	ExportService         *application.ExportService
-	VerificationService   *application.VerificationPipelineService
+	ExportService         *export.Service
+	VerificationService   *verification.Service
 	opaService            domain.OPAService
 }
 
@@ -90,7 +101,7 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 
 	// Application Services
 	modelFetchers := createModelFetchers(ctx, c.Log, c.SettingsRepo)
-	c.SettingsService, err = application.NewSettingsService(c.Log, nil, c.SettingsRepo, modelFetchers)
+	c.SettingsService, err = settings.NewService(c.Log, nil, c.SettingsRepo, modelFetchers)
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +110,14 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	providerRegistry := createProviderRegistry(c.Log, c.SettingsService)
 
 	// Create rate limiter and metrics collector
-	rateLimiter := application.NewRateLimiter()
-	metrics := application.NewMetricsCollector()
+	rateLimiter := appai.NewRateLimiter()
+	metrics := appai.NewMetricsCollector()
 
 	// Create intelligent service with dependencies
-	intelligentService := application.NewIntelligentAIService(c.SettingsService, c.Log, providerRegistry, rateLimiter, metrics)
+	intelligentService := appai.NewIntelligentService(c.SettingsService, c.Log, rateLimiter, metrics)
 
 	// Create AI service with intelligent service
-	c.AIService = application.NewAIService(c.SettingsService, c.Log, providerRegistry, intelligentService)
+	c.AIService = appai.NewService(c.SettingsService, c.Log, providerRegistry, intelligentService)
 
 	// Create OPA service
 	c.opaService = policy.NewOPAService(c.Log)
@@ -134,7 +145,7 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		c.ContextService,
 	)
 	_ = fileStatProvider // Used by other services
-	c.ContextAnalysis = application.NewKeywordAnalyzer(c.Log)
+	c.ContextAnalysis = analysis.NewKeywordAnalyzer(c.Log)
 	// Create symbol graph builders
 	goSymbolGraphBuilder := symbolgraph.NewGoSymbolGraphBuilder(c.Log)
 	symbolGraphBuilders := make(map[string]domain.SymbolGraphBuilder)
@@ -143,11 +154,11 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// Create import graph builders (currently no implementation, using nil map)
 	importGraphBuilders := make(map[string]domain.ImportGraphBuilder)
 
-	c.SymbolGraph = application.NewSymbolGraphService(c.Log, symbolGraphBuilders, importGraphBuilders)
+	c.SymbolGraph = symbol.NewService(c.Log, symbolGraphBuilders, importGraphBuilders)
 	testEngine := testengine.NewTestEngine(c.Log, goSymbolGraphBuilder)
-	c.TestService = application.NewTestService(c.Log, testEngine)
+	c.TestService = build.NewTestService(c.Log, testEngine)
 	staticAnalyzerEngine := staticanalyzer.NewStaticAnalyzerEngine(c.Log)
-	c.StaticAnalyzerService = application.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
+	c.StaticAnalyzerService = analysis.NewStaticAnalyzerService(c.Log, staticAnalyzerEngine)
 
 	// Create SBOM infrastructure components
 	sbomGenerator := sbomlicensing.NewSyftGenerator(c.Log)
@@ -155,20 +166,20 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	licenseScanner := sbomlicensing.NewLicenseScanner(c.Log)
 
 	// Create SBOM service with all required dependencies
-	c.SBOMService = application.NewSBOMService(c.Log, sbomGenerator, vulnScanner, licenseScanner, fileStatProvider)
+	c.SBOMService = sbom.NewService(c.Log, sbomGenerator, vulnScanner, licenseScanner, fileStatProvider)
 
-	c.RepairService = application.NewRepairService(c.Log, c.CommandRunner)
+	c.RepairService = repair.NewService(c.Log, c.CommandRunner)
 
 	// Taskflow components not used in CLI currently
 
 	// Create Guardrail service with required dependencies
-	c.GuardrailService = application.NewGuardrailService(c.Log, c.opaService, fileStatProvider)
+	c.GuardrailService = guardrails.NewService(c.Log, c.opaService, fileStatProvider)
 
 	// Create UX Metrics infrastructure components
 	uxRepo := uxreports.NewInMemoryUXReportRepository()
 
 	// Create UX Metrics service
-	c.UXMetricsService = application.NewUXMetricsService(c.Log, uxRepo)
+	c.UXMetricsService = ux.NewService(c.Log, uxRepo)
 
 	// Create Apply service infrastructure components
 	applyEngine := applyengine.NewApplyEngine(c.Log, &domain.ApplyEngineConfig{
@@ -212,20 +223,20 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 		ValidateAfter:  true,
 		Languages:      []string{"go", "typescript", "ts"},
 	}
-	c.ApplyService = application.NewApplyService(c.Log, applyConfig, applyEngine, formattersMap, importFixers)
+	c.ApplyService = diff.NewApplyService(c.Log, applyConfig, applyEngine, formattersMap, importFixers)
 
 	// Create Diff service
 	diffEngine := diffengine.NewDiffEngine(c.Log)
-	c.DiffService = application.NewDiffService(c.Log, diffEngine)
+	c.DiffService = diff.NewService(c.Log, diffEngine)
 
 	buildPipeline := buildpipeline.NewBuildPipeline(c.Log)
-	c.BuildService = application.NewBuildService(c.Log, buildPipeline)
+	c.BuildService = build.NewService(c.Log, buildPipeline)
 
 	// Create formatter service
-	formatterService := application.NewFormatterService(c.Log, c.CommandRunner)
+	formatterService := export.NewFormatterService(c.Log, c.CommandRunner)
 
 	// Create verification pipeline service
-	c.VerificationService = application.NewVerificationPipelineService(
+	c.VerificationService = verification.NewService(
 		c.Log,
 		c.BuildService,
 		c.TestService,
@@ -240,7 +251,7 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	arch := archiverinfra.NewZipArchiver(c.Log)
 
 	// Create Export service with all required dependencies
-	c.ExportService = application.NewExportService(
+	c.ExportService = export.NewService(
 		c.Log,
 		c.ContextSplitter,
 		pdfGen,
@@ -343,7 +354,7 @@ func createModelFetchers(ctx context.Context, log domain.Logger, repo domain.Set
 	return fetchers
 }
 
-func createProviderRegistry(log domain.Logger, settingsService *application.SettingsService) map[string]domain.AIProviderFactory {
+func createProviderRegistry(log domain.Logger, settingsService *settings.Service) map[string]domain.AIProviderFactory {
 	resolveHost := func(providerType string) (string, error) {
 		switch providerType {
 		case "openrouter":

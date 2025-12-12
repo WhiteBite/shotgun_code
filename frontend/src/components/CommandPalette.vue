@@ -85,24 +85,26 @@
 </template>
 
 <script setup lang="ts">
-import {computed, nextTick, ref, watch} from 'vue'
-import {Dialog, DialogPanel, TransitionChild, TransitionRoot} from '@headlessui/vue'
+import { useUIStore } from '@/stores/ui.store'
+import { Dialog, DialogPanel, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import {
-  ArrowPathIcon,
-  CogIcon,
-  DocumentTextIcon,
-  FolderOpenIcon,
-  MagnifyingGlassIcon,
-  QuestionMarkCircleIcon
+    ArrowPathIcon,
+    CogIcon,
+    DocumentTextIcon,
+    FolderOpenIcon,
+    MagnifyingGlassIcon,
+    QuestionMarkCircleIcon
 } from '@heroicons/vue/24/outline'
 import Fuse from 'fuse.js'
+import type { Component } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 interface Command {
   id: string
   name: string
   description: string
   shortcut: string
-  icon: any
+  icon: Component
   action: () => void
 }
 
@@ -113,6 +115,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+const uiStore = useUIStore()
 
 const query = ref('')
 const searchInput = ref<HTMLInputElement>()
@@ -125,7 +129,7 @@ const commands = ref<Command[]>([
     description: 'Search for files in current project',
     shortcut: 'Ctrl+P',
     icon: MagnifyingGlassIcon,
-    action: () => console.log('Search files')
+    action: () => uiStore.addToast('File search: use the file tree filter', 'info')
   },
   {
     id: '2',
@@ -133,7 +137,7 @@ const commands = ref<Command[]>([
     description: 'Create a new document',
     shortcut: 'Ctrl+N',
     icon: DocumentTextIcon,
-    action: () => console.log('New doc')
+    action: () => uiStore.addToast('New document: not implemented yet', 'info')
   },
   {
     id: '3',
@@ -141,7 +145,7 @@ const commands = ref<Command[]>([
     description: 'Open application settings',
     shortcut: 'Ctrl+,',
     icon: CogIcon,
-    action: () => console.log('Settings')
+    action: () => uiStore.openSettingsModal()
   },
   {
     id: '4',
@@ -149,7 +153,7 @@ const commands = ref<Command[]>([
     description: 'Open a project folder',
     shortcut: 'Ctrl+O',
     icon: FolderOpenIcon,
-    action: () => console.log('Open project')
+    action: () => uiStore.addToast('Open project: use File menu', 'info')
   },
   {
     id: '5',
@@ -165,7 +169,7 @@ const commands = ref<Command[]>([
     description: 'Show keyboard shortcuts',
     shortcut: 'Ctrl+/',
     icon: QuestionMarkCircleIcon,
-    action: () => console.log('Help')
+    action: () => uiStore.openKeyboardShortcutsModal()
   },
 ])
 

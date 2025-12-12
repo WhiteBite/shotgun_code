@@ -38,6 +38,7 @@ export interface FileExplorerSettings {
     autoSaveSelection: boolean
     compactNestedFolders: boolean
     showIgnoredFiles: boolean
+    foldersFirst: boolean
     customIgnoreRules: string
     quickFilters: QuickFilterConfig[]
 }
@@ -88,6 +89,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         autoSaveSelection: true,
         compactNestedFolders: true,
         showIgnoredFiles: true,
+        foldersFirst: true,
         customIgnoreRules: '',
         quickFilters: [
             { id: 'source', label: 'Исходники', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.cpp', '.c', '.rs'], patterns: [], enabled: true },

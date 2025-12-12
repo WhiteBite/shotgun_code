@@ -6,7 +6,7 @@
     </div>
     
     <!-- Context Panel -->
-    <div :class="showTaskPanel ? 'context-panel-with-task' : 'context-panel-full'">
+    <div :class="showTaskPanel ? 'context-panel-with-task' : 'context-panel-full'" data-tour="context-preview">
       <ContextPanel />
     </div>
   </div>

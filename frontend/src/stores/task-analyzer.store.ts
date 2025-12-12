@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 
 export interface SuggestedFile {
   path: string
@@ -16,7 +16,7 @@ export const useTaskAnalyzerStore = defineStore('taskAnalyzer', () => {
 
   // Computed
   const hasSuggestions = computed(() => suggestions.value.length > 0)
-  const highConfidenceSuggestions = computed(() => 
+  const highConfidenceSuggestions = computed(() =>
     suggestions.value.filter(s => s.confidence >= 0.7)
   )
 
@@ -32,8 +32,8 @@ export const useTaskAnalyzerStore = defineStore('taskAnalyzer', () => {
     error.value = null
 
     try {
-      // TODO: Call backend API to analyze task
-      // For now, just clear suggestions
+      // TODO [Q2]: Call backend API to analyze task - see TODO-refactoring.txt
+      // Backend API for task analysis not yet implemented
       suggestions.value = []
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Analysis failed'

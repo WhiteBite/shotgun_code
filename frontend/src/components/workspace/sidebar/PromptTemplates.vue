@@ -126,7 +126,7 @@
 import { useI18n } from '@/composables/useI18n'
 import { useContextStore } from '@/features/context'
 import { useUIStore } from '@/stores/ui.store'
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 const { t } = useI18n()
 const contextStore = useContextStore()
@@ -142,32 +142,32 @@ interface PromptTemplate {
 const showAddForm = ref(false)
 const newTemplate = reactive({ name: '', content: '' })
 
-const defaultTemplates: PromptTemplate[] = [
+const defaultTemplates = computed<PromptTemplate[]>(() => [
   {
     id: 'review',
     name: t('prompts.default.review'),
-    content: 'Please review the following code and provide feedback on:\n1. Code quality and best practices\n2. Potential bugs or issues\n3. Performance improvements\n4. Security concerns\n\n{context}',
-    preview: 'Review code quality, bugs, performance...'
+    content: t('prompts.default.review.content'),
+    preview: t('prompts.default.review.preview')
   },
   {
     id: 'explain',
     name: t('prompts.default.explain'),
-    content: 'Please explain the following code in detail:\n- What does it do?\n- How does it work?\n- What are the key components?\n\n{context}',
-    preview: 'Explain what the code does...'
+    content: t('prompts.default.explain.content'),
+    preview: t('prompts.default.explain.preview')
   },
   {
     id: 'refactor',
     name: t('prompts.default.refactor'),
-    content: 'Please refactor the following code to improve:\n- Readability\n- Maintainability\n- Performance\n- Following best practices\n\n{context}',
-    preview: 'Refactor for better quality...'
+    content: t('prompts.default.refactor.content'),
+    preview: t('prompts.default.refactor.preview')
   },
   {
     id: 'tests',
     name: t('prompts.default.tests'),
-    content: 'Please write comprehensive unit tests for the following code:\n- Cover edge cases\n- Test error handling\n- Include both positive and negative tests\n\n{context}',
-    preview: 'Write unit tests...'
+    content: t('prompts.default.tests.content'),
+    preview: t('prompts.default.tests.preview')
   }
-]
+])
 
 // Load custom templates from localStorage
 function loadCustomTemplates(): PromptTemplate[] {

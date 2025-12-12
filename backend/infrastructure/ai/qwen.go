@@ -86,34 +86,7 @@ func (p *QwenProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (
 	startTime := time.Now()
 	p.log.Info(fmt.Sprintf("Sending request to Qwen API with model: %s", req.Model))
 
-	messages := []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: req.SystemPrompt,
-		},
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: req.UserPrompt,
-		},
-	}
-
-	// Build completion request
-	completionReq := openai.ChatCompletionRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		Temperature: float32(req.Temperature),
-		MaxTokens:   req.MaxTokens,
-		TopP:        float32(req.TopP),
-	}
-
-	// Add penalties if set
-	if req.FrequencyPenalty != 0 {
-		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
-	}
-	if req.PresencePenalty != 0 {
-		completionReq.PresencePenalty = float32(req.PresencePenalty)
-	}
-
+	completionReq := common.BuildCompletionRequest(req, false)
 	resp, err := p.client.CreateChatCompletion(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("Qwen API request failed: %v", err))
@@ -144,35 +117,7 @@ func (p *QwenProviderImpl) Generate(ctx context.Context, req domain.AIRequest) (
 func (p *QwenProviderImpl) GenerateStream(ctx context.Context, req domain.AIRequest, onChunk func(chunk domain.StreamChunk)) error {
 	p.log.Info(fmt.Sprintf("Starting streaming request to Qwen API with model: %s", req.Model))
 
-	messages := []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: req.SystemPrompt,
-		},
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: req.UserPrompt,
-		},
-	}
-
-	// Build streaming completion request
-	completionReq := openai.ChatCompletionRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		Temperature: float32(req.Temperature),
-		MaxTokens:   req.MaxTokens,
-		TopP:        float32(req.TopP),
-		Stream:      true,
-	}
-
-	// Add penalties if set
-	if req.FrequencyPenalty != 0 {
-		completionReq.FrequencyPenalty = float32(req.FrequencyPenalty)
-	}
-	if req.PresencePenalty != 0 {
-		completionReq.PresencePenalty = float32(req.PresencePenalty)
-	}
-
+	completionReq := common.BuildCompletionRequest(req, true)
 	stream, err := p.client.CreateChatCompletionStream(ctx, completionReq)
 	if err != nil {
 		p.log.Error(fmt.Sprintf("Qwen API stream request failed: %v", err))
@@ -213,34 +158,7 @@ func (p *QwenProviderImpl) EstimateTokens(req domain.AIRequest) (int, error) {
 
 // GetPricing returns pricing information for Qwen models
 func (p *QwenProviderImpl) GetPricing(model string) domain.PricingInfo {
-	pricing := domain.PricingInfo{
-		Model:    model,
-		Currency: "CNY", // Qwen uses Chinese Yuan
-	}
-
-	// Pricing per 1K tokens (approximate, check official docs)
-	switch model {
-	case qwenCoderPlusLatest, "qwen-coder-plus":
-		pricing.InputTokensPer1K = 0.004
-		pricing.OutputTokensPer1K = 0.012
-	case qwenCoderTurboLatest, "qwen-coder-turbo":
-		pricing.InputTokensPer1K = 0.002
-		pricing.OutputTokensPer1K = 0.006
-	case "qwen-plus-latest", "qwen-plus":
-		pricing.InputTokensPer1K = 0.004
-		pricing.OutputTokensPer1K = 0.012
-	case "qwen-turbo-latest", "qwen-turbo":
-		pricing.InputTokensPer1K = 0.002
-		pricing.OutputTokensPer1K = 0.006
-	case "qwen-max", "qwen-max-latest":
-		pricing.InputTokensPer1K = 0.02
-		pricing.OutputTokensPer1K = 0.06
-	default:
-		pricing.InputTokensPer1K = 0.004
-		pricing.OutputTokensPer1K = 0.012
-	}
-
-	return pricing
+	return common.GetPricingFromTable(model, "CNY", common.QwenPricingTable, common.QwenDefaultPricing)
 }
 
 // GetMaxContextTokens returns the maximum context size for a model

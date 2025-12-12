@@ -120,8 +120,10 @@ const contextLimit = computed(() => {
 })
 
 const usagePercent = computed(() => {
+  if (!props.usedTokens || !contextLimit.value || contextLimit.value === 0) return 0
   const percent = Math.round((props.usedTokens / contextLimit.value) * 100)
-  return Math.min(percent, 100)
+  if (!isFinite(percent) || isNaN(percent)) return 0
+  return Math.min(Math.max(percent, 0), 100)
 })
 
 const availableTokens = computed(() => {

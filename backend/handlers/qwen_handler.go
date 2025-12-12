@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"shotgun_code/application"
+	"shotgun_code/application/ai"
 	"shotgun_code/domain"
 	"time"
 )
@@ -10,13 +10,13 @@ import (
 // QwenHandler handles Qwen-related API requests
 type QwenHandler struct {
 	log             domain.Logger
-	qwenTaskService *application.QwenTaskService
+	qwenTaskService *ai.QwenTaskService
 }
 
 // NewQwenHandler creates a new Qwen handler
 func NewQwenHandler(
 	log domain.Logger,
-	qwenTaskService *application.QwenTaskService,
+	qwenTaskService *ai.QwenTaskService,
 ) *QwenHandler {
 	return &QwenHandler{
 		log:             log,
@@ -38,13 +38,13 @@ type ExecuteTaskRequest struct {
 
 // ExecuteTaskResponse is the response from task execution
 type ExecuteTaskResponse struct {
-	Content        string                        `json:"content"`
-	Model          string                        `json:"model"`
-	TokensUsed     int                           `json:"tokensUsed"`
-	ProcessingTime string                        `json:"processingTime"`
-	ContextSummary application.ContextSummaryDTO `json:"contextSummary"`
-	Success        bool                          `json:"success"`
-	Error          string                        `json:"error,omitempty"`
+	Content        string               `json:"content"`
+	Model          string               `json:"model"`
+	TokensUsed     int                  `json:"tokensUsed"`
+	ProcessingTime string               `json:"processingTime"`
+	ContextSummary ai.ContextSummaryDTO `json:"contextSummary"`
+	Success        bool                 `json:"success"`
+	Error          string               `json:"error,omitempty"`
 }
 
 // PreviewContextResponse is the response for context preview
@@ -79,7 +79,7 @@ func (h *QwenHandler) ExecuteTask(req ExecuteTaskRequest) ExecuteTaskResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	taskReq := application.TaskRequest{
+	taskReq := ai.TaskRequest{
 		Task:          req.Task,
 		ProjectRoot:   req.ProjectRoot,
 		SelectedFiles: req.SelectedFiles,
@@ -114,7 +114,7 @@ func (h *QwenHandler) PreviewContext(req ExecuteTaskRequest) PreviewContextRespo
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	taskReq := application.TaskRequest{
+	taskReq := ai.TaskRequest{
 		Task:          req.Task,
 		ProjectRoot:   req.ProjectRoot,
 		SelectedFiles: req.SelectedFiles,

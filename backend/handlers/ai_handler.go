@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"shotgun_code/application"
+	"shotgun_code/application/ai"
 	"shotgun_code/domain"
 	"sync"
 	"sync/atomic"
@@ -14,8 +15,9 @@ import (
 // AIHandler handles all AI-related operations with rate limiting and caching
 type AIHandler struct {
 	log             domain.Logger
-	aiService       *application.AIService
+	aiService       *ai.Service
 	contextAnalysis domain.ContextAnalyzer
+	toolExecutor    *application.ToolExecutorImpl // Injected, shared across requests
 
 	// Rate limiting
 	requestCount int64
@@ -32,21 +34,39 @@ const (
 	maxRequestsPerMin = 60
 )
 
-// NewAIHandler creates a new AI handler
+// NewAIHandler creates a new AI handler.
+// toolExecutor is optional - if nil, AgenticChat will create a basic one.
 func NewAIHandler(
 	log domain.Logger,
-	aiService *application.AIService,
+	aiService *ai.Service,
 	contextAnalysis domain.ContextAnalyzer,
+) *AIHandler {
+	return NewAIHandlerWithTools(log, aiService, contextAnalysis, nil)
+}
+
+// NewAIHandlerWithTools creates a new AI handler with injected tool executor.
+// Use this constructor to enable all analysis tools in AgenticChat.
+func NewAIHandlerWithTools(
+	log domain.Logger,
+	aiService *ai.Service,
+	contextAnalysis domain.ContextAnalyzer,
+	toolExecutor *application.ToolExecutorImpl,
 ) *AIHandler {
 	h := &AIHandler{
 		log:             log,
 		aiService:       aiService,
 		contextAnalysis: contextAnalysis,
+		toolExecutor:    toolExecutor,
 		lastReset:       time.Now(),
 		stopCh:          make(chan struct{}),
 	}
 
 	return h
+}
+
+// SetToolExecutor sets the tool executor (for late initialization).
+func (h *AIHandler) SetToolExecutor(te *application.ToolExecutorImpl) {
+	h.toolExecutor = te
 }
 
 // Shutdown gracefully stops the AI handler
@@ -89,7 +109,7 @@ func (h *AIHandler) GenerateIntelligentCode(ctx context.Context, task, contextSt
 		return "", err
 	}
 
-	var options application.IntelligentGenerationOptions
+	var options ai.IntelligentGenerationOptions
 	if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
 		return "", fmt.Errorf("failed to parse options JSON: %w", err)
 	}
@@ -115,7 +135,7 @@ func (h *AIHandler) GenerateCodeWithOptions(ctx context.Context, systemPrompt, u
 		return "", err
 	}
 
-	var options application.CodeGenerationOptions
+	var options ai.GenerationOptions
 	if err := json.Unmarshal([]byte(optionsJSON), &options); err != nil {
 		return "", fmt.Errorf("failed to parse options JSON: %w", err)
 	}
@@ -231,14 +251,14 @@ func (h *AIHandler) AgenticChat(ctx context.Context, requestJSON string) (string
 		return "", err
 	}
 
-	var req application.AgenticChatRequest
+	var req ai.AgenticChatRequest
 	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
 		return "", fmt.Errorf("invalid request JSON: %w", err)
 	}
 
-	// Create tool executor and agentic service
-	toolExecutor := application.NewToolExecutor(h.log, nil)
-	agenticService := application.NewAgenticChatService(h.log, h.aiService, toolExecutor)
+	// Use injected tool executor or create basic one as fallback
+	toolExecutor := h.getToolExecutor(req.ProjectRoot)
+	agenticService := ai.NewAgenticChatService(h.log, h.aiService, toolExecutor)
 
 	atomic.AddInt64(&h.requestCount, 1)
 
@@ -256,22 +276,37 @@ func (h *AIHandler) AgenticChat(ctx context.Context, requestJSON string) (string
 }
 
 // AgenticChatStream performs agentic chat with streaming events
-func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJSON string, onEvent func(event application.AgenticStreamEvent)) error {
+func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJSON string, onEvent func(event ai.AgenticStreamEvent)) error {
 	if err := h.checkRateLimit(); err != nil {
-		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
+		onEvent(ai.AgenticStreamEvent{Type: "error", Content: err.Error()})
 		return err
 	}
 
-	var req application.AgenticChatRequest
+	var req ai.AgenticChatRequest
 	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
-		onEvent(application.AgenticStreamEvent{Type: "error", Content: err.Error()})
+		onEvent(ai.AgenticStreamEvent{Type: "error", Content: err.Error()})
 		return fmt.Errorf("invalid request JSON: %w", err)
 	}
 
-	toolExecutor := application.NewToolExecutor(h.log, nil)
-	agenticService := application.NewAgenticChatService(h.log, h.aiService, toolExecutor)
+	// Use injected tool executor or create basic one as fallback
+	toolExecutor := h.getToolExecutor(req.ProjectRoot)
+	agenticService := ai.NewAgenticChatService(h.log, h.aiService, toolExecutor)
 
 	atomic.AddInt64(&h.requestCount, 1)
 
 	return agenticService.ChatStream(ctx, req, onEvent)
+}
+
+// getToolExecutor returns the injected tool executor or creates a basic fallback.
+// If injected executor exists, it updates the git context for the current project.
+func (h *AIHandler) getToolExecutor(projectRoot string) *application.ToolExecutorImpl {
+	if h.toolExecutor != nil {
+		// Update git context for current project
+		h.toolExecutor.SetGitContext(projectRoot)
+		return h.toolExecutor
+	}
+
+	// Fallback: create basic executor (limited functionality)
+	h.log.Warning("AgenticChat: using basic tool executor (some tools may not work)")
+	return application.NewToolExecutor(h.log, nil)
 }

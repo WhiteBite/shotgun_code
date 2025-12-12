@@ -1,6 +1,18 @@
 import type { domain } from '#wailsjs/go/models'
 import { apiService } from '@/services/api.service'
 
+export interface ProjectContext {
+    id: string
+    name: string
+    files: string[]
+    fileCount?: number
+    totalSize?: number
+    lineCount?: number
+    tokenCount?: number
+    createdAt: string
+    updatedAt?: string
+}
+
 export class ContextApi {
     async buildContext(
         projectPath: string,
@@ -39,7 +51,7 @@ export class ContextApi {
         }
     }
 
-    async exportContext(exportSettings: any): Promise<domain.ExportResult> {
+    async exportContext(exportSettings: { format: string; includeLineNumbers?: boolean; includeMetadata?: boolean; maxTokens?: number }): Promise<domain.ExportResult> {
         try {
             return await apiService.exportContext(exportSettings)
         } catch (error) {
@@ -48,10 +60,10 @@ export class ContextApi {
         }
     }
 
-    async getProjectContexts(projectPath: string): Promise<any[]> {
+    async getProjectContexts(projectPath: string): Promise<ProjectContext[]> {
         try {
             const result = await apiService.getProjectContexts(projectPath)
-            const parsed = JSON.parse(result)
+            const parsed = JSON.parse(result) as ProjectContext[] | null
             // Handle null/undefined response from backend
             return Array.isArray(parsed) ? parsed : []
         } catch (error) {

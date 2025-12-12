@@ -117,7 +117,6 @@ async function handleCopyChunk(index: number) {
   const success = await copyChunk(index)
   if (success) {
     showFeedback()
-    console.log(`[ChunkCopyBar] Copied chunk ${index + 1}/${chunkCount.value}`)
   }
 }
 
@@ -125,13 +124,11 @@ async function handleCopyNext() {
   const success = await copyNext()
   if (success) {
     showFeedback()
-    console.log(`[ChunkCopyBar] Copied chunk ${nextUncopiedIndex.value + 1}/${chunkCount.value}`)
   }
 }
 
 function handleReset() {
   resetCopied()
-  console.log('[ChunkCopyBar] Reset all chunks')
 }
 
 function showFeedback() {

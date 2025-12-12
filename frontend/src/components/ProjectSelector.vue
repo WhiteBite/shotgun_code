@@ -9,8 +9,19 @@
       <div class="bg-grid"></div>
     </div>
 
-    <!-- Language Switcher -->
-    <div class="absolute top-4 right-4 z-10">
+    <!-- Top Bar -->
+    <div class="absolute top-4 right-4 z-10 flex items-center gap-3">
+      <!-- Auto-open toggle -->
+      <label class="auto-open-toggle" :title="t('welcome.autoOpen')">
+        <div class="toggle-wrapper-sm">
+          <input type="checkbox" class="sr-only peer" :checked="projectStore.autoOpenLast"
+            @change="onToggleAutoOpen" />
+          <div class="toggle-track-sm peer-checked:bg-gradient-to-r peer-checked:from-purple-600 peer-checked:to-pink-600"></div>
+          <div class="toggle-thumb-sm peer-checked:translate-x-3"></div>
+        </div>
+        <span>{{ t('welcome.autoOpenShort') }}</span>
+      </label>
+      <!-- Language Switcher -->
       <button @click="toggleLanguage" class="lang-switcher"
         :title="locale === 'ru' ? 'Switch to English' : 'Переключить на русский'">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +55,7 @@
         <div class="logo-container">
           <div class="logo-glow"></div>
           <div class="logo">
-            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
             </svg>
@@ -98,7 +109,7 @@
                     d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
-              <div class="project-info">
+              <div class="project-info" :title="project.path">
                 <div class="project-name">{{ project.name }}</div>
                 <div class="project-path">{{ project.path }}</div>
               </div>
@@ -150,29 +161,6 @@
         </Transition>
       </Teleport>
 
-      <!-- Settings -->
-      <div class="settings-section">
-        <h3 class="settings-title">
-          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          {{ t('welcome.settings') }}
-        </h3>
-        <label class="toggle-label">
-          <div class="toggle-wrapper">
-            <input type="checkbox" class="sr-only peer" :checked="projectStore.autoOpenLast"
-              @change="onToggleAutoOpen" />
-            <div
-              class="toggle-track peer-checked:bg-gradient-to-r peer-checked:from-purple-600 peer-checked:to-pink-600">
-            </div>
-            <div class="toggle-thumb peer-checked:translate-x-4"></div>
-          </div>
-          <span>{{ t('welcome.autoOpen') }}</span>
-        </label>
-      </div>
     </div>
 
     <!-- Version Badge (bottom left) -->
@@ -332,7 +320,7 @@ if (typeof window !== 'undefined') {
 
 <style scoped>
 .project-selector {
-  @apply relative flex items-center justify-center min-h-screen text-white overflow-hidden;
+  @apply relative flex items-center justify-center h-screen text-white overflow-hidden;
   background: var(--bg-app);
 }
 
@@ -384,6 +372,18 @@ if (typeof window !== 'undefined') {
   }
 }
 
+/* Top Bar Controls */
+.auto-open-toggle {
+  @apply flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer;
+  @apply bg-gray-800/60 border border-gray-700/50;
+  @apply text-xs text-gray-400;
+  @apply backdrop-blur-sm transition-all duration-200;
+}
+
+.auto-open-toggle:hover {
+  @apply bg-gray-700/60 border-gray-600/50 text-gray-200;
+}
+
 /* Language Switcher */
 .lang-switcher {
   @apply px-3 py-2 text-sm rounded-xl;
@@ -433,20 +433,20 @@ if (typeof window !== 'undefined') {
 
 /* Content Wrapper */
 .content-wrapper {
-  @apply relative w-full max-w-2xl px-6 py-8;
+  @apply relative w-full max-w-2xl px-6 py-6 h-full flex flex-col;
 }
 
 /* Header Section */
 .header-section {
-  @apply text-center mb-10;
+  @apply text-center mb-6 flex-shrink-0;
 }
 
 .logo-container {
-  @apply relative inline-flex items-center justify-center mb-6;
+  @apply relative inline-flex items-center justify-center mb-4;
 }
 
 .logo {
-  @apply w-20 h-20 rounded-2xl;
+  @apply w-16 h-16 rounded-2xl;
   @apply flex items-center justify-center;
   @apply relative z-10;
   background: var(--gradient-primary);
@@ -489,7 +489,7 @@ if (typeof window !== 'undefined') {
 }
 
 .app-title {
-  @apply text-5xl font-bold mb-3;
+  @apply text-4xl font-bold mb-2;
   background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 40%, #e2e8f0 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -498,12 +498,12 @@ if (typeof window !== 'undefined') {
 }
 
 .app-subtitle {
-  @apply text-lg text-gray-300 mb-2;
+  @apply text-base text-gray-300 mb-1;
   animation: fade-up 0.5s ease-out 0.3s both;
 }
 
 .app-hint {
-  @apply text-sm text-gray-400;
+  @apply text-xs text-gray-400;
   animation: fade-up 0.5s ease-out 0.4s both;
 }
 
@@ -522,14 +522,14 @@ if (typeof window !== 'undefined') {
 
 /* CTA Section */
 .cta-section {
-  @apply flex justify-center mb-10;
+  @apply flex justify-center mb-6 flex-shrink-0;
   animation: fade-up 0.5s ease-out 0.5s both;
 }
 
 .cta-button {
-  @apply px-8 py-4 text-base font-semibold rounded-xl;
+  @apply px-6 py-3 text-sm font-semibold rounded-xl;
   @apply text-white;
-  @apply flex items-center gap-3;
+  @apply flex items-center gap-2;
   background: var(--gradient-primary);
   box-shadow: var(--shadow-glow-accent);
   transition: all 0.2s ease-out;
@@ -547,7 +547,7 @@ if (typeof window !== 'undefined') {
 
 /* Recent Section */
 .recent-section {
-  @apply mb-8;
+  @apply mb-4 flex-1 flex flex-col min-h-0;
   animation: fade-up 0.5s ease-out 0.6s both;
 }
 
@@ -568,12 +568,12 @@ if (typeof window !== 'undefined') {
 
 /* Projects List */
 .projects-list {
-  @apply space-y-2;
+  @apply space-y-2 overflow-y-auto pr-1 flex-1 min-h-0;
 }
 
 .project-card {
-  @apply relative p-4 rounded-xl cursor-pointer;
-  @apply flex items-center gap-4;
+  @apply relative p-3 rounded-xl cursor-pointer;
+  @apply flex items-center gap-3;
   @apply bg-gray-800/40 border border-gray-700/40;
   @apply transition-all duration-200;
   animation: slide-in 0.4s ease-out both;
@@ -614,7 +614,7 @@ if (typeof window !== 'undefined') {
 }
 
 .project-icon {
-  @apply w-12 h-12 rounded-xl flex-shrink-0;
+  @apply w-10 h-10 rounded-lg flex-shrink-0;
   @apply flex items-center justify-center;
   @apply bg-gray-700/50 border border-gray-600/30;
   @apply transition-all duration-200;
@@ -681,40 +681,19 @@ if (typeof window !== 'undefined') {
   @apply text-red-400 hover:text-red-300;
 }
 
-/* Settings Section */
-.settings-section {
-  @apply p-5 rounded-xl;
-  @apply bg-gray-800/40 border border-gray-700/40;
-  @apply backdrop-blur-sm;
-  animation: fade-up 0.5s ease-out 0.7s both;
+/* Small toggle for header */
+.toggle-wrapper-sm {
+  @apply relative inline-flex flex-shrink-0;
 }
 
-.settings-title {
-  @apply font-semibold text-gray-200 mb-4;
-  @apply flex items-center gap-2;
+.toggle-track-sm {
+  @apply w-7 h-4 rounded-full;
+  @apply bg-gray-600 transition-all duration-200;
 }
 
-.toggle-label {
-  @apply flex items-center gap-3 text-sm text-gray-200;
-  @apply select-none cursor-pointer;
-}
-
-.toggle-label:hover span {
-  @apply text-white;
-}
-
-.toggle-wrapper {
-  @apply relative inline-flex;
-}
-
-.toggle-track {
-  @apply w-10 h-6 rounded-full;
-  @apply bg-gray-700 transition-all duration-200;
-}
-
-.toggle-thumb {
-  @apply absolute left-1 top-1 w-4 h-4 rounded-full;
-  @apply bg-white shadow-md;
+.toggle-thumb-sm {
+  @apply absolute left-0.5 top-0.5 w-3 h-3 rounded-full;
+  @apply bg-white shadow-sm;
   @apply transition-transform duration-200;
 }
 

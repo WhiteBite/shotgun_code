@@ -1,8 +1,10 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 
+export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right'
+
 export interface TooltipOptions {
     delay?: number
-    placement?: 'top' | 'bottom' | 'left' | 'right'
+    placement?: TooltipPlacement
     offset?: number
 }
 
@@ -17,14 +19,14 @@ export function useTooltip(options: TooltipOptions = {}) {
     let showTimer: ReturnType<typeof setTimeout> | null = null
     let targetElement: HTMLElement | null = null
 
-    function calculatePosition(element: HTMLElement, preferredPlacement: string) {
+    function calculatePosition(element: HTMLElement, preferredPlacement: TooltipPlacement) {
         const rect = element.getBoundingClientRect()
         const tooltipWidth = 320 // max-width
         const tooltipHeight = 200 // approximate height
 
         let x = 0
         let y = 0
-        let finalPlacement = preferredPlacement
+        let finalPlacement: TooltipPlacement = preferredPlacement
 
         // Calculate position based on placement
         switch (preferredPlacement) {
@@ -74,11 +76,11 @@ export function useTooltip(options: TooltipOptions = {}) {
             x = tooltipWidth / 2 + 10
         }
 
-        placement.value = finalPlacement as any
+        placement.value = finalPlacement
         position.value = { x, y }
     }
 
-    function show(element: HTMLElement, tooltipContent: string, preferredPlacement?: string) {
+    function show(element: HTMLElement, tooltipContent: string, preferredPlacement?: TooltipPlacement) {
         targetElement = element
 
         // Clear any existing timer
