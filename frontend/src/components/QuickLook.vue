@@ -50,19 +50,19 @@
           <div v-if="stats && !isLoading" class="px-4 py-2 bg-gray-850 border-b border-gray-700">
             <div class="flex items-center gap-6 text-xs text-gray-400">
               <div class="flex items-center gap-2">
-                <span class="text-gray-500">Размер:</span>
+                <span class="text-gray-400">Размер:</span>
                 <span class="text-white">{{ formatBytes(stats.size) }}</span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-gray-500">Строк:</span>
+                <span class="text-gray-400">Строк:</span>
                 <span class="text-white">{{ formatNumber(stats.lines) }}</span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-gray-500">Токены:</span>
+                <span class="text-gray-400">Токены:</span>
                 <span class="text-white">{{ formatNumber(stats.tokens) }}</span>
               </div>
               <div v-if="stats.language" class="flex items-center gap-2">
-                <span class="text-gray-500">Язык:</span>
+                <span class="text-gray-400">Язык:</span>
                 <span class="text-white">{{ stats.language }}</span>
               </div>
             </div>
@@ -99,7 +99,7 @@
 
           <!-- Footer -->
           <div class="flex items-center justify-between px-4 py-3 border-t border-gray-700">
-            <div class="text-xs text-gray-500">
+            <div class="text-xs text-gray-400">
               ESC для закрытия
             </div>
             <div class="flex items-center gap-2">

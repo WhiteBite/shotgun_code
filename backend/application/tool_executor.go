@@ -8,8 +8,6 @@ import (
 	"shotgun_code/application/tools"
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
-	"shotgun_code/infrastructure/analyzers"
-	"shotgun_code/infrastructure/git"
 )
 
 // ToolExecutorImpl implements the ToolExecutor interface using HandlerRegistry
@@ -18,26 +16,32 @@ type ToolExecutorImpl struct {
 	fileReader              domain.FileContentReader
 	registry                analysis.AnalyzerRegistry
 	symbolIndex             analysis.SymbolIndex
-	callGraph               *analyzers.CallGraphBuilderImpl
-	gitContext              *git.ContextBuilder
+	callGraph               domain.CallGraphBuilder
+	gitContext              domain.GitContextBuilder
 	contextMemory           domain.ContextMemory
+	referenceFinder         domain.ReferenceFinder
+	projectStructure        domain.ProjectStructureDetector
 	hasSemanticSearch       bool
 	semanticSearcherService tools.SemanticSearcher
 	handlerRegistry         *tools.HandlerRegistry
 }
 
 // NewToolExecutor creates a new ToolExecutor with all handlers registered
-func NewToolExecutor(logger domain.Logger, fileReader domain.FileContentReader) *ToolExecutorImpl {
-	analyzerRegistry := analyzers.NewAnalyzerRegistry()
-	symbolIndex := analyzers.NewSymbolIndex(analyzerRegistry)
-	callGraph := analyzers.NewCallGraphBuilder(analyzerRegistry)
-
+func NewToolExecutor(
+	logger domain.Logger,
+	fileReader domain.FileContentReader,
+	registry analysis.AnalyzerRegistry,
+	symbolIndex analysis.SymbolIndex,
+	callGraph domain.CallGraphBuilder,
+	referenceFinder domain.ReferenceFinder,
+) *ToolExecutorImpl {
 	te := &ToolExecutorImpl{
 		logger:          logger,
 		fileReader:      fileReader,
-		registry:        analyzerRegistry,
+		registry:        registry,
 		symbolIndex:     symbolIndex,
 		callGraph:       callGraph,
+		referenceFinder: referenceFinder,
 		handlerRegistry: tools.NewHandlerRegistry(logger),
 	}
 
@@ -51,7 +55,7 @@ func (te *ToolExecutorImpl) registerHandlers() {
 	te.handlerRegistry.Register(tools.NewFileToolsHandler(te.logger, te.fileReader))
 
 	// Symbol tools
-	te.handlerRegistry.Register(tools.NewSymbolToolsHandler(te.registry, te.symbolIndex, te.logger))
+	te.handlerRegistry.Register(tools.NewSymbolToolsHandler(te.registry, te.symbolIndex, te.logger, te.referenceFinder))
 
 	// Call graph tools
 	te.handlerRegistry.Register(tools.NewCallGraphToolsHandler(te.logger, te.callGraph))
@@ -66,13 +70,15 @@ func (te *ToolExecutorImpl) registerHandlers() {
 	te.handlerRegistry.Register(tools.NewPreferencesToolsHandler(te.logger, te.contextMemory))
 
 	// Project structure tools
-	projectStructureService := project.NewStructureService(te.logger)
-	te.handlerRegistry.Register(tools.NewProjectStructureToolsHandler(te.logger, projectStructureService))
+	if te.projectStructure != nil {
+		projectStructureService := project.NewStructureService(te.logger, te.projectStructure)
+		te.handlerRegistry.Register(tools.NewProjectStructureToolsHandler(te.logger, projectStructureService))
+	}
 }
 
 // SetGitContext sets the git context builder for git-related tools
-func (te *ToolExecutorImpl) SetGitContext(projectRoot string) {
-	te.gitContext = git.NewContextBuilder(projectRoot)
+func (te *ToolExecutorImpl) SetGitContext(gitContext domain.GitContextBuilder) {
+	te.gitContext = gitContext
 	te.rebuildHandlerRegistry()
 }
 
@@ -100,6 +106,8 @@ func (te *ToolExecutorImpl) SetAnalysisContainer(container *appanalysis.Containe
 	te.callGraph = container.GetCallGraph()
 	te.gitContext = container.GetGitContext()
 	te.contextMemory = container.GetContextMemory()
+	te.referenceFinder = container.GetReferenceFinder()
+	te.projectStructure = container.GetProjectStructure()
 
 	if ss := container.GetSemanticSearch(); ss != nil {
 		te.SetSemanticSearch(ss)
@@ -116,7 +124,7 @@ func (te *ToolExecutorImpl) rebuildHandlerRegistry() {
 	te.handlerRegistry.Register(tools.NewFileToolsHandler(te.logger, te.fileReader))
 
 	// Symbol tools
-	te.handlerRegistry.Register(tools.NewSymbolToolsHandler(te.registry, te.symbolIndex, te.logger))
+	te.handlerRegistry.Register(tools.NewSymbolToolsHandler(te.registry, te.symbolIndex, te.logger, te.referenceFinder))
 
 	// Call graph tools
 	te.handlerRegistry.Register(tools.NewCallGraphToolsHandler(te.logger, te.callGraph))
@@ -131,8 +139,10 @@ func (te *ToolExecutorImpl) rebuildHandlerRegistry() {
 	te.handlerRegistry.Register(tools.NewPreferencesToolsHandler(te.logger, te.contextMemory))
 
 	// Project structure tools
-	projectStructureService := project.NewStructureService(te.logger)
-	te.handlerRegistry.Register(tools.NewProjectStructureToolsHandler(te.logger, projectStructureService))
+	if te.projectStructure != nil {
+		projectStructureService := project.NewStructureService(te.logger, te.projectStructure)
+		te.handlerRegistry.Register(tools.NewProjectStructureToolsHandler(te.logger, projectStructureService))
+	}
 
 	// Semantic tools (if available)
 	if te.hasSemanticSearch && te.semanticSearcherService != nil {

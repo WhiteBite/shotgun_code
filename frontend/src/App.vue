@@ -1,5 +1,5 @@
-﻿<template>
-  <div id="app" class="app-container">
+<template>
+  <div id="app" class="app-container layout-root">
     <!-- Skip link for keyboard navigation -->
     <a href="#main-content" class="skip-link">{{ t('accessibility.skipToContent') }}</a>
 
@@ -7,10 +7,10 @@
     <div v-if="globalError" class="modal-container">
       <div class="modal-overlay" @click="clearGlobalError"></div>
       <div class="modal-content modal-error">
-        <h3 class="modal-title">Critical Error</h3>
+        <h3 class="modal-title">{{ t('common.criticalError') }}</h3>
         <p class="modal-text">{{ globalError }}</p>
         <button @click="clearGlobalError" class="btn btn-danger">
-          Dismiss
+          {{ t('common.close') }}
         </button>
       </div>
     </div>
@@ -24,46 +24,61 @@
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
         </div>
-        <h3 class="loading-title">Loading Project</h3>
-        <p class="loading-text">Please wait...</p>
+        <h3 class="loading-title">{{ t('common.loadingProject') }}</h3>
+        <p class="loading-text">{{ t('common.pleaseWait') }}</p>
       </div>
     </div>
 
     <!-- Main Content: Show ProjectSelector if no project, otherwise show workspace -->
-    <main id="main-content">
+    <main id="main-content" class="layout-fill layout-column layout-clip">
       <ProjectSelector v-if="!projectStore.hasProject" @opened="onProjectOpened" />
       <MainWorkspace v-else />
     </main>
 
-    <!-- Toast Notifications (Bottom Center) -->
-    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+    <!-- Toast Notifications (Bottom Center) - compact glassmorphism style -->
+    <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2">
       <TransitionGroup name="toast">
         <div
           v-for="toast in uiStore.toasts"
           :key="toast.id"
           :class="[
-            'toast',
-            toast.type === 'error' ? 'toast-error' :
-            toast.type === 'success' ? 'toast-success' :
-            toast.type === 'warning' ? 'toast-warning' : 'toast-info'
+            'toast-glass',
+            toast.type === 'error' ? 'toast-glass-error' :
+            toast.type === 'success' ? 'toast-glass-success' :
+            toast.type === 'warning' ? 'toast-glass-warning' : 'toast-glass-info'
           ]"
         >
-          <!-- Icon -->
-          <svg v-if="toast.type === 'success'" class="toast-icon toast-icon-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <svg v-else-if="toast.type === 'error'" class="toast-icon toast-icon-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <svg v-else-if="toast.type === 'warning'" class="toast-icon toast-icon-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <svg v-else class="toast-icon toast-icon-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span class="toast-message">{{ toast.message }}</span>
-          <button @click="uiStore.removeToast(toast.id)" class="toast-close">
-            <svg class="w-4 h-4 opacity-60 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- Icon with glow wrapper -->
+          <div class="toast-glass-icon-wrap">
+            <svg v-if="toast.type === 'success'" class="toast-glass-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else-if="toast.type === 'error'" class="toast-glass-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <svg v-else-if="toast.type === 'warning'" class="toast-glass-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <svg v-else class="toast-glass-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <span class="toast-glass-message">{{ toast.message }}</span>
+          <!-- Divider + Action Button -->
+          <template v-if="toast.action">
+            <div class="toast-glass-divider" />
+            <button 
+              @click="toast.action.onClick(); uiStore.removeToast(toast.id)"
+              class="toast-glass-action"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              {{ toast.action.label }}
+            </button>
+          </template>
+          <button @click="uiStore.removeToast(toast.id)" class="toast-glass-close">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -104,8 +119,10 @@ import ProjectSelector from '@/components/ProjectSelector.vue'
 import MainWorkspace from '@/components/workspace/MainWorkspace.vue'
 import { useI18n } from '@/composables/useI18n'
 import { useMemoryMonitor } from '@/composables/useMemoryMonitor'
+import { useOnboarding } from '@/composables/useOnboarding'
 import { useProjectStore } from '@/stores/project.store'
 import { useUIStore } from '@/stores/ui.store'
+import { shellApi } from '@/services/api/shell.api'
 import { useMagicKeys } from '@vueuse/core'
 import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 
@@ -175,6 +192,31 @@ watch(ctrlShiftC, (v) => {
   }
 })
 
+// Undo/Redo selection shortcuts
+const ctrlZ = keys['Ctrl+Z']
+const ctrlY = keys['Ctrl+Y']
+
+watch(ctrlZ, (v) => {
+  if (v && projectStore.hasProject) {
+    // Only trigger if not in an input field
+    const activeEl = document.activeElement
+    if (activeEl?.tagName !== 'INPUT' && activeEl?.tagName !== 'TEXTAREA') {
+      const event = new CustomEvent('global-undo-selection')
+      window.dispatchEvent(event)
+    }
+  }
+})
+
+watch(ctrlY, (v) => {
+  if (v && projectStore.hasProject) {
+    const activeEl = document.activeElement
+    if (activeEl?.tagName !== 'INPUT' && activeEl?.tagName !== 'TEXTAREA') {
+      const event = new CustomEvent('global-redo-selection')
+      window.dispatchEvent(event)
+    }
+  }
+})
+
 // Memory dashboard shortcut
 watch(ctrlShiftM, (v) => {
   if (v && projectStore.hasProject) {
@@ -192,12 +234,23 @@ watch(ctrlComma, (v) => {
 // Start memory monitoring
 const memoryMonitor = useMemoryMonitor()
 
+// Onboarding tour
+const onboarding = useOnboarding()
+
 function clearGlobalError() {
   globalError.value = null
 }
 
 function onProjectOpened(_path: string) {
   uiStore.addToast('Project loaded successfully', 'success')
+  
+  // Start onboarding tour for new users after project is loaded
+  if (onboarding.shouldShowTour()) {
+    // Small delay to ensure UI is ready
+    setTimeout(() => {
+      onboarding.startTour()
+    }, 500)
+  }
 }
 
 // Store cleanup interval ref
@@ -212,6 +265,19 @@ onMounted(async () => {
   memoryMonitor.onCritical(() => {
     showMemoryDashboard.value = true
   })
+  
+  // Check for startup path from context menu
+  try {
+    const startupPath = await shellApi.getStartupPath()
+    if (startupPath) {
+      await shellApi.clearStartupPath()
+      await projectStore.openProjectByPath(startupPath)
+      uiStore.addToast('Project opened from context menu', 'success')
+      return // Skip auto-open if we have startup path
+    }
+  } catch {
+    // Ignore startup path errors
+  }
   
   // Note: fetchRecentProjects is called in ProjectSelector.vue onMounted
   // We don't call it here to avoid duplicate calls
@@ -287,8 +353,10 @@ onMounted(() => {
 </script>
 
 <style>
+/* Корневой контейнер - использует layout-root из layout.css */
 .app-container {
-  @apply h-screen text-white overflow-hidden;
+  /* Layout: см. layout.css */
+  color: white;
   background: var(--bg-app);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';

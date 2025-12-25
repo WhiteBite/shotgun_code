@@ -4,11 +4,18 @@ import { ref } from 'vue'
 
 const logger = useLogger('UIStore')
 
+export interface ToastAction {
+  label: string
+  icon?: string
+  onClick: () => void
+}
+
 export interface Toast {
   id: string
   message: string
   type: 'success' | 'error' | 'info' | 'warning'
   duration?: number
+  action?: ToastAction
 }
 
 export const useUIStore = defineStore('ui', () => {
@@ -19,12 +26,13 @@ export const useUIStore = defineStore('ui', () => {
   const showKeyboardShortcutsModal = ref(false)
 
   // Actions
-  function addToast(message: string, type: Toast['type'] = 'info', duration = 3000) {
+  function addToast(message: string, type: Toast['type'] = 'info', duration = 3000, action?: ToastAction) {
     const toast: Toast = {
       id: `toast-${nextToastId.value++}`,
       message,
       type,
-      duration
+      duration,
+      action
     }
 
     // Log toast to console

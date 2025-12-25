@@ -12,22 +12,21 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <!-- Tree guide lines - continuous vertical + L/T connectors -->
-    <svg v-if="item.depth > 0" class="tree-guides" :width="item.depth * 16 + 16" height="28" style="left: 0">
+    <!-- Tree guide lines -->
+    <svg v-if="item.depth > 0" class="tree-guides" :width="item.depth * 16 + 16" :height="rowHeight" style="shape-rendering: crispEdges; overflow: visible;">
       <!-- Vertical continuation lines for ancestors that have more siblings -->
       <template v-for="(hasMore, idx) in item.ancestorHasMoreSiblings" :key="'v-' + idx">
         <line v-if="hasMore" 
-          :x1="idx * 16 + 16" y1="0" 
-          :x2="idx * 16 + 16" y2="28"
+          :x1="8 + (idx + 1) * 16 + 0.5" y1="-4" 
+          :x2="8 + (idx + 1) * 16 + 0.5" :y2="rowHeight + 4"
           class="tree-guide-line" :class="`tree-guide-${Math.min(idx + 1, 5)}`" />
       </template>
-      <!-- Current level: vertical part (L or └ shape) -->
-      <line :x1="(item.depth - 1) * 16 + 16" y1="0" 
-            :x2="(item.depth - 1) * 16 + 16" :y2="item.isLast ? 14 : 28"
+      <!-- Current level: vertical line (full or half) + horizontal connector -->
+      <line :x1="8 + item.depth * 16 + 0.5" y1="-4" 
+            :x2="8 + item.depth * 16 + 0.5" :y2="item.isLast ? 13 : rowHeight + 4"
             class="tree-guide-line" :class="`tree-guide-${Math.min(item.depth, 5)}`" />
-      <!-- Current level: horizontal connector -->
-      <line :x1="(item.depth - 1) * 16 + 16" y1="14" 
-            :x2="item.depth * 16 + 12" y2="14"
+      <line :x1="8 + item.depth * 16" y1="13" 
+            :x2="8 + item.depth * 16 + 10" y2="13"
             class="tree-guide-line" :class="`tree-guide-${Math.min(item.depth, 5)}`" />
     </svg>
 
@@ -52,9 +51,11 @@
       :class="[
         'tree-cb',
         props.checkboxState !== 'none' ? 'tree-cb-checked' : '',
-        props.checkboxState === 'partial' ? 'tree-cb-partial' : ''
+        props.checkboxState === 'partial' ? 'tree-cb-partial' : '',
+        isSelectionDisabled ? 'tree-cb-disabled' : ''
       ]"
       @click.stop="handleToggleSelect"
+      :title="isSelectionDisabled ? t('files.binaryFile') : undefined"
     >
       <svg
         v-if="props.checkboxState === 'full'"
@@ -90,18 +91,49 @@
     <!-- Name -->
     <span class="tree-name">{{ item.node.name }}</span>
 
-    <!-- File count badge for folders -->
-    <span 
-      v-if="item.node.isDir && props.fileCount > 0" 
-      class="tree-count"
-      :title="t('files.fileCountTooltip', { count: props.fileCount })">
-      {{ props.fileCount }}
-    </span>
+    <!-- Folder: file count + selected tokens weight -->
+    <template v-if="item.node.isDir">
+      <span 
+        v-if="props.fileCount > 0" 
+        class="tree-count"
+        :title="t('files.fileCountTooltip').replace('{count}', String(props.fileCount))">
+        {{ props.fileCount }}
+      </span>
+      <!-- Bubble-up: show selected tokens inside folder -->
+      <span 
+        v-if="props.selectedTokens > 0"
+        class="tree-weight"
+        :class="`tree-weight--${weightLevel}`"
+        :title="t('files.selectedTokensTooltip').replace('{count}', formatTokens(props.selectedTokens))"
+      >
+        {{ formatTokens(props.selectedTokens) }}
+      </span>
+    </template>
 
-    <!-- File size -->
-    <span v-else-if="item.node.size" class="tree-size">
-      {{ formatSize(item.node.size) }}
-    </span>
+    <!-- File indicators -->
+    <template v-else>
+      <!-- Binary indicator -->
+      <span 
+        v-if="item.node.contentType === 'binary'" 
+        class="tree-binary-badge"
+        :title="t('files.binaryFile')"
+      >
+        BIN
+      </span>
+      <!-- Heavy file badge (only for heavy files) -->
+      <span 
+        v-else-if="fileWeightLevel !== 'none'"
+        class="tree-token-badge"
+        :class="`tree-token-badge--${fileWeightLevel}`"
+        :title="t('files.tokenCountTooltip').replace('{count}', formatTokens(fileTokens))"
+      >
+        {{ formatTokens(fileTokens) }}
+      </span>
+      <!-- Normal file size (for light files) -->
+      <span v-else-if="item.node.size" class="tree-size">
+        {{ formatSize(item.node.size) }}
+      </span>
+    </template>
 
     <!-- QuickLook button -->
     <button
@@ -130,11 +162,16 @@
 <script setup lang="ts">
 import { useI18n } from '@/composables/useI18n'
 import type { FlattenedNode } from '@/composables/useVirtualTree'
+import { TOKEN_THRESHOLDS } from '@/config/constants'
 import { getFileIcon } from '@/utils/fileIcons'
 import { useHoveredFile } from '../composables/useHoveredFile'
 import type { FileNode } from '../model/file.store'
+import { computed } from 'vue'
 
 const { t } = useI18n()
+
+// Row height for SVG calculations (must match CSS min-height)
+const rowHeight = 26
 
 interface Props {
   item: FlattenedNode
@@ -142,13 +179,49 @@ interface Props {
   isSelected?: boolean
   checkboxState?: 'none' | 'partial' | 'full'
   fileCount?: number
+  selectedTokens?: number
+  allowSelectBinary?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   compactMode: false,
   isSelected: false,
   checkboxState: 'none',
-  fileCount: 0
+  fileCount: 0,
+  selectedTokens: 0,
+  allowSelectBinary: false
+})
+
+// Check if selection is disabled for this item
+const isSelectionDisabled = computed(() => {
+  if (props.item.node.isDir) return false
+  if (props.item.node.contentType !== 'binary') return false
+  return !props.allowSelectBinary
+})
+
+// Weight level for visual indicators
+type WeightLevel = 'none' | 'medium' | 'heavy' | 'critical'
+
+const weightLevel = computed((): WeightLevel => {
+  const tokens = props.selectedTokens
+  if (tokens >= TOKEN_THRESHOLDS.CRITICAL) return 'critical'
+  if (tokens >= TOKEN_THRESHOLDS.HEAVY) return 'heavy'
+  if (tokens >= TOKEN_THRESHOLDS.MEDIUM) return 'medium'
+  return 'none'
+})
+
+// File's own token count (for files only)
+const fileTokens = computed(() => {
+  if (props.item.node.isDir || !props.item.node.size) return 0
+  return Math.round(props.item.node.size / TOKEN_THRESHOLDS.BYTES_PER_TOKEN)
+})
+
+const fileWeightLevel = computed((): WeightLevel => {
+  const tokens = fileTokens.value
+  if (tokens >= TOKEN_THRESHOLDS.CRITICAL) return 'critical'
+  if (tokens >= TOKEN_THRESHOLDS.HEAVY) return 'heavy'
+  if (tokens >= TOKEN_THRESHOLDS.MEDIUM) return 'medium'
+  return 'none'
 })
 
 const emit = defineEmits<{
@@ -158,8 +231,8 @@ const emit = defineEmits<{
   (e: 'quicklook', path: string): void
 }>()
 
-// Use provide/inject pattern for hovered file state
-const hoveredFile = useHoveredFile()
+// Use singleton pattern for hovered file state (avoids provide/inject issues with virtual scrolling)
+const { setHovered, clearHovered } = useHoveredFile()
 
 function handleClick() {
   if (props.item.node.isDir) {
@@ -175,6 +248,7 @@ function handleExpand() {
 }
 
 function handleToggleSelect() {
+  if (isSelectionDisabled.value) return
   emit('toggle-select', props.item.node.path)
 }
 
@@ -187,16 +261,21 @@ function handleQuickLook() {
 }
 
 function handleMouseEnter() {
-  hoveredFile.setHovered(props.item.node.path, props.item.node.isDir)
+  setHovered(props.item.node.path, props.item.node.isDir)
 }
 
 function handleMouseLeave() {
-  hoveredFile.clearHovered(props.item.node.path)
+  clearHovered(props.item.node.path)
 }
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
   return Math.round(bytes / (1024 * 1024)) + ' MB'
+}
+
+function formatTokens(tokens: number): string {
+  if (tokens < 1000) return tokens + ''
+  return Math.round(tokens / 1000) + 'k'
 }
 </script>

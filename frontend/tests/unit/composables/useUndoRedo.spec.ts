@@ -2,32 +2,24 @@ import { useUndoRedo } from '@/composables/useUndoRedo'
 import { describe, expect, it } from 'vitest'
 
 describe('useUndoRedo', () => {
-    it('pushState adds state to history', () => {
-        const { pushState, historyLength } = useUndoRedo<Set<string>>(
-            new Set(),
-            (s) => JSON.stringify([...s]),
-            (str) => new Set(JSON.parse(str))
-        )
+    it('push adds state to history', () => {
+        const { push, historyLength } = useUndoRedo<string[]>([])
 
         expect(historyLength.value).toBe(1) // Initial state
 
-        pushState(new Set(['file1.ts']))
+        push(['file1.ts'])
         expect(historyLength.value).toBe(2)
 
-        pushState(new Set(['file1.ts', 'file2.ts']))
+        push(['file1.ts', 'file2.ts'])
         expect(historyLength.value).toBe(3)
     })
 
     it('undo returns previous state', () => {
-        const { pushState, undo, getCurrentState } = useUndoRedo<string[]>(
-            [],
-            JSON.stringify,
-            JSON.parse
-        )
+        const { push, undo } = useUndoRedo<string[]>([])
 
-        pushState(['a'])
-        pushState(['a', 'b'])
-        pushState(['a', 'b', 'c'])
+        push(['a'])
+        push(['a', 'b'])
+        push(['a', 'b', 'c'])
 
         const prevState = undo()
         expect(prevState).toEqual(['a', 'b'])
@@ -37,14 +29,10 @@ describe('useUndoRedo', () => {
     })
 
     it('redo returns next state', () => {
-        const { pushState, undo, redo } = useUndoRedo<string[]>(
-            [],
-            JSON.stringify,
-            JSON.parse
-        )
+        const { push, undo, redo } = useUndoRedo<string[]>([])
 
-        pushState(['a'])
-        pushState(['a', 'b'])
+        push(['a'])
+        push(['a', 'b'])
 
         undo() // Go back to ['a']
 
@@ -59,19 +47,19 @@ describe('useUndoRedo', () => {
     })
 
     it('canRedo returns false at end', () => {
-        const { pushState, canRedo } = useUndoRedo<string[]>([])
+        const { push, canRedo } = useUndoRedo<string[]>([])
 
-        pushState(['a'])
+        push(['a'])
         expect(canRedo.value).toBe(false)
     })
 
-    it('history is limited to 50 states', () => {
-        const { pushState, historyLength } = useUndoRedo<number>(0)
+    it('history is limited to maxHistory states', () => {
+        const { push, historyLength } = useUndoRedo<number>(0, 20)
 
-        for (let i = 1; i <= 60; i++) {
-            pushState(i)
+        for (let i = 1; i <= 30; i++) {
+            push(i)
         }
 
-        expect(historyLength.value).toBe(50)
+        expect(historyLength.value).toBe(20)
     })
 })

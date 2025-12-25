@@ -86,6 +86,9 @@ type App struct {
 
 	// Analysis Container (for smart analysis tools)
 	analysisContainer *analysis.Container
+
+	// Startup path from command line arguments
+	startupPath string
 }
 
 func (a *App) startup(ctx context.Context, container *app.AppContainer) {
@@ -93,6 +96,15 @@ func (a *App) startup(ctx context.Context, container *app.AppContainer) {
 	a.log = container.Log
 	a.bridge = container.Bridge
 	a.container = container
+
+	// Auto-update shell integration if exe path changed
+	if container.ShellIntegration != nil {
+		if updated, err := container.ShellIntegration.UpdateIfNeeded(); err != nil {
+			a.log.Warning("Failed to update shell integration: " + err.Error())
+		} else if updated {
+			a.log.Info("Shell integration path updated")
+		}
+	}
 
 	// Initialize handlers from container
 	a.projectHandler = container.ProjectHandler

@@ -28,9 +28,9 @@
 }
 
 .chip-unified-accent {
-    background: var(--accent-indigo-bg);
-    color: white;
-    border: 1px solid var(--accent-indigo-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: #e5e7eb;
+    border: none;
 }
 
 /* Muted chip for counters in tree */

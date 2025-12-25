@@ -56,6 +56,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
 }
 
 .tree-count {
@@ -63,20 +64,38 @@
     color: var(--text-subtle);
 }
 
+/* File Tree Container - removed, using inline Tailwind classes instead */
+
+/* Tree Scroller - ensure no gaps between items */
+.tree-scroller {
+    height: 100% !important;
+    max-height: 100% !important;
+}
+
+.tree-scroller .vue-recycle-scroller__item-view {
+    /* Remove any default spacing */
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Allow SVG overflow for guide lines */
+    overflow: visible !important;
+}
+
 /* Tree Row */
 .tree-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 0.375rem 0;
-    border-radius: var(--radius-sm);
+    padding: 0;
+    border-radius: 0;
     cursor: pointer;
     user-select: none;
     position: relative;
     color: var(--text-secondary);
-    transition: all var(--transition-fast);
-    min-height: var(--tree-row-height);
-    margin: var(--tree-row-gap) 0;
+    height: 26px;
+    min-height: 26px;
+    max-height: 26px;
+    margin: 0;
+    box-sizing: border-box;
 }
 
 .tree-row:hover {
@@ -85,49 +104,46 @@
 }
 
 .tree-row-selected {
-    background: var(--tree-selected-bg) !important;
+    background: rgba(99, 102, 241, 0.18) !important;
     color: white !important;
-    /* Use inset box-shadow for visible border */
-    box-shadow: inset 0 0 0 1px var(--tree-selected-border),
-                0 0 12px rgba(99, 102, 241, 0.25);
-    border-radius: var(--radius-sm);
-    /* Ensure proper stacking */
-    position: relative;
-    z-index: 1;
 }
 
 .tree-row-selected:hover {
-    background: var(--tree-selected-bg-hover) !important;
-    box-shadow: inset 0 0 0 1px var(--tree-selected-border),
-                0 0 16px rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.25) !important;
 }
 
 /* Tree Guide Lines */
 .tree-guides {
     position: absolute;
     top: 0;
+    left: 0;
     pointer-events: none;
     overflow: visible;
+    z-index: 0;
+    /* Ensure SVG is not clipped and covers full row height */
+    height: 26px !important;
+    display: block;
 }
 
 .tree-guide-line {
     fill: none;
-    stroke-width: var(--tree-line-width);
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.25;
+    stroke-width: 1px;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    opacity: 0.5;
     transition: opacity var(--transition-fast);
 }
 
 .tree-row:hover .tree-guide-line {
-    opacity: 0.4;
+    opacity: 0.8;
 }
 
-.tree-guide-1 { stroke: var(--tree-line-1); }
-.tree-guide-2 { stroke: var(--tree-line-2); }
-.tree-guide-3 { stroke: var(--tree-line-3); }
-.tree-guide-4 { stroke: var(--tree-line-4); }
-.tree-guide-5 { stroke: var(--tree-line-5); }
+/* Guide colors by depth - subtle colors */
+.tree-guide-1 { stroke: #60a5fa; } /* blue */
+.tree-guide-2 { stroke: #a78bfa; } /* purple */
+.tree-guide-3 { stroke: #f472b6; } /* pink */
+.tree-guide-4 { stroke: #34d399; } /* green */
+.tree-guide-5 { stroke: #64748b; } /* slate */
 
 /* ============================================
    TREE ROW COMPONENTS (VirtualTreeRow)
@@ -143,17 +159,16 @@
     justify-content: center;
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
-    color: var(--text-subtle);
-    /* Removed negative margin that broke alignment */
+    color: #94a3b8;
 }
 
 .tree-row:hover .tree-expand {
-    color: var(--text-muted);
+    color: #cbd5e1;
 }
 
 .tree-expand:hover {
-    color: var(--text-primary);
-    background: var(--bg-2);
+    color: #f1f5f9;
+    background: rgba(148, 163, 184, 0.15);
 }
 
 .tree-expand-icon {
@@ -169,49 +184,60 @@
 /* Checkbox - visible with better contrast */
 .tree-cb {
     flex-shrink: 0;
-    width: var(--tree-checkbox-size);
-    height: var(--tree-checkbox-size);
-    border-radius: var(--radius-sm);
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid var(--border-strong);
+    border: 1.5px solid #64748b;
+    cursor: pointer;
     transition: all var(--transition-fast);
-    opacity: 0.6;
-    transform: scale(0.95);
+    background: transparent;
 }
 
 .tree-row:hover .tree-cb {
-    opacity: 1;
-    transform: scale(1);
-    border-color: var(--text-muted);
-    background: rgba(99, 102, 241, 0.1);
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.08);
 }
 
 .tree-cb:hover {
-    border-color: var(--accent-indigo);
-    background: rgba(99, 102, 241, 0.15);
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.12);
 }
 
 .tree-cb-checked {
-    background: var(--accent-indigo);
-    border-color: var(--accent-indigo);
-    opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+    background: #6366f1;
+    border-color: #6366f1;
+    box-shadow: 0 0 4px rgba(99, 102, 241, 0.4);
 }
 
 .tree-cb-partial {
-    background: rgba(99, 102, 241, 0.5);
-    border-color: var(--accent-indigo);
-    opacity: 1;
-    transform: scale(1);
+    background: rgba(99, 102, 241, 0.35);
+    border-color: #818cf8;
 }
 
 .tree-cb-icon {
     width: 0.75rem;
     height: 0.75rem;
     color: white;
+}
+
+.tree-cb-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: #475569;
+    background: rgba(71, 85, 105, 0.2);
+}
+
+.tree-cb-disabled:hover {
+    border-color: #475569;
+    background: rgba(71, 85, 105, 0.2);
+}
+
+.tree-row:hover .tree-cb-disabled {
+    border-color: #475569;
+    background: rgba(71, 85, 105, 0.25);
 }
 
 /* File/Folder Icon */
@@ -224,10 +250,10 @@
 }
 
 .tree-folder-icon {
-    width: 1rem;
-    height: 1rem;
+    width: 18px;
+    height: 18px;
     color: var(--tree-folder-color);
-    transition: color var(--transition-fast);
+    transition: all var(--transition-fast);
 }
 
 .tree-folder-open {
@@ -244,14 +270,14 @@
 
 /* File Count (folders) - visible with subtle background */
 .tree-count {
-    font-size: var(--font-size-xs);
+    font-size: 10px;
     margin-left: auto;
     margin-right: var(--space-2);
-    padding: 1px var(--space-1);
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    background: rgba(30, 40, 66, 0.6);
-    font-weight: var(--font-weight-normal);
+    padding: 2px 6px;
+    border-radius: var(--radius-md);
+    color: #94a3b8;
+    background: rgba(100, 116, 139, 0.25);
+    font-weight: var(--font-weight-medium);
     min-width: 1.25rem;
     text-align: center;
     font-variant-numeric: tabular-nums;
@@ -259,12 +285,12 @@
 }
 
 .tree-row:hover .tree-count {
-    color: var(--text-secondary);
-    background: var(--bg-2);
+    color: #cbd5e1;
+    background: rgba(100, 116, 139, 0.35);
 }
 
 .tree-row-selected .tree-count {
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255, 255, 255, 0.8);
     background: rgba(255, 255, 255, 0.15);
 }
 
@@ -277,20 +303,91 @@
     50% { transform: scale(1.15); }
 }
 
-/* File Size - very subtle */
+/* File Size */
 .tree-size {
-    font-size: 0.625rem;
+    font-size: 11px;
     margin-left: auto;
     margin-right: var(--space-2);
-    color: var(--text-disabled);
+    color: #94a3b8;
+    font-weight: var(--font-weight-medium);
     font-variant-numeric: tabular-nums;
-    opacity: 0.7;
-    transition: opacity var(--transition-fast);
+    transition: color var(--transition-fast);
 }
 
 .tree-row:hover .tree-size {
+    color: #cbd5e1;
+}
+
+/* Folder Weight Indicator (bubble-up) */
+.tree-weight {
+    font-size: 10px;
+    margin-right: var(--space-2);
+    padding: 2px 6px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, monospace;
+}
+
+.tree-weight--medium {
+    color: #fcd34d;
+    background: rgba(252, 211, 77, 0.15);
+    border: 1px solid rgba(252, 211, 77, 0.25);
+}
+
+.tree-weight--heavy {
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.15);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+}
+
+.tree-weight--critical {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.15);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* File Token Badge (for heavy files) */
+.tree-token-badge {
+    font-size: 10px;
+    margin-left: auto;
+    margin-right: var(--space-2);
+    padding: 2px 6px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, monospace;
+    transition: opacity var(--transition-fast);
+}
+
+/* Medium/Heavy badges: hidden by default, show on hover */
+.tree-token-badge--medium,
+.tree-token-badge--heavy {
+    opacity: 0;
+}
+
+.tree-row:hover .tree-token-badge--medium,
+.tree-row:hover .tree-token-badge--heavy {
     opacity: 1;
-    color: var(--text-subtle);
+}
+
+.tree-token-badge--medium {
+    color: #fcd34d;
+    background: rgba(252, 211, 77, 0.1);
+    border: 1px solid rgba(252, 211, 77, 0.2);
+}
+
+.tree-token-badge--heavy {
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.1);
+    border: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+/* Critical badges: always visible */
+.tree-token-badge--critical {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.15);
+    border: 1px solid rgba(248, 113, 113, 0.25);
 }
 
 /* QuickLook Preview Button */
@@ -419,4 +516,99 @@
     font-size: var(--font-size-xs);
     color: var(--text-subtle);
     text-align: center;
+}
+
+/* ============================================
+   DEPTH BACKGROUNDS - subtle color by level
+   ============================================ */
+.tree-depth-1 { background: rgba(99, 102, 241, 0.02); }
+.tree-depth-2 { background: rgba(168, 85, 247, 0.02); }
+.tree-depth-3 { background: rgba(236, 72, 153, 0.02); }
+.tree-depth-4 { background: rgba(56, 189, 248, 0.02); }
+
+/* ============================================
+   GIT STATUS INDICATORS
+   ============================================ */
+.tree-git {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tree-git-tracked {
+    background: var(--color-success);
+    box-shadow: 0 0 6px var(--color-success);
+}
+
+.tree-git-modified {
+    background: var(--color-warning);
+    box-shadow: 0 0 6px var(--color-warning);
+}
+
+.tree-git-untracked {
+    background: var(--color-danger);
+    box-shadow: 0 0 6px var(--color-danger);
+}
+
+.tree-git-ignored {
+    background: var(--text-subtle);
+}
+
+/* ============================================
+   SEARCH HIGHLIGHT
+   ============================================ */
+.tree-highlight {
+    background: rgba(251, 191, 36, 0.3);
+    color: white;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* ============================================
+   KEYBOARD FOCUS
+   ============================================ */
+.tree-row:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-indigo), 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+/* ============================================
+   EXPAND PULSE ANIMATION
+   ============================================ */
+.tree-expand-pulse {
+    animation: tree-expand-pulse 300ms ease-out;
+}
+
+@keyframes tree-expand-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* ============================================
+   BINARY FILE INDICATOR
+   ============================================ */
+.tree-binary-badge {
+    font-size: 9px;
+    margin-left: auto;
+    margin-right: var(--space-2);
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.15);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all var(--transition-fast);
+}
+
+.tree-row:hover .tree-binary-badge {
+    color: #fb923c;
+    background: rgba(249, 115, 22, 0.25);
+}
+
+.tree-row-selected .tree-binary-badge {
+    color: #fdba74;
+    background: rgba(249, 115, 22, 0.3);
 }

@@ -134,37 +134,43 @@ export class MemoryMonitor {
       // Import stores once and cache them to avoid repeated dynamic imports
       if (!this.storeImportsCache.useFileStore) {
         const fileStoreModule = await import('@/features/files/model/file.store');
-        this.storeImportsCache.useFileStore = fileStoreModule.useFileStore;
+        this.storeImportsCache.useFileStore = fileStoreModule.useFileStore as StoreImportsCache['useFileStore'];
       }
 
       if (!this.storeImportsCache.useContextStore) {
         const contextStoreModule = await import('@/features/context/model/context.store');
-        this.storeImportsCache.useContextStore = contextStoreModule.useContextStore;
+        this.storeImportsCache.useContextStore = contextStoreModule.useContextStore as StoreImportsCache['useContextStore'];
       }
 
       if (!this.storeImportsCache.getCacheStats) {
         const apiCacheModule = await import('@/composables/useApiCache');
-        this.storeImportsCache.getCacheStats = apiCacheModule.getCacheStats;
+        this.storeImportsCache.getCacheStats = apiCacheModule.getCacheStats as StoreImportsCache['getCacheStats'];
       }
 
-      const fileStore = this.storeImportsCache.useFileStore();
-      const contextStore = this.storeImportsCache.useContextStore();
-      const cacheStats = this.storeImportsCache.getCacheStats();
+      const fileStore = this.storeImportsCache.useFileStore?.();
+      const contextStore = this.storeImportsCache.useContextStore?.();
+      const cacheStats = this.storeImportsCache.getCacheStats?.();
 
-      metrics.fileStore = {
-        nodesCount: fileStore.nodes?.length || 0,
-        memoryEstimate: fileStore.getMemoryUsage ? fileStore.getMemoryUsage() : 0
-      };
+      if (fileStore) {
+        metrics.fileStore = {
+          nodesCount: fileStore.nodes?.length || 0,
+          memoryEstimate: fileStore.getMemoryUsage ? fileStore.getMemoryUsage() : 0
+        };
+      }
 
-      metrics.contextStore = {
-        cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0,
-        chunkSize: contextStore.currentChunk?.lines?.length || 0
-      };
+      if (contextStore) {
+        metrics.contextStore = {
+          cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0,
+          chunkSize: contextStore.currentChunk?.lines?.length || 0
+        };
+      }
 
-      metrics.apiCache = {
-        entries: cacheStats.entries || 0,
-        totalSize: cacheStats.size || 0
-      };
+      if (cacheStats) {
+        metrics.apiCache = {
+          entries: cacheStats.entries || 0,
+          totalSize: cacheStats.size || 0
+        };
+      }
     } catch (e) {
       console.warn('[MemoryMonitor] Could not collect store metrics:', e);
     }

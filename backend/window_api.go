@@ -26,6 +26,11 @@ func (a *App) GetWindowState() map[string]interface{} {
 func (a *App) SaveWindowState() error {
 	state := a.bridge.GetWindowState()
 
+	// Skip saving if window is already closed (size is 0)
+	if state.Width == 0 || state.Height == 0 {
+		return nil
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err

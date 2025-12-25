@@ -1,5 +1,5 @@
 <template>
-  <div class="workspace-container">
+  <div class="workspace-container layout-grid-main-footer">
     <!-- Background decoration -->
     <div class="workspace-bg">
       <div class="workspace-glow workspace-glow-1"></div>
@@ -27,7 +27,7 @@
       </div>
 
       <!-- Center Panel -->
-      <div class="workspace-center">
+      <div class="workspace-center layout-fill layout-column layout-clip">
         <CenterWorkspace />
       </div>
 
@@ -83,6 +83,8 @@ import { useLogger } from '@/composables/useLogger'
 import { useResizablePanel } from '@/composables/useResizablePanel'
 import { useContextStore } from '@/features/context'
 import { useFileStore } from '@/features/files'
+import { useTemplateStore, generateFileTree, detectLanguages } from '@/features/templates'
+import { useProjectStore } from '@/stores/project.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUIStore } from '@/stores/ui.store'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
@@ -92,6 +94,8 @@ import LeftSidebar from './LeftSidebar.vue'
 import RightSidebar from './RightSidebar.vue'
 
 const logger = useLogger('MainWorkspace')
+const templateStore = useTemplateStore()
+const projectStore = useProjectStore()
 const { t } = useI18n()
 const contextStore = useContextStore()
 const fileStore = useFileStore()
@@ -137,8 +141,8 @@ const leftWidth = leftResize.width
 
 const rightResize = useResizablePanel({
   minWidth: 320,
-  maxWidth: 800,
-  defaultWidth: 420,
+  maxWidth: 700,
+  defaultWidth: 380,
   storageKey: 'workspace-right-width',
   invertDirection: true // Тянем влево = увеличиваем ширину
 })
@@ -157,12 +161,31 @@ const handleGlobalOpenExport = () => handleOpenExport()
 const handleGlobalCopyContext = async () => {
   if (contextStore.hasContext && contextStore.contextId) {
     try {
-      const content = await contextStore.getFullContextContent()
+      const filesContent = await contextStore.getFullContextContent()
+      
+      let content: string
+      if (settingsStore.settings.context.applyTemplateOnCopy && templateStore.activeTemplate) {
+        const files = contextStore.summary?.files || []
+        const templateContext = {
+          fileTree: generateFileTree(files, projectStore.projectName),
+          files: filesContent,
+          task: templateStore.currentTask,
+          userRules: templateStore.userRules,
+          fileCount: contextStore.fileCount,
+          tokenCount: contextStore.tokenCount,
+          languages: detectLanguages(files),
+          projectName: projectStore.projectName
+        }
+        content = templateStore.generatePrompt(templateContext)
+      } else {
+        content = filesContent
+      }
+      
       await navigator.clipboard.writeText(content)
-      uiStore.addToast('Контекст скопирован в буфер обмена', 'success')
+      uiStore.addToast(t('toast.contextCopied'), 'success')
     } catch (error) {
       logger.error('Failed to copy context:', error)
-      uiStore.addToast('Ошибка при копировании контекста', 'error')
+      uiStore.addToast(t('toast.copyError'), 'error')
     }
   }
 }
@@ -242,6 +265,9 @@ async function handleBuildContext() {
       includeTests: settingsStore.settings.context.includeTests,
       splitStrategy: settingsStore.settings.context.splitStrategy,
       outputFormat: settingsStore.settings.context.outputFormat,
+      // Output options
+      includeManifest: settingsStore.settings.context.includeManifest,
+      includeLineNumbers: settingsStore.settings.context.includeLineNumbers,
       // Content optimization options
       excludeTests: settingsStore.settings.context.excludeTests,
       collapseEmptyLines: settingsStore.settings.context.collapseEmptyLines,
@@ -251,7 +277,21 @@ async function handleBuildContext() {
     }
     
     await contextStore.buildContext(filePaths, options)
-    uiStore.addToast(t('toast.contextBuilt'), 'success')
+    
+    // Show success toast with copy action
+    uiStore.addToast(t('toast.contextBuilt'), 'success', 5000, {
+      label: t('context.copy'),
+      icon: '📋',
+      onClick: async () => {
+        try {
+          const content = await contextStore.getFullContextContent()
+          await navigator.clipboard.writeText(content)
+          uiStore.addToast(t('toast.contextCopied'), 'success')
+        } catch {
+          uiStore.addToast(t('toast.copyError'), 'error')
+        }
+      }
+    })
   } catch (error) {
     logger.error('Failed to build context:', error)
     
@@ -293,8 +333,9 @@ defineExpose({ leftPanelRef, rightPanelRef })
 
 
 <style scoped>
+/* Workspace - использует layout-grid-main-footer из layout.css */
 .workspace-container {
-  @apply h-full flex flex-col relative;
+  position: relative;
   background: var(--bg-app);
 }
 
@@ -317,14 +358,21 @@ defineExpose({ leftPanelRef, rightPanelRef })
   background: radial-gradient(circle, rgba(236, 72, 153, 0.06) 0%, transparent 70%);
 }
 
-/* Layout */
+/* Layout - 3-колоночный flex внутри grid-ячейки */
 .workspace-layout {
-  @apply flex-1 flex overflow-hidden relative z-10;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
 }
 
 .workspace-panel {
-  @apply flex-shrink-0 backdrop-blur-sm;
+  @apply backdrop-blur-sm overflow-hidden;
   background: var(--bg-panel-sidebar);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-self: stretch;
 }
 
 .workspace-panel-left {
@@ -335,8 +383,8 @@ defineExpose({ leftPanelRef, rightPanelRef })
   border-left: 1px solid var(--border-default);
 }
 
+/* Центральная панель - использует layout-fill из layout.css */
 .workspace-center {
-  @apply flex-1 min-w-0;
   background: var(--bg-panel-center);
 }
 
@@ -373,7 +421,7 @@ defineExpose({ leftPanelRef, rightPanelRef })
   border: 1px solid var(--border-default);
   border-right: 0;
   color: var(--text-muted);
-  transition: all 200ms ease-out;
+  transition: color 150ms, background 150ms;
   right: 0;
 }
 

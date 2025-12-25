@@ -10,11 +10,12 @@ type FileNode struct {
 	Path            string      `json:"path"`
 	RelPath         string      `json:"relPath"`
 	IsDir           bool        `json:"isDir"`
-	Size            int64       `json:"size"` // Added file size
+	Size            int64       `json:"size"`
+	ContentType     string      `json:"contentType"` // "text", "binary", "unknown"
 	Children        []*FileNode `json:"children,omitempty"`
 	IsGitignored    bool        `json:"isGitignored"`
 	IsCustomIgnored bool        `json:"isCustomIgnored"`
-	IsIgnored       bool        `json:"isIgnored"` // Computed field for UI convenience
+	IsIgnored       bool        `json:"isIgnored"`
 }
 
 type FileStatus struct {
@@ -132,6 +133,7 @@ type GenericReport struct {
 type ContextBuildOptions struct {
 	StripComments        bool   `json:"stripComments"`
 	IncludeManifest      bool   `json:"includeManifest"`
+	IncludeLineNumbers   bool   `json:"includeLineNumbers"`
 	MaxTokens            int    `json:"maxTokens"`
 	MaxMemoryMB          int    `json:"maxMemoryMB"`
 	IncludeTests         bool   `json:"includeTests"`

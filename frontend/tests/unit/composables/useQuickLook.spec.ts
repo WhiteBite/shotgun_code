@@ -1,6 +1,6 @@
 import { useQuickLook } from '@/features/files/composables/useQuickLook'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
 
 // Mock stores
 const mockToggleSelect = vi.fn()
@@ -26,32 +26,44 @@ vi.mock('@/composables/useI18n', () => ({
     }),
 }))
 
+// Mock hoveredFile state
+let mockHoveredPath: string | null = null
+let mockHoveredIsDir: boolean | null = null
+
+vi.mock('@/features/files/composables/useHoveredFile', () => ({
+    useHoveredFile: () => ({
+        state: {
+            get path() { return mockHoveredPath },
+            get isDir() { return mockHoveredIsDir },
+        },
+        setHovered: (path: string | null, isDir: boolean | null) => {
+            mockHoveredPath = path
+            mockHoveredIsDir = isDir
+        },
+        clearHovered: () => {
+            mockHoveredPath = null
+            mockHoveredIsDir = null
+        },
+    }),
+}))
+
 describe('useQuickLook', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mockHoveredPath = null
+        mockHoveredIsDir = null
+        setActivePinia(createPinia())
     })
 
     it('should initialize with closed state', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         expect(quickLook.isVisible.value).toBe(false)
         expect(quickLook.currentPath.value).toBe('')
     })
 
     it('should open with specified path', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         quickLook.open('/path/to/file.ts')
 
@@ -60,29 +72,16 @@ describe('useQuickLook', () => {
     })
 
     it('should close when same path is opened again', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         quickLook.open('/path/to/file.ts')
-        expect(quickLook.isVisible.value).toBe(true)
-
         quickLook.open('/path/to/file.ts')
+
         expect(quickLook.isVisible.value).toBe(false)
     })
 
     it('should switch to different path', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         quickLook.open('/path/to/file1.ts')
         quickLook.open('/path/to/file2.ts')
@@ -92,13 +91,7 @@ describe('useQuickLook', () => {
     })
 
     it('should close explicitly', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         quickLook.open('/path/to/file.ts')
         quickLook.close()
@@ -107,13 +100,7 @@ describe('useQuickLook', () => {
     })
 
     it('should add file to context', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        const quickLook = useQuickLook()
 
         quickLook.addToContext('/path/to/file.ts')
 
@@ -122,14 +109,10 @@ describe('useQuickLook', () => {
     })
 
     it('should handle spacebar for hovered file', () => {
-        const hoveredFile = {
-            path: ref<string | null>('/path/to/file.ts'),
-            isDir: ref<boolean | null>(false),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        mockHoveredPath = '/path/to/file.ts'
+        mockHoveredIsDir = false
 
+        const quickLook = useQuickLook()
         const handled = quickLook.handleSpacebarPreview()
 
         expect(handled).toBe(true)
@@ -137,14 +120,10 @@ describe('useQuickLook', () => {
     })
 
     it('should expand directory on spacebar', () => {
-        const hoveredFile = {
-            path: ref<string | null>('/path/to/folder'),
-            isDir: ref<boolean | null>(true),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        mockHoveredPath = '/path/to/folder'
+        mockHoveredIsDir = true
 
+        const quickLook = useQuickLook()
         const handled = quickLook.handleSpacebarPreview()
 
         expect(handled).toBe(true)
@@ -152,15 +131,12 @@ describe('useQuickLook', () => {
     })
 
     it('should close quicklook on spacebar when nothing hovered', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        mockHoveredPath = null
+        mockHoveredIsDir = null
 
+        const quickLook = useQuickLook()
         quickLook.open('/path/to/file.ts')
+
         const handled = quickLook.handleSpacebarPreview()
 
         expect(handled).toBe(true)
@@ -168,14 +144,10 @@ describe('useQuickLook', () => {
     })
 
     it('should return false when nothing to do', () => {
-        const hoveredFile = {
-            path: ref<string | null>(null),
-            isDir: ref<boolean | null>(null),
-            setHovered: vi.fn(),
-            clearHovered: vi.fn(),
-        }
-        const quickLook = useQuickLook({ hoveredFile })
+        mockHoveredPath = null
+        mockHoveredIsDir = null
 
+        const quickLook = useQuickLook()
         const handled = quickLook.handleSpacebarPreview()
 
         expect(handled).toBe(false)

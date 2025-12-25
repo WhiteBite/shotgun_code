@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -67,6 +68,7 @@ func (a *ClangTidyAnalyzer) Analyze(ctx context.Context, config *domain.StaticAn
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "clang-tidy", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -153,6 +155,7 @@ func (a *ClangTidyAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) 
 // checkClangTidyInstalled проверяет, установлен ли ClangTidy
 func (a *ClangTidyAnalyzer) checkClangTidyInstalled() error {
 	cmd := exec.Command("clang-tidy", "--version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ClangTidy not found: %w", err)
 	}

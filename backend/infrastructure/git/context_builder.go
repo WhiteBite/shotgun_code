@@ -3,6 +3,7 @@ package git
 import (
 	"os/exec"
 	"path/filepath"
+	"shotgun_code/internal/executil"
 	"sort"
 	"strings"
 	"time"
@@ -48,6 +49,7 @@ func (b *ContextBuilder) runGitLog(since, pathFilter string) ([]byte, error) {
 		cmdArgs = append(cmdArgs, "--", pathFilter)
 	}
 	cmd := exec.Command("git", cmdArgs...)
+	executil.HideWindow(cmd)
 	cmd.Dir = b.projectRoot
 	return cmd.Output()
 }
@@ -125,6 +127,7 @@ func (b *ContextBuilder) GetRelatedByAuthor(filePath string, limit int) ([]strin
 
 	// Get authors who changed this file
 	cmd := exec.Command("git", "log", "--format=%an", "--", filePath)
+	executil.HideWindow(cmd)
 	cmd.Dir = b.projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -155,6 +158,7 @@ func (b *ContextBuilder) GetRelatedByAuthor(filePath string, limit int) ([]strin
 
 	// Get files changed by this author
 	cmd = exec.Command("git", "log", "--author="+topAuthor, "--name-only", "--format=", "-n", "100") //nolint:gosec // Git command with validated input
+	executil.HideWindow(cmd)
 	cmd.Dir = b.projectRoot
 	output, err = cmd.Output()
 	if err != nil {
@@ -201,6 +205,7 @@ func (b *ContextBuilder) GetCoChangedFiles(filePath string, limit int) ([]string
 
 	// Get commits that changed this file
 	cmd := exec.Command("git", "log", "--format=%H", "-n", "50", "--", filePath)
+	executil.HideWindow(cmd)
 	cmd.Dir = b.projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -216,6 +221,7 @@ func (b *ContextBuilder) GetCoChangedFiles(filePath string, limit int) ([]string
 		}
 		// Get files changed in this commit
 		cmd = exec.Command("git", "show", "--name-only", "--format=", commit)
+		executil.HideWindow(cmd)
 		cmd.Dir = b.projectRoot
 		output, err = cmd.Output()
 		if err != nil {
@@ -300,6 +306,7 @@ func (b *ContextBuilder) addRecentChangeSuggestions(currentFiles []string, sugge
 func (b *ContextBuilder) addKeywordSuggestions(taskDescription string, suggestions map[string]int) {
 	for _, kw := range extractKeywords(taskDescription) {
 		cmd := exec.Command("git", "log", "--grep="+kw, "-i", "--name-only", "--format=", "-n", "20") //nolint:gosec // Git command with validated input
+		executil.HideWindow(cmd)
 		cmd.Dir = b.projectRoot
 		if output, err := cmd.Output(); err == nil {
 			for _, file := range strings.Split(string(output), "\n") {

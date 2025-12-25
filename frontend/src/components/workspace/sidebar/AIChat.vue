@@ -1,47 +1,7 @@
 <template>
-  <div class="h-full flex flex-col">
-    <!-- Mode Selector + Model Limits -->
-    <div class="p-3 pb-0 space-y-2">
-      <!-- Chat Mode Toggle with Sliding Indicator -->
-      <div class="chat-mode-tabs">
-        <div 
-          class="chat-mode-indicator"
-          :class="chatModeIndicatorClass"
-          :style="{ transform: `translateX(${chatModeIndex * 100}%)` }"
-        ></div>
-        
-        <button
-          @click="chatMode = 'manual'"
-          :class="['chat-mode-tab', chatMode === 'manual' ? 'chat-mode-tab-active text-indigo-300' : '']"
-          :title="t('chat.modeManualHint')"
-        >
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-          {{ t('chat.modeManual') }}
-        </button>
-        <button
-          @click="chatMode = 'smart'"
-          :class="['chat-mode-tab', chatMode === 'smart' ? 'chat-mode-tab-active text-purple-300' : '']"
-          :title="t('chat.modeSmartHint')"
-        >
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-          {{ t('chat.modeSmart') }}
-        </button>
-        <button
-          @click="chatMode = 'agentic'"
-          :class="['chat-mode-tab', chatMode === 'agentic' ? 'chat-mode-tab-active text-emerald-300' : '']"
-          :title="t('chat.modeAgenticHint')"
-        >
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          {{ t('chat.modeAgentic') }}
-        </button>
-      </div>
-
+  <div class="ai-chat">
+    <!-- Compact header with model info -->
+    <div class="ai-chat__header">
       <ModelLimitsIndicator
         v-if="isConnected"
         :used-tokens="totalUsedTokens"
@@ -50,8 +10,8 @@
       />
     </div>
 
-    <!-- Messages -->
-    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-3 space-y-3">
+    <!-- Messages area -->
+    <div ref="messagesContainer" class="ai-chat__messages">
       <ChatWelcome 
         v-if="messages.length === 0"
         :is-connected="isConnected"
@@ -73,36 +33,37 @@
       <ThinkingIndicator v-if="isThinking" @stop="stopGeneration" />
     </div>
 
-    <!-- Smart Context Preview -->
-    <SmartContextPreviewPanel
-      v-if="smartContextPreview && smartContextPreview.files.length > 0"
-      :preview="smartContextPreview"
-      @confirm="confirmSmartContext(t, scrollToBottom)"
-      @cancel="cancelSmartContext"
-    />
+    <!-- Smart Context Preview (floating) -->
+    <Transition name="slide-up">
+      <SmartContextPreviewPanel
+        v-if="smartContextPreview && smartContextPreview.files.length > 0"
+        :preview="smartContextPreview"
+        @confirm="(files) => confirmSmartContext(files, t, scrollToBottom)"
+        @cancel="cancelSmartContext"
+      />
+    </Transition>
 
     <!-- Analyzing Indicator -->
-    <div v-if="isAnalyzing" class="mx-3 mb-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl">
-      <div class="flex items-center gap-2">
+    <Transition name="fade">
+      <div v-if="isAnalyzing" class="ai-chat__analyzing">
+        <div class="analyzing-pulse"></div>
         <svg class="w-4 h-4 text-purple-400 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        <span class="text-xs text-purple-300">{{ t('chat.analyzing') }}</span>
+        <span>{{ t('chat.analyzing') }}</span>
       </div>
-    </div>
+    </Transition>
 
-    <!-- Input Area -->
-    <ChatInputArea
+    <!-- Command Center (Premium Input) -->
+    <CommandCenter
       v-model="inputMessage"
-      :chat-mode="chatMode"
       :is-thinking="isThinking"
       :is-analyzing="isAnalyzing"
-      :include-context="includeContext"
       :has-messages="messages.length > 0"
       @send="handleSend"
       @clear="clearChat"
-      @update:include-context="includeContext = $event"
+      @attach="handleAttach"
     />
   </div>
 </template>
@@ -111,9 +72,9 @@
 import { useI18n } from '@/composables/useI18n'
 import { useChatMessages } from '@/features/ai-chat/composables/useChatMessages'
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
-import ChatInputArea from './chat/ChatInputArea.vue'
 import ChatMessageItem from './chat/ChatMessageItem.vue'
 import ChatWelcome from './chat/ChatWelcome.vue'
+import CommandCenter from './chat/CommandCenter.vue'
 import SmartContextPreviewPanel from './chat/SmartContextPreviewPanel.vue'
 import ThinkingIndicator from './chat/ThinkingIndicator.vue'
 import ModelLimitsIndicator from './ModelLimitsIndicator.vue'
@@ -125,19 +86,13 @@ const {
   inputMessage,
   isThinking,
   isAnalyzing,
-  includeContext,
-  chatMode,
   smartContextPreview,
   expandedToolCalls,
   currentModel,
   providerName,
   isConnected,
   totalUsedTokens,
-  chatModeIndex,
-  chatModeIndicatorClass,
-  sendMessage,
-  sendAgenticMessage,
-  analyzeAndPreview,
+  sendSmartMessage,
   confirmSmartContext,
   cancelSmartContext,
   clearChat,
@@ -159,18 +114,16 @@ function scrollToBottom() {
 }
 
 async function handleSend() {
-  if (chatMode.value === 'smart') {
-    await analyzeAndPreview(t)
-  } else if (chatMode.value === 'agentic') {
-    await sendAgenticMessage(scrollToBottom)
-  } else {
-    await sendMessage(scrollToBottom)
-  }
+  await sendSmartMessage(scrollToBottom, t)
 }
 
 function handleQuickAction(action: { prompt: string }) {
   inputMessage.value = action.prompt
   handleSend()
+}
+
+function handleAttach() {
+  // Will open file picker in future iteration
 }
 
 onMounted(() => {
@@ -181,3 +134,101 @@ onUnmounted(() => {
   cleanup()
 })
 </script>
+
+<style scoped>
+/* Root: Flex column, no overflow on container */
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #131620 0%, #0f111a 50%, #0b0c10 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Header: Fixed height */
+.ai-chat__header {
+  flex: none;
+  padding: 12px 16px 8px;
+}
+
+/* Messages: Scrollable area with custom scrollbar */
+.ai-chat__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Custom scrollbar */
+.ai-chat__messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.ai-chat__messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-chat__messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.ai-chat__messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Analyzing indicator */
+.ai-chat__analyzing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #c4b5fd;
+  position: relative;
+  overflow: hidden;
+}
+
+.analyzing-pulse {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.1) 50%, transparent 100%);
+  animation: pulse-slide 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Transitions */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.25s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

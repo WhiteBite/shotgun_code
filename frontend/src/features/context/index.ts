@@ -13,8 +13,12 @@ export { default as ContextListToolbar } from './ui/ContextListToolbar.vue'
 export { default as ContextPanel } from './ui/ContextPanel.vue'
 
 // Composables
+export { useChunking } from './composables/useChunking'
 export { useContextDragDrop } from './composables/useContextDragDrop'
 export { useContextList } from './composables/useContextList'
 export { useContextSearch } from './composables/useContextSearch'
 export * from './composables/useSyntaxHighlight'
+
+// Chunking UI
+export { default as ChunkCutLine } from './ui/ChunkCutLine.vue'
 

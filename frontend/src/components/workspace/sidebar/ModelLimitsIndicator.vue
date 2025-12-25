@@ -195,7 +195,7 @@ function formatTokens(tokens: number): string {
 
 .limits-used { @apply text-white font-medium; }
 .limits-separator { @apply text-gray-600; }
-.limits-total { @apply text-gray-500; }
+.limits-total { @apply text-gray-400; }
 .limits-label { @apply text-gray-600 ml-0.5; }
 
 .limits-percent {
@@ -230,14 +230,14 @@ function formatTokens(tokens: number): string {
 
 .limits-ring-text { @apply absolute inset-0 flex flex-col items-center justify-center; }
 .limits-ring-percent { @apply text-lg font-bold text-white; }
-.limits-ring-label { @apply text-[10px] text-gray-500; }
+.limits-ring-label { @apply text-[10px] text-gray-400; }
 
 /* Stats Grid */
 .limits-stats { @apply grid grid-cols-2 gap-2; }
 .limits-stat { @apply text-center p-2 bg-gray-900/50 rounded-lg; }
 .limits-stat-value { @apply block text-sm font-semibold text-white; }
 .limits-stat-cost { @apply text-emerald-400; }
-.limits-stat-label { @apply block text-[10px] text-gray-500 mt-0.5; }
+.limits-stat-label { @apply block text-[10px] text-gray-400 mt-0.5; }
 
 /* Warning */
 .limits-warning {

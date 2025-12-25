@@ -1,26 +1,30 @@
 <template>
-  <RecycleScroller
-    v-if="flattenedNodes.length > 0"
-    class="h-full"
-    :items="flattenedNodes"
-    :item-size="28"
-    key-field="id"
-    v-slot="{ item }"
-  >
-    <VirtualTreeRow
-      :item="item"
-      :compact-mode="compactMode"
-      :is-selected="isNodeSelected(item.node)"
-      :checkbox-state="getCheckboxState(item.node)"
-      :file-count="getFileCount(item.node)"
-      @toggle-select="$emit('toggle-select', $event)"
-      @toggle-expand="$emit('toggle-expand', $event)"
-      @contextmenu="(node, event) => $emit('contextmenu', node, event)"
-      @quicklook="$emit('quicklook', $event)"
-    />
-  </RecycleScroller>
-  <div v-else class="empty-state h-full">
-    <p class="empty-state-text">{{ t('files.noFiles') }}</p>
+  <div class="virtual-tree-wrapper">
+    <RecycleScroller
+      v-if="flattenedNodes.length > 0"
+      class="virtual-tree-scroller"
+      :items="flattenedNodes"
+      :item-size="26"
+      key-field="id"
+      v-slot="{ item }"
+    >
+      <VirtualTreeRow
+        :item="item"
+        :compact-mode="compactMode"
+        :is-selected="isNodeSelected(item.node)"
+        :checkbox-state="getCheckboxState(item.node)"
+        :file-count="getFileCount(item.node)"
+        :selected-tokens="getSelectedTokens(item.node)"
+        :allow-select-binary="allowSelectBinary"
+        @toggle-select="$emit('toggle-select', $event)"
+        @toggle-expand="$emit('toggle-expand', $event)"
+        @contextmenu="(node, event) => $emit('contextmenu', node, event)"
+        @quicklook="$emit('quicklook', $event)"
+      />
+    </RecycleScroller>
+    <div v-else class="empty-state">
+      <p class="empty-state-text">{{ t('files.noFiles') }}</p>
+    </div>
   </div>
 </template>
 
@@ -39,10 +43,12 @@ const fileStore = useFileStore()
 interface Props {
   nodes: FileNode[]
   compactMode?: boolean
+  allowSelectBinary?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   compactMode: false,
+  allowSelectBinary: false,
 })
 
 defineEmits<{
@@ -90,4 +96,71 @@ function getFileCount(node: FileNode): number {
   if (!node.isDir) return 0
   return fileStore.getAllFilesInNode(node).length
 }
+
+// Build a map of path -> size for quick lookup
+const fileSizeMap = computed(() => {
+  const map = new Map<string, number>()
+  for (const item of flattenedVisibleNodes.value) {
+    if (!item.node.isDir && item.node.size) {
+      map.set(item.node.path, item.node.size)
+    }
+  }
+  return map
+})
+
+// Get total tokens of selected files inside a folder (for bubble-up indicator)
+function getSelectedTokens(node: FileNode): number {
+  if (!node.isDir) {
+    // For files, return their own token count if selected
+    if (fileStore.selectedPaths.has(node.path) && node.size) {
+      return Math.round(node.size / 4)
+    }
+    return 0
+  }
+  
+  // For folders, sum tokens of all selected files inside
+  const allFiles = fileStore.getAllFilesInNode(node)
+  let totalTokens = 0
+  for (const filePath of allFiles) {
+    if (fileStore.selectedPaths.has(filePath)) {
+      const size = fileSizeMap.value.get(filePath)
+      if (size) {
+        totalTokens += Math.round(size / 4)
+      }
+    }
+  }
+  return totalTokens
+}
 </script>
+
+<style scoped>
+.virtual-tree-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.virtual-tree-scroller {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+.virtual-tree-scroller :deep(.vue-recycle-scroller__item-view) {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+}
+</style>

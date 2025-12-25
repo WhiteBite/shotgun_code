@@ -82,7 +82,7 @@
       <div class="recent-section">
         <div class="section-header">
           <h2 class="section-title">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -111,7 +111,7 @@
               </div>
               <div class="project-info" :title="project.path">
                 <div class="project-name">{{ project.name }}</div>
-                <div class="project-path">{{ project.path }}</div>
+                <div class="project-path">{{ shortenPath(project.path) }}</div>
               </div>
               <button @click.stop="removeProject(project.path)" class="project-remove"
                 :title="t('welcome.removeProject')">
@@ -196,6 +196,26 @@ const contextMenu = ref({
 })
 
 const recentProjects = computed(() => projectStore.recentProjects)
+
+/**
+ * Shortens a file path for display while keeping it readable.
+ * Shows first part + ... + last 2 parts if path is too long.
+ */
+function shortenPath(path: string, maxLength = 50): string {
+  if (path.length <= maxLength) return path
+  
+  const separator = path.includes('\\') ? '\\' : '/'
+  const parts = path.split(separator)
+  
+  if (parts.length <= 3) return path
+  
+  // Keep first part (drive/root) and last 2 parts
+  const first = parts[0]
+  const last = parts.slice(-2).join(separator)
+  const shortened = `${first}${separator}...${separator}${last}`
+  
+  return shortened.length < path.length ? shortened : path
+}
 
 onMounted(async () => {
   try {
@@ -561,7 +581,7 @@ if (typeof window !== 'undefined') {
 }
 
 .clear-btn {
-  @apply text-xs text-gray-500 hover:text-red-400;
+  @apply text-xs text-gray-400 hover:text-red-400;
   @apply flex items-center gap-1;
   @apply transition-colors duration-200;
 }
@@ -633,7 +653,8 @@ if (typeof window !== 'undefined') {
 }
 
 .project-path {
-  @apply text-sm text-gray-400 truncate;
+  @apply text-xs text-gray-400 truncate;
+  max-width: 100%;
 }
 
 .project-remove {
@@ -656,7 +677,7 @@ if (typeof window !== 'undefined') {
 .empty-icon {
   @apply w-14 h-14 mx-auto mb-3 rounded-xl;
   @apply flex items-center justify-center;
-  @apply bg-gray-700/50 text-gray-500;
+  @apply bg-gray-700/50 text-gray-400;
 }
 
 .empty-projects p {

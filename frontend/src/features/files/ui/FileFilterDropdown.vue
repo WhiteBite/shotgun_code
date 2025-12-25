@@ -48,7 +48,7 @@
               <input type="checkbox" :checked="selected.includes(ext)" @change="toggleExtension(ext)"
                 class="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
               <span class="text-white">{{ ext }}</span>
-              <span class="text-gray-500 ml-auto">{{ getExtensionCount(ext) }}</span>
+              <span class="text-gray-400 ml-auto">{{ getExtensionCount(ext) }}</span>
             </label>
           </div>
         </div>
@@ -62,7 +62,7 @@
               <input type="checkbox" :checked="selected.includes(ext)" @change="toggleExtension(ext)"
                 class="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
               <span class="text-white">{{ ext }}</span>
-              <span class="text-gray-500 ml-auto">{{ getExtensionCount(ext) }}</span>
+              <span class="text-gray-400 ml-auto">{{ getExtensionCount(ext) }}</span>
             </label>
           </div>
         </div>
@@ -76,7 +76,7 @@
               <input type="checkbox" :checked="selected.includes(ext)" @change="toggleExtension(ext)"
                 class="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
               <span class="text-white">{{ ext }}</span>
-              <span class="text-gray-500 ml-auto">{{ getExtensionCount(ext) }}</span>
+              <span class="text-gray-400 ml-auto">{{ getExtensionCount(ext) }}</span>
             </label>
           </div>
         </div>
@@ -90,7 +90,7 @@
               <input type="checkbox" :checked="selected.includes(ext)" @change="toggleExtension(ext)"
                 class="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
               <span class="text-white">{{ ext }}</span>
-              <span class="text-gray-500 ml-auto">{{ getExtensionCount(ext) }}</span>
+              <span class="text-gray-400 ml-auto">{{ getExtensionCount(ext) }}</span>
             </label>
           </div>
         </div>
@@ -104,7 +104,7 @@
               <input type="checkbox" :checked="selected.includes(ext)" @change="toggleExtension(ext)"
                 class="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
               <span class="text-white">{{ ext }}</span>
-              <span class="text-gray-500 ml-auto">{{ getExtensionCount(ext) }}</span>
+              <span class="text-gray-400 ml-auto">{{ getExtensionCount(ext) }}</span>
             </label>
           </div>
         </div>

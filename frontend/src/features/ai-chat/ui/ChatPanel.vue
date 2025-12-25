@@ -8,8 +8,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
         </div>
-        <span class="section-title-text">AI Chat</span>
-        <span class="badge badge-primary">Coming Soon</span>
+        <span class="section-title-text">{{ t('chat.title') }}</span>
+        <span class="badge badge-primary">{{ t('chat.comingSoon') }}</span>
       </div>
       
       <button
@@ -17,7 +17,7 @@
         :disabled="!chatStore.hasMessages"
         class="btn btn-secondary btn-xs"
       >
-        Clear
+        {{ t('chat.clear') }}
       </button>
     </div>
 
@@ -29,16 +29,16 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
         </div>
-        <p class="empty-state-title !text-lg">AI Chat - Coming Soon</p>
-        <p class="empty-state-text mb-4">This feature is under development and will be available in a future release.</p>
+        <p class="empty-state-title !text-lg">{{ t('chat.comingSoonTitle') }}</p>
+        <p class="empty-state-text mb-4">{{ t('chat.comingSoonDesc') }}</p>
         <div class="info-box text-left text-xs space-y-2">
-          <p class="font-semibold text-gray-300">Planned features:</p>
+          <p class="font-semibold text-gray-300">{{ t('chat.plannedFeatures') }}</p>
           <ul class="list-disc list-inside text-gray-400 space-y-1">
-            <li>Real-time AI conversation</li>
-            <li>Context-aware responses</li>
-            <li>Code generation and explanation</li>
-            <li>Streaming responses</li>
-            <li>Chat history</li>
+            <li>{{ t('chat.feature.realtime') }}</li>
+            <li>{{ t('chat.feature.contextAware') }}</li>
+            <li>{{ t('chat.feature.codeGen') }}</li>
+            <li>{{ t('chat.feature.streaming') }}</li>
+            <li>{{ t('chat.feature.history') }}</li>
           </ul>
         </div>
       </div>
@@ -58,7 +58,7 @@
           <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
           <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
         </div>
-        <span class="text-sm">AI is typing...</span>
+        <span class="text-sm">{{ t('chat.typing') }}</span>
       </div>
     </div>
 
@@ -67,7 +67,7 @@
       <div class="flex gap-2">
         <textarea
           v-model="inputMessage"
-          placeholder="Type your message... (Coming soon)"
+          :placeholder="`${t('chat.placeholder')} (${t('chat.comingSoon')})`"
           disabled
           class="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
           rows="3"
@@ -83,16 +83,18 @@
           </svg>
         </button>
       </div>
-      <p class="text-xs text-gray-500 mt-2">Ctrl+Enter to send</p>
+      <p class="text-xs text-gray-400 mt-2">Ctrl+Enter to send</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useChatStore } from '../model/chat.store'
 import MessageItem from './MessageItem.vue'
 
+const { t } = useI18n()
 const chatStore = useChatStore()
 const inputMessage = ref('')
 const messagesContainer = ref<HTMLElement>()

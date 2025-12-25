@@ -64,32 +64,9 @@
     }
 }
 
-/* Tree Children Animation */
-.tree-children-enter-active {
-    animation: treeChildrenExpand 250ms ease-out;
-}
+/* Tree Children Animation - defined in tree.css */
 
-.tree-children-leave-active {
-    animation: treeChildrenExpand 200ms ease-in reverse;
-}
-
-@keyframes treeChildrenExpand {
-    from { opacity: 0; max-height: 0; }
-    to { opacity: 1; max-height: 2000px; }
-}
-
-/* Tree Stagger */
-.tree-stagger { animation: treeStaggerIn 200ms ease-out backwards; }
-.tree-stagger:nth-child(1) { animation-delay: 0ms; }
-.tree-stagger:nth-child(2) { animation-delay: 25ms; }
-.tree-stagger:nth-child(3) { animation-delay: 50ms; }
-.tree-stagger:nth-child(4) { animation-delay: 75ms; }
-.tree-stagger:nth-child(5) { animation-delay: 100ms; }
-
-@keyframes treeStaggerIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
-}
+/* Tree Stagger - defined in tree.css */
 
 /* Folder Expand Animation */
 .folder-expand-enter-active {

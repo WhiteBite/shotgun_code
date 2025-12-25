@@ -38,7 +38,7 @@
               <option v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</option>
             </select>
           </div>
-          <div class="flex items-center text-gray-500 pt-4">
+          <div class="flex items-center text-gray-400 pt-4">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
@@ -113,7 +113,7 @@
         
         <!-- Footer -->
         <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between">
-          <div class="text-xs text-gray-500">
+          <div class="text-xs text-gray-400">
             <span v-if="diffFiles.length > 0">
               {{ diffFiles.length }} {{ t('git.filesChanged') }}
               <span v-if="totalAdditions" class="text-emerald-400 ml-2">+{{ totalAdditions }}</span>

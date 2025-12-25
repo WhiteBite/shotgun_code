@@ -3,12 +3,34 @@ package tools
 import (
 	"testing"
 
-	"shotgun_code/infrastructure/analyzers"
+	"shotgun_code/domain"
 )
 
+// mockCallGraphBuilder implements domain.CallGraphBuilder for testing
+type mockCallGraphBuilder struct{}
+
+func (m *mockCallGraphBuilder) Build(projectRoot string) (*domain.CallGraph, error) {
+	return &domain.CallGraph{Nodes: make(map[string]*domain.CallGraphNode)}, nil
+}
+
+func (m *mockCallGraphBuilder) GetCallers(functionID string) []domain.CallGraphNode {
+	return nil
+}
+
+func (m *mockCallGraphBuilder) GetCallees(functionID string) []domain.CallGraphNode {
+	return nil
+}
+
+func (m *mockCallGraphBuilder) GetImpact(functionID string, maxDepth int) []domain.CallGraphNode {
+	return nil
+}
+
+func (m *mockCallGraphBuilder) GetCallChain(startID, endID string, maxDepth int) [][]string {
+	return nil
+}
+
 func TestCallGraphHandler_CanHandle(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	tests := []struct {
@@ -34,8 +56,7 @@ func TestCallGraphHandler_CanHandle(t *testing.T) {
 }
 
 func TestCallGraphHandler_GetTools(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 	tools := handler.GetTools()
 
@@ -76,8 +97,7 @@ func TestGetCallers_NotInitialized(t *testing.T) {
 }
 
 func TestGetCallers_MissingFunctionID(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	_, err := handler.Execute("get_callers", map[string]any{}, "/project")
@@ -88,8 +108,7 @@ func TestGetCallers_MissingFunctionID(t *testing.T) {
 }
 
 func TestGetCallees_MissingFunctionID(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	_, err := handler.Execute("get_callees", map[string]any{}, "/project")
@@ -100,8 +119,7 @@ func TestGetCallees_MissingFunctionID(t *testing.T) {
 }
 
 func TestGetImpact_MissingFunctionID(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	_, err := handler.Execute("get_impact", map[string]any{}, "/project")
@@ -112,8 +130,7 @@ func TestGetImpact_MissingFunctionID(t *testing.T) {
 }
 
 func TestGetCallChain_MissingParams(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	tests := []struct {
@@ -136,8 +153,7 @@ func TestGetCallChain_MissingParams(t *testing.T) {
 }
 
 func TestCallGraphHandler_UnknownTool(t *testing.T) {
-	registry := analyzers.NewAnalyzerRegistry()
-	callGraph := analyzers.NewCallGraphBuilder(registry)
+	callGraph := &mockCallGraphBuilder{}
 	handler := NewCallGraphToolsHandler(nil, callGraph)
 
 	_, err := handler.Execute("unknown_tool", map[string]any{}, "/project")

@@ -1,78 +1,63 @@
 /**
- * Composable for managing hovered file state using provide/inject pattern.
- * Replaces global window.__hoveredFilePath and window.__hoveredFileIsDir.
+ * Composable for managing hovered file state using reactive singleton pattern.
+ * 
+ * NOTE: We use a singleton reactive state instead of provide/inject because
+ * vue-virtual-scroller's RecycleScroller reuses DOM elements and can call
+ * provide() outside of setup() context, causing Vue warnings.
+ * 
+ * This approach avoids:
+ * - "[Vue warn]: provide() can only be used inside setup()"
+ * - "[Vue warn]: injection "Symbol(HoveredFile)" not found"
  */
 
-import { inject, provide, ref, type InjectionKey, type Ref } from 'vue'
+import { reactive } from 'vue'
 
 export interface HoveredFileState {
-    path: Ref<string | null>
-    isDir: Ref<boolean | null>
+    path: string | null
+    isDir: boolean | null
+}
+
+interface HoveredFileActions {
+    readonly state: HoveredFileState
     setHovered: (path: string | null, isDir: boolean | null) => void
     clearHovered: (currentPath: string) => void
 }
 
-export const HoveredFileKey: InjectionKey<HoveredFileState> = Symbol('HoveredFile')
+// Singleton reactive state - shared across all components
+const hoveredState = reactive<HoveredFileState>({
+    path: null,
+    isDir: null,
+})
 
 /**
  * Provides hovered file state to child components.
- * Should be called in the root FileExplorer component.
+ * Now a no-op for backwards compatibility - state is managed via singleton.
+ * @deprecated Use useHoveredFile() directly instead
  */
-export function provideHoveredFile(): HoveredFileState {
-    const path = ref<string | null>(null)
-    const isDir = ref<boolean | null>(null)
+export function provideHoveredFile(): HoveredFileActions {
+    return useHoveredFile()
+}
 
+/**
+ * Returns hovered file state and actions.
+ * Uses singleton reactive state to avoid provide/inject issues with virtual scrolling.
+ */
+export function useHoveredFile(): HoveredFileActions {
     const setHovered = (newPath: string | null, newIsDir: boolean | null) => {
-        path.value = newPath
-        isDir.value = newIsDir
+        hoveredState.path = newPath
+        hoveredState.isDir = newIsDir
     }
 
     const clearHovered = (currentPath: string) => {
-        if (path.value === currentPath) {
-            path.value = null
-            isDir.value = null
+        if (hoveredState.path === currentPath) {
+            hoveredState.path = null
+            hoveredState.isDir = null
         }
     }
 
-    const state: HoveredFileState = {
-        path,
-        isDir,
+    return {
+        state: hoveredState,
         setHovered,
         clearHovered,
     }
-
-    provide(HoveredFileKey, state)
-    return state
-}
-
-/**
- * Creates a fallback hovered file state for components not wrapped in provider.
- */
-function createFallbackState(): HoveredFileState {
-    const path = ref<string | null>(null)
-    const isDir = ref<boolean | null>(null)
-
-    return {
-        path,
-        isDir,
-        setHovered: (newPath, newIsDir) => {
-            path.value = newPath
-            isDir.value = newIsDir
-        },
-        clearHovered: (currentPath) => {
-            if (path.value === currentPath) {
-                path.value = null
-                isDir.value = null
-            }
-        },
-    }
-}
-
-/**
- * Injects hovered file state from parent component.
- * Returns a fallback state if not provided (for backwards compatibility).
- */
-export function useHoveredFile(): HoveredFileState {
-    // Use inject with default value to avoid Vue warning
-    return inject(HoveredFileKey, createFallbackState())
 }

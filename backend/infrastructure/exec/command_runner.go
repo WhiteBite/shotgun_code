@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 )
 
 // CommandRunnerImpl реализует интерфейс CommandRunner для выполнения команд
@@ -25,6 +26,7 @@ func (c *CommandRunnerImpl) RunCommand(ctx context.Context, name string, args ..
 	c.log.Debug(fmt.Sprintf("Executing command: %s %v", name, args))
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	executil.HideWindow(cmd)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -46,6 +48,7 @@ func (c *CommandRunnerImpl) RunCommandInDir(ctx context.Context, dir, name strin
 	}
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 

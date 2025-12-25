@@ -9,8 +9,6 @@ import (
 
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
-	"shotgun_code/infrastructure/embeddings"
-	"shotgun_code/infrastructure/textutils"
 )
 
 // ServiceImpl implements SemanticSearchService
@@ -19,7 +17,7 @@ type ServiceImpl struct {
 	vectorStore       domain.VectorStore
 	symbolIndex       analysis.SymbolIndex
 	log               domain.Logger
-	chunker           *embeddings.CodeChunker
+	chunker           domain.CodeChunker
 
 	// Indexing state
 	indexingMu    sync.RWMutex
@@ -51,13 +49,14 @@ func NewService(
 	vectorStore domain.VectorStore,
 	symbolIndex analysis.SymbolIndex,
 	log domain.Logger,
+	chunker domain.CodeChunker,
 ) *ServiceImpl {
 	return &ServiceImpl{
 		embeddingProvider: embeddingProvider,
 		vectorStore:       vectorStore,
 		symbolIndex:       symbolIndex,
 		log:               log,
-		chunker:           embeddings.NewCodeChunker(embeddings.DefaultChunkerConfig()),
+		chunker:           chunker,
 		indexingState:     make(map[string]*IndexingState),
 	}
 }
@@ -88,7 +87,7 @@ func (s *ServiceImpl) Search(ctx context.Context, req domain.SemanticSearchReque
 		req.MinScore = 0.5
 	}
 
-	s.log.Info(fmt.Sprintf("Semantic search: query='%s', topK=%d", textutils.TruncateString(req.Query, 50), req.TopK))
+	s.log.Info(fmt.Sprintf("Semantic search: query='%s', topK=%d", domain.TruncateString(req.Query, 50), req.TopK))
 
 	switch req.SearchType {
 	case domain.SearchTypeKeyword:

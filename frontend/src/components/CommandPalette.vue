@@ -60,20 +60,20 @@
                     <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                       {{ command.name }}
                     </div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="text-xs text-gray-400 dark:text-gray-400">
                       {{ command.description }}
                     </div>
                   </div>
                 </div>
                 <kbd
-                    class="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-100 dark:bg-gray-700 dark:text-gray-400 rounded">
+                    class="px-2 py-1 text-xs font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 dark:text-gray-400 rounded">
                   {{ command.shortcut }}
                 </kbd>
               </li>
             </ul>
           </div>
 
-          <div v-else class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <div v-else class="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-400">
             No commands found
           </div>
         </DialogPanel>

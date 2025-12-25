@@ -45,6 +45,14 @@ export const CONTEXT = {
     CHUNK_SIZE: 50000,
 } as const
 
+// Token Weight Thresholds (for file tree visualization)
+export const TOKEN_THRESHOLDS = {
+    MEDIUM: 5000,      // 5k tokens - yellow indicator
+    HEAVY: 20000,      // 20k tokens - orange indicator  
+    CRITICAL: 50000,   // 50k tokens - red indicator
+    BYTES_PER_TOKEN: 4, // approximate bytes per token
+} as const
+
 // Git Configuration
 export const GIT = {
     MAX_COMMITS: 100,
@@ -65,4 +73,31 @@ export const SHORTCUTS = {
     COMMAND_PALETTE: 'Ctrl+Shift+P',
     COPY: 'Ctrl+C',
     SELECT_ALL: 'Ctrl+A',
+} as const
+
+// LocalStorage Keys - centralized to avoid magic strings
+export const STORAGE_KEYS = {
+    // Project
+    RECENT_PROJECTS: 'shotgun_recent_projects',
+    AUTO_OPEN_LAST: 'shotgun_auto_open_last',
+    // Settings
+    APP_SETTINGS: 'app-settings',
+    // Context
+    CONTEXT_METADATA: 'context-metadata',
+    // Chat
+    CHAT_HISTORY_PREFIX: 'chat-history',
+    // UI State
+    LEFT_SIDEBAR_TAB: 'left-sidebar-tab',
+    RIGHT_SIDEBAR_VISIBLE: 'right-sidebar-visible',
+    RIGHT_SIDEBAR_TAB: 'right-sidebar-tab',
+    TASK_PANEL_VISIBLE: 'task-panel-visible',
+    // File Explorer
+    EXPANDED_NODES_PREFIX: 'expanded-nodes',
+    SELECTED_FILES_PREFIX: 'selected-files',
+    FILTER_STATE_PREFIX: 'filter-state',
+    // Workspace Layout
+    WORKSPACE_LEFT_WIDTH: 'workspace-left-width',
+    WORKSPACE_RIGHT_WIDTH: 'workspace-right-width',
+    // Onboarding
+    ONBOARDING_COMPLETED: 'shotgun-onboarding-completed',
 } as const

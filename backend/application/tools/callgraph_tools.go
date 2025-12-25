@@ -3,18 +3,17 @@ package tools
 import (
 	"fmt"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/analyzers"
 	"strings"
 )
 
 // CallGraphToolsHandler handles call graph related tools
 type CallGraphToolsHandler struct {
 	BaseHandler
-	CallGraph *analyzers.CallGraphBuilderImpl
+	CallGraph domain.CallGraphBuilder
 }
 
 // NewCallGraphToolsHandler creates a new call graph tools handler
-func NewCallGraphToolsHandler(logger domain.Logger, callGraph *analyzers.CallGraphBuilderImpl) *CallGraphToolsHandler {
+func NewCallGraphToolsHandler(logger domain.Logger, callGraph domain.CallGraphBuilder) *CallGraphToolsHandler {
 	return &CallGraphToolsHandler{
 		BaseHandler: NewBaseHandler(logger),
 		CallGraph:   callGraph,

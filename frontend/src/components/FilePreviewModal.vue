@@ -16,11 +16,11 @@
             <span class="text-lg">{{ getFileIcon(fileName) }}</span>
             <div class="min-w-0">
               <h3 class="text-sm font-medium text-white truncate">{{ fileName }}</h3>
-              <p class="text-xs text-gray-500 truncate">{{ filePath }}</p>
+              <p class="text-xs text-gray-400 truncate">{{ filePath }}</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <span v-if="fileSize" class="text-xs text-gray-500">{{ formatSize(fileSize) }}</span>
+            <span v-if="fileSize" class="text-xs text-gray-400">{{ formatSize(fileSize) }}</span>
             <button
               @click="copyContent"
               class="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
@@ -61,7 +61,7 @@
         </div>
         
         <!-- Footer with line count -->
-        <div class="px-4 py-2 border-t border-gray-700 flex items-center justify-between text-xs text-gray-500">
+        <div class="px-4 py-2 border-t border-gray-700 flex items-center justify-between text-xs text-gray-400">
           <span>{{ lineCount }} {{ t('context.lines') }}</span>
           <span v-if="language">{{ language }}</span>
         </div>

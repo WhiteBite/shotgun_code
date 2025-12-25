@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
+	"shotgun_code/assets/fonts"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/fonts"
 
 	"github.com/jung-kurt/gofpdf"
 )

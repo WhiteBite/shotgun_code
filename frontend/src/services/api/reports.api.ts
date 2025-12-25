@@ -11,19 +11,19 @@ export const reportsApi = {
         apiCall(
             () => wails.GenerateReport(contextId, format),
             'Failed to generate report.',
-            'reports'
+            { logContext: 'reports' }
         ),
 
     listReports: (projectPath: string): Promise<string> =>
-        apiCall(() => wails.ListReports(projectPath), 'Failed to list reports.', 'reports'),
+        apiCall(() => wails.ListReports(projectPath), 'Failed to list reports.', { logContext: 'reports' }),
 
     getReport: (reportId: string): Promise<string> =>
-        apiCall(() => wails.GetReport(reportId), 'Failed to get report.', 'reports'),
+        apiCall(() => wails.GetReport(reportId), 'Failed to get report.', { logContext: 'reports' }),
 
     exportProject: (projectPath: string, format: string, outputPath: string): Promise<string> =>
         apiCall(
             () => wails.ExportProject(projectPath, format, outputPath),
             'Failed to export project.',
-            'reports'
+            { logContext: 'reports' }
         ),
 }

@@ -32,7 +32,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between text-xs mb-1">
               <span class="text-gray-300 truncate">.{{ stat.extension }}</span>
-              <span class="text-gray-500">{{ stat.count }} {{ t('context.files') }}</span>
+              <span class="text-gray-400">{{ stat.count }} {{ t('context.files') }}</span>
             </div>
             <div class="progress-bar-enhanced">
               <div class="progress-bar-fill" :class="stat.colorClass" :style="{ width: `${stat.percentage}%` }"></div>
@@ -54,7 +54,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between text-xs mb-1">
               <span class="text-gray-300 truncate">{{ stat.folder || '/' }}</span>
-              <span class="text-gray-500">{{ stat.count }}</span>
+              <span class="text-gray-400">{{ stat.count }}</span>
             </div>
             <div class="progress-bar-enhanced">
               <div class="progress-bar-fill-folder" :style="{ width: `${stat.percentage}%` }"></div>
@@ -73,7 +73,7 @@
         </svg>
       </div>
       <p class="text-sm font-medium text-gray-300 mb-1">{{ t('context.notBuilt') }}</p>
-      <p class="text-xs text-gray-500">{{ t('context.selectFiles') }}</p>
+      <p class="text-xs text-gray-400">{{ t('context.selectFiles') }}</p>
     </div>
   </div>
 </template>

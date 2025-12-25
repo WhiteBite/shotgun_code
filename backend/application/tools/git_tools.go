@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"os/exec"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/git"
+	"shotgun_code/internal/executil"
 	"strings"
 )
 
 // GitToolsHandler handles git-related tools
 type GitToolsHandler struct {
 	BaseHandler
-	GitContext *git.ContextBuilder
+	GitContext domain.GitContextBuilder
 }
 
 // NewGitToolsHandler creates a new git tools handler
-func NewGitToolsHandler(logger domain.Logger, gitContext *git.ContextBuilder) *GitToolsHandler {
+func NewGitToolsHandler(logger domain.Logger, gitContext domain.GitContextBuilder) *GitToolsHandler {
 	return &GitToolsHandler{
 		BaseHandler: NewBaseHandler(logger),
 		GitContext:  gitContext,
@@ -126,6 +126,7 @@ func (h *GitToolsHandler) Execute(toolName string, args map[string]any, projectR
 
 func (h *GitToolsHandler) gitStatus(projectRoot string) (string, error) {
 	cmd := exec.Command("git", "status", "--porcelain")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -179,6 +180,7 @@ func (h *GitToolsHandler) gitDiff(args map[string]any, projectRoot string) (stri
 	}
 
 	cmd := exec.Command("git", cmdArgs...)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -210,6 +212,7 @@ func (h *GitToolsHandler) gitLog(args map[string]any, projectRoot string) (strin
 	}
 
 	cmd := exec.Command("git", cmdArgs...)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -225,7 +228,7 @@ func (h *GitToolsHandler) gitLog(args map[string]any, projectRoot string) (strin
 
 func (h *GitToolsHandler) gitChangedFiles(args map[string]any, projectRoot string) (string, error) {
 	if h.GitContext == nil {
-		h.GitContext = git.NewContextBuilder(projectRoot)
+		return "", fmt.Errorf("git context not initialized")
 	}
 
 	since, _ := args["since"].(string)
@@ -250,7 +253,7 @@ func (h *GitToolsHandler) gitChangedFiles(args map[string]any, projectRoot strin
 
 func (h *GitToolsHandler) gitCoChanged(args map[string]any, projectRoot string) (string, error) {
 	if h.GitContext == nil {
-		h.GitContext = git.NewContextBuilder(projectRoot)
+		return "", fmt.Errorf("git context not initialized")
 	}
 
 	filePath, _ := args["file_path"].(string)
@@ -281,7 +284,7 @@ func (h *GitToolsHandler) gitCoChanged(args map[string]any, projectRoot string) 
 
 func (h *GitToolsHandler) gitSuggestContext(args map[string]any, projectRoot string) (string, error) {
 	if h.GitContext == nil {
-		h.GitContext = git.NewContextBuilder(projectRoot)
+		return "", fmt.Errorf("git context not initialized")
 	}
 
 	task, _ := args["task"].(string)

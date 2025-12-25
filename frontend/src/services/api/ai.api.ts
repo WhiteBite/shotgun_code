@@ -14,7 +14,7 @@ import { apiCall, parseJsonResponse } from './base'
 
 export const aiApi = {
     generateCode: (context: string, task: string): Promise<string> =>
-        apiCall(() => wails.GenerateCode(context, task), 'Failed to generate code.', 'ai'),
+        apiCall(() => wails.GenerateCode(context, task), 'Failed to generate code.', { logContext: 'ai' }),
 
     generateCodeStream: (context: string, task: string): void => {
         try {
@@ -28,21 +28,21 @@ export const aiApi = {
         apiCall(
             () => wails.GenerateIntelligentCode(context, task, options),
             'Failed to generate code.',
-            'ai'
+            { logContext: 'ai' }
         ),
 
     listAvailableModels: (): Promise<string[]> =>
-        apiCall(() => wails.ListAvailableModels(), 'Failed to list AI models.', 'ai'),
+        apiCall(() => wails.ListAvailableModels(), 'Failed to list AI models.', { logContext: 'ai' }),
 
     getProviderInfo: (): Promise<string> =>
-        apiCall(() => wails.GetProviderInfo(), 'Failed to get provider information.', 'ai'),
+        apiCall(() => wails.GetProviderInfo(), 'Failed to get provider information.', { logContext: 'ai' }),
 
     // Qwen Task Execution
     qwenExecuteTask: async (request: QwenTaskRequest): Promise<QwenTaskResponse> => {
         const result = await apiCall(
             () => wails.QwenExecuteTask(JSON.stringify(request)),
             'Failed to execute task with Qwen.',
-            'ai'
+            { logContext: 'ai' }
         )
         return parseJsonResponse(result, 'Failed to parse Qwen response.')
     },
@@ -51,7 +51,7 @@ export const aiApi = {
         const result = await apiCall(
             () => wails.QwenPreviewContext(JSON.stringify(request)),
             'Failed to preview context.',
-            'ai'
+            { logContext: 'ai' }
         )
         return parseJsonResponse(result, 'Failed to parse context preview.')
     },
@@ -60,7 +60,7 @@ export const aiApi = {
         const result = await apiCall(
             () => wails.QwenGetAvailableModels(),
             'Failed to get Qwen models.',
-            'ai'
+            { logContext: 'ai' }
         )
         return parseJsonResponse(result, 'Failed to parse Qwen models.')
     },

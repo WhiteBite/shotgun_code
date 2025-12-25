@@ -1,5 +1,27 @@
 // Syntax highlighting utilities for context preview
 
+// Кэш для мемоизации результатов подсветки
+const highlightCache = new Map<string, string>()
+const MAX_CACHE_SIZE = 5000 // Ограничение размера кэша
+
+function getCacheKey(line: string, format: string, searchQuery?: string): string {
+    return `${format}:${searchQuery || ''}:${line}`
+}
+
+function addToCache(key: string, value: string): void {
+    // Очистка кэша при превышении лимита (LRU-подобная стратегия)
+    if (highlightCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = highlightCache.keys().next().value
+        if (firstKey) highlightCache.delete(firstKey)
+    }
+    highlightCache.set(key, value)
+}
+
+// Очистка кэша (вызывать при смене контекста)
+export function clearHighlightCache(): void {
+    highlightCache.clear()
+}
+
 export function escapeHtml(text: string): string {
     return text
         .replace(/&/g, '&amp;')
@@ -58,6 +80,13 @@ export function applySyntaxHighlight(line: string, format: string): string {
 }
 
 export function highlightLine(line: string, format: string, searchQuery?: string): string {
+    // Проверяем кэш
+    const cacheKey = getCacheKey(line, format, searchQuery)
+    const cached = highlightCache.get(cacheKey)
+    if (cached !== undefined) {
+        return cached
+    }
+
     let result = escapeHtml(line)
 
     // Apply syntax highlighting
@@ -69,6 +98,9 @@ export function highlightLine(line: string, format: string, searchQuery?: string
         const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
         result = result.replace(regex, '<mark class="bg-yellow-400/40 text-yellow-200 rounded px-0.5">$1</mark>')
     }
+
+    // Сохраняем в кэш
+    addToCache(cacheKey, result)
 
     return result
 }

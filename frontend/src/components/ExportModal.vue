@@ -171,7 +171,7 @@
 
           <!-- Footer -->
           <div class="flex items-center justify-between px-6 py-4 border-t border-gray-700/50">
-            <div class="text-xs text-gray-500">
+            <div class="text-xs text-gray-400">
               <span v-if="exportResult">
                 Экспорт завершен успешно
               </span>

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -67,6 +68,7 @@ func (a *ErrorProneAnalyzer) Analyze(ctx context.Context, config *domain.StaticA
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "javac", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -145,12 +147,14 @@ func (a *ErrorProneAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig)
 func (a *ErrorProneAnalyzer) checkJavaEnvironment() error {
 	// Проверяем Java
 	cmd := exec.Command("java", "-version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Java not found: %w", err)
 	}
 
 	// Проверяем javac
 	cmd = exec.Command("javac", "-version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("javac not found: %w", err)
 	}

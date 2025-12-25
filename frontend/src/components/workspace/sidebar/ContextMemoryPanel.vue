@@ -1,288 +1,576 @@
 <template>
-  <div class="context-memory-panel">
-    <div class="panel-header">
-      <div class="flex items-center gap-2">
-        <svg class="panel-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-        <span class="panel-title">{{ t('context.savedContexts') }}</span>
-      </div>
-      <button @click="refreshContexts" class="action-btn" :disabled="isLoading">
-        <svg class="w-4 h-4" :class="{ 'animate-spin': isLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
-    </div>
-
-    <!-- Search -->
-    <div class="px-3 py-2">
-      <input 
-        v-model="searchQuery" 
-        type="text" 
-        :placeholder="t('context.searchContexts')"
-        class="search-input w-full"
-        @input="debouncedSearch"
-      />
-    </div>
-
-    <!-- Contexts List -->
-    <div class="contexts-list">
-      <div v-if="isLoading" class="flex items-center justify-center py-8">
-        <svg class="animate-spin h-6 w-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
-
-      <div v-else-if="filteredContexts.length === 0" class="empty-state">
-        <svg class="w-12 h-12 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <div class="context-detail-panel">
+    <!-- Empty State: No context selected -->
+    <div v-if="!selectedContext" class="detail-empty">
+      <div class="detail-empty-icon">
+        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
         </svg>
-        <p class="text-sm text-gray-500">{{ t('context.noSavedContexts') }}</p>
+      </div>
+      <p class="detail-empty-title">{{ t('context.selectToPreview') }}</p>
+      <p class="detail-empty-hint">{{ t('context.selectToPreviewHint') }}</p>
+    </div>
+
+    <!-- Context Details -->
+    <template v-else>
+      <!-- Header -->
+      <div class="detail-header">
+        <div class="detail-avatar" :class="`detail-avatar--${avatarColor}`">
+          <span v-if="selectedContext.isFavorite">⭐</span>
+          <span v-else>{{ initials }}</span>
+        </div>
+        <div class="detail-info">
+          <div class="detail-title-row">
+            <h2 class="detail-title">{{ contextName }}</h2>
+            <span class="detail-badge">{{ selectedContext.fileCount }} {{ t('context.filesShort') }}</span>
+          </div>
+          <div class="detail-meta">
+            <span>{{ formatSize(selectedContext.totalSize) }}</span>
+            <span v-if="selectedContext.createdAt" class="detail-dot">•</span>
+            <span v-if="selectedContext.createdAt">{{ formatDate(selectedContext.createdAt) }}</span>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="space-y-2 p-2">
-        <div 
-          v-for="ctx in filteredContexts" 
-          :key="ctx.id"
-          class="context-card"
-          @click="restoreContext(ctx)"
-        >
-          <div class="flex items-start justify-between">
-            <div class="flex-1 min-w-0">
-              <h4 class="context-topic">{{ ctx.topic }}</h4>
-              <p class="context-summary">{{ ctx.summary }}</p>
-            </div>
-          </div>
-          <div class="context-meta">
-            <span class="context-files">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <!-- Files List -->
+      <div class="detail-content">
+        <h3 class="detail-section-title">{{ t('context.contextFiles') }}</h3>
+        
+        <div v-if="!contextFiles.length && selectedContext.fileCount > 0" class="detail-no-files">
+          <p>{{ t('context.filesListUnavailable') }}</p>
+          <p class="detail-no-files-hint">{{ selectedContext.fileCount }} {{ t('context.filesInContext') }}</p>
+        </div>
+        
+        <div v-else-if="!contextFiles.length" class="detail-no-files">
+          {{ t('context.noFilesInfo') }}
+        </div>
+        
+        <ul v-else class="detail-files">
+          <li v-for="file in contextFiles" :key="file" class="detail-file">
+            <div class="detail-file-icon-wrap">
+              <svg class="detail-file-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {{ ctx.files.length }} {{ t('context.files') }}
-            </span>
-            <span class="context-date">{{ formatDate(ctx.createdAt) }}</span>
-          </div>
-        </div>
+            </div>
+            <div class="detail-file-info">
+              <span class="detail-file-name">{{ getFileName(file) }}</span>
+              <span class="detail-file-dir">{{ getFileDir(file) }}</span>
+            </div>
+          </li>
+        </ul>
       </div>
-    </div>
 
-    <!-- Save Current Context -->
-    <div class="save-section">
-      <button 
-        @click="showSaveDialog = true" 
-        class="btn btn-primary w-full"
-        :disabled="!canSave"
-      >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-        </svg>
-        {{ t('context.saveCurrentContext') }}
-      </button>
-    </div>
-
-    <!-- Save Dialog -->
-    <Teleport to="body">
-      <div v-if="showSaveDialog" class="modal-overlay" @click.self="showSaveDialog = false">
-        <div class="modal-content">
-          <h3 class="modal-title">{{ t('context.saveContext') }}</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm text-gray-400 mb-1">{{ t('context.topic') }}</label>
-              <input v-model="saveTopic" type="text" class="input w-full" :placeholder="t('context.topicPlaceholder')" />
-            </div>
-            <div>
-              <label class="block text-sm text-gray-400 mb-1">{{ t('context.summary') }}</label>
-              <textarea v-model="saveSummary" class="input w-full h-20 resize-none" :placeholder="t('context.summaryPlaceholder')" />
-            </div>
-            <div class="text-sm text-gray-500">
-              {{ selectedFiles.length }} {{ t('context.filesSelected') }}
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button @click="showSaveDialog = false" class="btn btn-ghost">{{ t('common.cancel') }}</button>
-            <button @click="saveContext" class="btn btn-primary" :disabled="!saveTopic.trim()">{{ t('common.save') }}</button>
-          </div>
-        </div>
+      <!-- Footer Actions -->
+      <div class="detail-footer">
+        <button @click="loadAndBuildContext" :disabled="isLoading" class="detail-load-btn">
+          <svg v-if="!isLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          {{ isLoading ? t('context.building') : t('context.loadAndBuild') }}
+        </button>
+        <button @click="deleteContext" class="detail-delete-btn" :title="t('context.delete')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
       </div>
-    </Teleport>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from '@/composables/useI18n'
 import { useFileStore } from '@/features/files/model/file.store'
-import { apiService, type ContextMemoryEntry } from '@/services/api.service'
-import { useProjectStore } from '@/stores/project.store'
+import { useContextStore } from '@/features/context/model/context.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useUIStore } from '@/stores/ui.store'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
+import { formatContextSize } from '@/features/context/lib/context-utils'
+
+const emit = defineEmits<{
+  (e: 'switch-to-preview'): void
+}>()
 
 const { t } = useI18n()
+const contextStore = useContextStore()
 const fileStore = useFileStore()
-const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 const uiStore = useUIStore()
 
-const contexts = ref<ContextMemoryEntry[]>([])
 const isLoading = ref(false)
-const searchQuery = ref('')
-const showSaveDialog = ref(false)
-const saveTopic = ref('')
-const saveSummary = ref('')
 
-const selectedFiles = computed(() => Array.from(fileStore.selectedPaths))
-const canSave = computed(() => selectedFiles.value.length > 0 && projectStore.currentPath)
+// Get selected context from list (for right panel preview)
+const selectedContext = computed(() => contextStore.selectedListItem)
 
-const filteredContexts = computed(() => {
-  if (!searchQuery.value.trim()) return contexts.value
-  const query = searchQuery.value.toLowerCase()
-  return contexts.value.filter(ctx => 
-    ctx.topic.toLowerCase().includes(query) || 
-    ctx.summary.toLowerCase().includes(query)
-  )
+// Get files from context
+const contextFiles = computed(() => {
+  return selectedContext.value?.files || []
 })
 
-let searchTimeout: number | null = null
-function debouncedSearch() {
-  if (searchTimeout) clearTimeout(searchTimeout)
-  searchTimeout = window.setTimeout(() => {
-    if (searchQuery.value.trim()) {
-      searchByTopic()
-    } else {
-      refreshContexts()
-    }
-  }, 300)
-}
+// Context name without brackets
+const contextName = computed(() => {
+  const name = selectedContext.value?.name || t('context.untitled')
+  // Remove [XX] suffix if present
+  return name.replace(/\s*\[\d+\]\s*$/, '')
+})
 
-async function refreshContexts() {
-  if (!projectStore.currentPath) return
-  isLoading.value = true
-  try {
-    contexts.value = await apiService.getRecentContexts(projectStore.currentPath, 20)
-  } finally {
-    isLoading.value = false
+// Generate initials - SAME LOGIC as ContextListItem
+const initials = computed(() => {
+  const name = selectedContext.value?.name || ''
+  
+  if (!name) {
+    const fileCount = selectedContext.value?.fileCount || 0
+    return fileCount > 0 ? String(fileCount) : '?'
   }
-}
-
-async function searchByTopic() {
-  if (!projectStore.currentPath || !searchQuery.value.trim()) return
-  isLoading.value = true
-  try {
-    contexts.value = await apiService.findContextByTopic(projectStore.currentPath, searchQuery.value)
-  } finally {
-    isLoading.value = false
+  
+  if (name.includes('Пустой')) return 'ПК'
+  
+  const filesMatch = name.match(/^(\d+)\s*файл/)
+  if (filesMatch) {
+    return filesMatch[1].length > 2 ? filesMatch[1].slice(0, 2) : filesMatch[1]
   }
-}
-
-async function saveContext() {
-  if (!projectStore.currentPath || !saveTopic.value.trim()) return
-  try {
-    await apiService.saveContextMemory(
-      projectStore.currentPath,
-      saveTopic.value.trim(),
-      saveSummary.value.trim(),
-      selectedFiles.value
-    )
-    uiStore.addToast(t('context.contextSaved'), 'success')
-    showSaveDialog.value = false
-    saveTopic.value = ''
-    saveSummary.value = ''
-    await refreshContexts()
-  } catch {
-    uiStore.addToast(t('context.saveError'), 'error')
+  
+  const words = name.split(/[\s\-_]+/).filter(w => w.length > 0)
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase()
   }
+  
+  return name.slice(0, 2).toUpperCase()
+})
+
+// Generate color based on ID
+const avatarColor = computed(() => {
+  const colors = ['indigo', 'purple', 'pink', 'blue', 'cyan', 'teal', 'green', 'amber']
+  const source = selectedContext.value?.id || selectedContext.value?.name || ''
+  let hash = 0
+  for (let i = 0; i < source.length; i++) {
+    hash = source.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+})
+
+// Extract filename from path
+function getFileName(filePath: string): string {
+  const parts = filePath.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || filePath
 }
 
-function restoreContext(ctx: ContextMemoryEntry) {
-  fileStore.clearSelection()
-  ctx.files.forEach(file => fileStore.toggleSelect(file))
-  uiStore.addToast(t('context.contextRestored'), 'success')
+// Extract directory from path (relative, without project root)
+function getFileDir(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  const parts = normalized.split('/')
+  if (parts.length <= 1) return ''
+  
+  // Remove filename
+  parts.pop()
+  
+  // Try to find common prefixes to remove
+  const path = parts.join('/')
+  
+  // Remove drive letter and common prefixes
+  const cleaned = path
+    .replace(/^[A-Za-z]:/, '')
+    .replace(/^\/?(Sources|Projects|repos|workspace|home|Users\/[^/]+)\/[^/]+\//i, '')
+    .replace(/^\/?/, '')
+  
+  return cleaned || '/'
+}
+
+function formatSize(bytes: number): string {
+  return formatContextSize(bytes)
 }
 
 function formatDate(dateStr: string): string {
+  if (!dateStr) return ''
   const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return t('common.today')
-  if (days === 1) return t('common.yesterday')
-  if (days < 7) return `${days} ${t('common.daysAgo')}`
-  return date.toLocaleDateString()
+  return date.toLocaleDateString('ru-RU', { 
+    day: 'numeric', 
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
-watch(() => projectStore.currentPath, refreshContexts, { immediate: true })
-onMounted(refreshContexts)
+async function loadAndBuildContext() {
+  if (!selectedContext.value?.files?.length) {
+    uiStore.addToast(t('context.noFilesInfo'), 'warning')
+    return
+  }
+  
+  isLoading.value = true
+  
+  try {
+    // 1. Normalize paths (convert backslashes to forward slashes for consistency)
+    const normalizedFiles = selectedContext.value.files.map(file => 
+      file.replace(/\\/g, '/')
+    )
+    
+    // 2. Restore file selection using selectMultiple (doesn't require node existence)
+    fileStore.clearSelection()
+    fileStore.selectMultiple(normalizedFiles)
+    
+    // 3. Build context immediately
+    const options = {
+      outputFormat: settingsStore.settings.context.outputFormat,
+      stripComments: settingsStore.settings.context.stripComments,
+      excludeTests: settingsStore.settings.context.excludeTests,
+      maxTokens: settingsStore.settings.context.maxTokens,
+    }
+    
+    await contextStore.buildContext(normalizedFiles, options)
+    
+    // 4. Switch to preview
+    emit('switch-to-preview')
+    uiStore.addToast(t('context.contextRestored'), 'success')
+  } catch (error) {
+    uiStore.addToast(t('context.saveError'), 'error')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function deleteContext() {
+  if (!selectedContext.value?.id) return
+  
+  try {
+    await contextStore.deleteContext(selectedContext.value.id)
+    contextStore.clearListSelection()
+    uiStore.addToast(t('context.deleted'), 'success')
+  } catch {
+    uiStore.addToast(t('context.deleteError'), 'error')
+  }
+}
 </script>
 
 <style scoped>
-.context-memory-panel {
-  @apply flex flex-col h-full;
-  background: var(--bg-1);
+.context-detail-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: linear-gradient(180deg, #131620 0%, #0f111a 100%);
 }
 
-.contexts-list {
-  @apply flex-1 overflow-y-auto;
+/* Empty State */
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 32px;
+  text-align: center;
 }
 
-.empty-state {
-  @apply flex flex-col items-center justify-center py-8 text-center;
+.detail-empty-icon {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 20px;
+  color: #8b5cf6;
+  margin-bottom: 20px;
 }
 
-.context-card {
-  @apply p-3 rounded-lg cursor-pointer transition-colors;
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
+.detail-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-bottom: 6px;
 }
 
-.context-card:hover {
-  background: var(--bg-3);
-  border-color: var(--border-hover);
+.detail-empty-hint {
+  font-size: 13px;
+  color: #6b7280;
+  max-width: 200px;
 }
 
-.context-topic {
-  @apply text-sm font-medium truncate;
-  color: var(--text-primary);
+/* Header */
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.context-summary {
-  @apply text-xs mt-1 line-clamp-2;
-  color: var(--text-secondary);
+.detail-avatar {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.context-meta {
-  @apply flex items-center justify-between mt-2 text-xs;
-  color: var(--text-tertiary);
+/* Avatar colors */
+.detail-avatar--indigo { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); }
+.detail-avatar--purple { background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%); }
+.detail-avatar--pink { background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); }
+.detail-avatar--blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.detail-avatar--cyan { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+.detail-avatar--teal { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); }
+.detail-avatar--green { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+.detail-avatar--amber { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+
+.detail-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.context-files {
-  @apply flex items-center gap-1;
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
-.save-section {
-  @apply p-3 border-t;
-  border-color: var(--border-default);
+.detail-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.modal-overlay {
-  @apply fixed inset-0 flex items-center justify-center z-50;
-  background: rgba(0, 0, 0, 0.7);
+.detail-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a78bfa;
 }
 
-.modal-content {
-  @apply p-6 rounded-lg w-full max-w-md;
-  background: var(--bg-1);
-  border: 1px solid var(--border-default);
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
 }
 
-.modal-title {
-  @apply text-lg font-semibold mb-4;
-  color: var(--text-primary);
+.detail-dot {
+  color: #4b5563;
 }
 
-.modal-actions {
-  @apply flex justify-end gap-2 mt-6;
+/* Content */
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
+/* Custom scrollbar - thin and dark */
+.detail-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detail-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+}
+
+.detail-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Firefox scrollbar */
+.detail-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+/* Force scrollbar styling for Windows */
+.detail-files {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.detail-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.detail-no-files {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  padding: 24px;
+}
+
+.detail-no-files-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.detail-files {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.detail-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.15s ease-out;
+}
+
+.detail-file:last-child {
+  border-bottom: none;
+}
+
+.detail-file:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detail-file-icon-wrap {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.detail-file-icon {
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+}
+
+.detail-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-file-dir {
+  font-size: 10px;
+  color: #4b5563;
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Footer */
+.detail-footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Premium Button */
+.detail-load-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  box-shadow: 
+    0 4px 12px rgba(139, 92, 246, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.detail-load-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #a78bfa 0%, #818cf8 100%);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 6px 20px rgba(139, 92, 246, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.detail-load-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.detail-load-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Delete Button - same height, more prominent */
+.detail-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+
+.detail-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  transform: translateY(-1px);
+}
+
+.detail-delete-btn svg {
+  width: 18px;
+  height: 18px;
 }
 </style>

@@ -13,7 +13,7 @@
           v-if="node.isDir"
           @click="handleAction('selectAll')"
           role="menuitem"
-          aria-label="Select all files in folder"
+          :aria-label="t('contextMenu.selectAll')"
           class="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-700 hover:scale-[1.01] active:scale-[0.99] flex items-center gap-3 transition-all duration-150"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,7 +26,7 @@
           v-if="node.isDir"
           @click="handleAction('deselectAll')"
           role="menuitem"
-          aria-label="Deselect all files in folder"
+          :aria-label="t('contextMenu.deselectAll')"
           class="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-700 hover:scale-[1.01] active:scale-[0.99] flex items-center gap-3 transition-all duration-150"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +49,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
           </svg>
           {{ t('files.quickLook') }}
-          <span class="ml-auto text-xs text-gray-500">Space</span>
+          <span class="ml-auto text-xs text-gray-400">Space</span>
         </button>
 
         <div v-if="!node.isDir" class="h-px bg-gray-700 my-1"></div>

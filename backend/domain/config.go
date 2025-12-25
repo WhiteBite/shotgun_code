@@ -4,6 +4,32 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
+)
+
+// Memory limits
+const (
+	DefaultMaxMemoryMB = 30
+	DefaultMaxTokens   = 5000
+)
+
+// Worker pool limits
+const (
+	MaxWorkerCount = 16
+	MinWorkerCount = 2
+)
+
+// Timeouts
+const (
+	DefaultOperationTimeout = 30 * time.Second
+	DefaultAITimeout        = 60 * time.Second
+	DefaultBuildTimeout     = 5 * time.Minute
+)
+
+// File limits
+const (
+	MaxFileSizeBytes = 10 * 1024 * 1024 // 10MB
+	MaxFilesPerBatch = 100
 )
 
 // ConfigLoader interface for loading configuration

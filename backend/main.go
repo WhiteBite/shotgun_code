@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"log"
+	"os"
 	"shotgun_code/cmd/app"
 
 	"github.com/wailsapp/wails/v2"
@@ -19,8 +20,21 @@ var embeddedIgnoreGlob string
 
 const defaultCustomPromptRulesContent = "no additional rules"
 
+// getStartupPath returns path from command line arguments if provided
+func getStartupPath() string {
+	if len(os.Args) > 1 {
+		path := os.Args[1]
+		// Verify path exists and is a directory
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			return path
+		}
+	}
+	return ""
+}
+
 func main() {
 	appInstance := &App{}
+	startupPath := getStartupPath()
 
 	err := wails.Run(&options.App{
 		Title:     "Shotgun Code",
@@ -38,6 +52,7 @@ func main() {
 				log.Fatalf("Failed to create DI container: %v", err)
 			}
 			appInstance.startup(ctx, container)
+			appInstance.startupPath = startupPath
 		},
 		OnDomReady: appInstance.domReady,
 		OnShutdown: appInstance.shutdown,

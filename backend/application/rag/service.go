@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/textutils"
 )
 
 // Service implements RAGService for Retrieval Augmented Generation
@@ -176,7 +175,7 @@ func (r *Service) rerank(query string, results []domain.SemanticSearchResult) []
 func (r *Service) HybridSearch(ctx context.Context, req domain.SemanticSearchRequest) (*domain.SemanticSearchResponse, error) {
 	startTime := time.Now()
 
-	r.log.Info(fmt.Sprintf("RAG: Hybrid search for '%s'", textutils.TruncateString(req.Query, 50)))
+	r.log.Info(fmt.Sprintf("RAG: Hybrid search for '%s'", domain.TruncateString(req.Query, 50)))
 
 	// Perform semantic search
 	semanticReq := req

@@ -11,4 +11,6 @@ export type {
     SmartContextPreview,
     ToolCallLog as ToolCallInfo
 } from './composables/useChatMessages'
+export { useMentions } from './composables/useMentions'
+export type { MentionResult } from './composables/useMentions'
 

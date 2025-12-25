@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/textutils"
 )
 
 // CallStackAnalyzerInterface defines the interface for call stack analysis
@@ -180,7 +179,7 @@ func (s *SmartContextService) addFileToContext(ctx context.Context, file *Contex
 
 // CollectContext collects smart context based on the request
 func (s *SmartContextService) CollectContext(ctx context.Context, req SmartContextRequest) (*SmartContextResult, error) {
-	s.log.Info(fmt.Sprintf("Collecting smart context for task: %s", textutils.TruncateString(req.Task, 50)))
+	s.log.Info(fmt.Sprintf("Collecting smart context for task: %s", domain.TruncateString(req.Task, 50)))
 	s.setRequestDefaults(&req)
 
 	result := &SmartContextResult{

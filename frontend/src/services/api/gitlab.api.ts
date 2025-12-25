@@ -9,16 +9,16 @@ import { apiCall, apiCallWithDefault, parseJsonResponse } from './base'
 
 export const gitlabApi = {
     isGitLabURL: (url: string): Promise<boolean> =>
-        apiCallWithDefault(() => wails.IsGitLabURL(url), false, 'gitlab'),
+        apiCallWithDefault(() => wails.IsGitLabURL(url), false, 'gitlab.isGitLabURL'),
 
     getDefaultBranch: (repoURL: string): Promise<string> =>
-        apiCall(() => wails.GitLabGetDefaultBranch(repoURL), 'Failed to get default branch.', 'gitlab'),
+        apiCall(() => wails.GitLabGetDefaultBranch(repoURL), 'Failed to get default branch.', { logContext: 'gitlab' }),
 
     getBranches: async (repoURL: string): Promise<GitLabBranch[]> => {
         const result = await apiCall(
             () => wails.GitLabGetBranches(repoURL),
             'Failed to get GitLab branches.',
-            'gitlab'
+            { logContext: 'gitlab' }
         )
         return parseJsonResponse(result, 'Failed to parse GitLab branches.')
     },
@@ -27,7 +27,7 @@ export const gitlabApi = {
         const result = await apiCall(
             () => wails.GitLabGetCommits(repoURL, branch, limit),
             'Failed to get GitLab commits.',
-            'gitlab'
+            { logContext: 'gitlab' }
         )
         return parseJsonResponse(result, 'Failed to parse GitLab commits.')
     },
@@ -36,7 +36,7 @@ export const gitlabApi = {
         const result = await apiCall(
             () => wails.GitLabListFiles(repoURL, ref),
             'Failed to list GitLab files.',
-            'gitlab'
+            { logContext: 'gitlab' }
         )
         const parsed = parseJsonResponse<unknown>(result, 'Failed to parse GitLab files.')
         return Array.isArray(parsed) ? parsed : []
@@ -46,13 +46,13 @@ export const gitlabApi = {
         apiCall(
             () => wails.GitLabGetFileContent(repoURL, filePath, ref),
             'Failed to get GitLab file content.',
-            'gitlab'
+            { logContext: 'gitlab' }
         ),
 
     buildContext: (repoURL: string, files: string[], ref: string): Promise<string> =>
         apiCall(
             () => wails.GitLabBuildContext(repoURL, files, ref),
             'Failed to build GitLab context.',
-            'gitlab'
+            { logContext: 'gitlab' }
         ),
 }

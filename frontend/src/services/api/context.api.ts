@@ -15,7 +15,7 @@ import { apiCall, parseJsonResponse } from './base'
 
 export const contextApi = {
     buildContext: (projectPath: string, files: string[], task: string): Promise<string> =>
-        apiCall(() => wails.BuildContext(projectPath, files, task), 'Failed to build context.', 'context'),
+        apiCall(() => wails.BuildContext(projectPath, files, task), 'Failed to build context.', { logContext: 'context' }),
 
     buildContextFromRequest: async (
         projectPath: string,
@@ -56,33 +56,33 @@ export const contextApi = {
     },
 
     getContext: (contextId: string): Promise<string> =>
-        apiCall(() => wails.GetContext(contextId), 'Failed to get context.', 'context'),
+        apiCall(() => wails.GetContext(contextId), 'Failed to get context.', { logContext: 'context' }),
 
     deleteContext: (contextId: string): Promise<void> =>
-        apiCall(() => wails.DeleteContext(contextId), 'Failed to delete context.', 'context'),
+        apiCall(() => wails.DeleteContext(contextId), 'Failed to delete context.', { logContext: 'context' }),
 
     getProjectContexts: (projectPath: string): Promise<string> =>
-        apiCall(() => wails.GetProjectContexts(projectPath), 'Failed to get project contexts.', 'context'),
+        apiCall(() => wails.GetProjectContexts(projectPath), 'Failed to get project contexts.', { logContext: 'context' }),
 
     exportContext: (exportSettings: unknown): Promise<domain.ExportResult> =>
         apiCall(
             () => wails.ExportContext(JSON.stringify(exportSettings)),
             'Failed to export context.',
-            'context'
+            { logContext: 'context' }
         ),
 
     getFullContextContent: (contextId: string): Promise<string> =>
         apiCall(
             () => wails.GetFullContextContent(contextId),
             'Failed to get full context content.',
-            'context'
+            { logContext: 'context' }
         ),
 
     suggestContextFiles: (taskDescription: string, files: domain.FileNode[]): Promise<string[]> =>
         apiCall(
             () => wails.SuggestContextFiles(taskDescription, files),
             'Failed to suggest context files.',
-            'context'
+            { logContext: 'context' }
         ),
 
     getSmartSuggestions: async (
@@ -148,7 +148,7 @@ export const contextApi = {
         apiCall(
             () => wails.AnalyzeTaskAndCollectContext(task, allFilesJson, rootDir),
             'Failed to analyze task and collect context.',
-            'context'
+            { logContext: 'context' }
         ),
 
     agenticChat: async (task: string, projectRoot: string): Promise<AgenticChatResponse> => {
@@ -156,7 +156,7 @@ export const contextApi = {
         const result = await apiCall(
             () => wails.AgenticChat(JSON.stringify(request)),
             'Failed to execute agentic chat.',
-            'context'
+            { logContext: 'context' }
         )
         return parseJsonResponse(result, 'Failed to parse agentic chat response.')
     },

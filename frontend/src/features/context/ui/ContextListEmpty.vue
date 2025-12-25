@@ -7,7 +7,7 @@
         </svg>
       </div>
       <p class="text-sm font-medium text-gray-400 mb-1">{{ t('context.noSaved') }}</p>
-      <p class="text-xs text-gray-500">{{ t('context.buildToSee') }}</p>
+      <p class="text-xs text-gray-400">{{ t('context.buildToSee') }}</p>
     </div>
   </div>
 </template>

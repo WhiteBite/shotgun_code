@@ -336,6 +336,18 @@ type ContextBuilder interface {
 	BuildContext(ctx context.Context, projectPath string, includedPaths []string, options *ContextBuildOptions) (*ContextSummary, error)
 }
 
+// ContextFormatOptions options for context formatting
+type ContextFormatOptions struct {
+	StripComments   bool `json:"stripComments"`
+	IncludeManifest bool `json:"includeManifest"`
+}
+
+// ContextFormatter defines interface for formatting context output
+type ContextFormatter interface {
+	// Format formats context string according to specified format (plain, manifest, json, markdown, xml)
+	Format(format string, contextContent string, opts ContextFormatOptions) (string, error)
+}
+
 // ContextRepository определяет интерфейс для хранения контекста
 type ContextRepository interface {
 	// SaveContextSummary persists lightweight context metadata on disk
@@ -485,4 +497,188 @@ type ContextAnalysisResult struct {
 	EstimatedTokens int           `json:"estimatedTokens"`
 	Confidence      float64       `json:"confidence"`
 	Reasoning       string        `json:"reasoning,omitempty"`
+}
+
+// =============================================================================
+// TextUtils Interfaces
+// =============================================================================
+
+// LicenseStripper defines interface for removing license headers from source code
+type LicenseStripper interface {
+	// Strip removes license header from the beginning of file content
+	Strip(content string) string
+
+	// StripWithLanguageHint removes license with language hint for optimization
+	StripWithLanguageHint(content, ext string) string
+}
+
+// TextTokenizer defines interface for token counting and truncation
+type TextTokenizer interface {
+	// CountTokens returns the estimated token count for text
+	CountTokens(text string) int
+
+	// TruncateToTokens truncates text to fit within maxTokens
+	TruncateToTokens(text string, maxTokens int) string
+}
+
+// SkeletonGenerator defines interface for generating code skeletons
+type SkeletonGenerator interface {
+	// Generate creates a skeleton representation of code (signatures without bodies)
+	Generate(ctx context.Context, content, filePath string) string
+
+	// CanGenerateSkeleton checks if skeleton generation is supported for file
+	CanGenerateSkeleton(filePath string) bool
+}
+
+// =============================================================================
+// Embeddings Interfaces
+// =============================================================================
+
+// CodeChunker defines interface for splitting code into chunks for embedding
+type CodeChunker interface {
+	// ChunkFile splits a file into chunks suitable for embedding
+	ChunkFile(filePath string, content []byte, symbols []ChunkSymbolInfo) []CodeChunk
+}
+
+// ChunkSymbolInfo represents symbol information for chunking
+type ChunkSymbolInfo struct {
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	StartLine int    `json:"startLine"`
+	EndLine   int    `json:"endLine"`
+}
+
+// =============================================================================
+// Reference Finder Interface
+// =============================================================================
+
+// ReferenceFinder defines interface for finding symbol references across project
+type ReferenceFinder interface {
+	// FindReferences finds all references to a symbol in the project
+	FindReferences(ctx context.Context, projectRoot string, symbolName string, symbolKind string) ([]SymbolReference, error)
+
+	// FindUsages finds where a symbol is used (excluding definition)
+	FindUsages(ctx context.Context, projectRoot string, symbolName string) ([]SymbolReference, error)
+}
+
+// SymbolReference represents a reference to a symbol in code
+type SymbolReference struct {
+	FilePath     string `json:"filePath"`
+	Line         int    `json:"line"`
+	Column       int    `json:"column"`
+	LineText     string `json:"lineText"`
+	Context      string `json:"context"`
+	IsDefinition bool   `json:"isDefinition"`
+}
+
+// =============================================================================
+// Git Context Builder Interface
+// =============================================================================
+
+// GitContextBuilder defines interface for building context from git history
+type GitContextBuilder interface {
+	// GetRecentChanges returns files changed recently, sorted by relevance
+	GetRecentChanges(since string, pathFilter string) ([]RecentChange, error)
+
+	// GetCoChangedFiles returns files that are often changed together with the given file
+	GetCoChangedFiles(filePath string, limit int) ([]string, error)
+
+	// SuggestContextFiles suggests files to include in context based on git history
+	SuggestContextFiles(taskDescription string, currentFiles []string, limit int) ([]string, error)
+
+	// GetRelatedByAuthor returns files frequently changed by the same author
+	GetRelatedByAuthor(filePath string, limit int) ([]string, error)
+}
+
+// RecentChange represents a recently changed file from git history
+type RecentChange struct {
+	FilePath    string    `json:"filePath"`
+	ChangeCount int       `json:"changeCount"`
+	LastChanged time.Time `json:"lastChanged"`
+	Authors     []string  `json:"authors"`
+}
+
+// =============================================================================
+// Call Graph Builder Interface
+// =============================================================================
+
+// CallGraphBuilder defines interface for building and querying call graphs
+type CallGraphBuilder interface {
+	// Build builds the call graph for a project
+	Build(projectRoot string) (*CallGraph, error)
+
+	// GetCallers returns functions that call the specified function
+	GetCallers(functionID string) []CallGraphNode
+
+	// GetCallees returns functions called by the specified function
+	GetCallees(functionID string) []CallGraphNode
+
+	// GetImpact returns all functions affected if the specified function changes
+	GetImpact(functionID string, maxDepth int) []CallGraphNode
+
+	// GetCallChain finds call chains between two functions
+	GetCallChain(startID, endID string, maxDepth int) [][]string
+}
+
+// CallGraph represents a call graph for a project
+type CallGraph struct {
+	Nodes map[string]*CallGraphNode `json:"nodes"`
+	Edges []CallGraphEdge           `json:"edges"`
+}
+
+// CallGraphNode represents a function in the call graph
+type CallGraphNode struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	FilePath string `json:"filePath"`
+	Line     int    `json:"line"`
+	Package  string `json:"package,omitempty"`
+}
+
+// CallGraphEdge represents a call relationship
+type CallGraphEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Line int    `json:"line,omitempty"`
+}
+
+// =============================================================================
+// Project Structure Interface
+// =============================================================================
+
+// ProjectStructureDetector defines interface for detecting project structure
+type ProjectStructureDetector interface {
+	// Detect analyzes project structure (basic detection)
+	Detect(projectPath string) (*ProjectStructureInfo, error)
+
+	// DetectLanguages detects programming languages used in project
+	DetectLanguages(projectPath string) ([]string, error)
+
+	// DetectFrameworks detects frameworks used in project
+	DetectFrameworks(projectPath string) ([]FrameworkInfo, error)
+
+	// DetectStructure analyzes project and returns complete structure info
+	DetectStructure(projectPath string) (*ProjectStructure, error)
+
+	// DetectArchitecture detects architecture pattern
+	DetectArchitecture(projectPath string) (*ArchitectureInfo, error)
+
+	// DetectConventions detects naming and code conventions
+	DetectConventions(projectPath string) (*ConventionInfo, error)
+
+	// GetRelatedLayers returns layers related to a file
+	GetRelatedLayers(projectPath, filePath string) ([]LayerInfo, error)
+
+	// SuggestRelatedFiles suggests related files based on architecture
+	SuggestRelatedFiles(projectPath, filePath string) ([]string, error)
+}
+
+// ProjectStructureInfo contains detected project structure information
+type ProjectStructureInfo struct {
+	Languages   []string          `json:"languages"`
+	Frameworks  []string          `json:"frameworks"`
+	BuildTools  []string          `json:"buildTools"`
+	PackageFile string            `json:"packageFile,omitempty"`
+	EntryPoints []string          `json:"entryPoints,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }

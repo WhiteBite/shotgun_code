@@ -1,13 +1,12 @@
 package ai
 
 import (
-"context"
-"fmt"
-"path/filepath"
-"shotgun_code/domain"
-"shotgun_code/infrastructure/textutils"
-"strings"
-"time"
+	"context"
+	"fmt"
+	"path/filepath"
+	"shotgun_code/domain"
+	"strings"
+	"time"
 )
 
 // QwenTaskService orchestrates task execution with Qwen
@@ -89,8 +88,8 @@ IncludedFiles, TruncatedFiles, ExcludedFiles     []string
 
 // ExecuteTask executes a task using Qwen with smart context collection
 func (s *QwenTaskService) ExecuteTask(ctx context.Context, req TaskRequest) (*TaskResponse, error) {
-startTime := time.Now()
-s.log.Info(fmt.Sprintf("Executing task with Qwen: %s", textutils.TruncateString(req.Task, 100)))
+	startTime := time.Now()
+	s.log.Info(fmt.Sprintf("Executing task with Qwen: %s", domain.TruncateString(req.Task, 100)))
 
 if req.Model == "" {
 req.Model = "qwen-coder-plus-latest"

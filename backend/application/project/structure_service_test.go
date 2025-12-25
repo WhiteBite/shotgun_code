@@ -24,9 +24,9 @@ func (m *mockLogger) Fatalf(format string, args ...interface{})              {}
 func (m *mockLogger) WithField(key string, value interface{}) domain.Logger  { return m }
 func (m *mockLogger) WithFields(fields map[string]interface{}) domain.Logger { return m }
 
-func TestNewStructureService(t *testing.T) {
+func TestNewStructureServiceLazy(t *testing.T) {
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	if service == nil {
 		t.Fatal("NewStructureService returned nil")
@@ -49,7 +49,7 @@ func TestStructureService_DetectStructure(t *testing.T) {
 	createTestFile(t, tmpDir, "domain/user.go", "package domain")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	structure, err := service.DetectStructure(tmpDir)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestStructureService_DetectArchitecture(t *testing.T) {
 	createTestFile(t, tmpDir, "infrastructure/repo.go", "package infrastructure")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	arch, err := service.DetectArchitecture(tmpDir)
 	if err != nil {
@@ -108,7 +108,7 @@ func TestStructureService_DetectConventions(t *testing.T) {
 	createTestFile(t, tmpDir, "go.mod", "module test\n\ngo 1.21")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	conventions, err := service.DetectConventions(tmpDir)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestStructureService_DetectFrameworks(t *testing.T) {
 	}`)
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	frameworks, err := service.DetectFrameworks(tmpDir)
 	if err != nil {
@@ -166,7 +166,7 @@ func TestStructureService_GetRelatedLayers(t *testing.T) {
 	createTestFile(t, tmpDir, "application/user_service.go", "package application")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	layers, err := service.GetRelatedLayers(tmpDir, filepath.Join(tmpDir, "application", "user_service.go"))
 	if err != nil {
@@ -189,7 +189,7 @@ func TestStructureService_SuggestRelatedFiles(t *testing.T) {
 	createTestFile(t, tmpDir, "user_test.go", "package main")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	suggestions, err := service.SuggestRelatedFiles(tmpDir, filepath.Join(tmpDir, "domain", "user.go"))
 	if err != nil {
@@ -207,7 +207,7 @@ func TestStructureService_GetStructureJSON(t *testing.T) {
 	createTestFile(t, tmpDir, "main.go", "package main")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	jsonStr, err := service.GetStructureJSON(tmpDir)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestStructureService_GetArchitectureSummary(t *testing.T) {
 	createTestFile(t, tmpDir, "application/service.go", "package application")
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	summary, err := service.GetArchitectureSummary(tmpDir)
 	if err != nil {
@@ -261,7 +261,7 @@ func TestStructureService_EmptyProject(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	structure, err := service.DetectStructure(tmpDir)
 	if err != nil {
@@ -280,7 +280,7 @@ func TestStructureService_EmptyProject(t *testing.T) {
 
 func TestStructureService_NonExistentPath(t *testing.T) {
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	_, err := service.DetectStructure("/non/existent/path/12345")
 	// Should not panic, may return error or empty structure
@@ -319,7 +319,7 @@ func TestStructureService_ComplexProject(t *testing.T) {
 	}
 
 	logger := &mockLogger{}
-	service := NewStructureService(logger)
+	service := NewStructureServiceLazy(logger)
 
 	structure, err := service.DetectStructure(tmpDir)
 	if err != nil {

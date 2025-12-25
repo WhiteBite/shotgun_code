@@ -13,25 +13,25 @@ export const taskflowApi = {
         apiCall(
             () => wails.ExecuteTaskProtocol(configPath),
             'Failed to execute task protocol.',
-            'taskflow'
+            { logContext: 'taskflow' }
         ),
 
     getTaskProtocolConfiguration: (projectPath: string, languages: string[]): Promise<string> =>
         apiCall(
             () => wails.GetTaskProtocolConfiguration(projectPath, languages),
             'Failed to get task protocol configuration.',
-            'taskflow'
+            { logContext: 'taskflow' }
         ),
 
     // Guardrails
     validatePath: (path: string): Promise<domain.GuardrailViolation[]> =>
-        apiCall(() => wails.ValidatePath(path), 'Failed to validate path.', 'taskflow'),
+        apiCall(() => wails.ValidatePath(path), 'Failed to validate path.', { logContext: 'taskflow' }),
 
     getGuardrailPolicies: (): Promise<domain.GuardrailPolicy[]> =>
         apiCall(
             () => wails.GetGuardrailPolicies(),
             'Failed to get guardrail policies.',
-            'taskflow'
+            { logContext: 'taskflow' }
         ),
 
     getBudgetPolicies: (): Promise<domain.BudgetPolicy[]> =>
@@ -39,6 +39,6 @@ export const taskflowApi = {
             // @ts-ignore
             () => wails.GetBudgetPolicies(),
             'Failed to get budget policies.',
-            'taskflow'
+            { logContext: 'taskflow' }
         ),
 }

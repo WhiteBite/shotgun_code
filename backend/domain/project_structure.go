@@ -142,24 +142,3 @@ type LanguageInfo struct {
 	Percentage float64 `json:"percentage"` // Percentage of codebase
 	Primary    bool    `json:"primary"`    // Is this the primary language
 }
-
-// ProjectStructureDetector defines the interface for project structure detection
-type ProjectStructureDetector interface {
-	// DetectStructure analyzes project and returns structure info
-	DetectStructure(projectPath string) (*ProjectStructure, error)
-
-	// DetectArchitecture detects architecture pattern
-	DetectArchitecture(projectPath string) (*ArchitectureInfo, error)
-
-	// DetectConventions detects naming and code conventions
-	DetectConventions(projectPath string) (*ConventionInfo, error)
-
-	// DetectFrameworks detects frameworks used
-	DetectFrameworks(projectPath string) ([]FrameworkInfo, error)
-
-	// GetRelatedLayers returns layers related to a file
-	GetRelatedLayers(projectPath, filePath string) ([]LayerInfo, error)
-
-	// SuggestRelatedFiles suggests related files based on architecture
-	SuggestRelatedFiles(projectPath, filePath string) ([]string, error)
-}

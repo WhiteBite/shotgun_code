@@ -133,7 +133,32 @@
 .empty-state-text {
     @apply text-sm;
     color: var(--text-muted);
-    max-width: 320px;
+    max-width: min(320px, 80vw);
+}
+
+.empty-state-content {
+    @apply flex flex-col items-center gap-3;
+}
+
+.empty-state-content .empty-state-icon {
+    @apply w-12 h-12 mb-0;
+}
+
+.empty-state-content .empty-state-icon svg {
+    @apply w-6 h-6;
+}
+
+.empty-state-action {
+    @apply text-xs font-medium px-3 py-1.5 rounded-lg;
+    color: var(--accent-primary);
+    background: var(--accent-purple-bg);
+    border: 1px solid var(--accent-purple-border);
+    transition: all 150ms ease-out;
+}
+
+.empty-state-action:hover {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: var(--accent-primary);
 }
 
 /* List Item */

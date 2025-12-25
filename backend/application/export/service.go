@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/contextbuilder"
 	"strings"
 )
 
@@ -17,6 +16,7 @@ const (
 // Service handles context export operations.
 type Service struct {
 	contextSplitter  domain.ContextSplitter
+	contextFormatter domain.ContextFormatter
 	log              domain.Logger
 	pdf              domain.PDFGenerator
 	archiver         domain.Archiver
@@ -27,9 +27,20 @@ type Service struct {
 }
 
 // NewService creates a new export service.
-func NewService(log domain.Logger, splitter domain.ContextSplitter, pdf domain.PDFGenerator, arch domain.Archiver, tempFileProvider domain.TempFileProvider, pathProvider domain.PathProvider, fileSystemWriter domain.FileSystemWriter, fileStatProvider domain.FileStatProvider) *Service {
+func NewService(
+	log domain.Logger,
+	splitter domain.ContextSplitter,
+	formatter domain.ContextFormatter,
+	pdf domain.PDFGenerator,
+	arch domain.Archiver,
+	tempFileProvider domain.TempFileProvider,
+	pathProvider domain.PathProvider,
+	fileSystemWriter domain.FileSystemWriter,
+	fileStatProvider domain.FileStatProvider,
+) *Service {
 	return &Service{
 		contextSplitter:  splitter,
+		contextFormatter: formatter,
 		log:              log,
 		pdf:              pdf,
 		archiver:         arch,
@@ -49,7 +60,7 @@ func (s *Service) exportClipboard(settings domain.ExportSettings) (domain.Export
 	if format == "" {
 		format = "manifest"
 	}
-	out, err := contextbuilder.BuildFromContext(format, settings.Context, contextbuilder.BuildOptions{
+	out, err := s.contextFormatter.Format(format, settings.Context, domain.ContextFormatOptions{
 		StripComments:   settings.StripComments,
 		IncludeManifest: settings.IncludeManifest,
 	})

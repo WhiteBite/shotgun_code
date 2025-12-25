@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"shotgun_code/domain"
 	"strings"
+
+	"shotgun_code/domain"
 )
 
 // RequestShotgunContextGeneration generates context for selected files
@@ -145,18 +146,79 @@ func (a *App) GetContext(contextID string) (string, error) {
 	return string(contextJson), nil
 }
 
+// contextSummaryJSON is a JSON-friendly version of ContextSummary with name field
+type contextSummaryJSON struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name,omitempty"`
+	ProjectPath string                 `json:"projectPath"`
+	FileCount   int                    `json:"fileCount"`
+	TotalSize   int64                  `json:"totalSize"`
+	TokenCount  int                    `json:"tokenCount"`
+	LineCount   int                    `json:"lineCount"`
+	CreatedAt   string                 `json:"createdAt"`
+	Metadata    *domain.ContextMetadata `json:"metadata,omitempty"`
+}
+
 // GetProjectContexts lists all stored context summaries for a project path
+// Combines contexts from both JSON files (built contexts) and SQLite (saved contexts)
 func (a *App) GetProjectContexts(projectPath string) (string, error) {
-	if a.contextService == nil {
-		return "", a.transformError(domain.NewConfigurationError("context service not available", nil))
+	var allSummaries []contextSummaryJSON
+
+	// 1. Get contexts from JSON files (built contexts)
+	if a.contextService != nil {
+		summaries, err := a.contextService.GetProjectContextSummaries(a.ctx, projectPath)
+		if err == nil && summaries != nil {
+			for _, s := range summaries {
+				allSummaries = append(allSummaries, contextSummaryJSON{
+					ID:          s.ID,
+					ProjectPath: s.ProjectPath,
+					FileCount:   s.FileCount,
+					TotalSize:   s.TotalSize,
+					TokenCount:  s.TokenCount,
+					LineCount:   s.LineCount,
+					CreatedAt:   s.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+					Metadata:    &s.Metadata,
+				})
+			}
+		}
 	}
 
-	summaries, err := a.contextService.GetProjectContextSummaries(a.ctx, projectPath)
-	if err != nil {
-		return "", a.transformError(err)
+	// 2. Get contexts from SQLite (saved contexts via SaveContextMemory)
+	if a.analysisContainer != nil {
+		contextMemory := a.analysisContainer.GetContextMemory()
+		if contextMemory != nil {
+			savedContexts, err := contextMemory.GetRecentContexts(projectPath, 100)
+			if err == nil && savedContexts != nil {
+				// Build set of existing IDs to avoid duplicates
+				existingIDs := make(map[string]bool)
+				for _, s := range allSummaries {
+					existingIDs[s.ID] = true
+				}
+
+				for _, ctx := range savedContexts {
+					// Skip if already exists in JSON summaries
+					if existingIDs[ctx.ID] {
+						continue
+					}
+
+					allSummaries = append(allSummaries, contextSummaryJSON{
+						ID:          ctx.ID,
+						Name:        ctx.Topic, // Topic becomes Name for frontend
+						ProjectPath: ctx.ProjectRoot,
+						FileCount:   len(ctx.Files),
+						TotalSize:   0,
+						LineCount:   0,
+						CreatedAt:   ctx.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+						Metadata: &domain.ContextMetadata{
+							SelectedFiles: ctx.Files,
+						},
+					})
+				}
+			}
+		}
 	}
 
-	contextsJson, err := json.Marshal(summaries)
+	contextsJson, err := json.Marshal(allSummaries)
 	if err != nil {
 		marshalErr := domain.NewInternalError("failed to marshal context summaries", err)
 		return "", a.transformError(marshalErr)

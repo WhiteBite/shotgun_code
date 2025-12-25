@@ -30,7 +30,7 @@
 
             <div class="tool-call-meta">
                 <span class="tool-call-duration" v-if="duration">{{ formatDuration(duration) }}</span>
-                <svg class="w-3.5 h-3.5 text-gray-500 transition-transform" :class="{ 'rotate-180': expanded }" fill="none"
+                <svg class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{ 'rotate-180': expanded }" fill="none"
                     stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -214,7 +214,7 @@ function formatDuration(ms: number): string {
 }
 
 .tool-call-brief {
-    @apply text-xs text-gray-500 truncate max-w-32;
+    @apply text-xs text-gray-400 truncate max-w-32;
 }
 
 .tool-call-meta {
@@ -222,7 +222,7 @@ function formatDuration(ms: number): string {
 }
 
 .tool-call-duration {
-    @apply text-xs text-gray-500 font-mono;
+    @apply text-xs text-gray-400 font-mono;
 }
 
 .tool-call-details {

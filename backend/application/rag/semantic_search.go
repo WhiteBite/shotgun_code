@@ -23,6 +23,7 @@ func NewSemanticSearchService(
 	vectorStore domain.VectorStore,
 	symbolIndex analysis.SymbolIndex,
 	log domain.Logger,
+	chunker domain.CodeChunker,
 ) *SemanticSearchService {
-	return semantic.NewService(embeddingProvider, vectorStore, symbolIndex, log)
+	return semantic.NewService(embeddingProvider, vectorStore, symbolIndex, log, chunker)
 }

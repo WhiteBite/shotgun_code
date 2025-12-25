@@ -133,10 +133,11 @@
     --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
     
     /* === LAYOUT === */
+    /* Note: Use viewport-relative values for responsive design */
     --app-header-height: 48px;
-    --app-sidebar-width: 320px;
-    --app-sidebar-min-width: 280px;
-    --app-panel-max-width: 480px;
+    --app-sidebar-width: min(320px, 35vw);
+    --app-sidebar-min-width: min(280px, 30vw);
+    --app-panel-max-width: min(480px, 40vw);
     
     /* === Z-INDEX === */
     --z-dropdown: 100;
@@ -155,22 +156,22 @@
     --tree-checkbox-size: 1rem;
     --tree-icon-size: 1.25rem;
     
-    /* Tree guide line colors by depth - muted for dark theme */
-    --tree-line-1: rgba(96, 165, 250, 0.35);  /* blue */
-    --tree-line-2: rgba(167, 139, 250, 0.35); /* purple */
-    --tree-line-3: rgba(244, 114, 182, 0.35); /* pink */
-    --tree-line-4: rgba(52, 211, 153, 0.35);  /* green */
+    /* Tree guide line colors by depth - bright colors */
+    --tree-line-1: rgba(99, 102, 241, 0.5);   /* indigo */
+    --tree-line-2: rgba(168, 85, 247, 0.5);   /* purple */
+    --tree-line-3: rgba(236, 72, 153, 0.5);   /* pink */
+    --tree-line-4: rgba(56, 189, 248, 0.4);   /* cyan */
     --tree-line-5: rgba(148, 163, 184, 0.3);  /* gray */
     
-    /* Tree selection colors - enhanced contrast */
-    --tree-selected-bg: rgba(99, 102, 241, 0.35);
-    --tree-selected-bg-hover: rgba(99, 102, 241, 0.45);
-    --tree-selected-border: rgba(99, 102, 241, 0.6);
-    --tree-hover-bg: rgba(99, 102, 241, 0.18);
+    /* Tree selection colors - like original */
+    --tree-selected-bg: rgba(99, 102, 241, 0.2);
+    --tree-selected-bg-hover: rgba(99, 102, 241, 0.28);
+    --tree-selected-border: rgba(99, 102, 241, 0.4);
+    --tree-hover-bg: rgba(99, 102, 241, 0.1);
     --tree-has-selected-bg: rgba(99, 102, 241, 0.08);
     --tree-has-selected-border: rgba(99, 102, 241, 0.4);
     
-    /* Tree folder colors - muted amber for closed, blue for open */
-    --tree-folder-color: #b8a078;
-    --tree-folder-open-color: #7da8d4;
+    /* Tree folder colors - bright blue like original */
+    --tree-folder-color: #93c5fd;
+    --tree-folder-open-color: #bfdbfe;
 }

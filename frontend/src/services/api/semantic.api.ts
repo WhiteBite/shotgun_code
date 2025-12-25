@@ -28,7 +28,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticSearch(JSON.stringify(request)),
             'Failed to perform semantic search.',
-            'semantic'
+            { logContext: 'semantic' }
         )
         return parseJsonResponse(result, 'Failed to parse semantic search response.')
     },
@@ -38,7 +38,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticFindSimilar(JSON.stringify(request)),
             'Failed to find similar code.',
-            'semantic'
+            { logContext: 'semantic' }
         )
         return parseJsonResponse(result, 'Failed to parse similar code response.')
     },
@@ -48,7 +48,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticIndexProject(projectRoot),
             'Failed to index project.',
-            'semantic'
+            { logContext: 'semantic' }
         ),
 
     indexFile: (projectRoot: string, filePath: string): Promise<void> =>
@@ -56,7 +56,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticIndexFile(projectRoot, filePath),
             'Failed to index file.',
-            'semantic'
+            { logContext: 'semantic' }
         ),
 
     getStats: async (projectRoot: string): Promise<SemanticIndexStats> => {
@@ -64,7 +64,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticGetStats(projectRoot),
             'Failed to get semantic search statistics.',
-            'semantic'
+            { logContext: 'semantic' }
         )
         return parseJsonResponse(result, 'Failed to parse semantic stats.')
     },
@@ -82,7 +82,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticRetrieveContext(JSON.stringify(request)),
             'Failed to retrieve context.',
-            'semantic'
+            { logContext: 'semantic' }
         )
         return parseJsonResponse(result, 'Failed to parse retrieved context.')
     },
@@ -92,7 +92,7 @@ export const semanticApi = {
             // @ts-ignore
             () => wails.SemanticHybridSearch(JSON.stringify(request)),
             'Failed to perform hybrid search.',
-            'semantic'
+            { logContext: 'semantic' }
         )
         return parseJsonResponse(result, 'Failed to parse hybrid search response.')
     },

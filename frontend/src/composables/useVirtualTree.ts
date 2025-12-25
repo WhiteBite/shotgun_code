@@ -3,7 +3,7 @@
  * Converts hierarchical tree to flat list of visible nodes
  */
 
-import type { FileNode } from '@/features/files/model/file.store'
+import type { FileNode } from '@/types/domain'
 import { computed, type Ref } from 'vue'
 
 export interface FlattenedNode {

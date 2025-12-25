@@ -74,6 +74,11 @@ func (s *Service) writeFileToStream(writer *bufio.Writer, filePath, content stri
 	// Apply content optimizations
 	content = s.applyContentOptimizations(content, filePath, options)
 
+	// Add line numbers if requested
+	if options.IncludeLineNumbers {
+		content = addLineNumbers(content)
+	}
+
 	fileTokens := s.tokenCounter.CountTokens(content)
 	state.tokenCount += fileTokens
 
@@ -88,7 +93,7 @@ func (s *Service) writeFileToStream(writer *bufio.Writer, filePath, content stri
 
 	// Log format for first file only to avoid spam
 	if len(state.files) == 0 {
-		s.logger.Info(fmt.Sprintf("[writeFileToStream] Using output format: '%s'", format))
+		s.logger.Info(fmt.Sprintf("[writeFileToStream] Using output format: '%s', lineNumbers: %v", format, options.IncludeLineNumbers))
 	}
 
 	escapedContent := s.escapeForFormat(content, format)

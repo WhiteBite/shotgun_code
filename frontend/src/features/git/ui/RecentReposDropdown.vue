@@ -19,7 +19,7 @@
         <span class="text-xs text-gray-400">{{ t('git.recentRepos') }}</span>
         <button
           @click="handleClear"
-          class="text-xs text-gray-500 hover:text-red-400"
+          class="text-xs text-gray-400 hover:text-red-400"
         >
           {{ t('common.clear') }}
         </button>

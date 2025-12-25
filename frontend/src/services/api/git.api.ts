@@ -10,13 +10,13 @@ import { apiCall, apiCallWithDefault, parseJsonResponse } from './base'
 
 export const gitApi = {
     getUncommittedFiles: (repoPath: string): Promise<domain.FileStatus[]> =>
-        apiCall(() => wails.GetUncommittedFiles(repoPath), 'Failed to get git status.', 'git'),
+        apiCall(() => wails.GetUncommittedFiles(repoPath), 'Failed to get git status.', { logContext: 'git' }),
 
     getBranches: (repoPath: string): Promise<string> =>
-        apiCall(() => wails.GetBranches(repoPath), 'Failed to get git branches.', 'git'),
+        apiCall(() => wails.GetBranches(repoPath), 'Failed to get git branches.', { logContext: 'git' }),
 
     getCurrentBranch: (repoPath: string): Promise<string> =>
-        apiCall(() => wails.GetCurrentBranch(repoPath), 'Failed to get current branch.', 'git'),
+        apiCall(() => wails.GetCurrentBranch(repoPath), 'Failed to get current branch.', { logContext: 'git' }),
 
     getRichCommitHistory: (
         repoPath: string,
@@ -26,33 +26,33 @@ export const gitApi = {
         apiCall(
             () => wails.GetRichCommitHistory(repoPath, filePath, limit),
             'Failed to get commit history.',
-            'git'
+            { logContext: 'git' }
         ),
 
     isGitAvailable: (): Promise<boolean> =>
-        apiCallWithDefault(() => wails.IsGitAvailable(), false, 'git'),
+        apiCallWithDefault(() => wails.IsGitAvailable(), false, 'git.isGitAvailable'),
 
     isGitRepository: (projectPath: string): Promise<boolean> =>
-        apiCallWithDefault(() => wails.IsGitRepository(projectPath), false, 'git'),
+        apiCallWithDefault(() => wails.IsGitRepository(projectPath), false, 'git.isGitRepository'),
 
     cloneRepository: (url: string): Promise<string> =>
-        apiCall(() => wails.CloneRepository(url), 'Failed to clone repository.', 'git'),
+        apiCall(() => wails.CloneRepository(url), 'Failed to clone repository.', { logContext: 'git' }),
 
     checkoutBranch: (projectPath: string, branch: string): Promise<void> =>
-        apiCall(() => wails.CheckoutBranch(projectPath, branch), 'Failed to checkout branch.', 'git'),
+        apiCall(() => wails.CheckoutBranch(projectPath, branch), 'Failed to checkout branch.', { logContext: 'git' }),
 
     checkoutCommit: (projectPath: string, commitHash: string): Promise<void> =>
         apiCall(
             () => wails.CheckoutCommit(projectPath, commitHash),
             'Failed to checkout commit.',
-            'git'
+            { logContext: 'git' }
         ),
 
     getCommitHistory: async (projectPath: string, limit = 50): Promise<CommitInfo[]> => {
         const result = await apiCall(
             () => wails.GetCommitHistory(projectPath, limit),
             'Failed to get commit history.',
-            'git'
+            { logContext: 'git' }
         )
         return parseJsonResponse(result, 'Failed to parse commit history.')
     },
@@ -61,7 +61,7 @@ export const gitApi = {
         const result = await apiCall(
             () => wails.GetRemoteBranches(projectPath),
             'Failed to get remote branches.',
-            'git'
+            { logContext: 'git' }
         )
         return parseJsonResponse(result, 'Failed to parse remote branches.')
     },
@@ -78,7 +78,7 @@ export const gitApi = {
         const result = await apiCall(
             () => wails.ListFilesAtRef(projectPath, ref),
             'Failed to list files at ref.',
-            'git'
+            { logContext: 'git' }
         )
         const parsed = parseJsonResponse<unknown>(result, 'Failed to parse files at ref.')
         return Array.isArray(parsed) ? parsed : []
@@ -88,13 +88,13 @@ export const gitApi = {
         apiCall(
             () => wails.GetFileAtRef(projectPath, filePath, ref),
             'Failed to get file at ref.',
-            'git'
+            { logContext: 'git' }
         ),
 
     buildContextAtRef: (projectPath: string, files: string[], ref: string): Promise<string> =>
         apiCall(
             () => wails.BuildContextAtRef(projectPath, files, ref, '{}'),
             'Failed to build context at ref.',
-            'git'
+            { logContext: 'git' }
         ),
 }

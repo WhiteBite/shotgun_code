@@ -10,9 +10,8 @@ import (
 type OutputFormat string
 
 const (
-	FormatMarkdown OutputFormat = "markdown" // Default: ## File: path\n```lang\ncontent\n```
+	FormatMarkdown OutputFormat = "markdown" // ## File: path\n```lang\ncontent\n```
 	FormatXML      OutputFormat = "xml"      // <file path="..."><content>...</content></file>
-	FormatJSON     OutputFormat = "json"     // {"files": [{"path": "...", "content": "..."}]}
 	FormatPlain    OutputFormat = "plain"    // --- File: path ---\ncontent
 )
 
@@ -21,8 +20,6 @@ func formatFileHeader(filePath string, format OutputFormat) string {
 	switch format {
 	case FormatXML:
 		return fmt.Sprintf("<file path=\"%s\">\n<content>\n", filePath)
-	case FormatJSON:
-		return "" // JSON is handled separately
 	case FormatPlain:
 		return fmt.Sprintf("--- File: %s ---\n", filePath)
 	default: // FormatMarkdown
@@ -40,8 +37,6 @@ func formatFileFooter(format OutputFormat) string {
 	switch format {
 	case FormatXML:
 		return "\n</content>\n</file>\n\n"
-	case FormatJSON:
-		return "" // JSON is handled separately
 	case FormatPlain:
 		return "\n\n"
 	default: // FormatMarkdown
@@ -58,12 +53,26 @@ func escapeForFormat(content string, format OutputFormat) string {
 		content = strings.ReplaceAll(content, "<", "&lt;")
 		content = strings.ReplaceAll(content, ">", "&gt;")
 		return content
-	case FormatJSON:
-		// JSON escaping handled by json.Marshal
-		return content
 	default:
 		return content
 	}
+}
+
+// addLineNumbers adds line numbers to content
+func addLineNumbers(content string) string {
+	lines := strings.Split(content, "\n")
+	width := len(fmt.Sprintf("%d", len(lines)))
+
+	var result strings.Builder
+	result.Grow(len(content) + len(lines)*(width+3)) // pre-allocate
+
+	for i, line := range lines {
+		if i > 0 {
+			result.WriteByte('\n')
+		}
+		result.WriteString(fmt.Sprintf("%*d | %s", width, i+1, line))
+	}
+	return result.String()
 }
 
 // Service method wrappers for backward compatibility

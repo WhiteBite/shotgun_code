@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -26,6 +27,7 @@ func (r *Repository) IsGitAvailable() bool {
 
 func (r *Repository) GetUncommittedFiles(projectRoot string) ([]domain.FileStatus, error) {
 	cmd := exec.Command("git", "status", "--porcelain")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -106,6 +108,7 @@ func (r *Repository) GetRichCommitHistory(projectRoot, branchName string, limit 
 	}
 
 	cmd := exec.Command("git", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -123,6 +126,7 @@ func (r *Repository) GetRichCommitHistory(projectRoot, branchName string, limit 
 
 func (r *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash string) (string, error) {
 	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", commitHash, filePath)) //nolint:gosec // Git command
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -135,6 +139,7 @@ func (r *Repository) GetFileContentAtCommit(projectRoot, filePath, commitHash st
 
 func (r *Repository) GetGitignoreContent(projectRoot string) (string, error) {
 	cmd := exec.Command("git", "show", "HEAD:.gitignore")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -220,6 +225,7 @@ func parseMetadataLine(commit *domain.CommitWithFiles, line string) {
 // GetBranches returns all git branches
 func (r *Repository) GetBranches(projectRoot string) ([]string, error) {
 	cmd := exec.Command("git", "branch", "-a")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -260,6 +266,7 @@ func (r *Repository) GetBranches(projectRoot string) ([]string, error) {
 // GetCurrentBranch returns the current git branch
 func (r *Repository) GetCurrentBranch(projectRoot string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectRoot
 
 	output, err := cmd.Output()
@@ -275,6 +282,7 @@ func (r *Repository) GetCurrentBranch(projectRoot string) (string, error) {
 // GetAllFiles returns a list of all files in the repository.
 func (r *Repository) GetAllFiles(projectPath string) ([]string, error) {
 	cmd := exec.Command("git", "ls-files")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -294,12 +302,14 @@ func (r *Repository) GetAllFiles(projectPath string) ([]string, error) {
 // GenerateDiff generates a git diff between HEAD and HEAD~1.
 func (r *Repository) GenerateDiff(projectPath string) (string, error) {
 	cmd := exec.Command("git", "diff", "HEAD~1", "HEAD")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
 	if err != nil {
 		// If HEAD~1 does not exist (e.g., first commit), try diffing against the empty tree
 		cmd = exec.Command("git", "diff", "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "HEAD") // magic empty tree hash
+		executil.HideWindow(cmd)
 		cmd.Dir = projectPath
 		output, err = cmd.Output()
 		if err != nil {
@@ -313,6 +323,7 @@ func (r *Repository) GenerateDiff(projectPath string) (string, error) {
 // IsGitRepository checks if the given path is a git repository
 func (r *Repository) IsGitRepository(projectPath string) bool {
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 	err := cmd.Run()
 	return err == nil
@@ -327,6 +338,7 @@ func (r *Repository) CloneRepository(url, targetPath string, depth int) error {
 	args = append(args, url, targetPath)
 
 	cmd := exec.Command("git", args...)
+	executil.HideWindow(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to clone repository: %s - %w", string(output), err)
@@ -339,6 +351,7 @@ func (r *Repository) CloneRepository(url, targetPath string, depth int) error {
 // CheckoutBranch switches to a specific branch
 func (r *Repository) CheckoutBranch(projectPath, branch string) error {
 	cmd := exec.Command("git", "checkout", branch)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -353,6 +366,7 @@ func (r *Repository) CheckoutBranch(projectPath, branch string) error {
 // CheckoutCommit switches to a specific commit (detached HEAD)
 func (r *Repository) CheckoutCommit(projectPath, commitHash string) error {
 	cmd := exec.Command("git", "checkout", commitHash)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -367,6 +381,7 @@ func (r *Repository) CheckoutCommit(projectPath, commitHash string) error {
 // ListFilesAtRef returns list of files at a specific branch or commit without checkout
 func (r *Repository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
 	cmd := exec.Command("git", "ls-tree", "-r", "--name-only", ref)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -387,6 +402,7 @@ func (r *Repository) ListFilesAtRef(projectPath, ref string) ([]string, error) {
 // GetFileAtRef returns file content at a specific branch or commit without checkout
 func (r *Repository) GetFileAtRef(projectPath, filePath, ref string) (string, error) {
 	cmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", ref, filePath)) //nolint:gosec // Git command
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -400,6 +416,7 @@ func (r *Repository) GetFileAtRef(projectPath, filePath, ref string) (string, er
 // GetTreeAtRef returns file tree structure at a specific ref
 func (r *Repository) GetTreeAtRef(projectPath, ref string) ([]GitTreeEntry, error) {
 	cmd := exec.Command("git", "ls-tree", "-r", "--long", ref)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -449,6 +466,7 @@ type GitTreeEntry struct {
 // GetCommitHistory returns recent commits with hash and subject
 func (r *Repository) GetCommitHistory(projectPath string, limit int) ([]domain.CommitInfo, error) {
 	cmd := exec.Command("git", "log", "--pretty=format:%H|%s|%an|%cI", fmt.Sprintf("-n%d", limit)) //nolint:gosec // Git command
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
@@ -478,11 +496,13 @@ func (r *Repository) GetCommitHistory(projectPath string, limit int) ([]domain.C
 func (r *Repository) FetchRemoteBranches(projectPath string) ([]string, error) {
 	// First fetch all remotes
 	fetchCmd := exec.Command("git", "fetch", "--all")
+	executil.HideWindow(fetchCmd)
 	fetchCmd.Dir = projectPath
 	_ = fetchCmd.Run() // Ignore errors, might not have network
 
 	// Get remote branches
 	cmd := exec.Command("git", "branch", "-r")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()

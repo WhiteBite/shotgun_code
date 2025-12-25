@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -51,6 +52,7 @@ func (r *GoTestRunner) RunTest(ctx context.Context, testPath string, config *dom
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "go", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения

@@ -34,7 +34,7 @@
               <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div v-for="category in categories" :key="category.name">
-                    <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                    <h3 class="text-sm font-semibold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-3">
                       {{ category.name }}
                     </h3>
                     <div class="space-y-2">

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -58,6 +59,7 @@ func (a *ESLintAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnaly
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "npx", append([]string{"eslint"}, args...)...) //nolint:gosec // External tool command
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -144,6 +146,7 @@ func (a *ESLintAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) err
 // checkESLintInstalled проверяет, установлен ли ESLint
 func (a *ESLintAnalyzer) checkESLintInstalled() error {
 	cmd := exec.Command("npx", "eslint", "--version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ESLint not found: %w", err)
 	}

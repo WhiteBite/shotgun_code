@@ -64,7 +64,7 @@
 
       <!-- Ignored Icon -->
       <div v-if="node.isIgnored" class="relative group/ignored">
-        <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
         </svg>
@@ -149,33 +149,36 @@ const isSelected = computed(() => fileStore.selectedPaths.has(props.node.path))
 // Compact mode: merge single-child folder chains (e.g., src/main/java → "src/main/java")
 const compactInfo = computed(() => {
   if (!props.compactMode || !props.node.isDir || !props.node.children) {
-    return { name: props.node.name, skipChildren: null as FileNode[] | null, lastNode: props.node }
+    return { name: props.node.name, skipChildren: null as FileNode[] | null, lastNode: props.node, chainPaths: [props.node.path] }
   }
   
   // Check if we should compact: single folder child only
   const children = props.node.children
   if (children.length === 1 && children[0].isDir) {
-    const path: string[] = [props.node.name]
+    const namePath: string[] = [props.node.name]
+    const chainPaths: string[] = [props.node.path]
     let current = props.node
     
     // Traverse down while there's only one folder child
     while (current.children && current.children.length === 1 && current.children[0].isDir) {
       const child = current.children[0]
-      path.push(child.name)
+      namePath.push(child.name)
+      chainPaths.push(child.path)
       current = child
     }
     
     // Only compact if we found multiple levels
-    if (path.length > 1) {
+    if (namePath.length > 1) {
       return { 
-        name: path.join('/'), 
+        name: namePath.join('/'), 
         skipChildren: current.children || null,
-        lastNode: current
+        lastNode: current,
+        chainPaths
       }
     }
   }
   
-  return { name: props.node.name, skipChildren: null, lastNode: props.node }
+  return { name: props.node.name, skipChildren: null, lastNode: props.node, chainPaths: [props.node.path] }
 })
 
 const displayName = computed(() => compactInfo.value.name)
@@ -250,9 +253,21 @@ const childAncestorHasMoreSiblings = computed(() => {
 
 function handleClick() {
   if (props.node.isDir) {
-    // In compact mode, toggle the last node in the chain
-    const targetPath = compactInfo.value.lastNode.path
-    emit('toggle-expand', targetPath)
+    // In compact mode, toggle ALL nodes in the chain together
+    const { chainPaths, lastNode } = compactInfo.value
+    const isCurrentlyExpanded = lastNode.isExpanded
+    
+    if (chainPaths.length > 1) {
+      // Compact mode: expand/collapse all nodes in chain
+      // We emit a special event with all paths to handle atomically
+      emit('toggle-expand', JSON.stringify({ 
+        paths: chainPaths, 
+        expand: !isCurrentlyExpanded 
+      }))
+    } else {
+      // Single node - simple toggle
+      emit('toggle-expand', props.node.path)
+    }
   }
 }
 
@@ -290,10 +305,10 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     handleToggleSelect()
-  } else if (event.key === 'ArrowRight' && props.node.isDir && !props.node.isExpanded) {
-    emit('toggle-expand', props.node.path)
-  } else if (event.key === 'ArrowLeft' && props.node.isDir && props.node.isExpanded) {
-    emit('toggle-expand', props.node.path)
+  } else if (event.key === 'ArrowRight' && props.node.isDir && !compactInfo.value.lastNode.isExpanded) {
+    handleClick()
+  } else if (event.key === 'ArrowLeft' && props.node.isDir && compactInfo.value.lastNode.isExpanded) {
+    handleClick()
   }
 }
 

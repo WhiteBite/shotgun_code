@@ -3,7 +3,8 @@ import { apiService } from '@/services/api.service'
 import { useProjectStore } from '@/stores/project.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useUIStore } from '@/stores/ui.store'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
+import { useMentions } from './useMentions'
 
 export interface Message {
     id: string
@@ -15,6 +16,10 @@ export interface Message {
     tokenCount?: number
     iterations?: number
     error?: string
+    /** Thinking process log for AI messages */
+    thinkingLog?: ThinkingStep[]
+    /** Suggested files from AI analysis */
+    suggestedFiles?: SuggestedFile[]
 }
 
 export interface ToolCallLog {
@@ -26,13 +31,25 @@ export interface ToolCallLog {
     duration?: number
 }
 
+export interface ThinkingStep {
+    action: string
+    detail?: string
+    status: 'pending' | 'done' | 'error'
+    timestamp: number
+}
+
+export interface SuggestedFile {
+    path: string
+    reason: string
+    relevance: number
+}
+
 export interface SmartContextPreview {
-    files: string[]
+    files: SuggestedFile[]
     totalTokens: number
     query: string
 }
 
-type ChatMode = 'manual' | 'smart' | 'agentic'
 type TranslateFunc = (key: string, params?: Record<string, string | number>) => string
 
 export function useChatMessages() {
@@ -40,42 +57,107 @@ export function useChatMessages() {
     const projectStore = useProjectStore()
     const settingsStore = useSettingsStore()
     const contextStore = useContextStore()
+    const mentions = useMentions()
 
     // State
     const messages = ref<Message[]>([])
     const inputMessage = ref('')
     const isThinking = ref(false)
     const isAnalyzing = ref(false)
-    const includeContext = ref(true)
-    const chatMode = ref<ChatMode>('manual')
     const smartContextPreview = ref<SmartContextPreview | null>(null)
     const expandedToolCalls = ref<Set<number>>(new Set())
     const abortController = ref<AbortController | null>(null)
 
     // Computed
     const currentModel = computed(() => settingsStore.settings.aiModel || 'gpt-4')
-    const providerName = computed(() => 'OpenAI') // Provider is determined by backend
-    const isConnected = computed(() => true) // Connection status managed by backend
+    const providerName = computed(() => 'OpenAI')
+    const isConnected = computed(() => true)
     const totalUsedTokens = computed(() => {
         return messages.value.reduce((acc, msg) => acc + (msg.content?.length || 0) / 4, 0)
     })
 
-    const chatModeIndex = computed(() => {
-        const modes: ChatMode[] = ['manual', 'smart', 'agentic']
-        return modes.indexOf(chatMode.value)
-    })
-
-    const chatModeIndicatorClass = computed(() => ({
-        'chat-mode-indicator-indigo': chatMode.value === 'manual',
-        'chat-mode-indicator-purple': chatMode.value === 'smart',
-        'chat-mode-indicator-emerald': chatMode.value === 'agentic',
-    }))
-
     // Actions
-    async function sendMessage(scrollToBottom: () => void) {
+
+    /**
+     * Unified smart message flow:
+     * 1. Process any @mentions first (build context from files/git)
+     * 2. If context exists - use it directly
+     * 3. If no context - analyze and suggest files first
+     * 4. User confirms -> AI generates response
+     */
+    async function sendSmartMessage(scrollToBottom: () => void, t: TranslateFunc) {
         if (!inputMessage.value.trim() || isThinking.value) return
 
-        const content = inputMessage.value.trim()
+        let content = inputMessage.value.trim()
+
+        // Process mentions first (@files, @git, @problems)
+        if (content.includes('@')) {
+            const { cleanedMessage } = await mentions.processMessageMentions(content, t)
+            content = cleanedMessage
+
+            // If message was only mentions, don't send empty message
+            if (!content) {
+                inputMessage.value = ''
+                return
+            }
+        }
+
+        const hasExistingContext = contextStore.hasContext
+
+        // If no context, first analyze and suggest files
+        if (!hasExistingContext) {
+            inputMessage.value = content
+            await analyzeAndSuggestFiles(content, t)
+            return
+        }
+
+        // Has context - send message directly
+        inputMessage.value = content
+        await executeChat(content, scrollToBottom)
+    }
+
+    /**
+     * Analyze query and suggest relevant files
+     */
+    async function analyzeAndSuggestFiles(query: string, t: TranslateFunc) {
+        isAnalyzing.value = true
+        try {
+            const result = await apiService.semanticSearch({
+                query,
+                projectRoot: projectStore.currentPath || '',
+                topK: 10
+            })
+
+            if (result.results && result.results.length > 0) {
+                const files: SuggestedFile[] = result.results.map((r) => ({
+                    path: r.chunk.filePath,
+                    reason: r.chunk.content?.slice(0, 100) || '',
+                    relevance: r.score || 0.5
+                }))
+
+                const estimatedTokens = files.length * 500
+
+                smartContextPreview.value = {
+                    files,
+                    totalTokens: estimatedTokens,
+                    query,
+                }
+            } else {
+                uiStore.addToast(t('chat.noFilesFound'), 'warning')
+                // Still allow sending without context
+                inputMessage.value = query
+            }
+        } catch {
+            uiStore.addToast(t('chat.analysisFailed'), 'error')
+        } finally {
+            isAnalyzing.value = false
+        }
+    }
+
+    /**
+     * Execute chat with current context
+     */
+    async function executeChat(content: string, scrollToBottom: () => void) {
         inputMessage.value = ''
 
         const userMessage: Message = {
@@ -83,6 +165,7 @@ export function useChatMessages() {
             role: 'user',
             content,
             timestamp: new Date().toISOString(),
+            contextAttached: contextStore.hasContext,
         }
         messages.value.push(userMessage)
         scrollToBottom()
@@ -92,15 +175,6 @@ export function useChatMessages() {
 
         try {
             const projectRoot = projectStore.currentPath || ''
-            // Get context content if available (for future use)
-            if (includeContext.value && contextStore.hasContext) {
-                try {
-                    await contextStore.getFullContextContent()
-                } catch {
-                    // Ignore context loading errors
-                }
-            }
-
             const response = await apiService.agenticChat(content, projectRoot)
 
             const assistantMessage: Message = {
@@ -119,6 +193,7 @@ export function useChatMessages() {
                     role: 'assistant',
                     content: 'Error: Failed to get response',
                     timestamp: new Date().toISOString(),
+                    error: (error as Error).message,
                 })
             }
         } finally {
@@ -127,91 +202,18 @@ export function useChatMessages() {
         }
     }
 
-    async function sendAgenticMessage(scrollToBottom: () => void) {
-        if (!inputMessage.value.trim() || isThinking.value) return
-
-        const content = inputMessage.value.trim()
-        inputMessage.value = ''
-
-        const userMessage: Message = {
-            id: `msg-${Date.now()}`,
-            role: 'user',
-            content,
-            timestamp: new Date().toISOString(),
-        }
-        messages.value.push(userMessage)
-        scrollToBottom()
-
-        isThinking.value = true
-
-        try {
-            const projectRoot = projectStore.currentPath || ''
-            const response = await apiService.agenticChat(content, projectRoot)
-
-            const assistantMessage: Message = {
-                id: `msg-${Date.now()}-ai`,
-                role: 'assistant',
-                content: response.response,
-                timestamp: new Date().toISOString(),
-                toolCalls: response.toolCalls,
-            }
-            messages.value.push(assistantMessage)
-            scrollToBottom()
-        } catch {
-            messages.value.push({
-                id: `msg-${Date.now()}-error`,
-                role: 'assistant',
-                content: 'Error: Agentic chat failed',
-                timestamp: new Date().toISOString(),
-            })
-        } finally {
-            isThinking.value = false
-        }
-    }
-
-    async function analyzeAndPreview(t: TranslateFunc) {
-        if (!inputMessage.value.trim()) return
-
-        isAnalyzing.value = true
-        try {
-            // Smart context analysis - use semantic search to find relevant files
-            const result = await apiService.semanticSearch({
-                query: inputMessage.value,
-                projectRoot: projectStore.currentPath || '',
-                topK: 10
-            })
-
-            if (result.results && result.results.length > 0) {
-                const files = result.results.map((r) => r.chunk.filePath)
-                smartContextPreview.value = {
-                    files,
-                    totalTokens: files.length * 500, // Rough estimate
-                    query: inputMessage.value,
-                }
-            } else {
-                uiStore.addToast(t('chat.noFilesFound'), 'warning')
-            }
-        } catch {
-            uiStore.addToast(t('chat.analysisFailed'), 'error')
-        } finally {
-            isAnalyzing.value = false
-        }
-    }
-
-    async function confirmSmartContext(t: TranslateFunc, scrollToBottom: () => void) {
+    async function confirmSmartContext(selectedFiles: string[], t: TranslateFunc, scrollToBottom: () => void) {
         if (!smartContextPreview.value) return
 
-        const preview = smartContextPreview.value
+        const query = smartContextPreview.value.query
         smartContextPreview.value = null
 
-        // Build context from selected files
+        // Build context from user-selected files
         try {
-            await contextStore.buildContext(preview.files)
+            await contextStore.buildContext(selectedFiles)
 
             // Now send the message with context
-            inputMessage.value = preview.query
-            includeContext.value = true
-            await sendMessage(scrollToBottom)
+            await executeChat(query, scrollToBottom)
         } catch {
             uiStore.addToast(t('chat.contextBuildFailed'), 'error')
         }
@@ -249,21 +251,12 @@ export function useChatMessages() {
     }
 
     function initialize() {
-        // Load saved chat mode
-        const savedMode = localStorage.getItem('chat-mode') as ChatMode | null
-        if (savedMode && ['manual', 'smart', 'agentic'].includes(savedMode)) {
-            chatMode.value = savedMode
-        }
+        // No mode to restore - unified smart flow
     }
 
     function cleanup() {
         stopGeneration()
     }
-
-    // Watch chat mode changes
-    watch(chatMode, (newMode) => {
-        localStorage.setItem('chat-mode', newMode)
-    })
 
     return {
         // State
@@ -271,8 +264,6 @@ export function useChatMessages() {
         inputMessage,
         isThinking,
         isAnalyzing,
-        includeContext,
-        chatMode,
         smartContextPreview,
         expandedToolCalls,
         // Computed
@@ -280,12 +271,8 @@ export function useChatMessages() {
         providerName,
         isConnected,
         totalUsedTokens,
-        chatModeIndex,
-        chatModeIndicatorClass,
         // Actions
-        sendMessage,
-        sendAgenticMessage,
-        analyzeAndPreview,
+        sendSmartMessage,
         confirmSmartContext,
         cancelSmartContext,
         clearChat,

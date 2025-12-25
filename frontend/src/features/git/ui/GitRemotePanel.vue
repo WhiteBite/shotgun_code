@@ -21,7 +21,7 @@
           </button>
         </div>
       </div>
-      <p class="text-xs text-gray-500">
+      <p class="text-xs text-gray-400">
         <span v-if="isGitHub" class="text-emerald-400">✓ GitHub API (fast, no clone)</span>
         <span v-else-if="isGitLab" class="text-orange-400">✓ GitLab API (fast, no clone)</span>
         <span v-else>{{ t('git.urlHint') }}</span>

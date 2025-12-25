@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -86,12 +87,14 @@ func (r *RunnerImpl) Cleanup(ctx context.Context, containerID string) error {
 
 	// Останавливаем контейнер
 	stopCmd := exec.CommandContext(ctx, "docker", "stop", containerID)
+	executil.HideWindow(stopCmd)
 	if err := stopCmd.Run(); err != nil {
 		r.log.Warning(fmt.Sprintf("Failed to stop container %s: %v", containerID, err))
 	}
 
 	// Удаляем контейнер
 	rmCmd := exec.CommandContext(ctx, "docker", "rm", containerID)
+	executil.HideWindow(rmCmd)
 	if err := rmCmd.Run(); err != nil {
 		return fmt.Errorf("failed to remove container %s: %w", containerID, err)
 	}
@@ -105,6 +108,7 @@ func (r *RunnerImpl) IsAvailable(ctx context.Context) bool {
 	if _, err := exec.LookPath("docker"); err == nil {
 		// Проверяем, что Docker daemon работает
 		cmd := exec.CommandContext(ctx, "docker", "info")
+		executil.HideWindow(cmd)
 		if err := cmd.Run(); err == nil {
 			return true
 		}
@@ -114,6 +118,7 @@ func (r *RunnerImpl) IsAvailable(ctx context.Context) bool {
 	if _, err := exec.LookPath("podman"); err == nil {
 		// Проверяем, что Podman работает
 		cmd := exec.CommandContext(ctx, "podman", "info")
+		executil.HideWindow(cmd)
 		if err := cmd.Run(); err == nil {
 			return true
 		}
@@ -129,6 +134,7 @@ func (r *RunnerImpl) GetInfo(ctx context.Context) (map[string]interface{}, error
 	// Проверяем Docker
 	if _, err := exec.LookPath("docker"); err == nil {
 		cmd := exec.CommandContext(ctx, "docker", "version", "--format", "json")
+		executil.HideWindow(cmd)
 		output, err := cmd.Output()
 		if err == nil {
 			var dockerInfo map[string]interface{}
@@ -141,6 +147,7 @@ func (r *RunnerImpl) GetInfo(ctx context.Context) (map[string]interface{}, error
 	// Проверяем Podman
 	if _, err := exec.LookPath("podman"); err == nil {
 		cmd := exec.CommandContext(ctx, "podman", "version", "--format", "json")
+		executil.HideWindow(cmd)
 		output, err := cmd.Output()
 		if err == nil {
 			var podmanInfo map[string]interface{}
@@ -206,6 +213,7 @@ func (r *RunnerImpl) createContainer(ctx context.Context, config domain.SandboxC
 	args = append(args, command...)
 
 	cmd := exec.CommandContext(ctx, engine, args...)
+	executil.HideWindow(cmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
@@ -220,6 +228,7 @@ func (r *RunnerImpl) runContainer(ctx context.Context, containerID string) (stri
 	engine := defaultEngine
 
 	cmd := exec.CommandContext(ctx, engine, "start", "-a", containerID)
+	executil.HideWindow(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(output), fmt.Errorf("container execution failed: %w", err)
@@ -233,6 +242,7 @@ func (r *RunnerImpl) getContainerLogs(ctx context.Context, containerID string) (
 	engine := defaultEngine
 
 	cmd := exec.CommandContext(ctx, engine, "logs", containerID)
+	executil.HideWindow(cmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get container logs: %w", err)

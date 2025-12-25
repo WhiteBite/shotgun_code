@@ -33,17 +33,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: process.env.NODE_ENV === 'production',
-        drop_debugger: true
-      }
-    },
+    minify: false,  // Disabled to debug circular dependency issue
     rollupOptions: {
       output: {
+        // Only split vendor chunks - let Vite handle app code to avoid circular dependency issues
         manualChunks(id) {
-          // Vue core
+          // Vue core + Pinia
           if (id.includes('node_modules/vue') || id.includes('node_modules/pinia')) {
             return 'vue-vendor'
           }
@@ -55,45 +50,20 @@ export default defineConfig({
           if (id.includes('@vueuse/core') || id.includes('clsx') || id.includes('tailwind-merge') || id.includes('nanoid')) {
             return 'utils'
           }
+          // Icons library
+          if (id.includes('lucide-vue-next')) {
+            return 'icons'
+          }
+          // Highlight.js - large, lazy loaded
+          if (id.includes('highlight.js')) {
+            return 'highlighter'
+          }
           // Virtual scroller
           if (id.includes('vue-virtual-scroller')) {
             return 'virtual-scroller'
           }
-          // Wails bindings - separate chunk
-          if (id.includes('wailsjs')) {
-            return 'wails-bindings'
-          }
-          // Heavy features - lazy loaded
-          if (id.includes('features/ai-chat')) {
-            return 'feature-ai-chat'
-          }
-          if (id.includes('features/git') || id.includes('GitSourceSelector')) {
-            return 'feature-git'
-          }
-          if (id.includes('MemoryDashboard') || id.includes('ProjectStructurePanel')) {
-            return 'feature-tools'
-          }
-          // Split files feature into smaller chunks
-          if (id.includes('features/files')) {
-            // Modals - lazy loaded on demand
-            if (id.includes('Modal.vue') || id.includes('IgnoreRules') || id.includes('SelectionPresets') || id.includes('FilterSettings')) {
-              return 'feature-files-modals'
-            }
-            // Quick filters system
-            if (id.includes('QuickFilters') || id.includes('FilterDropdown') || id.includes('FilterChip') || id.includes('useQuickFilters') || id.includes('useSmartFilters') || id.includes('useFilterDropdown') || id.includes('useFilterPersistence')) {
-              return 'feature-files-filters'
-            }
-            // Virtual tree (heavy component)
-            if (id.includes('Virtual') || id.includes('FileTreeNode')) {
-              return 'feature-files-tree'
-            }
-            // File explorer main component
-            if (id.includes('FileExplorer') || id.includes('useFileExplorer') || id.includes('BreadcrumbsNav') || id.includes('FileContextMenu')) {
-              return 'feature-files-explorer'
-            }
-            // Core: store, types, utils
-            return 'feature-files-core'
-          }
+          // Do NOT manually chunk features - causes "Cannot access before initialization" errors
+          // Let Vite/Rollup handle the dependency graph automatically
         },
         chunkFileNames: 'js/[name]-[hash].js',
         entryFileNames: 'js/[name]-[hash].js',

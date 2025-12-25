@@ -45,18 +45,34 @@
 
     <!-- Content - using v-show to preserve component state when switching tabs -->
     <div class="sidebar-content">
-      <FileExplorer v-show="currentTab === 'files'" @preview-file="handlePreviewFile" @build-context="handleBuildContext" />
-      <GitSourceSelector v-show="currentTab === 'git'" />
-      <ContextList v-show="currentTab === 'contexts'" />
+      <FileExplorer 
+        v-show="currentTab === 'files'" 
+        class="sidebar-tab-content"
+        :class="{ 'sidebar-tab-content--active': currentTab === 'files' }"
+        @preview-file="handlePreviewFile" 
+        @build-context="handleBuildContext" 
+      />
+      <GitSourceSelector 
+        v-show="currentTab === 'git'" 
+        class="sidebar-tab-content"
+        :class="{ 'sidebar-tab-content--active': currentTab === 'git' }"
+      />
+      <ContextList 
+        v-show="currentTab === 'contexts'" 
+        class="sidebar-tab-content"
+        :class="{ 'sidebar-tab-content--active': currentTab === 'contexts' }"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from '@/composables/useI18n'
-import { ContextList } from '@/features/context'
-import { FileExplorer, useFileStore } from '@/features/files'
-import { GitSourceSelector } from '@/features/git'
+// Direct imports to avoid circular dependency with barrel exports
+import { useFileStore } from '@/features/files/model/file.store'
+import FileExplorer from '@/features/files/ui/FileExplorer.vue'
+import ContextList from '@/features/context/ui/ContextList.vue'
+import GitSourceSelector from '@/features/git/ui/GitSourceSelector.vue'
 import { computed, ref, watch } from 'vue'
 
 const fileStore = useFileStore()
@@ -112,71 +128,93 @@ try {
 
 <style scoped>
 .sidebar-container {
-  @apply h-full flex flex-col;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
   background: transparent;
 }
 
 .tabs-container {
-  @apply relative flex gap-1 p-2;
-  border-bottom: 1px solid var(--border-default);
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
   background: var(--bg-1);
 }
 
-/* Sliding Indicator */
+/* Sliding Indicator - Bottom Glow Style */
 .tabs-indicator {
-  @apply absolute top-2 bottom-2 rounded-xl;
+  position: absolute;
+  bottom: 0;
+  height: 2px;
   width: calc(33.333% - 8px);
   left: 8px;
+  border-radius: 2px 2px 0 0;
   transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
               background 200ms ease-out,
               box-shadow 200ms ease-out;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
 }
 
 .tabs-indicator-indigo {
-  background: rgba(99, 102, 241, 0.20);
-  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: #6366f1;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
 }
 
 .tabs-indicator-orange {
-  background: rgba(249, 115, 22, 0.20);
-  border: 1px solid rgba(249, 115, 22, 0.35);
+  background: #f97316;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
 }
 
 .tabs-indicator-purple {
-  background: rgba(168, 85, 247, 0.20);
-  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: #a855f7;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
 }
 
 .tabs-indicator-cyan {
-  background: rgba(6, 182, 212, 0.20);
-  border: 1px solid rgba(6, 182, 212, 0.35);
+  background: #06b6d4;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.6);
 }
 
 .tabs-indicator-emerald {
-  background: rgba(16, 185, 129, 0.20);
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
 }
 
 .sidebar-tab {
-  @apply flex-1 flex items-center justify-center gap-2;
-  @apply px-3 py-2 text-sm font-medium rounded-xl;
-  @apply relative z-10;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  z-index: 0;
   color: var(--text-muted);
-  transition: color 150ms ease-out, transform 100ms ease-out;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 150ms ease-out, background 150ms ease-out;
 }
 
 .sidebar-tab:hover:not(.sidebar-tab-active) {
   color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .sidebar-tab:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .sidebar-tab-active {
-  @apply font-semibold;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.03) 100%);
 }
 
 .tab-badge {
@@ -186,7 +224,24 @@ try {
   border: 1px solid var(--accent-indigo-border);
 }
 
+/* Content area - fills remaining space */
 .sidebar-content {
-  @apply flex-1 min-h-0 overflow-hidden;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tab content - hidden by v-show, active one fills container */
+.sidebar-tab-content {
+  flex: 0 0 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Active tab content fills the container */
+.sidebar-tab-content--active {
+  flex: 1 1 0;
 }
 </style>

@@ -61,6 +61,7 @@ type BuildOptions struct {
 	MaxMemoryMB          int          `json:"maxMemoryMB,omitempty"`
 	StripComments        bool         `json:"stripComments,omitempty"`
 	IncludeManifest      bool         `json:"includeManifest,omitempty"`
+	IncludeLineNumbers   bool         `json:"includeLineNumbers,omitempty"`
 	ForceStream          bool         `json:"forceStream,omitempty"`
 	EnableProgressEvents bool         `json:"enableProgressEvents,omitempty"`
 	OutputFormat         OutputFormat `json:"outputFormat,omitempty"`

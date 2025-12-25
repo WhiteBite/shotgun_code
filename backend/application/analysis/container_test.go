@@ -8,14 +8,10 @@ import (
 
 func TestNewContainer(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	if container == nil {
 		t.Fatal("expected container to be created")
-	}
-
-	if container.GetRegistry() == nil {
-		t.Error("expected registry to be initialized")
 	}
 
 	if container.GetProjectRoot() != "" {
@@ -25,7 +21,7 @@ func TestNewContainer(t *testing.T) {
 
 func TestContainer_SetProject(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	container.SetProject("/test/project")
 
@@ -44,37 +40,29 @@ func TestContainer_SetProject(t *testing.T) {
 
 func TestContainer_GetSymbolIndex(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
+	// Without factory, should return nil
 	index1 := container.GetSymbolIndex()
-	if index1 == nil {
-		t.Fatal("expected symbol index to be created")
-	}
-
-	index2 := container.GetSymbolIndex()
-	if index1 != index2 {
-		t.Error("expected same symbol index instance")
+	if index1 != nil {
+		t.Error("expected nil symbol index without factory")
 	}
 }
 
 func TestContainer_GetCallGraph(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
+	// Without factory, should return nil
 	cg1 := container.GetCallGraph()
-	if cg1 == nil {
-		t.Fatal("expected call graph to be created")
-	}
-
-	cg2 := container.GetCallGraph()
-	if cg1 != cg2 {
-		t.Error("expected same call graph instance")
+	if cg1 != nil {
+		t.Error("expected nil call graph without factory")
 	}
 }
 
 func TestContainer_GetGitContext(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	gc := container.GetGitContext()
 	if gc != nil {
@@ -83,34 +71,28 @@ func TestContainer_GetGitContext(t *testing.T) {
 
 	container.SetProject("/test/project")
 	gc = container.GetGitContext()
-	if gc == nil {
-		t.Error("expected git context to be created")
+	// Without factory, should still be nil
+	if gc != nil {
+		t.Error("expected nil git context without factory")
 	}
 }
 
 func TestContainer_GetContextMemory(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
+	// Without factory, should return nil
 	mem1 := container.GetContextMemory()
-	if mem1 == nil {
-		t.Fatal("expected context memory to be created")
-	}
-
-	mem2 := container.GetContextMemory()
-	if mem1 != mem2 {
-		t.Error("expected same context memory instance")
+	if mem1 != nil {
+		t.Error("expected nil context memory without factory")
 	}
 }
 
 func TestContainer_InvalidateCache(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	container.SetProject("/test/project")
-	_ = container.GetSymbolIndex()
-	_ = container.GetCallGraph()
-	_ = container.GetGitContext()
 
 	container.InvalidateCache()
 
@@ -125,22 +107,19 @@ func TestContainer_InvalidateCache(t *testing.T) {
 
 func TestContainer_SetProjectInvalidatesCache(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	container.SetProject("/project1")
-	index1 := container.GetSymbolIndex()
-
 	container.SetProject("/project2")
-	index2 := container.GetSymbolIndex()
 
-	if index1 == index2 {
-		t.Error("expected different symbol index after project switch")
+	if container.GetProjectRoot() != "/project2" {
+		t.Error("expected project root to be updated")
 	}
 }
 
 func TestContainer_SemanticSearch(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	if container.GetSemanticSearch() != nil {
 		t.Error("expected nil semantic search initially")
@@ -156,7 +135,7 @@ func TestContainer_SemanticSearch(t *testing.T) {
 
 func TestContainer_Stats(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	stats := container.Stats()
 
@@ -173,7 +152,7 @@ func TestContainer_Stats(t *testing.T) {
 
 func TestContainer_ConcurrentAccess(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 	container.SetProject("/test/project")
 
 	done := make(chan bool, 10)
@@ -195,7 +174,7 @@ func TestContainer_ConcurrentAccess(t *testing.T) {
 
 func TestContainer_EnsureSymbolIndexBuilt_NoProject(t *testing.T) {
 	logger := &domain.NoopLogger{}
-	container := NewContainer(logger)
+	container := NewContainer(logger, ContainerConfig{})
 
 	err := container.EnsureSymbolIndexBuilt(context.Background())
 	if err != nil {

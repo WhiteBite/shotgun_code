@@ -28,8 +28,8 @@ Write-Host "Version: $version" -ForegroundColor White
 Write-Host "Commit: $gitCommit" -ForegroundColor White
 Write-Host ""
 
-# Build ldflags for version injection
-$ldflags = "-X shotgun_code/infrastructure/version.Version=$version -X shotgun_code/infrastructure/version.GitCommit=$gitCommit -X shotgun_code/infrastructure/version.BuildDate=$buildDate"
+# Build ldflags for version injection and hide console window
+$ldflags = "-X shotgun_code/infrastructure/version.Version=$version -X shotgun_code/infrastructure/version.GitCommit=$gitCommit -X shotgun_code/infrastructure/version.BuildDate=$buildDate -H windowsgui"
 
 # Find wails (same logic as dev.ps1)
 $wailsPath = $null
@@ -48,11 +48,22 @@ New-Item -ItemType Directory -Force -Path "build/bin" | Out-Null
 Push-Location backend
 
 try {
+    # Build frontend first
+    Write-Host "Building frontend..." -ForegroundColor Yellow
+    Push-Location ../frontend
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "✗ Frontend build failed!" -ForegroundColor Red
+        exit 1
+    }
+    Pop-Location
+    
     # Copy frontend dist to backend/frontend/dist for embedding
     Write-Host "Preparing frontend for embedding..." -ForegroundColor Yellow
     if (Test-Path "frontend/dist") {
         Remove-Item "frontend/dist" -Recurse -Force -ErrorAction SilentlyContinue
     }
+    New-Item -ItemType Directory -Force -Path "frontend" | Out-Null
     Copy-Item "../frontend/dist" "frontend/dist" -Recurse -Force
     
     Write-Host "Building Windows executable..." -ForegroundColor Green
@@ -62,18 +73,15 @@ try {
         Write-Host ""
         Write-Host "✓ Build successful!" -ForegroundColor Green
         
-        # Move from backend/build/bin to root build/bin
+        # Copy to root build/bin
         if (Test-Path "build/bin/ShotgunWB.exe") {
-            Write-Host "Moving executable to build/bin/..." -ForegroundColor Yellow
+            New-Item -ItemType Directory -Force -Path "../build/bin" | Out-Null
             Copy-Item "build/bin/ShotgunWB.exe" "../build/bin/ShotgunWB.exe" -Force
-            Write-Host ""
             
             $exePath = Get-Item "../build/bin/ShotgunWB.exe"
             $size = [math]::Round($exePath.Length / 1MB, 2)
             Write-Host "Output: $($exePath.FullName)" -ForegroundColor White
             Write-Host "Size: ${size}MB" -ForegroundColor White
-        } else {
-            Write-Host "⚠️  Warning: Could not find built executable" -ForegroundColor Yellow
         }
     } else {
         Write-Host ""

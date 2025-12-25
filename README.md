@@ -2,52 +2,57 @@
 
 [Русская версия](README.ru.md)
 
-Desktop application for building code context for AI assistants. Collect, filter, and export your codebase in formats optimized for LLM consumption.
+AI Worker Factory — development automation system through AI agents. Input a task (project, feature, bug), get automated execution through configured pipelines.
+
+## Concept
+
+See [docs/CONCEPT.md](docs/CONCEPT.md) for detailed architecture.
+
+```
+Task Input → Context Builder → Taskflow Engine → AI Tools → Verification → Output
+```
 
 ## Features
 
-### Project Management
+### Context Builder
 
-- Open local folders or clone from GitHub/GitLab
-- Recent projects list with quick access
-- Real-time file system watching
+- Project scanning with .gitignore support
+- Token counting with model limits
+- Output formats: Markdown, XML, JSON
+- Smart file recommendations based on analysis
 
-### File Explorer
+### Taskflow Engine
 
-- Tree view with expand/collapse
-- Multi-select with Ctrl/Shift
-- Quick filters: by extension, git status, size
-- Ignore rules: .gitignore support + custom patterns
-- File preview with syntax highlighting
+- Task decomposition into subtasks
+- Dependency graph between tasks
+- Parallel execution of independent tasks
+- SLA policies (tokens, time, retries)
 
-### Context Building
+### AI Tool Executor
 
-- Select files to include in context
-- Token counting with model limits display
-- Multiple output formats: Markdown, XML, JSON, Plain text
-- Manifest generation with file tree
-- Comment stripping option
+- `file_tools`: read, write, search files
+- `git_tools`: status, diff, commit
+- `symbol_tools`: list, search symbols
+- `memory_tools`: save/restore context
 
-### Export Options
+### Verification Pipeline
 
-- Copy to clipboard
-- Export to PDF (for AI with file upload)
-- Split large contexts into chunks
-- Context history with restore
+- Static analysis (linting)
+- Build verification
+- Test execution
+- Self-correction on failures
 
-### AI Integration
+### AI Providers
 
-- Multiple providers: OpenAI, Gemini, OpenRouter, LocalAI, Qwen
+- OpenAI, Gemini, OpenRouter, LocalAI, Qwen
 - Model selection per provider
-- Response caching for identical requests
 - Streaming responses
 
 ### Git Integration
 
 - Branch switching
-- File status indicators (modified, added, deleted)
-- Filter by git status
-- GitHub/GitLab repository cloning
+- File status indicators
+- Repository cloning
 
 ## Installation
 

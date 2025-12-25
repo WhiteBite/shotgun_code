@@ -12,8 +12,8 @@
             </div>
             <div class="flex items-center gap-2">
               <span v-if="fileSize" class="chip-unified chip-unified-accent">{{ formatSize(fileSize) }}</span>
-              <button @click="close" class="icon-btn icon-btn-danger">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button @click="close" class="icon-btn icon-btn-danger" :aria-label="t('common.close')">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -39,12 +39,12 @@
             </div>
 
             <div v-else-if="isBinary" class="quicklook-binary">
-              <svg class="w-16 h-16 text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <p class="text-lg font-medium text-gray-300">{{ t('files.binaryFile') }}</p>
-              <p class="text-sm text-gray-500">{{ t('files.cannotPreview') }}</p>
+              <p class="text-sm text-gray-400">{{ t('files.cannotPreview') }}</p>
             </div>
 
             <pre v-else class="quicklook-code"><code v-html="highlightedContent"></code></pre>
@@ -77,7 +77,7 @@ import { useI18n } from '@/composables/useI18n'
 import { apiService } from '@/services/api.service'
 import { useProjectStore } from '@/stores/project.store'
 import { getFileIcon } from '@/utils/fileIcons'
-import hljs from 'highlight.js'
+import { highlight } from '@/utils/highlighter'
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
@@ -122,18 +122,7 @@ const highlightedContent = computed(() => {
   if (!content.value || isBinary.value) return ''
   
   try {
-    const langMap: Record<string, string> = {
-      'ts': 'typescript', 'tsx': 'typescript', 'js': 'javascript', 'jsx': 'javascript',
-      'vue': 'xml', 'go': 'go', 'py': 'python', 'rs': 'rust', 'java': 'java',
-      'cpp': 'cpp', 'c': 'c', 'cs': 'csharp', 'rb': 'ruby', 'php': 'php',
-      'swift': 'swift', 'kt': 'kotlin', 'scala': 'scala', 'sh': 'bash',
-      'yaml': 'yaml', 'yml': 'yaml', 'json': 'json', 'xml': 'xml', 'html': 'xml',
-      'css': 'css', 'scss': 'scss', 'sql': 'sql', 'md': 'markdown'
-    }
-    
-    const lang = langMap[fileExtension.value] || 'plaintext'
-    const result = hljs.highlight(content.value, { language: lang, ignoreIllegals: true })
-    return result.value
+    return highlight(content.value, fileExtension.value)
   } catch {
     return escapeHtml(content.value)
   }

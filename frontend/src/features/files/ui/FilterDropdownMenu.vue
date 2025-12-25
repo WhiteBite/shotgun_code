@@ -50,8 +50,8 @@ defineEmits<{
   background: var(--bg-1);
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-xl);
-  min-width: 260px;
-  max-width: 320px;
+  min-width: min(260px, 80vw);
+  max-width: min(320px, 40vw);
 }
 .filter-dropdown-header {
   @apply flex items-center justify-between px-3 py-2 text-xs font-semibold;

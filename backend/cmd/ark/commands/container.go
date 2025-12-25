@@ -19,6 +19,7 @@ import (
 	"shotgun_code/application/verification"
 	"shotgun_code/domain"
 	"shotgun_code/infrastructure/ai"
+	"shotgun_code/infrastructure/contextbuilder"
 	"shotgun_code/infrastructure/exec"
 	"shotgun_code/infrastructure/filereader"
 	"shotgun_code/infrastructure/filesystem"
@@ -249,11 +250,13 @@ func NewCLIContainer(ctx context.Context, embeddedIgnoreGlob, defaultCustomPromp
 	// new: wire PDF and ZIP implementations
 	pdfGen := pdfgen.NewGofpdfGenerator(c.Log)
 	arch := archiverinfra.NewZipArchiver(c.Log)
+	contextFormatter := contextbuilder.NewContextFormatter()
 
 	// Create Export service with all required dependencies
 	c.ExportService = export.NewService(
 		c.Log,
 		c.ContextSplitter,
+		contextFormatter,
 		pdfGen,
 		arch,
 		&OSTempFileProvider{}, // Temp file provider

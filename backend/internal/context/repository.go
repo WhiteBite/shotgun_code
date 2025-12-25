@@ -90,6 +90,8 @@ func (s *Service) BuildContextSummary(ctx context.Context, projectPath string, i
 		return nil, err
 	}
 
+	// Use original includedPaths for SelectedFiles, not expanded domainCtx.Files
+	// This preserves the exact files user selected in the UI
 	summary := &domain.ContextSummary{
 		ID:          domainCtx.ID,
 		ProjectPath: domainCtx.ProjectPath,
@@ -101,7 +103,7 @@ func (s *Service) BuildContextSummary(ctx context.Context, projectPath string, i
 		UpdatedAt:   domainCtx.UpdatedAt,
 		Status:      "ready",
 		Metadata: domain.ContextMetadata{
-			SelectedFiles: domainCtx.Files,
+			SelectedFiles: includedPaths,
 			ProjectPath:   domainCtx.ProjectPath,
 		},
 	}
@@ -130,6 +132,7 @@ func (s *Service) convertBuildOptions(opts *domain.ContextBuildOptions) *BuildOp
 		MaxMemoryMB:          opts.MaxMemoryMB,
 		StripComments:        opts.StripComments,
 		IncludeManifest:      opts.IncludeManifest,
+		IncludeLineNumbers:   opts.IncludeLineNumbers,
 		ForceStream:          true,
 		EnableProgressEvents: true,
 		OutputFormat:         outputFormat,

@@ -26,7 +26,7 @@
         <span class="text-sm font-semibold text-white">
           {{ message.role === 'user' ? 'You' : 'AI Assistant' }}
         </span>
-        <span class="text-xs text-gray-500">{{ formatTime(message.timestamp) }}</span>
+        <span class="text-xs text-gray-400">{{ formatTime(message.timestamp) }}</span>
       </div>
 
       <div class="text-gray-300 text-sm whitespace-pre-wrap break-words">
@@ -35,7 +35,7 @@
 
       <!-- Actions -->
       <div class="flex gap-2 mt-2">
-        <button @click="copyToClipboard" class="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        <button @click="copyToClipboard" class="text-xs text-gray-400 hover:text-gray-300 transition-colors"
           :title="t('chat.copy')">
           <svg v-if="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -46,13 +46,13 @@
           </svg>
         </button>
         <button v-if="message.role === 'user'" @click="$emit('edit', message.id, message.content)"
-          class="text-xs text-gray-500 hover:text-gray-300 transition-colors" title="Edit">
+          class="text-xs text-gray-400 hover:text-gray-300 transition-colors" title="Edit">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
         </button>
-        <button @click="$emit('delete', message.id)" class="text-xs text-gray-500 hover:text-red-400 transition-colors"
+        <button @click="$emit('delete', message.id)" class="text-xs text-gray-400 hover:text-red-400 transition-colors"
           title="Delete">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { useI18n } from '@/composables/useI18n'
 import { useUIStore } from '@/stores/ui.store'
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 import type { Message } from '../model/chat.store'
 
 interface Props {
@@ -84,6 +84,15 @@ defineEmits<{
 const uiStore = useUIStore()
 const { t } = useI18n()
 const copied = ref(false)
+let copyTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+// Очистка таймера при размонтировании компонента
+onUnmounted(() => {
+  if (copyTimeoutId) {
+    clearTimeout(copyTimeoutId)
+    copyTimeoutId = null
+  }
+})
 
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp)
@@ -91,12 +100,19 @@ function formatTime(timestamp: string): string {
 }
 
 async function copyToClipboard() {
+  // Очищаем предыдущий таймер если есть
+  if (copyTimeoutId) {
+    clearTimeout(copyTimeoutId)
+    copyTimeoutId = null
+  }
+  
   try {
     await navigator.clipboard.writeText(props.message.content)
     uiStore.addToast(t('chat.copied'), 'success')
     copied.value = true
-    setTimeout(() => {
+    copyTimeoutId = setTimeout(() => {
       copied.value = false
+      copyTimeoutId = null
     }, 2000)
   } catch (error) {
     // Fallback for older browsers
@@ -110,8 +126,9 @@ async function copyToClipboard() {
       document.execCommand('copy')
       uiStore.addToast(t('chat.copied'), 'success')
       copied.value = true
-      setTimeout(() => {
+      copyTimeoutId = setTimeout(() => {
         copied.value = false
+        copyTimeoutId = null
       }, 2000)
     } catch {
       uiStore.addToast(t('chat.copyFailed'), 'error')

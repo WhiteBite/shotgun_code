@@ -1,12 +1,17 @@
 package sbomlicensing
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"shotgun_code/domain"
+	"regexp"
+	"strconv"
 	"strings"
+
+	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 )
 
 // LicenseScanner представляет сканер лицензий
@@ -150,6 +155,7 @@ func (l *LicenseScanner) scanWithLicensecheck(ctx context.Context, projectPath s
 	l.log.Info("Scanning licenses with licensecheck")
 
 	cmd := exec.CommandContext(ctx, "licensecheck", "-r", projectPath)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -165,6 +171,7 @@ func (l *LicenseScanner) scanWithLicensee(ctx context.Context, projectPath strin
 	l.log.Info("Scanning licenses with licensee")
 
 	cmd := exec.CommandContext(ctx, "licensee", "detect", projectPath)
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -180,6 +187,7 @@ func (l *LicenseScanner) scanWithGoLicenses(ctx context.Context, projectPath str
 	l.log.Info("Scanning licenses with go-licenses")
 
 	cmd := exec.CommandContext(ctx, "go-licenses", "csv", ".")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -191,36 +199,233 @@ func (l *LicenseScanner) scanWithGoLicenses(ctx context.Context, projectPath str
 }
 
 // parseLicensecheckOutput парсит вывод licensecheck
+// Формат: "filename: LICENSE_TYPE"
 func (l *LicenseScanner) parseLicensecheckOutput(output []byte) []*domain.LicenseInfo {
-	// Упрощенная реализация
 	l.log.Info(fmt.Sprintf("Parsing licensecheck output, size: %d bytes", len(output)))
 
-	// TODO: Реализовать парсинг вывода licensecheck
-	// Пример формата: filename: LICENSE_TYPE
+	if len(output) == 0 {
+		return []*domain.LicenseInfo{}
+	}
 
-	return []*domain.LicenseInfo{}
+	var licenses []*domain.LicenseInfo
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		// Парсим формат "filename: LICENSE_TYPE"
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		filename := strings.TrimSpace(parts[0])
+		licenseType := strings.TrimSpace(parts[1])
+
+		if licenseType == "" || licenseType == "UNKNOWN" {
+			continue
+		}
+
+		license := &domain.LicenseInfo{
+			Name:       licenseType,
+			SPDXID:     l.mapToSPDXID(licenseType),
+			Type:       l.classifyLicenseType(licenseType),
+			Files:      []string{filename},
+			Confidence: 1.0,
+		}
+
+		licenses = append(licenses, license)
+	}
+
+	l.log.Info(fmt.Sprintf("Parsed %d licenses from licensecheck output", len(licenses)))
+
+	return licenses
 }
 
 // parseLicenseeOutput парсит вывод licensee
+// Формат: "filename: LICENSE_TYPE (confidence: XX%)"
 func (l *LicenseScanner) parseLicenseeOutput(output []byte) []*domain.LicenseInfo {
-	// Упрощенная реализация
 	l.log.Info(fmt.Sprintf("Parsing licensee output, size: %d bytes", len(output)))
 
-	// TODO: Реализовать парсинг вывода licensee
-	// Пример формата: filename: LICENSE_TYPE (confidence: XX%)
+	if len(output) == 0 {
+		return []*domain.LicenseInfo{}
+	}
 
-	return []*domain.LicenseInfo{}
+	var licenses []*domain.LicenseInfo
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+
+	// Регулярное выражение для парсинга формата с confidence
+	confidenceRegex := regexp.MustCompile(`^(.+?):\s*(.+?)\s*(?:\(confidence:\s*(\d+(?:\.\d+)?)%?\))?$`)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		matches := confidenceRegex.FindStringSubmatch(line)
+		if len(matches) < 3 {
+			continue
+		}
+
+		filename := strings.TrimSpace(matches[1])
+		licenseType := strings.TrimSpace(matches[2])
+
+		if licenseType == "" || licenseType == "UNKNOWN" || licenseType == "NOASSERTION" {
+			continue
+		}
+
+		confidence := 1.0
+		if len(matches) >= 4 && matches[3] != "" {
+			if parsed, err := strconv.ParseFloat(matches[3], 64); err == nil {
+				confidence = parsed / 100.0
+			}
+		}
+
+		license := &domain.LicenseInfo{
+			Name:       licenseType,
+			SPDXID:     l.mapToSPDXID(licenseType),
+			Type:       l.classifyLicenseType(licenseType),
+			Files:      []string{filename},
+			Confidence: confidence,
+		}
+
+		licenses = append(licenses, license)
+	}
+
+	l.log.Info(fmt.Sprintf("Parsed %d licenses from licensee output", len(licenses)))
+
+	return licenses
 }
 
 // parseGoLicensesOutput парсит вывод go-licenses
+// Формат CSV: "package,license,path"
 func (l *LicenseScanner) parseGoLicensesOutput(output []byte) []*domain.LicenseInfo {
-	// Упрощенная реализация
 	l.log.Info(fmt.Sprintf("Parsing go-licenses output, size: %d bytes", len(output)))
 
-	// TODO: Реализовать парсинг CSV вывода go-licenses
-	// Пример формата: package,license,confidence
+	if len(output) == 0 {
+		return []*domain.LicenseInfo{}
+	}
 
-	return []*domain.LicenseInfo{}
+	var licenses []*domain.LicenseInfo
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		// Парсим CSV формат: package,license,path
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			continue
+		}
+
+		packageName := strings.TrimSpace(parts[0])
+		licenseType := strings.TrimSpace(parts[1])
+
+		if licenseType == "" || licenseType == "Unknown" {
+			continue
+		}
+
+		var licensePath string
+		if len(parts) >= 3 {
+			licensePath = strings.TrimSpace(parts[2])
+		}
+
+		files := []string{packageName}
+		if licensePath != "" {
+			files = append(files, licensePath)
+		}
+
+		license := &domain.LicenseInfo{
+			Name:       licenseType,
+			SPDXID:     l.mapToSPDXID(licenseType),
+			Type:       l.classifyLicenseType(licenseType),
+			Files:      files,
+			Confidence: 1.0,
+		}
+
+		licenses = append(licenses, license)
+	}
+
+	l.log.Info(fmt.Sprintf("Parsed %d licenses from go-licenses output", len(licenses)))
+
+	return licenses
+}
+
+// mapToSPDXID преобразует название лицензии в SPDX ID
+func (l *LicenseScanner) mapToSPDXID(licenseName string) string {
+	spdxMap := map[string]string{
+		"MIT":              "MIT",
+		"MIT License":      "MIT",
+		"Apache-2.0":       "Apache-2.0",
+		"Apache 2.0":       "Apache-2.0",
+		"Apache License 2": "Apache-2.0",
+		"GPL-3.0":          "GPL-3.0-only",
+		"GPLv3":            "GPL-3.0-only",
+		"GPL-2.0":          "GPL-2.0-only",
+		"GPLv2":            "GPL-2.0-only",
+		"LGPL-3.0":         "LGPL-3.0-only",
+		"LGPLv3":           "LGPL-3.0-only",
+		"BSD-3-Clause":     "BSD-3-Clause",
+		"BSD 3-Clause":     "BSD-3-Clause",
+		"BSD-2-Clause":     "BSD-2-Clause",
+		"BSD 2-Clause":     "BSD-2-Clause",
+		"ISC":              "ISC",
+		"MPL-2.0":          "MPL-2.0",
+		"CC0-1.0":          "CC0-1.0",
+		"Unlicense":        "Unlicense",
+	}
+
+	if spdxID, ok := spdxMap[licenseName]; ok {
+		return spdxID
+	}
+
+	// Пробуем найти частичное совпадение
+	lowerName := strings.ToLower(licenseName)
+	for name, spdxID := range spdxMap {
+		if strings.Contains(lowerName, strings.ToLower(name)) {
+			return spdxID
+		}
+	}
+
+	return licenseName
+}
+
+// classifyLicenseType классифицирует тип лицензии
+func (l *LicenseScanner) classifyLicenseType(licenseName string) string {
+	lowerName := strings.ToLower(licenseName)
+
+	// Copyleft лицензии
+	copyleftLicenses := []string{"gpl", "lgpl", "agpl", "cc-by-sa", "mpl"}
+	for _, cl := range copyleftLicenses {
+		if strings.Contains(lowerName, cl) {
+			return "copyleft"
+		}
+	}
+
+	// Permissive лицензии
+	permissiveLicenses := []string{"mit", "apache", "bsd", "isc", "cc0", "unlicense", "wtfpl", "zlib"}
+	for _, pl := range permissiveLicenses {
+		if strings.Contains(lowerName, pl) {
+			return "permissive"
+		}
+	}
+
+	// Проприетарные
+	proprietaryLicenses := []string{"proprietary", "commercial", "private"}
+	for _, prop := range proprietaryLicenses {
+		if strings.Contains(lowerName, prop) {
+			return "proprietary"
+		}
+	}
+
+	return "unknown"
 }
 
 // calculateLicenseSummary рассчитывает сводку лицензий

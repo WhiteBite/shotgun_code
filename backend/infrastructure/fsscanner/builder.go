@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/infrastructure/textutils"
 	"sort"
 	"strings"
 	"sync"
@@ -11,6 +12,12 @@ import (
 
 	gitignore "github.com/sabhiram/go-gitignore"
 )
+
+// detectContentTypeByExt returns content type string based on file extension.
+func detectContentTypeByExt(filename string) string {
+	ct := textutils.DetectByExtension(filename)
+	return ct.String()
+}
 
 type fileTreeBuilder struct {
 	settingsRepo domain.SettingsRepository
@@ -144,15 +151,22 @@ func (b *fileTreeBuilder) checkIgnored(relPath string, isDir bool, gi, ci *gitig
 // createFileNode creates a FileNode from directory entry
 func (b *fileTreeBuilder) createFileNode(path, relPath string, d fs.DirEntry, isGi, isCi bool) *domain.FileNode {
 	var fsize int64
-	if !d.IsDir() {
+	contentType := "unknown"
+
+	if d.IsDir() {
+		contentType = ""
+	} else {
 		if info, e := d.Info(); e == nil {
 			fsize = info.Size()
 		}
+		// Detect content type by extension (fast, no file read)
+		contentType = detectContentTypeByExt(d.Name())
 	}
+
 	return &domain.FileNode{
 		Name: d.Name(), Path: path, RelPath: relPath, IsDir: d.IsDir(),
 		IsGitignored: isGi, IsCustomIgnored: isCi, IsIgnored: isGi || isCi,
-		Children: []*domain.FileNode{}, Size: fsize,
+		Children: []*domain.FileNode{}, Size: fsize, ContentType: contentType,
 	}
 }
 

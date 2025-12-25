@@ -1,5 +1,5 @@
+import { translations, type Locale } from '@/locales'
 import { computed, ref } from 'vue'
-import { translations, type Locale } from './i18n'
 
 export type { Locale }
 

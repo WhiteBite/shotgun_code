@@ -59,7 +59,7 @@
         </div>
 
         <!-- Branches List -->
-        <div v-if="refType === 'branches'" class="max-h-64 overflow-y-auto space-y-1">
+        <div v-if="refType === 'branches'" class="branches-list space-y-1">
           <button v-for="branch in branches" :key="branch" @click="$emit('select-ref', branch)" :class="[
             'w-full px-3 py-2 text-left text-sm rounded transition-colors flex items-center gap-2',
             selectedRef === branch ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
@@ -76,7 +76,7 @@
         </div>
 
         <!-- Commits List -->
-        <div v-if="refType === 'commits'" class="max-h-64 overflow-y-auto space-y-1">
+        <div v-if="refType === 'commits'" class="branches-list space-y-1">
           <button v-for="commit in commits" :key="commit.hash" @click="$emit('select-ref', commit.hash)" :class="[
             'w-full px-3 py-2 text-left text-sm rounded transition-colors',
             selectedRef === commit.hash ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-gray-300 hover:bg-gray-700'
@@ -85,7 +85,7 @@
               <code class="text-xs text-amber-400 font-mono flex-shrink-0">{{ commit.hash.slice(0, 7) }}</code>
               <div class="flex-1 min-w-0">
                 <p class="truncate text-white">{{ commit.subject }}</p>
-                <p class="text-xs text-gray-500">{{ commit.author }} • {{ formatDate(commit.date) }}</p>
+                <p class="text-xs text-gray-400">{{ commit.author }} • {{ formatDate(commit.date) }}</p>
               </div>
             </div>
           </button>
@@ -153,3 +153,11 @@ function formatDate(dateStr: string): string {
   }
 }
 </script>
+
+<style scoped>
+.branches-list {
+  max-height: 40vh;
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>

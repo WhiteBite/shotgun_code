@@ -307,7 +307,7 @@ function formatDate(dateStr: string): string {
 
 .panel-close {
     @apply p-1.5 rounded-lg;
-    @apply text-gray-500 hover:text-white hover:bg-white/10;
+    @apply text-gray-400 hover:text-white hover:bg-white/10;
     @apply transition-colors duration-150;
 }
 

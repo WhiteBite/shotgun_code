@@ -137,7 +137,7 @@ watch(() => projectStore.currentPath, (newDir) => {
 
             <!-- Indicators -->
             <div v-if="structure.architecture.indicators?.length" class="card p-3">
-              <div class="text-xs text-gray-500 mb-2">{{ t('projectStructure.indicators') }}</div>
+              <div class="text-xs text-gray-400 mb-2">{{ t('projectStructure.indicators') }}</div>
               <ul class="space-y-1">
                 <li v-for="ind in structure.architecture.indicators" :key="ind"
                   class="text-sm text-gray-300 flex items-start gap-2">
@@ -149,16 +149,16 @@ watch(() => projectStore.currentPath, (newDir) => {
 
             <!-- Layers -->
             <div v-if="structure.architecture.layers?.length" class="card p-3">
-              <div class="text-xs text-gray-500 mb-2">{{ t('projectStructure.layers') }}</div>
+              <div class="text-xs text-gray-400 mb-2">{{ t('projectStructure.layers') }}</div>
               <div class="space-y-2">
                 <div v-for="layer in structure.architecture.layers" :key="layer.name"
                   class="bg-gray-800/50 rounded p-2">
                   <div class="flex items-center justify-between">
                     <span class="font-medium text-indigo-400">{{ layer.name }}</span>
-                    <span class="text-xs text-gray-500">{{ layer.path }}</span>
+                    <span class="text-xs text-gray-400">{{ layer.path }}</span>
                   </div>
                   <p v-if="layer.description" class="text-xs text-gray-400 mt-1">{{ layer.description }}</p>
-                  <div v-if="layer.dependencies?.length" class="text-xs text-gray-500 mt-1">
+                  <div v-if="layer.dependencies?.length" class="text-xs text-gray-400 mt-1">
                     {{ t('projectStructure.dependencies') }}: {{ layer.dependencies.join(', ') }}
                   </div>
                   <div v-if="layer.patterns?.length" class="flex flex-wrap gap-1 mt-1">
@@ -170,11 +170,11 @@ watch(() => projectStore.currentPath, (newDir) => {
 
             <!-- Project Type -->
             <div class="card p-3">
-              <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.projectType') }}</div>
+              <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.projectType') }}</div>
               <div class="font-medium text-white capitalize">{{ structure.projectType }}</div>
             </div>
           </div>
-          <div v-else class="text-center text-gray-500 py-8">
+          <div v-else class="text-center text-gray-400 py-8">
             {{ t('projectStructure.noArchitecture') }}
           </div>
         </template>
@@ -188,18 +188,18 @@ watch(() => projectStore.currentPath, (newDir) => {
                 <div class="flex-1">
                   <div class="font-medium text-white">
                     {{ fw.name }}
-                    <span v-if="fw.version" class="text-xs text-gray-500 ml-1">v{{ fw.version }}</span>
+                    <span v-if="fw.version" class="text-xs text-gray-400 ml-1">v{{ fw.version }}</span>
                   </div>
-                  <div class="text-xs text-gray-500">{{ fw.language }} • {{ fw.category }}</div>
+                  <div class="text-xs text-gray-400">{{ fw.language }} • {{ fw.category }}</div>
                 </div>
               </div>
 
-              <div v-if="fw.configFiles?.length" class="text-xs text-gray-500 mb-2">
+              <div v-if="fw.configFiles?.length" class="text-xs text-gray-400 mb-2">
                 Config: {{ fw.configFiles.join(', ') }}
               </div>
 
               <div v-if="fw.bestPractices?.length" class="mt-2">
-                <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.bestPractices') }}</div>
+                <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.bestPractices') }}</div>
                 <ul class="space-y-1">
                   <li v-for="bp in fw.bestPractices.slice(0, 3)" :key="bp"
                     class="text-xs text-gray-400 flex items-start gap-1">
@@ -210,7 +210,7 @@ watch(() => projectStore.currentPath, (newDir) => {
               </div>
             </div>
           </div>
-          <div v-else class="text-center text-gray-500 py-8">
+          <div v-else class="text-center text-gray-400 py-8">
             {{ t('projectStructure.noFrameworks') }}
           </div>
         </template>
@@ -219,17 +219,17 @@ watch(() => projectStore.currentPath, (newDir) => {
         <template v-else-if="activeTab === 'conventions'">
           <div v-if="structure.conventions" class="space-y-3">
             <div class="card p-3">
-              <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.namingStyle') }}</div>
+              <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.namingStyle') }}</div>
               <div class="font-medium text-white">{{ structure.conventions.namingStyle }}</div>
             </div>
 
             <div class="card p-3">
-              <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.folderStructure') }}</div>
+              <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.folderStructure') }}</div>
               <div class="font-medium text-white capitalize">{{ structure.conventions.folderStructure }}</div>
             </div>
 
             <div v-if="structure.conventions.testConventions" class="card p-3">
-              <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.testConventions') }}</div>
+              <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.testConventions') }}</div>
               <div class="text-sm text-gray-300">
                 <div v-if="structure.conventions.testConventions.framework">
                   Framework: <span class="text-white">{{ structure.conventions.testConventions.framework }}</span>
@@ -242,7 +242,7 @@ watch(() => projectStore.currentPath, (newDir) => {
             </div>
 
             <div v-if="structure.conventions.codeStyle" class="card p-3">
-              <div class="text-xs text-gray-500 mb-1">{{ t('projectStructure.codeStyle') }}</div>
+              <div class="text-xs text-gray-400 mb-1">{{ t('projectStructure.codeStyle') }}</div>
               <div class="text-sm text-gray-300">
                 <div>Indent: <span class="text-white">{{ structure.conventions.codeStyle.indentStyle }} ({{
                   structure.conventions.codeStyle.indentSize }})</span></div>
@@ -270,20 +270,20 @@ watch(() => projectStore.currentPath, (newDir) => {
                 <div class="h-1.5 rounded-full transition-all" :class="lang.primary ? 'bg-indigo-500' : 'bg-gray-500'"
                   :style="{ width: `${lang.percentage}%` }"></div>
               </div>
-              <div class="text-xs text-gray-500 mt-1">{{ lang.percentage.toFixed(1) }}%</div>
+              <div class="text-xs text-gray-400 mt-1">{{ lang.percentage.toFixed(1) }}%</div>
             </div>
           </div>
 
           <!-- Build Systems -->
           <div v-if="structure.buildSystems?.length" class="mt-4">
-            <div class="text-xs text-gray-500 mb-2">{{ t('projectStructure.buildSystems') }}</div>
+            <div class="text-xs text-gray-400 mb-2">{{ t('projectStructure.buildSystems') }}</div>
             <div class="space-y-2">
               <div v-for="bs in structure.buildSystems" :key="bs.name" class="card p-2">
                 <div class="font-medium text-white text-sm">{{ bs.name }}</div>
-                <div class="text-xs text-gray-500">{{ bs.configFile }}</div>
+                <div class="text-xs text-gray-400">{{ bs.configFile }}</div>
                 <div v-if="bs.scripts?.length" class="flex flex-wrap gap-1 mt-1">
                   <span v-for="s in bs.scripts.slice(0, 5)" :key="s" class="badge badge-primary text-xs">{{ s }}</span>
-                  <span v-if="bs.scripts.length > 5" class="text-xs text-gray-500">+{{ bs.scripts.length - 5 }}</span>
+                  <span v-if="bs.scripts.length > 5" class="text-xs text-gray-400">+{{ bs.scripts.length - 5 }}</span>
                 </div>
               </div>
             </div>
@@ -293,7 +293,7 @@ watch(() => projectStore.currentPath, (newDir) => {
     </div>
 
     <!-- No project -->
-    <div v-else class="p-4 text-center text-gray-500">
+    <div v-else class="p-4 text-center text-gray-400">
       {{ t('files.noFiles') }}
     </div>
   </div>

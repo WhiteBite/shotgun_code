@@ -164,43 +164,43 @@ func (a *App) ValidateSBOM(sbomPath string, format domain.SBOMFormat) error {
 
 // GetProjectStructure returns full project structure analysis
 func (a *App) GetProjectStructure(projectPath string) (*domain.ProjectStructure, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.DetectStructure(projectPath)
 }
 
 // GetProjectStructureSummary returns text description of project structure
 func (a *App) GetProjectStructureSummary(projectPath string) (string, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.GetArchitectureSummary(projectPath)
 }
 
 // DetectProjectArchitecture detects project architecture
 func (a *App) DetectProjectArchitecture(projectPath string) (*domain.ArchitectureInfo, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.DetectArchitecture(projectPath)
 }
 
 // DetectProjectFrameworks detects project frameworks
 func (a *App) DetectProjectFrameworks(projectPath string) ([]domain.FrameworkInfo, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.DetectFrameworks(projectPath)
 }
 
 // DetectProjectConventions detects project conventions
 func (a *App) DetectProjectConventions(projectPath string) (*domain.ConventionInfo, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.DetectConventions(projectPath)
 }
 
 // GetRelatedLayers returns related architectural layers for a file
 func (a *App) GetRelatedLayers(projectPath, filePath string) ([]domain.LayerInfo, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.GetRelatedLayers(projectPath, filePath)
 }
 
 // SuggestRelatedFiles suggests related files based on architecture
 func (a *App) SuggestRelatedFiles(projectPath, filePath string) ([]string, error) {
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	return service.SuggestRelatedFiles(projectPath, filePath)
 }
 
@@ -281,7 +281,7 @@ func (a *App) getGitSuggestions(projectPath string, currentFiles []string, seen 
 // getArchSuggestions returns suggestions based on architecture analysis
 func (a *App) getArchSuggestions(projectPath string, currentFiles []string, seen map[string]bool) []SmartSuggestion {
 	var suggestions []SmartSuggestion
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 
 	for _, file := range currentFiles {
 		related, err := service.SuggestRelatedFiles(projectPath, file)
@@ -331,7 +331,7 @@ func (a *App) GetFileQuickInfo(projectPath, filePath string) (*FileQuickInfo, er
 	info := &FileQuickInfo{}
 
 	// Get symbol count using symbol index
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	symbols, _ := service.GetFileSymbols(projectPath, filePath)
 	info.SymbolCount = len(symbols)
 
@@ -403,7 +403,7 @@ func (a *App) GetImpactPreview(projectPath string, filePaths []string) (*ImpactP
 		RelatedTests:  []string{},
 	}
 
-	service := project.NewStructureService(a.log)
+	service := project.NewStructureServiceLazy(a.log)
 	seen := make(map[string]bool)
 	var totalRisk float64
 

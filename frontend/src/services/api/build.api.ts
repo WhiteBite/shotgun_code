@@ -10,33 +10,33 @@ import { apiCall } from './base'
 export const buildApi = {
     // Testing
     runTests: (config: domain.TestConfig): Promise<domain.TestResult[]> =>
-        apiCall(() => wails.RunTests(config), 'Failed to run tests.', 'build'),
+        apiCall(() => wails.RunTests(config), 'Failed to run tests.', { logContext: 'build' }),
 
     discoverTests: (projectPath: string, language: string): Promise<domain.TestSuite> =>
         apiCall(
             () => wails.DiscoverTests(projectPath, language),
             'Failed to discover tests.',
-            'build'
+            { logContext: 'build' }
         ),
 
     // Build
     build: (projectPath: string, language: string): Promise<domain.BuildResult> =>
-        apiCall(() => wails.Build(projectPath, language), 'Failed to build project.', 'build'),
+        apiCall(() => wails.Build(projectPath, language), 'Failed to build project.', { logContext: 'build' }),
 
     typeCheck: (projectPath: string, language: string): Promise<domain.TypeCheckResult> =>
-        apiCall(() => wails.TypeCheck(projectPath, language), 'Failed to type check.', 'build'),
+        apiCall(() => wails.TypeCheck(projectPath, language), 'Failed to type check.', { logContext: 'build' }),
 
     // Diff and Apply
     generateDiff: (original: string, modified: string, format: string): Promise<domain.DiffResult> =>
         apiCall(
             () => wails.GenerateDiff(original, modified, format),
             'Failed to generate diff.',
-            'build'
+            { logContext: 'build' }
         ),
 
     applyEdits: (edits: domain.EditsJSON): Promise<domain.ApplyResult[]> =>
-        apiCall(() => wails.ApplyEdits(edits), 'Failed to apply edits.', 'build'),
+        apiCall(() => wails.ApplyEdits(edits), 'Failed to apply edits.', { logContext: 'build' }),
 
     applySingleEdit: (edit: domain.Edit): Promise<domain.ApplyResult> =>
-        apiCall(() => wails.ApplySingleEdit(edit), 'Failed to apply edit.', 'build'),
+        apiCall(() => wails.ApplySingleEdit(edit), 'Failed to apply edit.', { logContext: 'build' }),
 }

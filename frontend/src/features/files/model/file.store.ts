@@ -128,8 +128,25 @@ export const useFileStore = defineStore('file', () => {
         }
     }
 
-    function toggleExpand(path: string) {
-        tree.toggleExpand(path)
+    function toggleExpand(pathOrCompact: string) {
+        // Check if this is a compact mode batch operation
+        if (pathOrCompact.startsWith('{')) {
+            try {
+                const { paths, expand } = JSON.parse(pathOrCompact) as { paths: string[], expand: boolean }
+                for (const p of paths) {
+                    if (expand) {
+                        tree.expandPath(p)
+                    } else {
+                        tree.collapsePath(p)
+                    }
+                }
+            } catch {
+                // Fallback to simple toggle if JSON parse fails
+                tree.toggleExpand(pathOrCompact)
+            }
+        } else {
+            tree.toggleExpand(pathOrCompact)
+        }
         persistence.debouncedSaveExpandedState()
     }
 
@@ -231,6 +248,8 @@ export const useFileStore = defineStore('file', () => {
         hasSelectedFiles: selection.hasSelectedFiles,
         selectedCount: selection.selectedCount,
         selectedFilesList: selection.selectedFilesList,
+        canUndoSelection: selection.canUndo,
+        canRedoSelection: selection.canRedo,
 
         // Computed (from search)
         searchResults: search.searchResults,
@@ -269,6 +288,8 @@ export const useFileStore = defineStore('file', () => {
         selectRecursive: selection.selectRecursive,
         deselectRecursive: selection.deselectRecursive,
         selectByExtension,
+        undoSelection: selection.undoSelection,
+        redoSelection: selection.redoSelection,
 
         // Actions (search)
         setSearchQuery: search.setSearchQuery,

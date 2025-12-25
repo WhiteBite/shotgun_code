@@ -227,7 +227,7 @@ projectStore.$subscribe(() => {
         <button 
           @click="indexProject"
           :disabled="isIndexing"
-          class="text-xs text-gray-500 hover:text-gray-400 flex items-center gap-1"
+          class="text-xs text-gray-400 hover:text-gray-400 flex items-center gap-1"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -243,7 +243,7 @@ projectStore.$subscribe(() => {
 
       <!-- Results -->
       <div v-if="hasResults" class="space-y-2">
-        <div class="text-xs text-gray-500 mb-2">
+        <div class="text-xs text-gray-400 mb-2">
           {{ t('semanticSearch.resultsCount').replace('{count}', String(results.length)) }}
         </div>
         
@@ -266,7 +266,7 @@ projectStore.$subscribe(() => {
           </div>
           
           <!-- File path -->
-          <div class="text-xs text-gray-500 truncate">
+          <div class="text-xs text-gray-400 truncate">
             {{ result.chunk.filePath }}:{{ result.chunk.startLine }}-{{ result.chunk.endLine }}
           </div>
           
@@ -276,7 +276,7 @@ projectStore.$subscribe(() => {
       </div>
 
       <!-- No Results -->
-      <div v-else-if="query && !isSearching && isIndexed" class="text-center text-gray-500 text-sm py-4">
+      <div v-else-if="query && !isSearching && isIndexed" class="text-center text-gray-400 text-sm py-4">
         {{ t('semanticSearch.noResults') }}
       </div>
     </div>

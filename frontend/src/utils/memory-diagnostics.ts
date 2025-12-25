@@ -247,43 +247,49 @@ class MemoryDiagnostics {
             // Cache imports to avoid repeated dynamic imports
             if (!this.storeImportsCache.useFileStore) {
                 const { useFileStore } = await import('@/features/files/model/file.store')
-                this.storeImportsCache.useFileStore = useFileStore
+                this.storeImportsCache.useFileStore = useFileStore as DiagnosticsStoreImportsCache['useFileStore']
             }
             if (!this.storeImportsCache.useContextStore) {
                 const { useContextStore } = await import('@/features/context/model/context.store')
-                this.storeImportsCache.useContextStore = useContextStore
+                this.storeImportsCache.useContextStore = useContextStore as DiagnosticsStoreImportsCache['useContextStore']
             }
             if (!this.storeImportsCache.getCacheStats) {
                 const { getCacheStats } = await import('@/composables/useApiCache')
-                this.storeImportsCache.getCacheStats = getCacheStats
+                this.storeImportsCache.getCacheStats = getCacheStats as DiagnosticsStoreImportsCache['getCacheStats']
             }
 
-            const fileStore = this.storeImportsCache.useFileStore()
-            stats.fileStore = {
-                nodesCount: fileStore.nodes?.length || 0,
-                selectedCount: fileStore.selectedCount || 0,
-                memoryUsage: fileStore.getMemoryUsage ? fileStore.getMemoryUsage() : 0,
-                searchQueryLength: fileStore.searchQuery?.length || 0,
-                filterExtensionsCount: fileStore.filterExtensions?.length || 0
+            const fileStore = this.storeImportsCache.useFileStore?.()
+            if (fileStore) {
+                stats.fileStore = {
+                    nodesCount: fileStore.nodes?.length || 0,
+                    selectedCount: fileStore.selectedCount || 0,
+                    memoryUsage: fileStore.getMemoryUsage ? fileStore.getMemoryUsage() : 0,
+                    searchQueryLength: fileStore.searchQuery?.length || 0,
+                    filterExtensionsCount: fileStore.filterExtensions?.length || 0
+                }
             }
 
-            const contextStore = this.storeImportsCache.useContextStore()
-            stats.contextStore = {
-                hasContext: contextStore.hasContext || false,
-                fileCount: contextStore.fileCount || 0,
-                totalSize: contextStore.totalSize || 0,
-                lineCount: contextStore.lineCount || 0,
-                cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0
+            const contextStore = this.storeImportsCache.useContextStore?.()
+            if (contextStore) {
+                stats.contextStore = {
+                    hasContext: contextStore.hasContext || false,
+                    fileCount: contextStore.fileCount || 0,
+                    totalSize: contextStore.totalSize || 0,
+                    lineCount: contextStore.lineCount || 0,
+                    cacheSize: contextStore.getMemoryUsage ? contextStore.getMemoryUsage() : 0
+                }
             }
 
-            const cacheStats = this.storeImportsCache.getCacheStats()
-            stats.apiCache = {
-                entries: cacheStats.entries || 0,
-                size: cacheStats.size || 0,
-                sizeMB: cacheStats.sizeMB || '0',
-                hitRate: cacheStats.hitRate || '0%',
-                hits: cacheStats.hits || 0,
-                misses: cacheStats.misses || 0
+            const cacheStats = this.storeImportsCache.getCacheStats?.()
+            if (cacheStats) {
+                stats.apiCache = {
+                    entries: cacheStats.entries || 0,
+                    size: cacheStats.size || 0,
+                    sizeMB: cacheStats.sizeMB || '0',
+                    hitRate: cacheStats.hitRate || '0%',
+                    hits: cacheStats.hits || 0,
+                    misses: cacheStats.misses || 0
+                }
             }
         } catch (e) {
             console.warn('[MemoryDiagnostics] Error collecting store stats:', e)

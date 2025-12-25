@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/textutils"
 	"strings"
 )
 
@@ -70,7 +69,7 @@ Be thorough but efficient.`, toolsJSON)
 			callback(AgenticStreamEvent{Type: "tool_call", ToolName: call.Name, ToolArgs: string(argsJSON), Iteration: iterations + 1})
 
 			result := s.toolExecutor.ExecuteTool(call, req.ProjectRoot)
-			callback(AgenticStreamEvent{Type: "tool_result", ToolName: call.Name, Content: textutils.TruncateString(result.Content, 200), Iteration: iterations + 1})
+			callback(AgenticStreamEvent{Type: "tool_result", ToolName: call.Name, Content: domain.TruncateString(result.Content, 200), Iteration: iterations + 1})
 
 			toolResults = append(toolResults, fmt.Sprintf("Tool: %s\nResult:\n%s", call.Name, result.Content))
 		}

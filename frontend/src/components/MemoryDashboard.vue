@@ -86,7 +86,7 @@
       </div>
 
       <!-- Last Update -->
-      <div class="text-xs text-gray-500 text-center">
+      <div class="text-xs text-gray-400 text-center">
         Updated {{ timeSinceUpdate }}s ago
       </div>
     </div>

@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"shotgun_code/domain"
 )
 
 type BuildOptions struct {
@@ -291,4 +293,20 @@ func BuildFromContext(format string, ctx string, opts BuildOptions) (string, err
 	default:
 		return BuildFromContext("manifest", ctx, opts)
 	}
+}
+
+// ContextFormatterImpl implements domain.ContextFormatter
+type ContextFormatterImpl struct{}
+
+// NewContextFormatter creates a new context formatter
+func NewContextFormatter() *ContextFormatterImpl {
+	return &ContextFormatterImpl{}
+}
+
+// Format formats context string according to specified format
+func (f *ContextFormatterImpl) Format(format string, contextContent string, opts domain.ContextFormatOptions) (string, error) {
+	return BuildFromContext(format, contextContent, BuildOptions{
+		StripComments:   opts.StripComments,
+		IncludeManifest: opts.IncludeManifest,
+	})
 }

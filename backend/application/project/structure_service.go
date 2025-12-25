@@ -10,16 +10,85 @@ import (
 
 // StructureService provides project structure analysis
 type StructureService struct {
-	detector *projectstructure.Detector
+	detector domain.ProjectStructureDetector
 	logger   domain.Logger
 }
 
-// NewStructureService creates a new StructureService
-func NewStructureService(logger domain.Logger) *StructureService {
+// NewStructureService creates a new StructureService with injected detector
+func NewStructureService(logger domain.Logger, detector domain.ProjectStructureDetector) *StructureService {
 	return &StructureService{
-		detector: projectstructure.NewDetector(),
+		detector: detector,
 		logger:   logger,
 	}
+}
+
+// NewStructureServiceLazy creates a StructureService using infrastructure directly
+// This maintains backward compatibility during Clean Architecture refactoring
+func NewStructureServiceLazy(logger domain.Logger) *StructureService {
+	return &StructureService{
+		detector: &lazyProjectStructureDetector{},
+		logger:   logger,
+	}
+}
+
+// lazyProjectStructureDetector wraps projectstructure.Detector for lazy init
+type lazyProjectStructureDetector struct {
+	impl *projectstructure.Detector
+}
+
+func (d *lazyProjectStructureDetector) getImpl() *projectstructure.Detector {
+	if d.impl == nil {
+		d.impl = projectstructure.NewDetector()
+	}
+	return d.impl
+}
+
+func (d *lazyProjectStructureDetector) Detect(projectPath string) (*domain.ProjectStructureInfo, error) {
+	result, err := d.getImpl().DetectStructure(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	langs := make([]string, len(result.Languages))
+	for i, l := range result.Languages {
+		langs[i] = l.Name
+	}
+	return &domain.ProjectStructureInfo{Languages: langs}, nil
+}
+
+func (d *lazyProjectStructureDetector) DetectLanguages(projectPath string) ([]string, error) {
+	result, err := d.getImpl().DetectStructure(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	langs := make([]string, len(result.Languages))
+	for i, l := range result.Languages {
+		langs[i] = l.Name
+	}
+	return langs, nil
+}
+
+func (d *lazyProjectStructureDetector) DetectFrameworks(projectPath string) ([]domain.FrameworkInfo, error) {
+	return d.getImpl().DetectFrameworks(projectPath)
+}
+
+func (d *lazyProjectStructureDetector) DetectStructure(projectPath string) (*domain.ProjectStructure, error) {
+	return d.getImpl().DetectStructure(projectPath)
+}
+
+func (d *lazyProjectStructureDetector) DetectArchitecture(projectPath string) (*domain.ArchitectureInfo, error) {
+	return d.getImpl().DetectArchitecture(projectPath)
+}
+
+func (d *lazyProjectStructureDetector) DetectConventions(projectPath string) (*domain.ConventionInfo, error) {
+	return d.getImpl().DetectConventions(projectPath)
+}
+
+func (d *lazyProjectStructureDetector) GetRelatedLayers(projectPath, filePath string) ([]domain.LayerInfo, error) {
+	return d.getImpl().GetRelatedLayers(projectPath, filePath)
+}
+
+func (d *lazyProjectStructureDetector) SuggestRelatedFiles(projectPath, filePath string) ([]string, error) {
+	return d.getImpl().SuggestRelatedFiles(projectPath, filePath)
 }
 
 // DetectStructure analyzes project and returns complete structure info

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -57,6 +58,7 @@ func (a *StaticcheckAnalyzer) Analyze(ctx context.Context, config *domain.Static
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "staticcheck", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -134,6 +136,7 @@ func (a *StaticcheckAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig
 // checkStaticcheckInstalled проверяет, установлен ли staticcheck
 func (a *StaticcheckAnalyzer) checkStaticcheckInstalled() error {
 	cmd := exec.Command("staticcheck", "-version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("staticcheck not found in PATH: %w", err)
 	}

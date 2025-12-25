@@ -6,19 +6,15 @@ import { useI18n } from '@/composables/useI18n'
 import { useUIStore } from '@/stores/ui.store'
 import { ref } from 'vue'
 import { useFileStore } from '../model/file.store'
-import { useHoveredFile, type HoveredFileState } from './useHoveredFile'
+import { useHoveredFile } from './useHoveredFile'
 
-export interface UseQuickLookOptions {
-    hoveredFile?: HoveredFileState
-}
-
-export function useQuickLook(options: UseQuickLookOptions = {}) {
+export function useQuickLook() {
     const { t } = useI18n()
     const fileStore = useFileStore()
     const uiStore = useUIStore()
 
-    // Use provided hoveredFile or get from injection
-    const hoveredFile = options.hoveredFile ?? useHoveredFile()
+    // Get hovered file state from singleton
+    const { state: hoveredState } = useHoveredFile()
 
     const isVisible = ref(false)
     const currentPath = ref('')
@@ -55,8 +51,8 @@ export function useQuickLook(options: UseQuickLookOptions = {}) {
      * Opens preview for hovered file or closes if already open
      */
     function handleSpacebarPreview(): boolean {
-        const path = hoveredFile.path.value
-        const isDir = hoveredFile.isDir.value
+        const path = hoveredState.path
+        const isDir = hoveredState.isDir
 
         if (path) {
             if (isDir) {

@@ -5,8 +5,8 @@
         <div class="modal-content filter-settings-modal">
           <div class="modal-header">
             <h3>{{ t('quickFilters.settingsTitle') }}</h3>
-            <button @click="$emit('close')" class="icon-btn">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button @click="$emit('close')" class="icon-btn" :aria-label="t('common.close')">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>

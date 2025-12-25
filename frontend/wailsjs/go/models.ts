@@ -682,6 +682,7 @@ export namespace domain {
 	export class ContextBuildOptions {
 	    stripComments: boolean;
 	    includeManifest: boolean;
+	    includeLineNumbers: boolean;
 	    maxTokens: number;
 	    maxMemoryMB: number;
 	    includeTests: boolean;
@@ -704,6 +705,7 @@ export namespace domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.stripComments = source["stripComments"];
 	        this.includeManifest = source["includeManifest"];
+	        this.includeLineNumbers = source["includeLineNumbers"];
 	        this.maxTokens = source["maxTokens"];
 	        this.maxMemoryMB = source["maxMemoryMB"];
 	        this.includeTests = source["includeTests"];
@@ -1336,6 +1338,7 @@ export namespace domain {
 	    relPath: string;
 	    isDir: boolean;
 	    size: number;
+	    contentType: string;
 	    children?: FileNode[];
 	    isGitignored: boolean;
 	    isCustomIgnored: boolean;
@@ -1352,6 +1355,7 @@ export namespace domain {
 	        this.relPath = source["relPath"];
 	        this.isDir = source["isDir"];
 	        this.size = source["size"];
+	        this.contentType = source["contentType"];
 	        this.children = this.convertValues(source["children"], FileNode);
 	        this.isGitignored = source["isGitignored"];
 	        this.isCustomIgnored = source["isCustomIgnored"];
@@ -2748,6 +2752,20 @@ export namespace main {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class DirCount {
+	    dir: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DirCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dir = source["dir"];
+	        this.count = source["count"];
+	    }
+	}
 	export class FileQuickInfo {
 	    symbolCount: number;
 	    importCount: number;
@@ -2767,6 +2785,44 @@ export namespace main {
 	        this.changeRisk = source["changeRisk"];
 	        this.riskLevel = source["riskLevel"];
 	    }
+	}
+	export class IgnorePreviewResult {
+	    totalFiles: number;
+	    byDirectory: Record<string, number>;
+	    byRule: Record<string, number>;
+	    sampleFiles: string[];
+	    topDirs: DirCount[];
+	
+	    static createFrom(source: any = {}) {
+	        return new IgnorePreviewResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.totalFiles = source["totalFiles"];
+	        this.byDirectory = source["byDirectory"];
+	        this.byRule = source["byRule"];
+	        this.sampleFiles = source["sampleFiles"];
+	        this.topDirs = this.convertValues(source["topDirs"], DirCount);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ImpactPreviewResult {
 	    totalDependents: number;
@@ -2805,6 +2861,20 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class ShellIntegrationStatus {
+	    isRegistered: boolean;
+	    currentOS: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShellIntegrationStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isRegistered = source["isRegistered"];
+	        this.currentOS = source["currentOS"];
+	    }
 	}
 	export class SmartSuggestion {
 	    path: string;

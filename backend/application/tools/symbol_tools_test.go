@@ -286,7 +286,7 @@ func TestSymbolToolsHandler_GetClassHierarchy(t *testing.T) {
 func TestSymbolToolsHandler_NewSymbolToolsHandler(t *testing.T) {
 	// Test constructor creates handler with all dependencies
 	logger := testutils.NewMockLogger()
-	handler := NewSymbolToolsHandler(nil, nil, logger)
+	handler := NewSymbolToolsHandler(nil, nil, logger, nil)
 
 	if handler == nil {
 		t.Fatal("NewSymbolToolsHandler() returned nil")

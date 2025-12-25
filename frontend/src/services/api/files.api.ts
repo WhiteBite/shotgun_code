@@ -9,7 +9,7 @@ import { apiCall } from './base'
 
 export const filesApi = {
     listFiles: (path: string, useGitignore = true, useCustomIgnore = true): Promise<domain.FileNode[]> =>
-        apiCall(() => wails.ListFiles(path, useGitignore, useCustomIgnore), 'Failed to load file tree.', 'files'),
+        apiCall(() => wails.ListFiles(path, useGitignore, useCustomIgnore), 'Failed to load file tree.', { logContext: 'files' }),
 
     clearFileTreeCache: async (): Promise<void> => {
         try {
@@ -20,8 +20,8 @@ export const filesApi = {
     },
 
     readFileContent: (projectPath: string, filePath: string): Promise<string> =>
-        apiCall(() => wails.ReadFileContent(projectPath, filePath), 'Failed to read file content.', 'files'),
+        apiCall(() => wails.ReadFileContent(projectPath, filePath), 'Failed to read file content.', { logContext: 'files' }),
 
     getFileStats: (path: string): Promise<string> =>
-        apiCall(() => wails.GetFileStats(path), 'Failed to get file statistics.', 'files'),
+        apiCall(() => wails.GetFileStats(path), 'Failed to get file statistics.', { logContext: 'files' }),
 }

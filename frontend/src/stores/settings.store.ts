@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
-export type OutputFormat = 'markdown' | 'xml' | 'json' | 'plain'
+export type OutputFormat = 'markdown' | 'xml' | 'plain'
 
 export interface ContextSettings {
     maxTokens: number
@@ -20,6 +20,8 @@ export interface ContextSettings {
     includeLineNumbers: boolean
     enableAutoSplit: boolean
     maxTokensPerChunk: number
+    // Template options
+    applyTemplateOnCopy: boolean
 }
 
 export interface QuickFilterConfig {
@@ -39,6 +41,7 @@ export interface FileExplorerSettings {
     compactNestedFolders: boolean
     showIgnoredFiles: boolean
     foldersFirst: boolean
+    allowSelectBinary: boolean
     customIgnoreRules: string
     quickFilters: QuickFilterConfig[]
 }
@@ -73,9 +76,11 @@ const DEFAULT_SETTINGS: AppSettings = {
         trimWhitespace: false,
         // Export options
         includeManifest: true,
-        includeLineNumbers: true,
+        includeLineNumbers: false,
         enableAutoSplit: false,
-        maxTokensPerChunk: 4000
+        maxTokensPerChunk: 32000,
+        // Template options
+        applyTemplateOnCopy: true
     },
     contextStorage: {
         maxContexts: 20,
@@ -90,6 +95,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         compactNestedFolders: true,
         showIgnoredFiles: true,
         foldersFirst: true,
+        allowSelectBinary: false,
         customIgnoreRules: '',
         quickFilters: [
             { id: 'source', label: 'Исходники', extensions: ['.ts', '.js', '.tsx', '.jsx', '.vue', '.go', '.py', '.java', '.cpp', '.c', '.rs'], patterns: [], enabled: true },
@@ -119,27 +125,45 @@ export const useSettingsStore = defineStore('settings', () => {
         try {
             const saved = localStorage.getItem('app-settings')
             if (saved) {
+                // Проверка на невалидные значения перед парсингом
+                if (saved === 'undefined' || saved === 'null' || saved.trim() === '') {
+                    localStorage.removeItem('app-settings')
+                    return DEFAULT_SETTINGS
+                }
+
                 const parsed = JSON.parse(saved)
+
+                // Валидация базовой структуры
+                if (typeof parsed !== 'object' || parsed === null) {
+                    localStorage.removeItem('app-settings')
+                    return DEFAULT_SETTINGS
+                }
+
                 // Merge with defaults to handle new settings
                 return {
                     ...DEFAULT_SETTINGS,
                     ...parsed,
                     context: {
                         ...DEFAULT_SETTINGS.context,
-                        ...parsed.context
+                        ...(parsed.context || {})
                     },
                     contextStorage: {
                         ...DEFAULT_SETTINGS.contextStorage,
-                        ...parsed.contextStorage
+                        ...(parsed.contextStorage || {})
                     },
                     fileExplorer: {
                         ...DEFAULT_SETTINGS.fileExplorer,
-                        ...parsed.fileExplorer
+                        ...(parsed.fileExplorer || {})
                     }
                 }
             }
         } catch (err) {
-            console.warn('Failed to load settings:', err)
+            // Поврежденные данные - удаляем и используем дефолты
+            try {
+                localStorage.removeItem('app-settings')
+            } catch {
+                // Ignore localStorage errors
+            }
         }
         return DEFAULT_SETTINGS
     }
@@ -153,7 +177,8 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     function resetToDefaults() {
-        settings.value = { ...DEFAULT_SETTINGS }
+        // Deep copy to avoid reference issues
+        settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
     }
 
     function updateContextSettings(updates: Partial<ContextSettings>) {

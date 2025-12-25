@@ -42,7 +42,7 @@
               class="p-1.5 bg-gray-900/50 rounded border border-gray-700/30"
             >
               <div class="font-medium text-emerald-400">{{ tc.tool }}</div>
-              <div class="text-gray-500 truncate" :title="tc.arguments">{{ tc.arguments }}</div>
+              <div class="text-gray-400 truncate" :title="tc.arguments">{{ tc.arguments }}</div>
             </div>
           </div>
         </div>

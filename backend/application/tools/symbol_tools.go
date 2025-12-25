@@ -9,22 +9,23 @@ import (
 
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
-	"shotgun_code/infrastructure/analyzers"
 )
 
 // SymbolToolsHandler handles symbol-related tools
 type SymbolToolsHandler struct {
-	registry    analysis.AnalyzerRegistry
-	symbolIndex analysis.SymbolIndex
-	logger      domain.Logger
+	registry        analysis.AnalyzerRegistry
+	symbolIndex     analysis.SymbolIndex
+	logger          domain.Logger
+	referenceFinder domain.ReferenceFinder
 }
 
 // NewSymbolToolsHandler creates a new SymbolToolsHandler
-func NewSymbolToolsHandler(registry analysis.AnalyzerRegistry, symbolIndex analysis.SymbolIndex, logger domain.Logger) *SymbolToolsHandler {
+func NewSymbolToolsHandler(registry analysis.AnalyzerRegistry, symbolIndex analysis.SymbolIndex, logger domain.Logger, referenceFinder domain.ReferenceFinder) *SymbolToolsHandler {
 	return &SymbolToolsHandler{
-		registry:    registry,
-		symbolIndex: symbolIndex,
-		logger:      logger,
+		registry:        registry,
+		symbolIndex:     symbolIndex,
+		logger:          logger,
+		referenceFinder: referenceFinder,
 	}
 }
 
@@ -221,22 +222,18 @@ func (h *SymbolToolsHandler) FindReferences(args map[string]any, projectRoot str
 		return nil, fmt.Errorf("name is required")
 	}
 
-	// Use ReferenceFinder
-	refFinder := analyzers.NewReferenceFinder(h.registry)
-
-	var kind analysis.SymbolKind
-	if kindFilter != "" {
-		kind = analysis.SymbolKind(kindFilter)
+	if h.referenceFinder == nil {
+		return nil, fmt.Errorf("reference finder not initialized")
 	}
 
-	refs, err := refFinder.FindReferences(context.Background(), projectRoot, name, kind)
+	refs, err := h.referenceFinder.FindReferences(context.Background(), projectRoot, name, kindFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find references: %w", err)
 	}
 
 	// Filter out definitions if requested
 	if !includeDefinition {
-		var filtered []analyzers.Reference
+		var filtered []domain.SymbolReference
 		for _, ref := range refs {
 			if !ref.IsDefinition {
 				filtered = append(filtered, ref)

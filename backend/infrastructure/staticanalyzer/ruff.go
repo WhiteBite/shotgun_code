@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 	"strings"
 	"time"
 )
@@ -67,6 +68,7 @@ func (a *RuffAnalyzer) Analyze(ctx context.Context, config *domain.StaticAnalyze
 
 	// Создаем команду
 	cmd := exec.CommandContext(ctx, "ruff", args...)
+	executil.HideWindow(cmd)
 	cmd.Dir = config.ProjectPath
 
 	// Устанавливаем переменные окружения
@@ -153,6 +155,7 @@ func (a *RuffAnalyzer) ValidateConfig(config *domain.StaticAnalyzerConfig) error
 // checkRuffInstalled проверяет, установлен ли Ruff
 func (a *RuffAnalyzer) checkRuffInstalled() error {
 	cmd := exec.Command("ruff", "--version")
+	executil.HideWindow(cmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Ruff not found: %w", err)
 	}

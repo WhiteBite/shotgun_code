@@ -13,7 +13,7 @@ export const memoryApi = {
             // @ts-ignore
             () => wails.GetRecentContexts(projectPath, limit),
             [],
-            'memory'
+            'memory.getRecentContexts'
         ),
 
     findContextByTopic: (projectPath: string, topic: string): Promise<ContextMemoryEntry[]> =>
@@ -21,7 +21,7 @@ export const memoryApi = {
             // @ts-ignore
             () => wails.FindContextByTopic(projectPath, topic),
             [],
-            'memory'
+            'memory.findContextByTopic'
         ),
 
     saveContextMemory: (
@@ -34,6 +34,6 @@ export const memoryApi = {
             // @ts-ignore
             () => wails.SaveContextMemory(projectPath, topic, summary, files),
             'Failed to save context.',
-            'memory'
+            { logContext: 'memory' }
         ),
 }

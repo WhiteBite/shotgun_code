@@ -11,6 +11,11 @@ export interface ProjectContext {
     tokenCount?: number
     createdAt: string
     updatedAt?: string
+    metadata?: {
+        selectedFiles?: string[]
+        warnings?: string[]
+        skippedFiles?: string[]
+    }
 }
 
 export class ContextApi {
@@ -64,8 +69,13 @@ export class ContextApi {
         try {
             const result = await apiService.getProjectContexts(projectPath)
             const parsed = JSON.parse(result) as ProjectContext[] | null
-            // Handle null/undefined response from backend
-            return Array.isArray(parsed) ? parsed : []
+            if (!Array.isArray(parsed)) return []
+
+            // Map backend structure to frontend: files come from metadata.selectedFiles
+            return parsed.map(ctx => ({
+                ...ctx,
+                files: ctx.metadata?.selectedFiles || ctx.files || []
+            }))
         } catch (error) {
             console.error('[ContextApi] Failed to get project contexts:', error)
             throw new Error('Failed to load project contexts.')

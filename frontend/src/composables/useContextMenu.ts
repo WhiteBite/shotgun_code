@@ -1,4 +1,4 @@
-import type { FileNode } from '@/features/files/model/file.store';
+import type { FileNode } from '@/types/domain';
 import { onMounted, onUnmounted, ref, type Ref } from 'vue';
 
 export interface ContextMenuState {

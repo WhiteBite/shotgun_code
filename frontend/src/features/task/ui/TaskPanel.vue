@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <div class="w-1 h-5 bg-blue-500 rounded-full"></div>
-        <h2 class="text-lg font-semibold text-white">Task Description</h2>
+        <h2 class="text-lg font-semibold text-white">{{ t('task.title') }}</h2>
       </div>
       <span class="text-xs text-gray-400" :class="{ 'text-yellow-400': taskStore.taskDescription.length > 4500, 'text-red-400': taskStore.taskDescription.length >= 5000 }">
         {{ taskStore.taskDescription.length }} / 5000
@@ -15,7 +15,7 @@
     <textarea
       ref="textareaRef"
       v-model="taskStore.taskDescription"
-      placeholder="Describe what you want to accomplish...&#10;&#10;Examples:&#10;• Refactor authentication service&#10;• Add dark mode support&#10;• Implement file upload feature"
+      :placeholder="t('task.placeholder')"
       class="task-textarea flex-1 w-full px-4 py-3 bg-gray-800/90 border border-gray-700/50 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-gray-800 resize-none transition-all duration-200"
       maxlength="5000"
       @input="autoResize"
@@ -23,7 +23,7 @@
 
     <!-- AI Suggestions -->
     <div v-if="taskStore.suggestions.length > 0 && !taskStore.taskDescription" class="mt-3 space-y-2">
-      <p class="text-xs text-gray-400 font-medium">Quick suggestions:</p>
+      <p class="text-xs text-gray-400 font-medium">{{ t('task.quickSuggestions') }}</p>
       <div class="flex flex-wrap gap-2">
         <button
           v-for="suggestion in taskStore.suggestions"
@@ -38,9 +38,9 @@
 
     <!-- Analysis Result -->
     <div v-if="taskStore.analysisResult" class="mt-3 p-3 bg-gray-700/50 rounded-lg text-sm">
-      <p class="text-gray-300 font-medium mb-2">Analysis Result:</p>
+      <p class="text-gray-300 font-medium mb-2">{{ t('task.analysisResult') }}</p>
       <div class="space-y-1 text-xs text-gray-400">
-        <p>Complexity: <span class="text-white">{{ taskStore.analysisResult.complexity }}</span></p>
+        <p>{{ t('task.complexity') }}: <span class="text-white">{{ taskStore.analysisResult.complexity }}</span></p>
         <p v-if="taskStore.analysisResult.estimatedTime">
           Estimated time: <span class="text-white">{{ taskStore.analysisResult.estimatedTime }}min</span>
         </p>
@@ -74,10 +74,12 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n'
 import { ref, computed, onMounted } from 'vue'
 import { useTaskStore } from '../model/task.store'
 import { useUIStore } from '@/stores/ui.store'
 
+const { t } = useI18n()
 const taskStore = useTaskStore()
 const uiStore = useUIStore()
 

@@ -9,26 +9,26 @@ import { apiCall } from './base'
 
 export const analysisApi = {
     analyzeProject: (path: string, analyzers: string[]): Promise<domain.StaticAnalysisReport> =>
-        apiCall(() => wails.AnalyzeProject(path, analyzers), 'Failed to analyze project.', 'analysis'),
+        apiCall(() => wails.AnalyzeProject(path, analyzers), 'Failed to analyze project.', { logContext: 'analysis' }),
 
     analyzeFile: (projectPath: string, filePath: string): Promise<domain.StaticAnalysisResult> =>
         apiCall(
             () => wails.AnalyzeFile(projectPath, filePath),
             'Failed to analyze file.',
-            'analysis'
+            { logContext: 'analysis' }
         ),
 
     detectLanguages: (projectPath: string): Promise<string[]> =>
         apiCall(
             () => wails.DetectLanguages(projectPath),
             'Failed to detect project languages.',
-            'analysis'
+            { logContext: 'analysis' }
         ),
 
     getSupportedAnalyzers: (): Promise<string[]> =>
         apiCall(
             () => wails.GetSupportedAnalyzers(),
             'Failed to get supported analyzers.',
-            'analysis'
+            { logContext: 'analysis' }
         ),
 }

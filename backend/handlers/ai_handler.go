@@ -298,15 +298,12 @@ func (h *AIHandler) AgenticChatStream(ctx context.Context, requestJSON string, o
 }
 
 // getToolExecutor returns the injected tool executor or creates a basic fallback.
-// If injected executor exists, it updates the git context for the current project.
-func (h *AIHandler) getToolExecutor(projectRoot string) *application.ToolExecutorImpl {
+func (h *AIHandler) getToolExecutor(_ string) *application.ToolExecutorImpl {
 	if h.toolExecutor != nil {
-		// Update git context for current project
-		h.toolExecutor.SetGitContext(projectRoot)
 		return h.toolExecutor
 	}
 
 	// Fallback: create basic executor (limited functionality)
 	h.log.Warning("AgenticChat: using basic tool executor (some tools may not work)")
-	return application.NewToolExecutor(h.log, nil)
+	return application.NewToolExecutor(h.log, nil, nil, nil, nil, nil)
 }

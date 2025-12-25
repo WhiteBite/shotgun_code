@@ -1,12 +1,12 @@
 <template>
-  <div class="center-container">
+  <div class="center-container layout-full layout-column layout-clip">
     <!-- Task Panel (conditionally rendered) -->
     <div v-if="showTaskPanel" class="task-panel">
       <TaskPanel />
     </div>
     
     <!-- Context Panel -->
-    <div :class="showTaskPanel ? 'context-panel-with-task' : 'context-panel-full'" data-tour="context-preview">
+    <div :class="['layout-fill layout-column layout-clip', showTaskPanel ? 'context-panel-with-task' : 'context-panel-full']" data-tour="context-preview">
       <ContextPanel />
     </div>
   </div>
@@ -42,20 +42,20 @@ try {
 </script>
 
 <style scoped>
+/* Center container - использует layout классы */
 .center-container {
-  @apply h-full flex flex-col;
+  /* layout классы в template */
 }
 
 .task-panel {
-  @apply h-64 flex-shrink-0;
+  @apply h-64;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.context-panel-with-task {
-  @apply flex-1;
-}
-
+/* Панели контекста - layout классы добавлены в template */
+.context-panel-with-task,
 .context-panel-full {
-  @apply h-full;
+  /* layout-fill layout-column layout-clip в template */
 }
 </style>

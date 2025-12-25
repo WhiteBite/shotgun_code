@@ -169,7 +169,7 @@ export function useContextList() {
     async function copyContext(contextId: string) {
         try {
             if (contextStore.contextId !== contextId) {
-                await contextStore.loadContextContent(contextId, 0, 100)
+                await contextStore.loadContextContent(contextId, 0, 0)
             }
             const fullContent = await contextStore.getFullContextContent()
             await navigator.clipboard.writeText(fullContent)
@@ -189,7 +189,7 @@ export function useContextList() {
                 const contents: string[] = []
                 for (const ctxId of selectedContexts.value) {
                     if (contextStore.contextId !== ctxId) {
-                        await contextStore.loadContextContent(ctxId, 0, 100)
+                        await contextStore.loadContextContent(ctxId, 0, 0)
                     }
                     const content = await contextStore.getFullContextContent()
                     contents.push(content)

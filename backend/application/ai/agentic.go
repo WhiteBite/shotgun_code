@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/textutils"
 	"strings"
 )
 
@@ -108,7 +107,7 @@ IMPORTANT: Always respond in the user's language (Russian if they write in Russi
 		for _, call := range toolCalls {
 			result := s.toolExecutor.ExecuteTool(call, req.ProjectRoot)
 			argsJSON, _ := json.Marshal(call.Arguments)
-			toolCallLogs = append(toolCallLogs, ToolCallLog{Tool: call.Name, Arguments: string(argsJSON), Result: textutils.TruncateString(result.Content, 500)})
+			toolCallLogs = append(toolCallLogs, ToolCallLog{Tool: call.Name, Arguments: string(argsJSON), Result: domain.TruncateString(result.Content, 500)})
 
 			if call.Name == "read_file" {
 				if path, ok := call.Arguments["path"].(string); ok {

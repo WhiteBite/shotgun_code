@@ -2,10 +2,55 @@ package sbomlicensing
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
+
 	"shotgun_code/domain"
+	"shotgun_code/internal/executil"
 )
+
+// grypeOutput представляет структуру JSON вывода Grype
+type grypeOutput struct {
+	Matches []grypeMatch `json:"matches"`
+}
+
+// grypeMatch представляет одно совпадение уязвимости
+type grypeMatch struct {
+	Vulnerability grypeVulnerability `json:"vulnerability"`
+	Artifact      grypeArtifact      `json:"artifact"`
+}
+
+// grypeVulnerability представляет информацию об уязвимости
+type grypeVulnerability struct {
+	ID          string   `json:"id"`
+	Severity    string   `json:"severity"`
+	Description string   `json:"description"`
+	Fix         grypeFix `json:"fix"`
+	CVSS        []cvss   `json:"cvss"`
+}
+
+// grypeFix представляет информацию об исправлении
+type grypeFix struct {
+	Versions []string `json:"versions"`
+	State    string   `json:"state"`
+}
+
+// cvss представляет CVSS оценку
+type cvss struct {
+	Version string  `json:"version"`
+	Vector  string  `json:"vector"`
+	Score   float64 `json:"metrics"`
+}
+
+// grypeArtifact представляет артефакт (пакет)
+type grypeArtifact struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Type    string `json:"type"`
+	PURL    string `json:"purl"`
+}
 
 const versionUnknown = "unknown"
 
@@ -41,6 +86,7 @@ func (g *GrypeScanner) ScanVulnerabilities(ctx context.Context, projectPath stri
 
 	// Запускаем Grype
 	cmd := exec.CommandContext(ctx, "grype", projectPath, "-o", "json")
+	executil.HideWindow(cmd)
 	cmd.Dir = projectPath
 
 	output, err := cmd.CombinedOutput()
@@ -91,6 +137,7 @@ func (g *GrypeScanner) ScanSBOM(ctx context.Context, sbomPath string) (*domain.V
 
 	// Запускаем Grype для SBOM
 	cmd := exec.CommandContext(ctx, "grype", "sbom:"+sbomPath, "-o", "json") //nolint:gosec // External tool command
+	executil.HideWindow(cmd)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -134,6 +181,7 @@ func (g *GrypeScanner) UpdateDatabase(ctx context.Context) error {
 	g.log.Info("Updating Grype vulnerability database")
 
 	cmd := exec.CommandContext(ctx, "grype", "db", "update")
+	executil.HideWindow(cmd)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -152,6 +200,7 @@ func (g *GrypeScanner) GetDatabaseInfo(ctx context.Context) (map[string]interfac
 	g.log.Info("Getting Grype database info")
 
 	cmd := exec.CommandContext(ctx, "grype", "db", "status")
+	executil.HideWindow(cmd)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -167,6 +216,7 @@ func (g *GrypeScanner) GetDatabaseInfo(ctx context.Context) (map[string]interfac
 // getVersion возвращает версию Grype
 func (g *GrypeScanner) getVersion() string {
 	cmd := exec.Command("grype", "--version")
+	executil.HideWindow(cmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return versionUnknown
@@ -176,28 +226,42 @@ func (g *GrypeScanner) getVersion() string {
 
 // parseGrypeOutput парсит вывод Grype
 func (g *GrypeScanner) parseGrypeOutput(output []byte) ([]*domain.Vulnerability, error) {
-	// Упрощенная реализация - в реальном приложении здесь будет парсинг JSON
 	g.log.Info(fmt.Sprintf("Parsing Grype output, size: %d bytes", len(output)))
 
-	// TODO: Реализовать парсинг JSON вывода Grype
-	// Пример структуры вывода Grype:
-	// {
-	//   "matches": [
-	//     {
-	//       "vulnerability": {
-	//         "id": "CVE-2021-1234",
-	//         "severity": "HIGH",
-	//         "description": "..."
-	//       },
-	//       "artifact": {
-	//         "name": "package-name",
-	//         "version": "1.0.0"
-	//       }
-	//     }
-	//   ]
-	// }
+	if len(output) == 0 {
+		return []*domain.Vulnerability{}, nil
+	}
 
-	return []*domain.Vulnerability{}, nil
+	var grypeResult grypeOutput
+	if err := json.Unmarshal(output, &grypeResult); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal grype output: %w", err)
+	}
+
+	vulnerabilities := make([]*domain.Vulnerability, 0, len(grypeResult.Matches))
+
+	for _, match := range grypeResult.Matches {
+		vuln := &domain.Vulnerability{
+			ID:          match.Vulnerability.ID,
+			Severity:    strings.ToUpper(match.Vulnerability.Severity),
+			Description: match.Vulnerability.Description,
+		}
+
+		// Извлекаем CVSS score (берём первый доступный)
+		if len(match.Vulnerability.CVSS) > 0 {
+			vuln.CVSS = match.Vulnerability.CVSS[0].Score
+		}
+
+		// Извлекаем версию с исправлением
+		if len(match.Vulnerability.Fix.Versions) > 0 {
+			vuln.FixedIn = match.Vulnerability.Fix.Versions[0]
+		}
+
+		vulnerabilities = append(vulnerabilities, vuln)
+	}
+
+	g.log.Info(fmt.Sprintf("Parsed %d vulnerabilities from Grype output", len(vulnerabilities)))
+
+	return vulnerabilities, nil
 }
 
 // calculateVulnerabilitySummary рассчитывает сводку уязвимостей

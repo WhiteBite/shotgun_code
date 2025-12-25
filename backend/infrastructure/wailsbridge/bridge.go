@@ -84,9 +84,20 @@ type WindowState struct {
 }
 
 // GetWindowState returns current window position and size
+// Returns zero state if window is already closed (prevents panic on shutdown)
 func (b *Bridge) GetWindowState() WindowState {
-	x, y := runtime.WindowGetPosition(b.ctx)
+	// Use recover to handle panic from Wails when window is already closed
+	defer func() {
+		recover()
+	}()
+
 	w, h := runtime.WindowGetSize(b.ctx)
+	// If size is 0, window is likely closed - return empty state
+	if w == 0 || h == 0 {
+		return WindowState{}
+	}
+
+	x, y := runtime.WindowGetPosition(b.ctx)
 	maximized := runtime.WindowIsMaximised(b.ctx)
 	fullscreen := runtime.WindowIsFullscreen(b.ctx)
 	return WindowState{

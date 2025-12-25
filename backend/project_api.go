@@ -5,6 +5,17 @@ import (
 	"shotgun_code/domain"
 )
 
+// GetStartupPath returns the path passed via command line (from context menu)
+func (a *App) GetStartupPath() (string, error) {
+	return a.startupPath, nil
+}
+
+// ClearStartupPath clears the startup path after it's been used
+func (a *App) ClearStartupPath() error {
+	a.startupPath = ""
+	return nil
+}
+
 // SelectDirectory opens a directory selection dialog
 func (a *App) SelectDirectory() (string, error) {
 	return a.bridge.OpenDirectoryDialog()

@@ -10,11 +10,26 @@ import (
 	"shotgun_code/application/tools"
 	"shotgun_code/domain"
 	"shotgun_code/domain/analysis"
-	"shotgun_code/infrastructure/analyzers"
-	"shotgun_code/infrastructure/git"
-	"shotgun_code/infrastructure/memory"
-	"shotgun_code/infrastructure/projectstructure"
 )
+
+// ContainerConfig holds factory functions for creating infrastructure implementations.
+// This allows dependency injection without importing infrastructure packages.
+type ContainerConfig struct {
+	// RegistryFactory creates analyzer registry
+	RegistryFactory func() analysis.AnalyzerRegistry
+	// SymbolIndexFactory creates symbol index
+	SymbolIndexFactory func(registry analysis.AnalyzerRegistry) analysis.SymbolIndex
+	// CallGraphFactory creates call graph builder
+	CallGraphFactory func(registry analysis.AnalyzerRegistry) domain.CallGraphBuilder
+	// GitContextFactory creates git context builder
+	GitContextFactory func(projectRoot string) domain.GitContextBuilder
+	// ContextMemoryFactory creates context memory
+	ContextMemoryFactory func(contextDir string) (domain.ContextMemory, error)
+	// ProjectStructureFactory creates project structure detector
+	ProjectStructureFactory func() domain.ProjectStructureDetector
+	// ReferenceFinderFactory creates reference finder
+	ReferenceFinderFactory func(registry analysis.AnalyzerRegistry) domain.ReferenceFinder
+}
 
 // Container manages analysis services with lazy initialization and caching.
 // It provides a centralized way to access analysis tools that are expensive to create.
@@ -30,11 +45,11 @@ type Container struct {
 	// Lazy-initialized services
 	registry         analysis.AnalyzerRegistry
 	symbolIndex      analysis.SymbolIndex
-	callGraph        *analyzers.CallGraphBuilderImpl
-	gitContext       *git.ContextBuilder
-	contextMemory    *memory.ContextMemoryImpl
-	projectStructure *projectstructure.Detector
-	preferences      *memory.UserPreferences
+	callGraph        domain.CallGraphBuilder
+	gitContext       domain.GitContextBuilder
+	contextMemory    domain.ContextMemory
+	projectStructure domain.ProjectStructureDetector
+	referenceFinder  domain.ReferenceFinder
 
 	// Optional services (may be nil)
 	semanticSearch tools.SemanticSearcher
@@ -42,11 +57,17 @@ type Container struct {
 	// Initialization flags
 	symbolIndexBuilt bool
 	callGraphBuilt   bool
+
+	// Factory functions for creating infrastructure implementations (injected via config)
+	config ContainerConfig
 }
 
-// NewContainer creates a new analysis container.
-func NewContainer(logger domain.Logger) *Container {
-	registry := analyzers.NewAnalyzerRegistry()
+// NewContainer creates a new analysis container with factory functions for DI.
+func NewContainer(logger domain.Logger, config ContainerConfig) *Container {
+	var registry analysis.AnalyzerRegistry
+	if config.RegistryFactory != nil {
+		registry = config.RegistryFactory()
+	}
 
 	homeDir, err := os.UserHomeDir()
 	cacheDir := ""
@@ -59,6 +80,7 @@ func NewContainer(logger domain.Logger) *Container {
 		logger:   logger,
 		registry: registry,
 		cacheDir: cacheDir,
+		config:   config,
 	}
 }
 
@@ -93,25 +115,25 @@ func (c *Container) GetSymbolIndex() analysis.SymbolIndex {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.symbolIndex == nil {
-		c.symbolIndex = analyzers.NewSymbolIndex(c.registry)
+	if c.symbolIndex == nil && c.config.SymbolIndexFactory != nil {
+		c.symbolIndex = c.config.SymbolIndexFactory(c.registry)
 	}
 	return c.symbolIndex
 }
 
 // GetCallGraph returns the call graph builder, creating it if needed.
-func (c *Container) GetCallGraph() *analyzers.CallGraphBuilderImpl {
+func (c *Container) GetCallGraph() domain.CallGraphBuilder {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.callGraph == nil {
-		c.callGraph = analyzers.NewCallGraphBuilder(c.registry)
+	if c.callGraph == nil && c.config.CallGraphFactory != nil {
+		c.callGraph = c.config.CallGraphFactory(c.registry)
 	}
 	return c.callGraph
 }
 
 // GetGitContext returns the git context builder for the current project.
-func (c *Container) GetGitContext() *git.ContextBuilder {
+func (c *Container) GetGitContext() domain.GitContextBuilder {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -119,8 +141,8 @@ func (c *Container) GetGitContext() *git.ContextBuilder {
 		return nil
 	}
 
-	if c.gitContext == nil {
-		c.gitContext = git.NewContextBuilder(c.projectRoot)
+	if c.gitContext == nil && c.config.GitContextFactory != nil {
+		c.gitContext = c.config.GitContextFactory(c.projectRoot)
 	}
 	return c.gitContext
 }
@@ -130,14 +152,14 @@ func (c *Container) GetContextMemory() domain.ContextMemory {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.contextMemory == nil {
+	if c.contextMemory == nil && c.config.ContextMemoryFactory != nil {
 		cacheDir := c.cacheDir
 		if cacheDir == "" {
 			cacheDir = os.TempDir()
 		}
 		contextDir := filepath.Join(cacheDir, "contexts")
 		var err error
-		c.contextMemory, err = memory.NewContextMemory(contextDir)
+		c.contextMemory, err = c.config.ContextMemoryFactory(contextDir)
 		if err != nil {
 			c.logger.Warning("Failed to create context memory: " + err.Error())
 			return nil
@@ -146,26 +168,26 @@ func (c *Container) GetContextMemory() domain.ContextMemory {
 	return c.contextMemory
 }
 
-// GetPreferences returns the user preferences service, creating it if needed.
-func (c *Container) GetPreferences() *memory.UserPreferences {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.preferences == nil && c.contextMemory != nil {
-		c.preferences = memory.NewUserPreferences(c.contextMemory)
-	}
-	return c.preferences
-}
-
 // GetProjectStructure returns the project structure detector, creating it if needed.
-func (c *Container) GetProjectStructure() *projectstructure.Detector {
+func (c *Container) GetProjectStructure() domain.ProjectStructureDetector {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.projectStructure == nil {
-		c.projectStructure = projectstructure.NewDetector()
+	if c.projectStructure == nil && c.config.ProjectStructureFactory != nil {
+		c.projectStructure = c.config.ProjectStructureFactory()
 	}
 	return c.projectStructure
+}
+
+// GetReferenceFinder returns the reference finder, creating it if needed.
+func (c *Container) GetReferenceFinder() domain.ReferenceFinder {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.referenceFinder == nil && c.config.ReferenceFinderFactory != nil {
+		c.referenceFinder = c.config.ReferenceFinderFactory(c.registry)
+	}
+	return c.referenceFinder
 }
 
 // SetSemanticSearch sets the semantic search service (optional).

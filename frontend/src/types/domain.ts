@@ -3,6 +3,11 @@
  */
 
 /**
+ * Content type for files
+ */
+export type FileContentType = 'text' | 'binary' | 'unknown'
+
+/**
  * File node for UI tree representation
  */
 export interface FileNode {
@@ -14,6 +19,7 @@ export interface FileNode {
     children?: FileNode[]
     size?: number
     isIgnored?: boolean
+    contentType?: FileContentType
 }
 
 /**
@@ -28,6 +34,7 @@ export interface DomainFileNode {
     isIgnored?: boolean
     isGitignored?: boolean
     isCustomIgnored?: boolean
+    contentType?: FileContentType
 }
 
 /**

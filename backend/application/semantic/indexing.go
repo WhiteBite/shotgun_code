@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"shotgun_code/domain"
-	"shotgun_code/infrastructure/embeddings"
 	"time"
 )
 
@@ -214,10 +213,10 @@ func (s *ServiceImpl) collectCodeFiles(projectRoot string) ([]string, error) {
 
 // chunkFile chunks a file into code chunks
 func (s *ServiceImpl) chunkFile(filePath string, content []byte, symbols []SymbolInfoForChunking) []domain.CodeChunk {
-	// Convert symbols to embeddings.SymbolInfo format
-	symbolInfos := make([]embeddings.SymbolInfo, 0, len(symbols))
+	// Convert to domain.ChunkSymbolInfo format
+	symbolInfos := make([]domain.ChunkSymbolInfo, 0, len(symbols))
 	for _, sym := range symbols {
-		symbolInfos = append(symbolInfos, embeddings.SymbolInfo{
+		symbolInfos = append(symbolInfos, domain.ChunkSymbolInfo{
 			Name:      sym.Name,
 			Kind:      sym.Kind,
 			StartLine: sym.StartLine,

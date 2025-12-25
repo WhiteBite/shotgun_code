@@ -36,6 +36,5 @@ const formats: { id: OutputFormat; label: string; tooltip: string }[] = [
   { id: 'xml', label: 'XML', tooltip: 'Best for AI - structured, easy to parse' },
   { id: 'markdown', label: 'Markdown', tooltip: 'Good for documentation and readability' },
   { id: 'plain', label: 'Plain Text', tooltip: 'Simple format with separators' },
-  { id: 'json', label: 'JSON', tooltip: 'Structured data, good for APIs' },
 ]
 </script>
